@@ -1,0 +1,223 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Questionnaires · Fill · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="fas fa-arrow-left me-1"></i> Back to Questionnaire
+    </a>
+    <h2><i class="fas fa-pen me-2"></i>{{ questionnaire.name }}</h2>
+    {% if questionnaire.description %}
+    <p class="text-muted">{{ questionnaire.description }}</p>
+    {% endif %}
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-clipboard-check me-2"></i>Fill Questionnaire
+            </div>
+            <div class="card-body">
+                <form action="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}/fill" method="POST" enctype="multipart/form-data">
+
+                    <!-- Client/Case Selection -->
+                    <div class="row mb-4">
+                        {% if questionnaire.target_type in ['client', 'case'] %}
+                        <div class="col-md-6">
+                            <label class="form-label">Client *</label>
+                            <select name="client_id" class="form-select glass-input" id="client_select" required>
+                                <option value="">Select Client...</option>
+                                {% for c in clients %}
+                                <option value="{{ c.id }}">{{ c.first_name }} {{ c.last_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
+                        {% if questionnaire.target_type == 'case' %}
+                        <div class="col-md-6">
+                            <label class="form-label">Case</label>
+                            <select name="case_id" class="form-select glass-input" id="case_select">
+                                <option value="">Select Case (optional)...</option>
+                                {% for cs in cases %}
+                                <option value="{{ cs.id }}" data-client="{{ cs.client_id }}">{{ cs.case_name or cs.case_number }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <hr>
+
+                    <!-- Questionnaire Fields -->
+                    {% set current_section = None %}
+                    {% for field in questionnaire.fields %}
+                        {% if field.section and field.section != current_section %}
+                            {% set current_section = field.section %}
+                            <h5 class="border-bottom pb-2 mt-4 mb-3">{{ field.section }}</h5>
+                        {% endif %}
+
+                        {% if field.field_type == 'section' %}
+                            <h5 class="border-bottom pb-2 mt-4 mb-3">{{ field.label }}</h5>
+                        {% else %}
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    {{ field.label }}
+                                    {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                                </label>
+
+                                {% if field.field_type == 'text' %}
+                                <input type="text" name="field_{{ field.id }}" class="form-control glass-input"
+                                    {% if field.is_required %}required{% endif %}
+                                    {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+
+                                {% elif field.field_type == 'textarea' %}
+                                <textarea name="field_{{ field.id }}" class="form-control glass-input" rows="3"
+                                    {% if field.is_required %}required{% endif %}
+                                    {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}></textarea>
+
+                                {% elif field.field_type == 'number' %}
+                                <input type="number" name="field_{{ field.id }}" class="form-control glass-input"
+                                    {% if field.is_required %}required{% endif %}
+                                    {% if field.validation and field.validation.min %}min="{{ field.validation.min }}"{% endif %}
+                                    {% if field.validation and field.validation.max %}max="{{ field.validation.max }}"{% endif %}>
+
+                                {% elif field.field_type == 'date' %}
+                                <input type="date" name="field_{{ field.id }}" class="form-control glass-input"
+                                    {% if field.is_required %}required{% endif %}>
+
+                                {% elif field.field_type == 'email' %}
+                                <input type="email" name="field_{{ field.id }}" class="form-control glass-input"
+                                    {% if field.is_required %}required{% endif %}
+                                    placeholder="email@example.com">
+
+                                {% elif field.field_type == 'phone' %}
+                                <input type="tel" name="field_{{ field.id }}" class="form-control glass-input"
+                                    {% if field.is_required %}required{% endif %}
+                                    placeholder="+1 (555) 555-5555">
+
+                                {% elif field.field_type == 'select' %}
+                                <select name="field_{{ field.id }}" class="form-select glass-input"
+                                    {% if field.is_required %}required{% endif %}>
+                                    <option value="">Select...</option>
+                                    {% if field.options %}
+                                    {% for opt in field.options %}
+                                    <option value="{{ opt.value if opt.value else opt }}">{{ opt.label if opt.label else opt }}</option>
+                                    {% endfor %}
+                                    {% endif %}
+                                </select>
+
+                                {% elif field.field_type == 'multiselect' %}
+                                <select name="field_{{ field.id }}" class="form-select glass-input" multiple
+                                    {% if field.is_required %}required{% endif %}>
+                                    {% if field.options %}
+                                    {% for opt in field.options %}
+                                    <option value="{{ opt.value if opt.value else opt }}">{{ opt.label if opt.label else opt }}</option>
+                                    {% endfor %}
+                                    {% endif %}
+                                </select>
+                                <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+
+                                {% elif field.field_type == 'radio' %}
+                                {% if field.options %}
+                                {% for opt in field.options %}
+                                <div class="form-check">
+                                    <input type="radio" name="field_{{ field.id }}" value="{{ opt.value if opt.value else opt }}"
+                                        class="form-check-input" id="field_{{ field.id }}_{{ loop.index }}"
+                                        {% if field.is_required and loop.first %}required{% endif %}>
+                                    <label class="form-check-label" for="field_{{ field.id }}_{{ loop.index }}">{{ opt.label if opt.label else opt }}</label>
+                                </div>
+                                {% endfor %}
+                                {% endif %}
+
+                                {% elif field.field_type == 'checkbox' %}
+                                <div class="form-check">
+                                    <input type="checkbox" name="field_{{ field.id }}" value="true" class="form-check-input" id="field_{{ field.id }}"
+                                        {% if field.is_required %}required{% endif %}>
+                                    <label class="form-check-label" for="field_{{ field.id }}">Yes</label>
+                                </div>
+
+                                {% elif field.field_type == 'file' %}
+                                <input type="file" name="field_{{ field.id }}" class="form-control glass-input"
+                                    {% if field.is_required %}required{% endif %}>
+
+                                {% endif %}
+
+                                {% if field.help_text %}
+                                <small class="text-muted">{{ field.help_text }}</small>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% else %}
+                    <p class="text-muted">No fields defined for this questionnaire.</p>
+                    {% endfor %}
+
+                    <hr>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success glass-btn glass-btn--success">
+                            <i class="fas fa-check me-1"></i> Submit Response
+                        </button>
+                        <a href="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>Instructions
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    Fill out all required fields marked with <span class="text-danger">*</span>.
+                </p>
+                <p class="small text-muted">
+                    {% if questionnaire.target_type == 'client' %}
+                    This questionnaire will be linked to the selected client.
+                    {% elif questionnaire.target_type == 'case' %}
+                    This questionnaire will be linked to the selected client and optionally a case.
+                    {% else %}
+                    This is a general questionnaire not linked to specific clients or cases.
+                    {% endif %}
+                </p>
+                <hr>
+                <dl class="small mb-0">
+                    <dt>Category</dt>
+                    <dd>{{ questionnaire.category or 'General' }}</dd>
+                    <dt>Fields</dt>
+                    <dd>{{ questionnaire.fields|length }} fields</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// Filter cases based on selected client
+document.getElementById('client_select')?.addEventListener('change', function() {
+    const clientId = this.value;
+    const caseSelect = document.getElementById('case_select');
+    if (!caseSelect) return;
+
+    Array.from(caseSelect.options).forEach(opt => {
+        if (opt.value === '') return;
+        const caseClientId = opt.dataset.client;
+        opt.style.display = (caseClientId === clientId || !clientId) ? '' : 'none';
+    });
+
+    // Reset case selection if current case doesn't belong to selected client
+    const selectedCase = caseSelect.options[caseSelect.selectedIndex];
+    if (selectedCase.value && selectedCase.dataset.client !== clientId) {
+        caseSelect.value = '';
+    }
+});
+</script>
+{% endblock %}

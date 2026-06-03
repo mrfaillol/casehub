@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Letter - {{ template.name }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/letters-generate.css?v=1">
+{% endblock %}
+
+{% block content %}
+{% set vars_raw = template.variables|tojson|safe if template.variables else '[]' %}
+{% set vars_list = vars_raw|replace('[', '')|replace(']', '')|replace('"', '')|replace(' ', '')|split(',') %}
+<main class="letter-generate" aria-labelledby="letter-generate-title">
+    <header class="letter-generate__header">
+        <a href="{{ PREFIX }}/letters/{{ template.id }}" class="letter-generate__back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Template</span>
+        </a>
+        <h1 id="letter-generate-title" class="letter-generate__title">
+            <i class="fas fa-magic letter-generate__title-icon" aria-hidden="true"></i>
+            <span>Generate Letter: {{ template.name }}</span>
+        </h1>
+        {% if template.description %}
+        <p class="letter-generate__description">{{ template.description }}</p>
+        {% endif %}
+    </header>
+
+    <div class="letter-generate__layout">
+        <section class="letter-generate__card" aria-labelledby="letter-generate-form-heading">
+            <h2 id="letter-generate-form-heading" class="letter-generate__card-header">
+                <i class="fas fa-edit" aria-hidden="true"></i>
+                <span>Fill in Variables</span>
+            </h2>
+            <div class="letter-generate__card-body">
+                <form action="{{ PREFIX }}/letters/{{ template.id }}/generate" method="POST">
+                    {% if case %}
+                    <input type="hidden" name="case_id" value="{{ case.id }}">
+                    {% endif %}
+                    {% if client %}
+                    <input type="hidden" name="client_id" value="{{ client.id }}">
+                    {% endif %}
+
+                    {% if case or client %}
+                    <div class="letter-generate__alert" role="status">
+                        <i class="fas fa-info-circle letter-generate__alert-icon" aria-hidden="true"></i>
+                        <span>
+                            Generating for:
+                            {% if client %}<strong>{{ client.first_name }} {{ client.last_name }}</strong>{% endif %}
+                            {% if case %} — Case: <strong>{{ case.case_name or case.case_number }}</strong>{% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    {% set has_vars = namespace(value=false) %}
+                    {% for var in vars_list %}{% if var %}{% set has_vars.value = true %}{% endif %}{% endfor %}
+
+                    {% if has_vars.value %}
+                    <div class="letter-generate__fields">
+                        {% for var in vars_list %}
+                        {% if var %}
+                        <div class="letter-generate__field">
+                            <label class="letter-generate__label" for="letter-var-{{ var }}">{{ var|replace('_', ' ')|title }}</label>
+                            <input type="text"
+                                   id="letter-var-{{ var }}"
+                                   name="{{ var }}"
+                                   class="letter-generate__input"
+                                   value="{{ prefill.get(var, '') }}"
+                                   autocomplete="off">
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="letter-generate__empty">This template has no variables — generate directly to apply it.</p>
+                    {% endif %}
+
+                    <div class="letter-generate__actions">
+                        <button type="submit" class="letter-generate__submit">
+                            <i class="fas fa-magic" aria-hidden="true"></i>
+                            <span>Generate Letter</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <aside class="letter-generate__card" aria-labelledby="letter-generate-preview-heading">
+            <h2 id="letter-generate-preview-heading" class="letter-generate__card-header">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+                <span>Template Preview</span>
+            </h2>
+            <div class="letter-generate__card-body">
+                {% if template.subject %}
+                <p class="letter-generate__preview-subject">
+                    <span class="letter-generate__preview-subject-label">Subject</span>
+                    {{ template.subject }}
+                </p>
+                <hr class="letter-generate__preview-divider">
+                {% endif %}
+                <pre class="letter-generate__preview-body" tabindex="0" aria-label="Template body preview">{{ template.body }}</pre>
+            </div>
+        </aside>
+    </div>
+</main>
+{% endblock %}

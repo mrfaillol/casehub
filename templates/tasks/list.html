@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Tarefas{% else %}Tasks{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tasks-list.css">
+{% endblock %}
+
+{% block content %}
+<main class="tasks-list-main" role="main" aria-labelledby="tasks-list-title">
+    <header class="tasks-list-header">
+        <h1 id="tasks-list-title" class="tasks-list-title">
+            <i class="fas fa-tasks" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Tarefas{% else %}Tasks{% endif %}</span>
+        </h1>
+
+        <div class="tasks-list-actions">
+            <nav class="tasks-list-viewtoggle" aria-label="{% if product == 'lite' %}Visualização das tarefas{% else %}Tasks view{% endif %}">
+                <a href="{{ PREFIX }}/tasks/local" class="tasks-list-viewtoggle-link" aria-current="page">
+                    <i class="fas fa-list" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Lista{% else %}List{% endif %}</span>
+                </a>
+                <a href="{{ PREFIX }}/tasks/kanban" class="tasks-list-viewtoggle-link">
+                    <i class="fas fa-columns" aria-hidden="true"></i>
+                    <span>Kanban</span>
+                </a>
+                <a href="{{ PREFIX }}/tasks/calendar" class="tasks-list-viewtoggle-link">
+                    <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Calendário{% else %}Calendar{% endif %}</span>
+                </a>
+            </nav>
+
+            <a href="{{ PREFIX }}/tasks/new" class="tasks-list-cta">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Nova Tarefa{% else %}New Task{% endif %}</span>
+            </a>
+        </div>
+    </header>
+
+    {% if product != "lite" %}
+    <nav aria-label="Task sources">
+        <ul class="tasks-list-sourcetabs">
+            <li>
+                <a class="tasks-list-sourcetab" href="{{ PREFIX }}/tasks/notion">
+                    <i class="fab fa-notion" aria-hidden="true"></i>
+                    <span>Notion Tasks (Juliana + Ana)</span>
+                </a>
+            </li>
+            <li>
+                <a class="tasks-list-sourcetab" href="{{ PREFIX }}/tasks/local" aria-current="page">
+                    <i class="fas fa-database" aria-hidden="true"></i>
+                    <span>Tasks Locais</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+    {% endif %}
+
+    <section class="tasks-list-stats" aria-label="{% if product == 'lite' %}Resumo das tarefas{% else %}Tasks summary{% endif %}">
+        <article class="tasks-list-stat tasks-list-stat--danger">
+            <p class="tasks-list-stat-value">{{ overdue_count }}</p>
+            <span class="tasks-list-stat-label">{% if product == "lite" %}Atrasadas{% else %}Overdue{% endif %}</span>
+        </article>
+        <article class="tasks-list-stat tasks-list-stat--warning">
+            <p class="tasks-list-stat-value">{{ today_count }}</p>
+            <span class="tasks-list-stat-label">{% if product == "lite" %}Vencem Hoje{% else %}Due Today{% endif %}</span>
+        </article>
+        <article class="tasks-list-stat tasks-list-stat--accent">
+            <p class="tasks-list-stat-value">{{ total }}</p>
+            <span class="tasks-list-stat-label">{% if product == "lite" %}Total Ativas{% else %}Total Active{% endif %}</span>
+        </article>
+        <article class="tasks-list-stat tasks-list-stat--link">
+            <a href="{{ PREFIX }}/tasks/local?show_completed=true{% if status %}&status={{ status|urlencode }}{% endif %}{% if priority %}&priority={{ priority|urlencode }}{% endif %}" class="tasks-list-stat-link">
+                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Ver Concluídas{% else %}Show Completed{% endif %}</span>
+            </a>
+        </article>
+    </section>
+
+    <section class="tasks-list-card" aria-label="{% if product == 'lite' %}Lista de tarefas{% else %}Tasks table{% endif %}">
+        <div class="tasks-list-tablewrap">
+            <table class="tasks-list-table">
+                <thead>
+                    <tr>
+                        <th scope="col" class="tasks-list-cell-check">
+                            <span class="tasks-list-sr-only">{% if product == "lite" %}Concluir{% else %}Complete{% endif %}</span>
+                        </th>
+                        <th scope="col">{% if product == "lite" %}Tarefa{% else %}Task{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Cliente/Processo{% else %}Client/Case{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Vencimento{% else %}Due Date{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Prioridade{% else %}Priority{% endif %}</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="tasks-list-cell-actions">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in tasks %}
+                    <tr class="{% if task.status == 'completed' %}tasks-list-row--completed{% endif %}">
+                        <td class="tasks-list-cell-check">
+                            {% if task.status != 'completed' %}
+                            <form method="post" action="{{ PREFIX }}/tasks/{{ task.id }}/complete">
+                                <button type="submit" class="tasks-list-check-btn" aria-label="{% if product == 'lite' %}Marcar concluída: {{ task.title }}{% else %}Mark complete: {{ task.title }}{% endif %}">
+                                    <i class="fas fa-check" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="tasks-list-check-done" aria-label="{% if product == 'lite' %}Concluída{% else %}Completed{% endif %}">
+                                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ PREFIX }}/tasks/{{ task.id }}" class="tasks-list-task-link">
+                                <strong>{{ task.title }}</strong>
+                            </a>
+                            {% if task.task_type %}
+                            <span class="tasks-list-task-meta">{{ task.task_type }}</span>
+                            {% endif %}
+                            {% if task.subtasks|length > 0 %}
+                            <span class="tasks-list-task-meta">
+                                <i class="fas fa-sitemap" aria-hidden="true"></i>{{ task.subtasks|selectattr('status', 'equalto', 'completed')|list|length }}/{{ task.subtasks|length }} {% if product == "lite" %}subtarefas{% else %}subtasks{% endif %}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if task.client %}
+                            <a href="{{ PREFIX }}/clients/{{ task.client.id }}" class="tasks-list-client-link">{{ task.client.first_name }} {{ task.client.last_name }}</a>
+                            {% endif %}
+                            {% if task.case %}
+                            <a href="{{ PREFIX }}/cases/{{ task.case.id }}" class="tasks-list-case-link">{{ task.case.case_number or task.case.case_name }}</a>
+                            {% endif %}
+                            {% if not task.client and not task.case %}
+                            <span class="tasks-list-placeholder" aria-hidden="true">—</span>
+                            <span class="tasks-list-sr-only">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if task.due_date %}
+                                {% if task.due_date < now() and task.status != 'completed' %}
+                                    <span class="tasks-list-due-overdue">
+                                        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                                        <span>{{ task.due_date.strftime('%d/%m/%Y') if product == "lite" else task.due_date.strftime('%Y-%m-%d') }}</span>
+                                        <span class="tasks-list-sr-only">{% if product == "lite" %}(atrasada){% else %}(overdue){% endif %}</span>
+                                    </span>
+                                {% elif task.due_date == now() %}
+                                    <span class="tasks-list-due-today">
+                                        <i class="fas fa-clock" aria-hidden="true"></i>
+                                        <span>{% if product == "lite" %}Hoje{% else %}Today{% endif %}</span>
+                                    </span>
+                                {% else %}
+                                    <span class="tasks-list-due-future">{{ task.due_date.strftime('%d/%m/%Y') if product == "lite" else task.due_date.strftime('%Y-%m-%d') }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="tasks-list-due-none">{% if product == "lite" %}Sem data{% else %}No due date{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if task.priority == 'urgent' %}
+                                <span class="tasks-list-badge tasks-list-badge--urgent">{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</span>
+                            {% elif task.priority == 'high' %}
+                                <span class="tasks-list-badge tasks-list-badge--high">{% if product == "lite" %}Alta{% else %}High{% endif %}</span>
+                            {% elif task.priority == 'medium' %}
+                                <span class="tasks-list-badge tasks-list-badge--medium">{% if product == "lite" %}Média{% else %}Medium{% endif %}</span>
+                            {% else %}
+                                <span class="tasks-list-badge tasks-list-badge--low">{% if product == "lite" %}Baixa{% else %}Low{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if task.status == 'completed' %}
+                                <span class="tasks-list-badge tasks-list-badge--completed">{% if product == "lite" %}Concluída{% else %}Completed{% endif %}</span>
+                            {% elif task.status == 'in_progress' %}
+                                <span class="tasks-list-badge tasks-list-badge--in-progress">{% if product == "lite" %}Em Andamento{% else %}In Progress{% endif %}</span>
+                            {% elif task.status == 'blocked' %}
+                                <span class="tasks-list-badge tasks-list-badge--blocked">{% if product == "lite" %}Bloqueada{% else %}Blocked{% endif %}</span>
+                            {% else %}
+                                <span class="tasks-list-badge tasks-list-badge--pending">{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="tasks-list-cell-actions">
+                            <div class="tasks-list-actions-cell">
+                                <a href="{{ PREFIX }}/tasks/{{ task.id }}/edit" class="tasks-list-action-btn" aria-label="{% if product == 'lite' %}Editar tarefa: {{ task.title }}{% else %}Edit task: {{ task.title }}{% endif %}">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
+                                </a>
+                                <form method="post" action="{{ PREFIX }}/tasks/{{ task.id }}/delete" onsubmit="return confirm({% if product == 'lite' %}'Deletar esta tarefa?'{% else %}'Delete this task?'{% endif %});">
+                                    <button type="submit" class="tasks-list-action-btn tasks-list-action-btn--danger" aria-label="{% if product == 'lite' %}Deletar tarefa: {{ task.title }}{% else %}Delete task: {{ task.title }}{% endif %}">
+                                        <i class="fas fa-trash" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7">
+                            <div class="tasks-list-empty">
+                                <i class="fas fa-tasks tasks-list-empty-icon" aria-hidden="true"></i>
+                                <p class="tasks-list-empty-text">
+                                    {% if product == "lite" %}Nenhuma tarefa encontrada. <a href="{{ PREFIX }}/tasks/new" class="tasks-list-empty-link">Criar uma</a>{% else %}No tasks found. <a href="{{ PREFIX }}/tasks/new" class="tasks-list-empty-link">Create one</a>{% endif %}
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% if total > per_page %}
+    <nav class="tasks-list-pagination" aria-label="{% if product == 'lite' %}Paginação{% else %}Pagination{% endif %}">
+        <ul class="tasks-list-pagination-list">
+            {% for p in range(1, (total // per_page) + 2) %}
+            <li class="{% if p == page %}tasks-list-pagination-item--active{% endif %}">
+                <a class="tasks-list-pagination-link" href="{{ PREFIX }}/tasks/local?page={{ p }}&status={{ (status or '')|urlencode }}&priority={{ (priority or '')|urlencode }}&show_completed={{ show_completed }}" {% if p == page %}aria-current="page"{% endif %}>{{ p }}</a>
+            </li>
+            {% endfor %}
+        </ul>
+    </nav>
+    {% endif %}
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function refreshTasks() {
+    location.reload();
+}
+</script>
+{% endblock %}

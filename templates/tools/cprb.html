@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}CPRB - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-cprb.css">
+{% endblock %}
+
+{% block content %}
+<div class="cprb-main" aria-labelledby="cprb-page-title">
+    <header class="cprb-header cprb-no-print">
+        <div>
+            <h1 class="cprb-header__title" id="cprb-page-title">
+                <i class="fas fa-hard-hat" aria-hidden="true"></i>
+                <span>CPRB — Contribuição Previdenciária sobre Receita Bruta</span>
+            </h1>
+            <p class="cprb-header__subtitle">Lei 12.546/2011 — Desoneração da Folha</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="cprb-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    <div class="cprb-grid {% if resultado %}cprb-grid--with-result{% else %}cprb-grid--centered{% endif %}">
+        <section aria-labelledby="cprb-form-title">
+            <form class="cprb-form" method="POST" action="{{ PREFIX }}/tools/cprb/calcular">
+                <div class="cprb-card">
+                    <div class="cprb-card__body">
+                        <h2 class="cprb-section-title" id="cprb-form-title">Dados da Empresa</h2>
+
+                        <div class="cprb-field">
+                            <label class="cprb-label" for="folha">Folha de Pagamento Mensal (R$)</label>
+                            <div class="cprb-input-group">
+                                <span class="cprb-input-addon" aria-hidden="true">R$</span>
+                                <input class="cprb-input"
+                                       type="number"
+                                       id="folha"
+                                       name="folha"
+                                       step="0.01"
+                                       min="0"
+                                       inputmode="decimal"
+                                       value="{{ form.folha if form else '' }}"
+                                       aria-describedby="folha-hint"
+                                       required>
+                            </div>
+                            <small class="cprb-hint" id="folha-hint">Total bruto da folha de pagamento</small>
+                        </div>
+
+                        <div class="cprb-field">
+                            <label class="cprb-label" for="receita_bruta">Receita Bruta Mensal (R$)</label>
+                            <div class="cprb-input-group">
+                                <span class="cprb-input-addon" aria-hidden="true">R$</span>
+                                <input class="cprb-input"
+                                       type="number"
+                                       id="receita_bruta"
+                                       name="receita_bruta"
+                                       step="0.01"
+                                       min="0"
+                                       inputmode="decimal"
+                                       value="{{ form.receita_bruta if form else '' }}"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="cprb-field">
+                            <label class="cprb-label" for="atividade">Atividade Econômica</label>
+                            <select class="cprb-select" id="atividade" name="atividade" aria-describedby="atividade-hint">
+                                {% for key, aliq in atividades.items() %}
+                                <option value="{{ key }}" {% if form and form.atividade == key %}selected{% endif %}>
+                                    {{ key.replace('_', ' ').title() }} ({{ aliq }}%)
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="cprb-hint" id="atividade-hint">Alíquota CPRB conforme atividade (Lei 12.546/2011)</small>
+                        </div>
+
+                        <div class="cprb-actions cprb-no-print">
+                            <button type="submit" class="cprb-btn cprb-btn--primary">
+                                <i class="fas fa-calculator" aria-hidden="true"></i>
+                                <span>Comparar CPP vs CPRB</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        {% if resultado %}
+        <section class="cprb-result" id="resultado" aria-labelledby="cprb-result-title">
+            <article class="cprb-card">
+                <header class="cprb-card__header">
+                    <h2 class="cprb-card__header-title" id="cprb-result-title">
+                        <i class="fas fa-receipt" aria-hidden="true"></i>
+                        <span>Resultado Comparativo</span>
+                    </h2>
+                </header>
+
+                <div class="cprb-summary {% if resultado.melhor == 'CPRB (Receita)' %}cprb-summary--success{% else %}cprb-summary--info{% endif %}"
+                     role="status"
+                     aria-live="polite">
+                    <div>
+                        <span class="cprb-summary__label">Melhor opção:</span>
+                        <span class="cprb-summary__winner">{{ resultado.melhor }}</span>
+                    </div>
+                    <span class="cprb-summary__badge {% if resultado.melhor == 'CPRB (Receita)' %}cprb-summary__badge--success{% endif %}">
+                        Economia: R$ {{ resultado.economia_fmt }}
+                    </span>
+                </div>
+
+                <div class="cprb-table-wrapper">
+                    <table class="cprb-table">
+                        <caption>Comparativo entre CPP (sobre folha) e CPRB (sobre receita bruta).</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Regime</th>
+                                <th scope="col" class="cprb-col-num">Alíquota</th>
+                                <th scope="col" class="cprb-col-num">Base</th>
+                                <th scope="col" class="cprb-col-num">Contribuição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr {% if resultado.melhor == 'CPP (Folha)' %}class="cprb-row--winner"{% endif %}>
+                                <th scope="row">CPP sobre Folha</th>
+                                <td>20%</td>
+                                <td>R$ {{ resultado.folha_fmt }}</td>
+                                <td>R$ {{ resultado.contribuicao_folha_fmt }}</td>
+                            </tr>
+                            <tr {% if resultado.melhor == 'CPRB (Receita)' %}class="cprb-row--winner"{% endif %}>
+                                <th scope="row">CPRB sobre Receita</th>
+                                <td>{{ resultado.aliquota_cprb }}%</td>
+                                <td>R$ {{ resultado.receita_bruta_fmt }}</td>
+                                <td>R$ {{ resultado.contribuicao_receita_fmt }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="cprb-card__footer">
+                    <div class="cprb-legal">
+                        <p class="cprb-legal__title">
+                            <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </p>
+                        <ul class="cprb-legal__list">
+                            {% for ref in resultado.fundamentacao %}
+                            <li>{{ ref }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <div class="cprb-print-actions cprb-no-print">
+                        <button type="button" class="cprb-btn cprb-btn--secondary" onclick="window.print()">
+                            <i class="fas fa-print" aria-hidden="true"></i>
+                            <span>Imprimir</span>
+                        </button>
+                    </div>
+                </footer>
+            </article>
+        </section>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

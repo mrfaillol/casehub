@@ -1,0 +1,128 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Sso · Settings · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="fas fa-key me-2"></i>Single Sign-On</h2>
+            <p class="text-muted mb-0">Connect your Google or Microsoft account for easier login</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Connected Accounts -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-link me-2"></i>Connected Accounts</h5>
+                </div>
+                <div class="card-body">
+                    {% if connections %}
+                    <div class="list-group">
+                        {% for conn in connections %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                {% if conn.provider == 'google' %}
+                                <i class="fab fa-google fa-2x me-3" style="color: #DB4437;"></i>
+                                {% elif conn.provider == 'microsoft' %}
+                                <i class="fab fa-microsoft fa-2x me-3" style="color: #00A4EF;"></i>
+                                {% endif %}
+                                <div>
+                                    <strong>{{ conn.provider|title }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ conn.email }}</small>
+                                    {% if conn.last_login_at %}
+                                    <br>
+                                    <small class="text-muted">Last used: {{ conn.last_login_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <form method="POST" action="{{ PREFIX }}/sso/disconnect/{{ conn.id }}"
+                                  onsubmit="return confirm('Disconnect this account?');">
+                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                    <i class="fas fa-unlink me-1"></i>Disconnect
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-center text-muted py-3 mb-0">
+                        <i class="fas fa-link fa-2x mb-2 d-block"></i>
+                        No accounts connected yet.
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Available Providers -->
+            <div class="card glass-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Connect Account</h5>
+                </div>
+                <div class="card-body">
+                    {% if providers %}
+                    <div class="row">
+                        {% for provider in providers %}
+                        {% set already_connected = connections|selectattr('provider', 'equalto', provider.id.value)|list|length > 0 %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card h-100 {% if already_connected %}bg-light{% endif %}">
+                                <div class="card-body text-center">
+                                    <i class="{{ provider.icon }} fa-3x mb-3" style="color: {{ provider.color }};"></i>
+                                    <h5>{{ provider.name }}</h5>
+                                    {% if already_connected %}
+                                    <span class="badge bg-success">Connected</span>
+                                    {% else %}
+                                    <form method="POST" action="{{ PREFIX }}/sso/connect/{{ provider.id.value }}">
+                                        <button type="submit" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+                                            <i class="fas fa-link me-1"></i>Connect
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        No SSO providers are configured. Contact your administrator.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Info -->
+            <div class="card glass-card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>About SSO</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small">Single Sign-On (SSO) allows you to log in using your existing Google or Microsoft account.</p>
+
+                    <h6>Benefits:</h6>
+                    <ul class="small">
+                        <li>No need to remember another password</li>
+                        <li>Faster login experience</li>
+                        <li>Enhanced security with provider's 2FA</li>
+                        <li>Automatic session management</li>
+                    </ul>
+
+                    <h6>Security:</h6>
+                    <p class="small mb-0">Your password from Google/Microsoft is never shared with CaseHub. We only receive your email and profile information.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

@@ -1,0 +1,312 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Packets · View · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/packets-view.css">
+{% endblock %}
+{% block content %}
+<main class="packets-view-main" aria-labelledby="packets-view-title">
+    <header class="packets-view-header">
+        <div class="packets-view-heading">
+            <a href="{{ PREFIX }}/packets" class="packets-view-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Packets</span>
+            </a>
+            <h1 id="packets-view-title" class="packets-view-title">
+                <i class="fas fa-file-archive packets-view-title-icon" aria-hidden="true"></i>
+                <span>{{ packet.title }}</span>
+            </h1>
+        </div>
+        <div class="packets-view-header-actions">
+            <a href="{{ PREFIX }}/packets/{{ packet.packet_id }}/download"
+               class="packets-view-btn packets-view-btn--success">
+                <i class="fas fa-download" aria-hidden="true"></i>
+                <span>Download PDF</span>
+            </a>
+            <button type="button"
+                    class="packets-view-btn packets-view-btn--danger"
+                    data-action="open-delete-modal"
+                    aria-haspopup="dialog"
+                    aria-controls="packets-view-delete-modal">
+                <i class="fas fa-trash" aria-hidden="true"></i>
+                <span>Delete</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="packets-view-grid">
+        <div class="packets-view-col">
+            <!-- Packet Details -->
+            <section class="packets-view-card" aria-labelledby="packets-view-details-title">
+                <header class="packets-view-card-header">
+                    <h2 id="packets-view-details-title" class="packets-view-card-title">
+                        <i class="fas fa-info-circle packets-view-card-title-icon" aria-hidden="true"></i>
+                        <span>Packet Details</span>
+                    </h2>
+                </header>
+                <div class="packets-view-card-body">
+                    <dl class="packets-view-dl">
+                        <div class="packets-view-dl-item">
+                            <dt>Packet ID</dt>
+                            <dd data-mono>{{ packet.packet_id }}</dd>
+                        </div>
+                        <div class="packets-view-dl-item">
+                            <dt>Created</dt>
+                            {% if packet.created_at %}
+                            <dd>
+                                <time datetime="{{ packet.created_at.isoformat() }}">{{ packet.created_at.strftime('%B %d, %Y at %H:%M') }}</time>
+                            </dd>
+                            {% else %}
+                            <dd data-empty>—</dd>
+                            {% endif %}
+                        </div>
+                        {% if packet.case_number %}
+                        <div class="packets-view-dl-item">
+                            <dt>Case</dt>
+                            <dd>
+                                <a href="{{ PREFIX }}/cases/{{ packet.case_id }}">
+                                    {{ packet.case_number }} - {{ packet.case_name }}
+                                </a>
+                            </dd>
+                        </div>
+                        {% endif %}
+                        <div class="packets-view-dl-item">
+                            <dt>Created By</dt>
+                            <dd>{{ packet.creator_name or 'System' }}</dd>
+                        </div>
+                    </dl>
+
+                    <hr class="packets-view-divider" aria-hidden="true">
+
+                    <ul class="packets-view-stats" role="list">
+                        <li class="packets-view-stat">
+                            <span class="packets-view-stat-value packets-view-stat-value--accent">{{ packet.document_count }}</span>
+                            <span class="packets-view-stat-label">Documents</span>
+                        </li>
+                        <li class="packets-view-stat">
+                            <span class="packets-view-stat-value packets-view-stat-value--success">{{ packet.total_pages or 0 }}</span>
+                            <span class="packets-view-stat-label">Total Pages</span>
+                        </li>
+                        <li class="packets-view-stat">
+                            {% if packet.include_cover %}
+                            <i class="fas fa-check-circle packets-view-stat-icon packets-view-stat-icon--success" aria-label="Included"></i>
+                            {% else %}
+                            <i class="fas fa-times-circle packets-view-stat-icon packets-view-stat-icon--muted" aria-label="Not included"></i>
+                            {% endif %}
+                            <span class="packets-view-stat-label">Cover Page</span>
+                        </li>
+                        <li class="packets-view-stat">
+                            {% if packet.include_toc %}
+                            <i class="fas fa-check-circle packets-view-stat-icon packets-view-stat-icon--success" aria-label="Included"></i>
+                            {% else %}
+                            <i class="fas fa-times-circle packets-view-stat-icon packets-view-stat-icon--muted" aria-label="Not included"></i>
+                            {% endif %}
+                            <span class="packets-view-stat-label">Table of Contents</span>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Documents in Packet -->
+            <section class="packets-view-card" aria-labelledby="packets-view-docs-title">
+                <header class="packets-view-card-header">
+                    <h2 id="packets-view-docs-title" class="packets-view-card-title">
+                        <i class="fas fa-list-ol packets-view-card-title-icon" aria-hidden="true"></i>
+                        <span>Documents Included</span>
+                    </h2>
+                </header>
+                <div class="packets-view-card-body packets-view-card-body--flush">
+                    <div class="packets-view-table-wrapper">
+                        <table class="packets-view-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="packets-view-table-num">#</th>
+                                    <th scope="col">Document Name</th>
+                                    <th scope="col" class="packets-view-table-actions">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for doc in documents %}
+                                <tr>
+                                    <td class="packets-view-table-num">{{ doc.sort_order + 1 }}</td>
+                                    <td>
+                                        <span class="packets-view-table-doc">
+                                            <i class="fas fa-file-pdf packets-view-table-doc-icon" aria-hidden="true"></i>
+                                            <span>{{ doc.document_name }}</span>
+                                        </span>
+                                    </td>
+                                    <td class="packets-view-table-actions">
+                                        {% if doc.file_path %}
+                                        <a href="{{ PREFIX }}/documents/{{ doc.document_id }}/download"
+                                           class="packets-view-btn packets-view-btn--ghost packets-view-btn--icon"
+                                           aria-label="Download original {{ doc.document_name }}">
+                                            <i class="fas fa-download" aria-hidden="true"></i>
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="3" class="packets-view-table-empty">
+                                        No documents found in this packet
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="packets-view-col">
+            <!-- Quick Actions -->
+            <section class="packets-view-card" aria-labelledby="packets-view-actions-title">
+                <header class="packets-view-card-header">
+                    <h2 id="packets-view-actions-title" class="packets-view-card-title">
+                        <i class="fas fa-bolt packets-view-card-title-icon" aria-hidden="true"></i>
+                        <span>Quick Actions</span>
+                    </h2>
+                </header>
+                <div class="packets-view-card-body">
+                    <div class="packets-view-quick-actions">
+                        <a href="{{ PREFIX }}/packets/{{ packet.packet_id }}/download"
+                           class="packets-view-btn packets-view-btn--success">
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                            <span>Download PDF</span>
+                        </a>
+                        <button type="button"
+                                class="packets-view-btn packets-view-btn--ghost"
+                                data-action="email-packet">
+                            <i class="fas fa-envelope" aria-hidden="true"></i>
+                            <span>Email Packet</span>
+                        </button>
+                        <a href="{{ PREFIX }}/packets/new{% if packet.case_id %}?case_id={{ packet.case_id }}{% endif %}"
+                           class="packets-view-btn packets-view-btn--secondary">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Create New Packet</span>
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PDF Preview -->
+            <section class="packets-view-card" aria-labelledby="packets-view-preview-title">
+                <header class="packets-view-card-header">
+                    <h2 id="packets-view-preview-title" class="packets-view-card-title">
+                        <i class="fas fa-eye packets-view-card-title-icon" aria-hidden="true"></i>
+                        <span>Preview</span>
+                    </h2>
+                </header>
+                <div class="packets-view-card-body packets-view-card-body--flush">
+                    <div class="packets-view-preview">
+                        <iframe class="packets-view-preview-frame"
+                                loading="lazy"
+                                src="{{ PREFIX }}/packets/{{ packet.packet_id }}/download#view=FitH"
+                                title="PDF preview of {{ packet.title }}"></iframe>
+                    </div>
+                    <div class="packets-view-preview-footer">
+                        <a href="{{ PREFIX }}/packets/{{ packet.packet_id }}/download"
+                           target="_blank"
+                           rel="noopener"
+                           class="packets-view-btn packets-view-btn--secondary packets-view-btn--sm">
+                            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                            <span>Open in New Tab</span>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</main>
+
+<!-- Delete Confirmation Modal -->
+<dialog id="packets-view-delete-modal"
+        class="packets-view-modal"
+        aria-labelledby="packets-view-delete-title">
+    <header class="packets-view-modal-header">
+        <h2 id="packets-view-delete-title" class="packets-view-modal-title">
+            <i class="fas fa-exclamation-triangle packets-view-modal-title-icon" aria-hidden="true"></i>
+            <span>Delete Packet</span>
+        </h2>
+        <button type="button"
+                class="packets-view-modal-close"
+                data-action="close-delete-modal"
+                aria-label="Close dialog">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </header>
+    <div class="packets-view-modal-body">
+        <p>Are you sure you want to delete the packet "<strong>{{ packet.title }}</strong>"?</p>
+        <p class="packets-view-modal-body-note">This will delete the merged PDF file. Original documents will not be affected.</p>
+    </div>
+    <footer class="packets-view-modal-footer">
+        <button type="button"
+                class="packets-view-btn packets-view-btn--ghost"
+                data-action="close-delete-modal">
+            Cancel
+        </button>
+        <form action="{{ PREFIX }}/packets/{{ packet.packet_id }}/delete" method="POST">
+            <button type="submit" class="packets-view-btn packets-view-btn--danger-solid">
+                <i class="fas fa-trash" aria-hidden="true"></i>
+                <span>Delete</span>
+            </button>
+        </form>
+    </footer>
+</dialog>
+
+<script>
+    (function () {
+        var modal = document.getElementById('packets-view-delete-modal');
+
+        function openModal() {
+            if (!modal) return;
+            if (typeof modal.showModal === 'function') {
+                modal.showModal();
+            } else {
+                modal.setAttribute('open', '');
+            }
+        }
+
+        function closeModal() {
+            if (!modal) return;
+            if (typeof modal.close === 'function') {
+                modal.close();
+            } else {
+                modal.removeAttribute('open');
+            }
+        }
+
+        document.addEventListener('click', function (event) {
+            var openTrigger = event.target.closest('[data-action="open-delete-modal"]');
+            if (openTrigger) {
+                event.preventDefault();
+                openModal();
+                return;
+            }
+            var closeTrigger = event.target.closest('[data-action="close-delete-modal"]');
+            if (closeTrigger) {
+                event.preventDefault();
+                closeModal();
+                return;
+            }
+            var emailTrigger = event.target.closest('[data-action="email-packet"]');
+            if (emailTrigger) {
+                event.preventDefault();
+                window.alert('Email functionality coming soon!');
+            }
+        });
+
+        if (modal) {
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) {
+                    closeModal();
+                }
+            });
+        }
+    })();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

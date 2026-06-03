@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}{{ questionnaire.name }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <a href="{{ PREFIX }}/questionnaires" class="btn btn-outline-secondary btn-sm mb-2">
+            <i class="fas fa-arrow-left me-1"></i> Back to Questionnaires
+        </a>
+        <h2><i class="fas fa-clipboard-list me-2"></i>{{ questionnaire.name }}</h2>
+        {% if questionnaire.description %}
+        <p class="text-muted">{{ questionnaire.description }}</p>
+        {% endif %}
+    </div>
+    <div>
+        <a href="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}/fill" class="btn btn-success glass-btn glass-btn--success">
+            <i class="fas fa-pen me-1"></i> Fill Questionnaire
+        </a>
+        <a href="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}/edit" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+            <i class="fas fa-edit me-1"></i> Edit
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-list me-2"></i>Fields Preview ({{ questionnaire.fields|length }})
+            </div>
+            <div class="card-body">
+                {% set current_section = None %}
+                {% for field in questionnaire.fields %}
+                    {% if field.section and field.section != current_section %}
+                        {% set current_section = field.section %}
+                        <h5 class="border-bottom pb-2 mt-3">{{ field.section }}</h5>
+                    {% endif %}
+
+                    {% if field.field_type == 'section' %}
+                        <h5 class="border-bottom pb-2 mt-3">{{ field.label }}</h5>
+                    {% else %}
+                        <div class="mb-3">
+                            <label class="form-label">
+                                {{ field.label }}
+                                {% if field.is_required %}<span class="text-danger">*</span>{% endif %}
+                            </label>
+
+                            {% if field.field_type == 'text' %}
+                            <input type="text" class="form-control glass-input" disabled placeholder="Text input">
+                            {% elif field.field_type == 'textarea' %}
+                            <textarea class="form-control glass-input" disabled placeholder="Text area"></textarea>
+                            {% elif field.field_type == 'number' %}
+                            <input type="number" class="form-control glass-input" disabled placeholder="Number">
+                            {% elif field.field_type == 'date' %}
+                            <input type="date" class="form-control glass-input" disabled>
+                            {% elif field.field_type == 'email' %}
+                            <input type="email" class="form-control glass-input" disabled placeholder="email@example.com">
+                            {% elif field.field_type == 'phone' %}
+                            <input type="tel" class="form-control glass-input" disabled placeholder="+1 (555) 555-5555">
+                            {% elif field.field_type == 'select' %}
+                            <select class="form-select glass-input" disabled>
+                                <option>Select...</option>
+                                {% if field.options %}
+                                {% for opt in field.options %}
+                                <option>{{ opt.label if opt.label else opt }}</option>
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                            {% elif field.field_type == 'multiselect' %}
+                            <select class="form-select glass-input" disabled multiple>
+                                {% if field.options %}
+                                {% for opt in field.options %}
+                                <option>{{ opt.label if opt.label else opt }}</option>
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                            {% elif field.field_type == 'radio' %}
+                            {% if field.options %}
+                            {% for opt in field.options %}
+                            <div class="form-check">
+                                <input type="radio" class="form-check-input" disabled>
+                                <label class="form-check-label">{{ opt.label if opt.label else opt }}</label>
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                            {% elif field.field_type == 'checkbox' %}
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" disabled>
+                                <label class="form-check-label">Yes</label>
+                            </div>
+                            {% elif field.field_type == 'file' %}
+                            <input type="file" class="form-control glass-input" disabled>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% else %}
+                <p class="text-muted">No fields defined yet. <a href="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}/edit">Add fields</a></p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-file-alt me-2"></i>Recent Responses ({{ responses|length }})
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Client/Case</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in responses %}
+                        <tr>
+                            <td>{{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '-' }}</td>
+                            <td>
+                                {% if r.client %}
+                                <a href="{{ PREFIX }}/clients/{{ r.client.id }}">{{ r.client.first_name }} {{ r.client.last_name }}</a>
+                                {% endif %}
+                                {% if r.case %}
+                                <br><small><a href="{{ PREFIX }}/cases/{{ r.case.id }}">{{ r.case.case_name or r.case.case_number }}</a></small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if r.status == 'submitted' %}
+                                <span class="badge bg-primary">Submitted</span>
+                                {% elif r.status == 'reviewed' %}
+                                <span class="badge bg-info">Reviewed</span>
+                                {% elif r.status == 'approved' %}
+                                <span class="badge bg-success">Approved</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ r.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ PREFIX }}/questionnaires/responses/{{ r.id }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-3 text-muted">No responses yet</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>Questionnaire Info
+            </div>
+            <div class="card-body">
+                <dl class="mb-0">
+                    <dt>Category</dt>
+                    <dd>
+                        {% if questionnaire.category %}
+                        <span class="badge bg-info">{{ questionnaire.category }}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </dd>
+
+                    <dt>Target Type</dt>
+                    <dd><span class="badge bg-secondary">{{ questionnaire.target_type or 'client' }}</span></dd>
+
+                    <dt>Status</dt>
+                    <dd>
+                        {% if questionnaire.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                        {% if questionnaire.is_required %}
+                        <span class="badge bg-warning text-dark">Required</span>
+                        {% endif %}
+                    </dd>
+
+                    <dt>Created</dt>
+                    <dd>{{ questionnaire.created_at.strftime('%Y-%m-%d') if questionnaire.created_at else '-' }}</dd>
+
+                    <dt>Last Updated</dt>
+                    <dd>{{ questionnaire.updated_at.strftime('%Y-%m-%d') if questionnaire.updated_at else '-' }}</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="fas fa-exclamation-triangle me-2"></i>Danger Zone
+            </div>
+            <div class="card-body">
+                <form action="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}/delete" method="POST">
+                    <button type="submit" class="btn btn-danger glass-btn glass-btn--danger" onclick="return confirm('Delete this questionnaire and all responses?')">
+                        <i class="fas fa-trash me-1"></i> Delete Questionnaire
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

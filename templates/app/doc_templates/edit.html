@@ -1,0 +1,154 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Doc_Templates · Edit · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/doc-templates-edit.css">
+{% endblock %}
+{% block content %}
+<section class="doc-template-edit" aria-labelledby="doc-template-edit-title">
+    <header class="doc-template-edit__header">
+        <h1 id="doc-template-edit-title" class="doc-template-edit__title">
+            <i class="fas fa-file-code doc-template-edit__title-icon" aria-hidden="true"></i>
+            <span>{{ action }} Document Template</span>
+        </h1>
+        <a href="{{ PREFIX }}/templates" class="doc-template-edit__back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back</span>
+        </a>
+    </header>
+
+    <div class="doc-template-edit__layout">
+        <section class="doc-template-edit__card" aria-label="Template details">
+            <div class="doc-template-edit__card-body">
+                <form class="doc-template-edit__form" method="POST" action="{{ PREFIX }}/templates/{% if template_data %}{{ template_data.id }}/edit{% else %}new{% endif %}">
+                    <div class="doc-template-edit__row">
+                        <div class="doc-template-edit__field">
+                            <label for="doc-template-edit-name" class="doc-template-edit__label">
+                                Template Name<span class="doc-template-edit__required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="text"
+                                   id="doc-template-edit-name"
+                                   name="name"
+                                   class="doc-template-edit__input"
+                                   value="{{ template_data.name if template_data else '' }}"
+                                   autocomplete="off"
+                                   required>
+                        </div>
+                        <div class="doc-template-edit__field">
+                            <label for="doc-template-edit-category" class="doc-template-edit__label">
+                                Category<span class="doc-template-edit__required" aria-hidden="true">*</span>
+                            </label>
+                            <select id="doc-template-edit-category"
+                                    name="category"
+                                    class="doc-template-edit__select"
+                                    required>
+                                <option value="contracts" {% if template_data and template_data.category == 'contracts' %}selected{% endif %}>Contracts</option>
+                                <option value="uscis" {% if template_data and template_data.category == 'uscis' %}selected{% endif %}>USCIS</option>
+                                <option value="client_communication" {% if template_data and template_data.category == 'client_communication' %}selected{% endif %}>Client Communication</option>
+                                <option value="billing" {% if template_data and template_data.category == 'billing' %}selected{% endif %}>Billing</option>
+                                <option value="other" {% if template_data and template_data.category == 'other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="doc-template-edit__field">
+                        <label for="doc-template-edit-description" class="doc-template-edit__label">
+                            Description
+                        </label>
+                        <input type="text"
+                               id="doc-template-edit-description"
+                               name="description"
+                               class="doc-template-edit__input"
+                               value="{{ template_data.description if template_data else '' }}"
+                               placeholder="Brief description of this template">
+                    </div>
+
+                    <div class="doc-template-edit__field">
+                        <label for="doc-template-edit-content" class="doc-template-edit__label">
+                            Template Content<span class="doc-template-edit__required" aria-hidden="true">*</span>
+                        </label>
+                        <textarea id="doc-template-edit-content"
+                                  name="content"
+                                  class="doc-template-edit__textarea"
+                                  rows="20"
+                                  spellcheck="false"
+                                  aria-describedby="doc-template-edit-content-help"
+                                  required>{{ template_data.content if template_data else '' }}</textarea>
+                        <small id="doc-template-edit-content-help" class="doc-template-edit__help">
+                            Use Jinja2 syntax for placeholders:
+                            <code>{{ "{{ client.full_name }}" }}</code>,
+                            <code>{{ "{{ case.visa_type }}" }}</code>, etc.
+                        </small>
+                    </div>
+
+                    <div class="doc-template-edit__actions">
+                        <a href="{{ PREFIX }}/templates" class="doc-template-edit__btn doc-template-edit__btn--ghost">
+                            Cancel
+                        </a>
+                        <button type="submit" class="doc-template-edit__btn doc-template-edit__btn--primary">
+                            <i class="fas fa-save" aria-hidden="true"></i>
+                            <span>{{ action }} Template</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <aside class="doc-template-edit__sidebar" aria-labelledby="doc-template-edit-placeholders-title">
+            <div class="doc-template-edit__sidebar-card">
+                <header id="doc-template-edit-placeholders-title" class="doc-template-edit__sidebar-header">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <span>Available Placeholders</span>
+                </header>
+                <div class="doc-template-edit__sidebar-body">
+                    {% for category, items in placeholders.items() %}
+                    <div class="doc-template-edit__category">{{ category }}</div>
+                    <ul class="doc-template-edit__placeholder-list">
+                        {% for placeholder, desc in items %}
+                        <li class="doc-template-edit__placeholder"
+                            role="button"
+                            tabindex="0"
+                            data-placeholder="{{ '{{' }} {{ placeholder }} {{ '}}' }}"
+                            aria-label="Insert placeholder {{ '{{' }} {{ placeholder }} {{ '}}' }}">
+                            <code class="doc-template-edit__placeholder-code">{{ '{{' }} {{ placeholder }} {{ '}}' }}</code>
+                            <small class="doc-template-edit__placeholder-desc">{{ desc }}</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endfor %}
+                </div>
+            </div>
+        </aside>
+    </div>
+</section>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    var textarea = document.getElementById('doc-template-edit-content');
+    if (!textarea) return;
+
+    function insertPlaceholder(placeholder) {
+        var start = textarea.selectionStart;
+        var end = textarea.selectionEnd;
+        var value = textarea.value;
+        textarea.value = value.substring(0, start) + placeholder + value.substring(end);
+        textarea.focus();
+        var pos = start + placeholder.length;
+        textarea.selectionStart = textarea.selectionEnd = pos;
+    }
+
+    document.querySelectorAll('.doc-template-edit__placeholder').forEach(function (item) {
+        item.addEventListener('click', function () {
+            insertPlaceholder(this.dataset.placeholder);
+        });
+        item.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                insertPlaceholder(this.dataset.placeholder);
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Usuários{% else %}Users{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/admin-users.css">
+{% endblock %}
+
+{% block content %}
+<section class="admin-users" aria-labelledby="admin-users-title">
+    <header class="admin-users-header">
+        <h1 id="admin-users-title" class="admin-users-title">
+            <i class="fas fa-users admin-users-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Usuários{% else %}Users{% endif %}</span>
+        </h1>
+        <a href="{{ PREFIX }}/admin/users/new" class="admin-users-btn admin-users-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Novo Usuário{% else %}New User{% endif %}</span>
+        </a>
+    </header>
+
+    <div class="admin-users-card">
+        <div class="admin-users-table-wrap">
+            <table class="admin-users-table">
+                <caption class="admin-users-sr-only">
+                    {% if product == "lite" %}Lista de usuários da organização{% else %}Organization users list{% endif %}
+                </caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Nome{% else %}Name{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}E-mail{% else %}Email{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td class="admin-users-name">{{ u.name }}</td>
+                        <td class="admin-users-email">{{ u.email }}</td>
+                        <td>
+                            <span class="admin-users-badge admin-users-badge--role">
+                                {% if product == "lite" %}
+                                    {% if u.user_type == "superadmin" %}Superadmin
+                                    {%- elif u.user_type == "admin" %}Administrador
+                                    {%- elif u.user_type == "attorney" %}Advogado
+                                    {%- elif u.user_type == "paralegal" %}Estagiário
+                                    {%- elif u.user_type == "assistant" %}Assistente
+                                    {%- else %}Operador{% endif %}
+                                {% else %}{{ u.user_type|title }}{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            {% if u.enabled %}
+                            <span class="admin-users-badge admin-users-badge--active">
+                                <span class="admin-users-badge-dot" aria-hidden="true"></span>
+                                {% if product == "lite" %}Ativo{% else %}Active{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="admin-users-badge admin-users-badge--disabled">
+                                <span class="admin-users-badge-dot" aria-hidden="true"></span>
+                                {% if product == "lite" %}Desativado{% else %}Disabled{% endif %}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="admin-users-actions">
+                                <a href="{{ PREFIX }}/admin/users/{{ u.id }}/edit"
+                                   class="admin-users-btn admin-users-btn--icon"
+                                   aria-label="{% if product == 'lite' %}Editar {{ u.name }}{% else %}Edit {{ u.name }}{% endif %}">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
+                                </a>
+                                {% if u.id != user.id %}
+                                <form method="post"
+                                      action="{{ PREFIX }}/admin/users/{{ u.id }}/delete"
+                                      class="admin-users-action-form"
+                                      onsubmit="return confirm({{ ((product == 'lite') and ('Deletar usuário ' ~ u.name ~ '?') or ('Delete user ' ~ u.name ~ '?')) | tojson }});">
+                                    <button type="submit"
+                                            class="admin-users-btn admin-users-btn--icon admin-users-btn--icon-danger"
+                                            aria-label="{% if product == 'lite' %}Deletar {{ u.name }}{% else %}Delete {{ u.name }}{% endif %}">
+                                        <i class="fas fa-trash" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5">
+                            <div class="admin-users-empty">
+                                <div class="admin-users-empty-icon" aria-hidden="true">
+                                    <i class="fas fa-user-slash"></i>
+                                </div>
+                                <p class="admin-users-empty-title">
+                                    {% if product == "lite" %}Nenhum usuário cadastrado{% else %}No users yet{% endif %}
+                                </p>
+                                <p class="admin-users-empty-detail">
+                                    {% if product == "lite" %}Crie o primeiro usuário da sua organização para começar.{% else %}Create the first user of your organization to get started.{% endif %}
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

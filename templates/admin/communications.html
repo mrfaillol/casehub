@@ -1,0 +1,901 @@
+{% extends "base.html" %}
+{% block title %}Customer Service Communications - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/admin-communications.css">
+{% endblock %}
+
+{% block content %}
+<main class="admin-comm-page" role="main" aria-labelledby="admin-comm-title">
+    <header class="admin-comm-header">
+        <h1 id="admin-comm-title" class="admin-comm-title">
+            <i class="fas fa-paper-plane admin-comm-title__icon" aria-hidden="true"></i>
+            <span>Customer Service Communications</span>
+        </h1>
+        <div class="admin-comm-sync-info">
+            <i class="far fa-calendar-alt" aria-hidden="true"></i>
+            <span>Last sync: {{ "%02d/%02d/%04d"|format(now.day, now.month, now.year) if now else 'Never' }}</span>
+        </div>
+    </header>
+
+    <section class="admin-comm-stats-grid" aria-label="Communication statistics">
+        <div class="admin-comm-stat-card admin-comm-stat-card--total">
+            <div class="admin-comm-stat-card__number">{{ stats.total_clients }}</div>
+            <div class="admin-comm-stat-card__label">Total Clients</div>
+        </div>
+        <div class="admin-comm-stat-card admin-comm-stat-card--active">
+            <div class="admin-comm-stat-card__number">{{ stats.active_clients }}</div>
+            <div class="admin-comm-stat-card__label">Active</div>
+        </div>
+        <div class="admin-comm-stat-card admin-comm-stat-card--excluded">
+            <div class="admin-comm-stat-card__number">{{ stats.excluded_clients }}</div>
+            <div class="admin-comm-stat-card__label">Excluded</div>
+        </div>
+        <div class="admin-comm-stat-card admin-comm-stat-card--weekly">
+            <div class="admin-comm-stat-card__number">{{ stats.weekly_sent_this_week }}</div>
+            <div class="admin-comm-stat-card__label">Weekly Sent</div>
+        </div>
+        <div class="admin-comm-stat-card admin-comm-stat-card--monthly">
+            <div class="admin-comm-stat-card__number">{{ stats.monthly_sent_this_month }}</div>
+            <div class="admin-comm-stat-card__label">Monthly Sent</div>
+        </div>
+    </section>
+
+    <div class="admin-comm-tabs" role="tablist" aria-label="Communications sections">
+        <button type="button" class="admin-comm-tab" role="tab" id="tab-btn-dashboard" aria-controls="tab-dashboard" aria-selected="true" data-tab="dashboard">
+            <i class="fas fa-tachometer-alt" aria-hidden="true"></i>
+            <span>Dashboard</span>
+        </button>
+        <button type="button" class="admin-comm-tab" role="tab" id="tab-btn-clients" aria-controls="tab-clients" aria-selected="false" data-tab="clients" tabindex="-1">
+            <i class="fas fa-users" aria-hidden="true"></i>
+            <span>Clients</span>
+        </button>
+        <button type="button" class="admin-comm-tab" role="tab" id="tab-btn-send" aria-controls="tab-send" aria-selected="false" data-tab="send" tabindex="-1">
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+            <span>Send Emails</span>
+        </button>
+        <button type="button" class="admin-comm-tab" role="tab" id="tab-btn-templates" aria-controls="tab-templates" aria-selected="false" data-tab="templates" tabindex="-1">
+            <i class="fas fa-file-alt" aria-hidden="true"></i>
+            <span>Templates</span>
+        </button>
+        <button type="button" class="admin-comm-tab" role="tab" id="tab-btn-history" aria-controls="tab-history" aria-selected="false" data-tab="history" tabindex="-1">
+            <i class="fas fa-history" aria-hidden="true"></i>
+            <span>History</span>
+        </button>
+        <button type="button" class="admin-comm-tab" role="tab" id="tab-btn-exclusions" aria-controls="tab-exclusions" aria-selected="false" data-tab="exclusions" tabindex="-1">
+            <i class="fas fa-ban" aria-hidden="true"></i>
+            <span>Exclusions</span>
+        </button>
+    </div>
+
+    <section id="tab-dashboard" class="admin-comm-tab-panel admin-comm-tab-panel--active" role="tabpanel" aria-labelledby="tab-btn-dashboard" tabindex="0">
+        <div class="admin-comm-send-grid">
+            <article class="admin-comm-card">
+                <header class="admin-comm-card-header">
+                    <h2 class="admin-comm-card-header__title">
+                        <i class="fas fa-power-off" aria-hidden="true"></i>
+                        <span>Weekly Check-In System</span>
+                    </h2>
+                </header>
+                <div class="admin-comm-card-body admin-comm-card-body--center">
+                    <div id="systemStatusDisplay" aria-live="polite">
+                        <div class="spinner-border text-secondary" role="status"><span class="admin-comm-sr-only">Loading status</span></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="admin-comm-card">
+                <header class="admin-comm-card-header">
+                    <h2 class="admin-comm-card-header__title">
+                        <i class="fas fa-calendar-check" aria-hidden="true"></i>
+                        <span>Next Scheduled Send</span>
+                    </h2>
+                </header>
+                <div class="admin-comm-card-body admin-comm-card-body--center">
+                    <div id="nextSendDisplay" aria-live="polite">
+                        <div class="spinner-border text-secondary" role="status"><span class="admin-comm-sr-only">Loading next send</span></div>
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <div class="admin-comm-send-grid">
+            <article class="admin-comm-card">
+                <header class="admin-comm-card-header">
+                    <h2 class="admin-comm-card-header__title">
+                        <i class="fas fa-database" aria-hidden="true"></i>
+                        <span>Moskit Clients</span>
+                    </h2>
+                    <button type="button" class="admin-comm-btn admin-comm-btn--ghost" onclick="syncMoskitClients()" id="syncBtn">
+                        <i class="fas fa-sync" aria-hidden="true"></i>
+                        <span>Sync</span>
+                    </button>
+                </header>
+                <div class="admin-comm-card-body admin-comm-card-body--center">
+                    <div id="moskitClientsCount" class="admin-comm-big-number" aria-live="polite">
+                        <div class="spinner-border text-secondary" role="status"><span class="admin-comm-sr-only">Loading count</span></div>
+                    </div>
+                    <div class="admin-comm-big-number__label">clients with email</div>
+                </div>
+            </article>
+
+            <article class="admin-comm-card">
+                <header class="admin-comm-card-header">
+                    <h2 class="admin-comm-card-header__title">
+                        <i class="fas fa-flask" aria-hidden="true"></i>
+                        <span>Test Mode</span>
+                    </h2>
+                </header>
+                <div class="admin-comm-card-body admin-comm-card-body--center">
+                    <div id="testModeDisplay" aria-live="polite">
+                        <div class="spinner-border text-secondary" role="status"><span class="admin-comm-sr-only">Loading test mode</span></div>
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <article class="admin-comm-card">
+            <header class="admin-comm-card-header">
+                <h2 class="admin-comm-card-header__title">
+                    <i class="fas fa-bolt" aria-hidden="true"></i>
+                    <span>Quick Actions</span>
+                </h2>
+            </header>
+            <div class="admin-comm-card-body">
+                <div class="admin-comm-action-row">
+                    <button type="button" class="admin-comm-btn admin-comm-btn--primary" onclick="sendTestEmail(event)">
+                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                        <span>Send Test Email</span>
+                    </button>
+                    <button type="button" class="admin-comm-btn admin-comm-btn--ghost" onclick="showTab('clients')">
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        <span>View Clients</span>
+                    </button>
+                    <button type="button" class="admin-comm-btn admin-comm-btn--ghost" onclick="showTab('history')">
+                        <i class="fas fa-history" aria-hidden="true"></i>
+                        <span>View History</span>
+                    </button>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-clients" class="admin-comm-tab-panel" role="tabpanel" aria-labelledby="tab-btn-clients" tabindex="0" hidden>
+        <article class="admin-comm-card">
+            <header class="admin-comm-card-header">
+                <h2 class="admin-comm-card-header__title">
+                    <i class="fas fa-upload" aria-hidden="true"></i>
+                    <span>Import / Sync Clients</span>
+                </h2>
+                <div class="admin-comm-card-header__actions">
+                    <button type="button" class="admin-comm-btn admin-comm-btn--info" onclick="syncWithMoskit()" id="syncMoskitBtn">
+                        <i class="fas fa-sync" aria-hidden="true"></i>
+                        <span>Sync with Moskit</span>
+                    </button>
+                </div>
+            </header>
+            <div class="admin-comm-card-body">
+                <div class="admin-comm-import-row">
+                    <div class="admin-comm-field">
+                        <label for="importEmails" class="admin-comm-label">
+                            Paste emails to import (comma, semicolon, or newline separated):
+                        </label>
+                        <textarea id="importEmails" name="importEmails" rows="3" class="admin-comm-textarea" placeholder="email1@example.com; email2@example.com"></textarea>
+                    </div>
+                    <button type="button" class="admin-comm-btn admin-comm-btn--primary" onclick="importEmails()">
+                        <i class="fas fa-upload" aria-hidden="true"></i>
+                        <span>Import</span>
+                    </button>
+                </div>
+                {% if checkin_data and checkin_data.lastSyncedWithMoskit %}
+                <div class="admin-comm-sync-meta">
+                    <i class="fas fa-check-circle admin-comm-sync-meta__icon--ok" aria-hidden="true"></i>
+                    <span>Last synced with Moskit: {{ checkin_data.lastSyncedWithMoskit[:19] if checkin_data.lastSyncedWithMoskit else 'Never' }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="admin-comm-card">
+            <header class="admin-comm-card-header">
+                <h2 class="admin-comm-card-header__title">
+                    <i class="fas fa-list" aria-hidden="true"></i>
+                    <span>Weekly Check-in Client List</span>
+                </h2>
+                <div class="admin-comm-filter-bar">
+                    <label for="filterStatus" class="admin-comm-sr-only">Filter by status</label>
+                    <select id="filterStatus" class="admin-comm-select" onchange="filterClients()">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="excluded">Excluded</option>
+                    </select>
+                    <label for="searchName" class="admin-comm-sr-only">Search name or email</label>
+                    <input type="search" id="searchName" class="admin-comm-input" placeholder="Search name or email..." oninput="filterClients()">
+                    <span class="admin-comm-filter-bar__count">
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        <span>{{ stats.total_clients }} clients in list</span>
+                    </span>
+                </div>
+            </header>
+            <div class="admin-comm-card-body admin-comm-card-body--flush">
+                <table class="admin-comm-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Phone</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="admin-comm-table__cell--actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientTableBody">
+                        {% for client in clients %}
+                        <tr class="client-row {{ 'admin-comm-table__row--excluded' if client.excluded else '' }}"
+                            data-status="{{ 'excluded' if client.excluded else 'active' }}"
+                            data-name="{{ client.name|lower }}"
+                            data-email="{{ client.email|lower }}">
+                            <td>
+                                <strong>{{ client.name }}</strong>
+                                {% if client.id %}
+                                <div class="admin-comm-table__subtext">ID: {{ client.id }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="mailto:{{ client.email }}" class="admin-comm-table__email-link">{{ client.email }}</a>
+                            </td>
+                            <td class="admin-comm-table__cell--muted">{{ client.phone or '-' }}</td>
+                            <td>
+                                {% if client.excluded %}
+                                <span class="admin-comm-status-badge admin-comm-status-badge--excluded">Excluded</span>
+                                <div class="admin-comm-table__subtext">{{ client.exclusion_reason or 'No reason' }}</div>
+                                {% else %}
+                                <span class="admin-comm-status-badge admin-comm-status-badge--active">Active</span>
+                                {% endif %}
+                            </td>
+                            <td class="admin-comm-table__cell--actions">
+                                {% if client.excluded %}
+                                <button type="button" class="admin-comm-btn admin-comm-btn--success" onclick="includeClient('{{ client.name }}')" aria-label="Include {{ client.name }}">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
+                                    <span>Include</span>
+                                </button>
+                                {% else %}
+                                <button type="button" class="admin-comm-btn admin-comm-btn--danger" onclick="excludeClient('{{ client.name }}')" aria-label="Exclude {{ client.name }}">
+                                    <i class="fas fa-ban" aria-hidden="true"></i>
+                                    <span>Exclude</span>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-send" class="admin-comm-tab-panel" role="tabpanel" aria-labelledby="tab-btn-send" tabindex="0" hidden>
+        <div class="admin-comm-send-grid">
+            <div class="admin-comm-send-panel">
+                <h3 class="admin-comm-send-panel__title">
+                    <i class="fas fa-calendar-week admin-comm-send-panel__title-icon--weekly" aria-hidden="true"></i>
+                    <span>Weekly Check-In</span>
+                </h3>
+                <div class="admin-comm-send-panel__stat">
+                    <div class="admin-comm-send-panel__stat-number">{{ stats.active_clients }}</div>
+                    <div class="admin-comm-send-panel__stat-label">active clients from Moskit will receive</div>
+                </div>
+                <label for="weeklyTestMode" class="admin-comm-send-panel__checkbox-row">
+                    <input type="checkbox" id="weeklyTestMode"> Test mode (send only to test email)
+                </label>
+                <button type="button" class="admin-comm-btn admin-comm-btn--primary admin-comm-btn--block" onclick="sendBulkWeekly()">
+                    <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                    <span>Send Weekly to All</span>
+                </button>
+            </div>
+            <div class="admin-comm-send-panel">
+                <h3 class="admin-comm-send-panel__title">
+                    <i class="fas fa-calendar-alt admin-comm-send-panel__title-icon--monthly" aria-hidden="true"></i>
+                    <span>Monthly Follow-Up</span>
+                </h3>
+                <div class="admin-comm-send-panel__stat">
+                    <div class="admin-comm-send-panel__stat-number">{{ stats.active_clients }}</div>
+                    <div class="admin-comm-send-panel__stat-label">active clients from Moskit will receive</div>
+                </div>
+                <label for="monthlyTestMode" class="admin-comm-send-panel__checkbox-row">
+                    <input type="checkbox" id="monthlyTestMode"> Test mode (send only to test email)
+                </label>
+                <button type="button" class="admin-comm-btn admin-comm-btn--info admin-comm-btn--block" onclick="sendBulkMonthly()">
+                    <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                    <span>Send Monthly to All</span>
+                </button>
+            </div>
+        </div>
+
+        <form class="admin-comm-individual-send" onsubmit="event.preventDefault(); sendIndividual();" aria-label="Send individual email">
+            <div class="admin-comm-field">
+                <label for="indivName" class="admin-comm-label">Client Name</label>
+                <input type="text" id="indivName" name="indivName" class="admin-comm-input" placeholder="Client Name" required>
+            </div>
+            <div class="admin-comm-field">
+                <label for="indivEmail" class="admin-comm-label">Client Email</label>
+                <input type="email" id="indivEmail" name="indivEmail" class="admin-comm-input" placeholder="Client Email" required>
+            </div>
+            <div class="admin-comm-field">
+                <label for="indivTemplate" class="admin-comm-label">Template</label>
+                <select id="indivTemplate" name="indivTemplate" class="admin-comm-select">
+                    <option value="weekly">Weekly Check-In</option>
+                    <option value="monthly">Monthly Follow-Up</option>
+                </select>
+            </div>
+            <button type="submit" class="admin-comm-btn admin-comm-btn--primary">
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                <span>Send</span>
+            </button>
+        </form>
+    </section>
+
+    <section id="tab-templates" class="admin-comm-tab-panel" role="tabpanel" aria-labelledby="tab-btn-templates" tabindex="0" hidden>
+        <div class="admin-comm-send-grid">
+            <article class="admin-comm-template-card">
+                <header class="admin-comm-template-card__header">
+                    <i class="fas fa-calendar-week admin-comm-template-card__icon" aria-hidden="true"></i>
+                    <span class="admin-comm-template-card__title">Weekly Template</span>
+                </header>
+                <div class="admin-comm-template-card__body">
+                    <div class="admin-comm-template-card__subject">
+                        <strong>Subject:</strong> Weekly Check-In - {{ org_name|default('CaseHub') }}
+                    </div>
+                    <pre class="admin-comm-template-preview">Dear {client_name},
+
+We hope you are doing well.
+
+This is a brief weekly check-in to see if you have any questions or need any assistance at this time. Our team remains available and happy to support you with anything you may need.
+
+Please feel free to reach out at your convenience.
+
+Best regards,
+{{ org_name|default('CaseHub') }} Team</pre>
+                </div>
+            </article>
+            <article class="admin-comm-template-card">
+                <header class="admin-comm-template-card__header">
+                    <i class="fas fa-calendar-alt admin-comm-template-card__icon admin-comm-template-card__icon--monthly" aria-hidden="true"></i>
+                    <span class="admin-comm-template-card__title">Monthly Template</span>
+                </header>
+                <div class="admin-comm-template-card__body">
+                    <div class="admin-comm-template-card__subject">
+                        <strong>Subject:</strong> Monthly Follow-Up - {{ org_name|default('CaseHub') }}
+                    </div>
+                    <pre class="admin-comm-template-preview">Dear {client_name},
+
+We hope this message finds you well.
+
+As part of our monthly follow-up, we would like to check in to see if you have any questions, concerns, or if there is anything we can assist you with regarding your case.
+
+Please do not hesitate to contact us if you need any clarification or support.
+
+Best regards,
+{{ org_name|default('CaseHub') }} Team</pre>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section id="tab-history" class="admin-comm-tab-panel" role="tabpanel" aria-labelledby="tab-btn-history" tabindex="0" hidden>
+        <article class="admin-comm-card">
+            <header class="admin-comm-card-header">
+                <h2 class="admin-comm-card-header__title">
+                    <i class="fas fa-history" aria-hidden="true"></i>
+                    <span>Communication History</span>
+                </h2>
+            </header>
+            <div class="admin-comm-card-body admin-comm-history-list">
+                {% if history %}
+                    {% for item in history %}
+                    <div class="admin-comm-history-item">
+                        <div class="admin-comm-history-icon admin-comm-history-icon--{{ item.type }}" aria-hidden="true">
+                            <i class="fas {{ 'fa-calendar-week' if item.type == 'weekly' else 'fa-calendar-alt' }}"></i>
+                        </div>
+                        <div class="admin-comm-history-info">
+                            <div class="admin-comm-history-info__title">{{ item.type|title }} sent to {{ item.count }} clients</div>
+                            <div class="admin-comm-history-info__meta">
+                                <i class="far fa-clock" aria-hidden="true"></i> {{ item.date }}
+                                {% if item.team %} · Team: {{ item.team }}{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="admin-comm-history-empty">
+                    <i class="fas fa-inbox admin-comm-history-empty__icon" aria-hidden="true"></i>
+                    <span>No communication history yet</span>
+                </div>
+                {% endif %}
+            </div>
+        </article>
+    </section>
+
+    <section id="tab-exclusions" class="admin-comm-tab-panel" role="tabpanel" aria-labelledby="tab-btn-exclusions" tabindex="0" hidden>
+        <article class="admin-comm-card">
+            <header class="admin-comm-card-header">
+                <h2 class="admin-comm-card-header__title">
+                    <i class="fas fa-ban" aria-hidden="true"></i>
+                    <span>Exclusion List</span>
+                </h2>
+                <button type="button" class="admin-comm-btn admin-comm-btn--ghost" onclick="addExclusion()">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                    <span>Add Exclusion</span>
+                </button>
+            </header>
+            <div class="admin-comm-card-body">
+                <table class="admin-comm-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Client Name</th>
+                            <th scope="col">Reason</th>
+                            <th scope="col">Added On</th>
+                            <th scope="col" class="admin-comm-table__cell--actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for excl in exclusions %}
+                        <tr>
+                            <td><strong>{{ excl.name }}</strong></td>
+                            <td>{{ excl.reason or '-' }}</td>
+                            <td class="admin-comm-table__cell--muted">{{ excl.added_date or '-' }}</td>
+                            <td class="admin-comm-table__cell--actions">
+                                <button type="button" class="admin-comm-btn admin-comm-btn--success" onclick="removeExclusion('{{ excl.name }}')" aria-label="Remove exclusion for {{ excl.name }}">
+                                    <i class="fas fa-trash" aria-hidden="true"></i>
+                                    <span>Remove</span>
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="admin-comm-table__empty">No exclusions configured</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+</main>
+
+<script>
+let dashboardData = null;
+
+function showTab(tabId) {
+    document.querySelectorAll('.admin-comm-tab-panel').forEach(panel => {
+        panel.classList.remove('admin-comm-tab-panel--active');
+        panel.hidden = true;
+    });
+    document.querySelectorAll('.admin-comm-tab').forEach(tab => {
+        tab.setAttribute('aria-selected', 'false');
+        tab.setAttribute('tabindex', '-1');
+    });
+
+    const panel = document.getElementById('tab-' + tabId);
+    const btn = document.getElementById('tab-btn-' + tabId);
+    if (panel) {
+        panel.classList.add('admin-comm-tab-panel--active');
+        panel.hidden = false;
+    }
+    if (btn) {
+        btn.setAttribute('aria-selected', 'true');
+        btn.setAttribute('tabindex', '0');
+    }
+
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.admin-comm-tab').forEach(tab => {
+        tab.addEventListener('click', () => showTab(tab.dataset.tab));
+        tab.addEventListener('keydown', (e) => {
+            const tabs = Array.from(document.querySelectorAll('.admin-comm-tab'));
+            const idx = tabs.indexOf(tab);
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                const next = tabs[(idx + 1) % tabs.length];
+                next.focus();
+                showTab(next.dataset.tab);
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
+                prev.focus();
+                showTab(prev.dataset.tab);
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                tabs[0].focus();
+                showTab(tabs[0].dataset.tab);
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                tabs[tabs.length - 1].focus();
+                showTab(tabs[tabs.length - 1].dataset.tab);
+            }
+        });
+    });
+});
+
+async function loadDashboard() {
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/dashboard');
+        dashboardData = await response.json();
+
+        const statusHost = document.getElementById('systemStatusDisplay');
+        statusHost.innerHTML = '';
+        const statusLine = document.createElement('div');
+        statusLine.className = 'admin-comm-status-block__state ' +
+            (dashboardData.enabled ? 'admin-comm-status-block__state--on' : 'admin-comm-status-block__state--off');
+        const statusIcon = document.createElement('i');
+        statusIcon.className = 'fas ' + (dashboardData.enabled ? 'fa-check-circle' : 'fa-times-circle');
+        statusIcon.setAttribute('aria-hidden', 'true');
+        const statusText = document.createElement('span');
+        statusText.textContent = dashboardData.enabled ? 'ACTIVE' : 'DISABLED';
+        statusLine.appendChild(statusIcon);
+        statusLine.appendChild(statusText);
+        statusHost.appendChild(statusLine);
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'admin-comm-btn admin-comm-btn--lg ' +
+            (dashboardData.enabled ? 'admin-comm-btn--danger' : 'admin-comm-btn--success');
+        toggleBtn.onclick = toggleSystem;
+        const toggleIcon = document.createElement('i');
+        toggleIcon.className = 'fas ' + (dashboardData.enabled ? 'fa-pause' : 'fa-play');
+        toggleIcon.setAttribute('aria-hidden', 'true');
+        const toggleText = document.createElement('span');
+        toggleText.textContent = dashboardData.enabled ? 'Disable System' : 'Enable System';
+        toggleBtn.appendChild(toggleIcon);
+        toggleBtn.appendChild(toggleText);
+        statusHost.appendChild(toggleBtn);
+
+        const nextHost = document.getElementById('nextSendDisplay');
+        nextHost.innerHTML = '';
+        const nextLine = document.createElement('div');
+        nextLine.className = 'admin-comm-status-block__next';
+        nextLine.textContent = dashboardData.next_send_formatted || '';
+        nextHost.appendChild(nextLine);
+        const schedLine = document.createElement('div');
+        schedLine.className = 'admin-comm-status-block__schedule';
+        schedLine.textContent = 'at ' + dashboardData.schedule.hour + ':' +
+            String(dashboardData.schedule.minute).padStart(2, '0') + ' EST';
+        nextHost.appendChild(schedLine);
+        if (dashboardData.last_sent) {
+            const last = document.createElement('div');
+            last.className = 'admin-comm-status-block__last-sent';
+            last.textContent = 'Last sent: ' + dashboardData.last_sent +
+                ' (' + dashboardData.last_sent_count + ' emails)';
+            nextHost.appendChild(last);
+        }
+
+        document.getElementById('moskitClientsCount').textContent = dashboardData.moskit_clients;
+
+        const tmHost = document.getElementById('testModeDisplay');
+        tmHost.innerHTML = '';
+        const tmLine = document.createElement('div');
+        tmLine.className = 'admin-comm-status-block__state ' +
+            (dashboardData.test_mode ? 'admin-comm-status-block__state--warning' : 'admin-comm-status-block__state--on');
+        const tmIcon = document.createElement('i');
+        tmIcon.className = 'fas ' + (dashboardData.test_mode ? 'fa-flask' : 'fa-rocket');
+        tmIcon.setAttribute('aria-hidden', 'true');
+        const tmText = document.createElement('span');
+        tmText.textContent = dashboardData.test_mode ? 'TEST MODE ON' : 'PRODUCTION MODE';
+        tmLine.appendChild(tmIcon);
+        tmLine.appendChild(tmText);
+        tmHost.appendChild(tmLine);
+
+        const tmDetail = document.createElement('div');
+        tmDetail.className = 'admin-comm-status-block__detail';
+        tmDetail.textContent = dashboardData.test_mode
+            ? 'Emails go to: ' + dashboardData.test_email
+            : 'Emails go to real clients';
+        tmHost.appendChild(tmDetail);
+
+        const tmBtn = document.createElement('button');
+        tmBtn.type = 'button';
+        tmBtn.className = 'admin-comm-btn ' +
+            (dashboardData.test_mode ? 'admin-comm-btn--ghost' : 'admin-comm-btn--warning');
+        tmBtn.onclick = toggleTestMode;
+        tmBtn.textContent = dashboardData.test_mode ? 'Switch to Production' : 'Switch to Test Mode';
+        tmHost.appendChild(tmBtn);
+
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            console.warn('Dashboard load skipped:', error.message);
+        }
+    }
+}
+
+async function toggleSystem() {
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/toggle', { method: 'POST' });
+        const data = await response.json();
+        if (data.success) loadDashboard();
+    } catch (error) {
+        console.error('Error toggling system:', error);
+    }
+}
+
+async function toggleTestMode() {
+    try {
+        const newMode = !dashboardData.test_mode;
+        const response = await fetch('{{ PREFIX }}/communications/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ test_mode: newMode })
+        });
+        const data = await response.json();
+        if (data.success) loadDashboard();
+    } catch (error) {
+        console.error('Error toggling test mode:', error);
+    }
+}
+
+async function sendTestEmail(evt) {
+    const btn = (evt && evt.target) ? evt.target.closest('button') : null;
+    if (!btn) return;
+    btn.disabled = true;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> <span>Sending...</span>';
+
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/send-test', { method: 'POST' });
+        const data = await response.json();
+        alert(data.message || data.error || 'Done');
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+}
+
+async function syncMoskitClients() {
+    const btn = document.getElementById('syncBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> <span>Syncing...</span>';
+
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/moskit/sync');
+        const data = await response.json();
+        if (data.success) {
+            document.getElementById('moskitClientsCount').textContent = data.synced;
+            btn.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i> <span>Synced ' + Number(data.synced || 0) + '</span>';
+        } else {
+            btn.textContent = '';
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-times';
+            icon.setAttribute('aria-hidden', 'true');
+            const label = document.createElement('span');
+            label.textContent = ' ' + (data.error || 'Failed');
+            btn.appendChild(icon);
+            btn.appendChild(label);
+        }
+    } catch (error) {
+        btn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i> <span>Error</span>';
+    }
+
+    setTimeout(() => {
+        btn.innerHTML = '<i class="fas fa-sync" aria-hidden="true"></i> <span>Sync</span>';
+        btn.disabled = false;
+    }, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', loadDashboard);
+
+function filterClients() {
+    const status = document.getElementById('filterStatus').value;
+    const search = document.getElementById('searchName').value.toLowerCase();
+
+    document.querySelectorAll('.client-row').forEach(row => {
+        const rowStatus = row.dataset.status;
+        const rowName = row.dataset.name || '';
+        const rowEmail = row.dataset.email || '';
+
+        let show = true;
+        if (status && rowStatus !== status) show = false;
+        if (search && !rowName.includes(search) && !rowEmail.includes(search)) show = false;
+
+        row.style.display = show ? '' : 'none';
+    });
+}
+
+function excludeClient(name) {
+    const reason = prompt('Reason for exclusion (optional):');
+    if (reason !== null) {
+        fetch('{{ PREFIX }}/communications/api/exclude', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, reason: reason})
+        }).then(() => location.reload());
+    }
+}
+
+function includeClient(name) {
+    if (confirm('Remove ' + name + ' from exclusion list?')) {
+        fetch('{{ PREFIX }}/communications/api/include', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name})
+        }).then(() => location.reload());
+    }
+}
+
+function addExclusion() {
+    const name = prompt('Client name to exclude:');
+    if (name) {
+        const reason = prompt('Reason (optional):');
+        fetch('{{ PREFIX }}/communications/api/exclude', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name, reason: reason || ''})
+        }).then(() => location.reload());
+    }
+}
+
+function removeExclusion(name) {
+    if (confirm('Remove exclusion for ' + name + '?')) {
+        fetch('{{ PREFIX }}/communications/api/include', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: name})
+        }).then(() => location.reload());
+    }
+}
+
+function sendIndividual() {
+    const name = document.getElementById('indivName').value;
+    const email = document.getElementById('indivEmail').value;
+    const template = document.getElementById('indivTemplate').value;
+
+    if (!name || !email) {
+        alert('Please fill in name and email');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('client_name', name);
+    formData.append('client_email', email);
+    formData.append('comm_type', template);
+
+    fetch('{{ PREFIX }}/communications/api/send-single', {
+        method: 'POST',
+        body: formData
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            alert('Email sent to ' + name);
+            document.getElementById('indivName').value = '';
+            document.getElementById('indivEmail').value = '';
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    }).catch(err => {
+        alert('Error: ' + err.message);
+    });
+}
+
+async function sendBulkWeekly() {
+    const testMode = document.getElementById('weeklyTestMode').checked;
+    if (!testMode && !confirm('Send weekly check-in to {{ stats.active_clients }} clients?')) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('comm_type', 'weekly');
+    formData.append('test_mode', testMode);
+    if (testMode && dashboardData) {
+        formData.append('test_email', dashboardData.test_email);
+    }
+
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/send-batch', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        alert(data.message || 'Done');
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function sendBulkMonthly() {
+    const testMode = document.getElementById('monthlyTestMode').checked;
+    if (!testMode && !confirm('Send monthly follow-up to {{ stats.active_clients }} clients?')) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('comm_type', 'monthly');
+    formData.append('test_mode', testMode);
+    if (testMode && dashboardData) {
+        formData.append('test_email', dashboardData.test_email);
+    }
+
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/send-batch', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        alert(data.message || 'Done');
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function importEmails() {
+    const emailsText = document.getElementById('importEmails').value.trim();
+    if (!emailsText) {
+        alert('Please paste some emails to import');
+        return;
+    }
+
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/checkin-list/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: emailsText })
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert('Imported ' + data.added + ' emails. ' + data.skipped + ' were already in the list.\n\nSyncing to Moskit in background...');
+            document.getElementById('importEmails').value = '';
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function syncWithMoskit() {
+    const btn = document.getElementById('syncMoskitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> <span>Syncing...</span>';
+
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/checkin-list/sync', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert('Sync started in background. The page will reload in 3 seconds...');
+            setTimeout(() => location.reload(), 3000);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-sync" aria-hidden="true"></i> <span>Sync with Moskit</span>';
+}
+
+async function removeFromCheckinList(email) {
+    if (!confirm('Remove ' + email + ' from check-in list?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('{{ PREFIX }}/communications/api/checkin-list/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email })
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert('Removed ' + email + (data.moskit_deleted ? ' (also removed from Moskit)' : ''));
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

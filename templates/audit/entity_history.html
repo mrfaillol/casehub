@@ -1,0 +1,73 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Audit · {{ entity_type }} #{{ entity_id }} · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/audit-log.css">
+{% endblock %}
+{% block content %}
+<main class="audit-log-main" aria-labelledby="audit-entity-title">
+    <header class="audit-log-header">
+        <h1 id="audit-entity-title" class="audit-log-title">
+            <i class="fas fa-history audit-log-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Histórico{% else %}History{% endif %}: {{ entity_type }} #{{ entity_id }}</span>
+        </h1>
+        <a href="{{ PREFIX }}/audit" class="audit-log-btn audit-log-btn--ghost">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar ao log{% else %}Back to log{% endif %}</span>
+        </a>
+    </header>
+
+    <section class="audit-log-table-section" aria-labelledby="audit-entity-title">
+        <div class="audit-log-table-wrap">
+            <table class="audit-log-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Hora{% else %}Time{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Usuário{% else %}User{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Ação{% else %}Action{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Descrição{% else %}Description{% endif %}</th>
+                        <th scope="col">IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td class="audit-log-time">
+                            {% if log.created_at %}
+                            <time datetime="{{ log.created_at.isoformat() }}">
+                                {% if product == "lite" %}{{ log.created_at.strftime('%d/%m %H:%M') }}{% else %}{{ log.created_at.strftime('%m/%d %H:%M') }}{% endif %}
+                            </time>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if log.user_id %}
+                            <a class="audit-log-link" href="{{ PREFIX }}/audit/user/{{ log.user_id }}">{{ log.user_name or log.user_email or ('#' ~ log.user_id) }}</a>
+                            {% else %}<span class="audit-log-muted">{% if product == "lite" %}Sistema{% else %}System{% endif %}</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if log.action == 'create' %}
+                            <span class="audit-log-badge audit-log-badge--create">{{ log.action }}</span>
+                            {% elif log.action == 'update' %}
+                            <span class="audit-log-badge audit-log-badge--update">{{ log.action }}</span>
+                            {% elif log.action == 'delete' %}
+                            <span class="audit-log-badge audit-log-badge--delete">{{ log.action }}</span>
+                            {% elif log.action == 'login' %}
+                            <span class="audit-log-badge audit-log-badge--login">{{ log.action }}</span>
+                            {% else %}
+                            <span class="audit-log-badge audit-log-badge--neutral">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.description or '—' }}</td>
+                        <td class="audit-log-ip">{{ log.ip_address or '—' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="audit-log-empty">{% if product == "lite" %}Nenhum evento para esta entidade.{% else %}No events for this entity.{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+{% endblock %}

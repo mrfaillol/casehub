@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}Calculadora de Rescisão - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-rescisao.css">
+{% endblock %}
+
+{% block content %}
+<section class="rescisao-calc" aria-labelledby="rescisao-calc-title">
+    <header class="rescisao-calc-header rescisao-calc-no-print">
+        <div class="rescisao-calc-header-text">
+            <h1 id="rescisao-calc-title" class="rescisao-calc-title">
+                <i class="fas fa-calculator" aria-hidden="true"></i>
+                <span>Calculadora de Rescisão Trabalhista</span>
+            </h1>
+            <p class="rescisao-calc-subtitle">Cálculo conforme CLT, Lei 12.506/2011 e Lei 8.036/90</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="rescisao-calc-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="rescisao-calc-alert rescisao-calc-no-print" role="alert" data-alert>
+        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+        <span class="rescisao-calc-alert-text">{{ error }}</span>
+        <button type="button" class="rescisao-calc-alert-close" aria-label="Fechar" data-alert-dismiss>
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="rescisao-calc-grid{% if resultado %} rescisao-calc-grid--split{% endif %}">
+        <div class="rescisao-calc-form-col{% if not resultado %} rescisao-calc-form-col--centered{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/rescisao/calcular" id="rescisaoForm" class="rescisao-calc-form">
+                <section class="rescisao-calc-card" aria-labelledby="rescisao-calc-section-employee">
+                    <div class="rescisao-calc-card-body">
+                        <h2 id="rescisao-calc-section-employee" class="rescisao-calc-section-title">Dados do Funcionário</h2>
+
+                        <div class="rescisao-calc-field">
+                            <label class="rescisao-calc-label" for="nome">Nome Completo</label>
+                            <input type="text" class="rescisao-calc-input" id="nome" name="nome"
+                                   value="{{ form.nome if form else '' }}" placeholder="Ex: João da Silva"
+                                   autocomplete="name">
+                        </div>
+
+                        <div class="rescisao-calc-field-row">
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="data_admissao">Data de Admissão</label>
+                                <input type="date" class="rescisao-calc-input" id="data_admissao" name="data_admissao"
+                                       value="{{ form.data_admissao if form else '' }}" required aria-required="true">
+                            </div>
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="data_demissao">Data de Demissão</label>
+                                <input type="date" class="rescisao-calc-input" id="data_demissao" name="data_demissao"
+                                       value="{{ form.data_demissao if form else '' }}" required aria-required="true">
+                            </div>
+                        </div>
+
+                        <div class="rescisao-calc-field">
+                            <label class="rescisao-calc-label" for="salario">Salário Base (R$)</label>
+                            <div class="rescisao-calc-input-group">
+                                <span class="rescisao-calc-input-prefix" aria-hidden="true">R$</span>
+                                <input type="number" class="rescisao-calc-input" id="salario" name="salario"
+                                       step="0.01" min="0" value="{{ form.salario if form else '' }}"
+                                       placeholder="0,00" required aria-required="true">
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="rescisao-calc-card" aria-labelledby="rescisao-calc-section-type">
+                    <div class="rescisao-calc-card-body">
+                        <h2 id="rescisao-calc-section-type" class="rescisao-calc-section-title">Tipo de Rescisão</h2>
+
+                        <div class="rescisao-calc-field">
+                            <label class="rescisao-calc-label" for="tipo_rescisao">Modalidade</label>
+                            <select class="rescisao-calc-select" id="tipo_rescisao" name="tipo_rescisao" required aria-required="true">
+                                <option value="" disabled {% if not form or not form.tipo_rescisao %}selected{% endif %}>
+                                    Selecione o tipo de rescisão
+                                </option>
+                                <option value="sem_justa_causa" {% if form and form.tipo_rescisao == 'sem_justa_causa' %}selected{% endif %}>
+                                    Sem justa causa (empregador)
+                                </option>
+                                <option value="pedido_demissao" {% if form and form.tipo_rescisao == 'pedido_demissao' %}selected{% endif %}>
+                                    Pedido de demissão
+                                </option>
+                                <option value="justa_causa" {% if form and form.tipo_rescisao == 'justa_causa' %}selected{% endif %}>
+                                    Justa causa
+                                </option>
+                                <option value="acordo" {% if form and form.tipo_rescisao == 'acordo' %}selected{% endif %}>
+                                    Rescisão por acordo (Art. 484-A CLT)
+                                </option>
+                                <option value="termino_contrato" {% if form and form.tipo_rescisao == 'termino_contrato' %}selected{% endif %}>
+                                    Término de contrato
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="rescisao-calc-check">
+                            <input class="rescisao-calc-checkbox" type="checkbox" id="aviso_previo_trabalhado"
+                                   name="aviso_previo_trabalhado" value="true"
+                                   {% if form and form.aviso_previo_trabalhado %}checked{% endif %}>
+                            <label class="rescisao-calc-check-label" for="aviso_previo_trabalhado">
+                                Aviso prévio trabalhado
+                            </label>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="rescisao-calc-card" aria-labelledby="rescisao-calc-section-adicionais">
+                    <div class="rescisao-calc-card-body">
+                        <h2 id="rescisao-calc-section-adicionais" class="rescisao-calc-section-title">Verbas Adicionais</h2>
+
+                        <div class="rescisao-calc-field-row">
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="horas_extras">Horas Extras (R$)</label>
+                                <div class="rescisao-calc-input-group">
+                                    <span class="rescisao-calc-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="rescisao-calc-input" id="horas_extras" name="horas_extras"
+                                           step="0.01" min="0" value="{{ form.horas_extras if form else '0' }}">
+                                </div>
+                            </div>
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="adicional_noturno">Adicional Noturno (R$)</label>
+                                <div class="rescisao-calc-input-group">
+                                    <span class="rescisao-calc-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="rescisao-calc-input" id="adicional_noturno" name="adicional_noturno"
+                                           step="0.01" min="0" value="{{ form.adicional_noturno if form else '0' }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rescisao-calc-field-row">
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="comissoes">Comissões (R$)</label>
+                                <div class="rescisao-calc-input-group">
+                                    <span class="rescisao-calc-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="rescisao-calc-input" id="comissoes" name="comissoes"
+                                           step="0.01" min="0" value="{{ form.comissoes if form else '0' }}">
+                                </div>
+                            </div>
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="insalubridade">Insalubridade (R$)</label>
+                                <div class="rescisao-calc-input-group">
+                                    <span class="rescisao-calc-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="rescisao-calc-input" id="insalubridade" name="insalubridade"
+                                           step="0.01" min="0" value="{{ form.insalubridade if form else '0' }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rescisao-calc-field-row">
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="periculosidade">Periculosidade (R$)</label>
+                                <div class="rescisao-calc-input-group">
+                                    <span class="rescisao-calc-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="rescisao-calc-input" id="periculosidade" name="periculosidade"
+                                           step="0.01" min="0" value="{{ form.periculosidade if form else '0' }}">
+                                </div>
+                            </div>
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="ferias_vencidas_dias">Férias Vencidas (dias)</label>
+                                <input type="number" class="rescisao-calc-input" id="ferias_vencidas_dias" name="ferias_vencidas_dias"
+                                       min="0" max="60" value="{{ form.ferias_vencidas_dias if form else '0' }}">
+                            </div>
+                        </div>
+
+                        <h2 class="rescisao-calc-section-title">Descontos</h2>
+
+                        <div class="rescisao-calc-field-row">
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="vale_transporte">Vale Transporte — desconto (R$)</label>
+                                <div class="rescisao-calc-input-group">
+                                    <span class="rescisao-calc-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="rescisao-calc-input" id="vale_transporte" name="vale_transporte"
+                                           step="0.01" min="0" value="{{ form.vale_transporte if form else '0' }}">
+                                </div>
+                            </div>
+                            <div class="rescisao-calc-field">
+                                <label class="rescisao-calc-label" for="vale_refeicao">Vale Refeição — desconto (R$)</label>
+                                <div class="rescisao-calc-input-group">
+                                    <span class="rescisao-calc-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="rescisao-calc-input" id="vale_refeicao" name="vale_refeicao"
+                                           step="0.01" min="0" value="{{ form.vale_refeicao if form else '0' }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="rescisao-calc-actions rescisao-calc-no-print">
+                    <button type="submit" class="rescisao-calc-cta rescisao-calc-cta--primary-grow">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular Rescisão</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/rescisao" class="rescisao-calc-cta rescisao-calc-cta--secondary">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <aside class="rescisao-calc-result-col" id="resultado" aria-labelledby="rescisao-calc-result-title">
+            <article class="rescisao-calc-result">
+                <header class="rescisao-calc-result-header">
+                    <h2 id="rescisao-calc-result-title" class="rescisao-calc-result-title">
+                        <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+                        <span>Resultado da Rescisão</span>
+                    </h2>
+                    <button type="button" class="rescisao-calc-cta rescisao-calc-cta--ghost rescisao-calc-cta--sm rescisao-calc-no-print" data-print>
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+
+                {% if nome %}
+                <div class="rescisao-calc-result-meta">
+                    <div><strong>Funcionário:</strong> {{ nome }}</div>
+                    <div><strong>Período:</strong> {{ resultado.data_admissao }} a {{ resultado.data_demissao }}
+                        ({{ resultado.meses_trabalhados }} meses / {{ resultado.anos_servico }} ano{{ 's' if resultado.anos_servico != 1 else '' }})</div>
+                    <div><strong>Tipo:</strong> {{ resultado.tipo_rescisao_label }}</div>
+                </div>
+                {% endif %}
+
+                <div class="rescisao-calc-table-wrap">
+                    <table class="rescisao-calc-table">
+                        <caption class="visually-hidden">Detalhamento das verbas rescisórias</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Verba</th>
+                                <th scope="col">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Saldo de Salário ({{ resultado.data_demissao.split('/')[0] }} dias)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.saldo_salario) }}</td>
+                            </tr>
+                            {% if resultado.aviso_previo > 0 %}
+                            <tr>
+                                <td>Aviso Prévio ({{ resultado.dias_aviso }} dias)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.aviso_previo) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if resultado.decimo_terceiro > 0 %}
+                            <tr>
+                                <td>13º Salário Proporcional</td>
+                                <td>R$ {{ "%.2f"|format(resultado.decimo_terceiro) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if resultado.ferias_proporcionais > 0 %}
+                            <tr>
+                                <td>Férias Proporcionais</td>
+                                <td>R$ {{ "%.2f"|format(resultado.ferias_proporcionais) }}</td>
+                            </tr>
+                            <tr>
+                                <td>1/3 Constitucional (férias proporcionais)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.terco_ferias) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if resultado.ferias_vencidas > 0 %}
+                            <tr>
+                                <td>Férias Vencidas</td>
+                                <td>R$ {{ "%.2f"|format(resultado.ferias_vencidas) }}</td>
+                            </tr>
+                            <tr>
+                                <td>1/3 Constitucional (férias vencidas)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.terco_vencidas) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td>FGTS (saldo estimado)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.fgts_saldo) }}</td>
+                            </tr>
+                            {% if resultado.multa_fgts > 0 %}
+                            <tr>
+                                <td>
+                                    Multa FGTS
+                                    {% if resultado.tipo_rescisao == 'acordo' %}(20%){% else %}(40%){% endif %}
+                                </td>
+                                <td>R$ {{ "%.2f"|format(resultado.multa_fgts) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if resultado.adicionais > 0 %}
+                            <tr>
+                                <td>Adicionais (horas extras, noturno, comissões, etc.)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.adicionais) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if resultado.descontos > 0 %}
+                            <tr class="rescisao-calc-table-row--discount">
+                                <td>(−) Descontos (VT, VR)</td>
+                                <td>− R$ {{ "%.2f"|format(resultado.descontos) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="rescisao-calc-table-row--subtotal">
+                                <td>Total Bruto</td>
+                                <td>R$ {{ "%.2f"|format(resultado.total_bruto) }}</td>
+                            </tr>
+                            <tr class="rescisao-calc-table-row--total">
+                                <td>TOTAL LÍQUIDO</td>
+                                <td>R$ {{ "%.2f"|format(resultado.total_liquido) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="rescisao-calc-result-footer">
+                    <div class="rescisao-calc-pdf-row rescisao-calc-no-print">
+                        <form method="post" action="{{ PREFIX }}/tools/rescisao/pdf" target="_blank">
+                            <input type="hidden" name="nome" value="{{ form.nome|default('') }}">
+                            <input type="hidden" name="data_admissao" value="{{ form.data_admissao|default('') }}">
+                            <input type="hidden" name="data_demissao" value="{{ form.data_demissao|default('') }}">
+                            <input type="hidden" name="salario" value="{{ form.salario|default(0) }}">
+                            <input type="hidden" name="tipo_rescisao" value="{{ form.tipo_rescisao|default('sem_justa_causa') }}">
+                            <input type="hidden" name="horas_extras" value="{{ form.horas_extras|default(0) }}">
+                            <input type="hidden" name="adicional_noturno" value="{{ form.adicional_noturno|default(0) }}">
+                            <input type="hidden" name="comissoes" value="{{ form.comissoes|default(0) }}">
+                            <input type="hidden" name="insalubridade" value="{{ form.insalubridade|default(0) }}">
+                            <input type="hidden" name="periculosidade" value="{{ form.periculosidade|default(0) }}">
+                            <input type="hidden" name="vale_transporte" value="{{ form.vale_transporte|default(0) }}">
+                            <input type="hidden" name="vale_refeicao" value="{{ form.vale_refeicao|default(0) }}">
+                            <input type="hidden" name="ferias_vencidas_dias" value="{{ form.ferias_vencidas_dias|default(0) }}">
+                            <input type="hidden" name="aviso_previo_trabalhado" value="{{ form.aviso_previo_trabalhado|default(false) }}">
+                            <button type="submit" class="rescisao-calc-cta rescisao-calc-cta--sm">
+                                <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                                <span>Gerar PDF</span>
+                            </button>
+                        </form>
+                    </div>
+                    <div class="rescisao-calc-legal">
+                        <h3 class="rescisao-calc-legal-heading">
+                            <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </h3>
+                        <ul class="rescisao-calc-legal-list">
+                            <li><strong>CLT Art. 477</strong> — Prazo de pagamento das verbas rescisórias</li>
+                            {% if resultado.tipo_rescisao == 'acordo' %}
+                            <li><strong>CLT Art. 484-A</strong> — Rescisão por acordo mútuo (Reforma Trabalhista)</li>
+                            {% endif %}
+                            <li><strong>CLT Art. 487</strong> — Aviso prévio</li>
+                            <li><strong>Lei 12.506/2011</strong> — Aviso prévio proporcional ao tempo de serviço</li>
+                            <li><strong>Lei 8.036/90</strong> — FGTS (Fundo de Garantia do Tempo de Serviço)</li>
+                            <li><strong>CF Art. 7º, XVII</strong> — 1/3 constitucional de férias</li>
+                        </ul>
+                    </div>
+                    <p class="rescisao-calc-disclaimer">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Este cálculo é uma estimativa para fins de orientação. Os valores finais podem variar conforme convenção coletiva, contribuições sindicais e outros descontos legais. Consulte sempre a legislação vigente.</span>
+                    </p>
+                </footer>
+            </article>
+        </aside>
+        {% endif %}
+    </div>
+</section>
+
+<script>
+(function () {
+    'use strict';
+
+    var alertEl = document.querySelector('[data-alert]');
+    if (alertEl) {
+        var dismissBtn = alertEl.querySelector('[data-alert-dismiss]');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', function () {
+                alertEl.remove();
+            });
+        }
+    }
+
+    var printBtn = document.querySelector('[data-print]');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () {
+            window.print();
+        });
+    }
+
+    var resultEl = document.getElementById('resultado');
+    if (resultEl && window.innerWidth < 992) {
+        resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+})();
+</script>
+{% endblock %}

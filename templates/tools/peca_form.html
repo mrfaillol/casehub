@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}{{ template.nome }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-section-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--bs-secondary);
+        border-bottom: 1px solid var(--bs-border-color);
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .preview-panel {
+        background: #fefefe;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.5rem;
+        font-family: "Times New Roman", Times, serif;
+        font-size: 0.95rem;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 80vh;
+        overflow-y: auto;
+        padding: 2rem;
+    }
+    .preview-panel::-webkit-scrollbar {
+        width: 6px;
+    }
+    .preview-panel::-webkit-scrollbar-thumb {
+        background: var(--bs-secondary);
+        border-radius: 3px;
+    }
+    .ia-toggle-wrapper {
+        background: linear-gradient(135deg, rgba(111,66,193,0.05), rgba(13,110,253,0.05));
+        border: 1px solid rgba(111,66,193,0.15);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+    }
+    .btn-download {
+        min-width: 120px;
+    }
+    .copy-btn {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        z-index: 10;
+    }
+    .ia-badge {
+        font-size: 0.7rem;
+        letter-spacing: 0.03em;
+    }
+    @media print {
+        .no-print { display: none !important; }
+        .preview-panel { max-height: none; border: none; }
+    }
+
+    /* Dark mode adjustments */
+    [data-bs-theme="dark"] .preview-panel {
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <h2>
+                <i class="{{ template.icone|default('fas fa-file-alt') }} me-2"></i>
+                {{ template.nome }}
+            </h2>
+            <p class="text-muted mb-0">{{ template.descricao }}</p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if processo_info %}
+            <span class="badge bg-info bg-opacity-10 text-info p-2">
+                <i class="fas fa-link me-1"></i>Processo #{{ processo_info.numero_processo or processo_info.id }}
+            </span>
+            {% endif %}
+            <a href="{{ PREFIX }}/tools/pecas" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Voltar
+            </a>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show no-print" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    {% if ia_status == 'error' or ia_status == 'offline' %}
+    <div class="alert alert-warning alert-dismissible fade show no-print" role="alert">
+        <i class="fas fa-robot me-2"></i>
+        {% if ia_status == 'offline' %}
+        O Ollama não esta disponível. O texto foi gerado usando o template padrao.
+        {% else %}
+        Erro ao comunicar com a IA. O texto foi gerado usando o template padrao.
+        {% endif %}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Form Panel -->
+        <div class="col-lg-{% if texto_gerado %}5{% else %}8 mx-auto{% endif %} mb-4 no-print">
+            <form method="POST" action="{{ PREFIX }}/tools/pecas/{{ tipo }}/gerar" id="pecaForm">
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-body">
+                        <div class="form-section-title">
+                            <i class="fas fa-edit me-1"></i>Dados da Peca
+                        </div>
+
+                        {% for campo in campos %}
+                        <div class="mb-3">
+                            <label for="{{ campo.id }}" class="form-label">
+                                {{ campo.label }}
+                                {% if campo.required|default(false) %}
+                                <span class="text-danger">*</span>
+                                {% endif %}
+                            </label>
+
+                            {% if campo.tipo == 'textarea' %}
+                            <textarea
+                                class="form-control glass-input"
+                                id="{{ campo.id }}"
+                                name="{{ campo.id }}"
+                                rows="4"
+                                {% if campo.placeholder|default('') %}placeholder="{{ campo.placeholder }}"{% endif %}
+                                {% if campo.required|default(false) %}required{% endif %}
+                            >{{ prefill.get(campo.id, '') if prefill else '' }}</textarea>
+
+                            {% elif campo.tipo == 'select' %}
+                            <select
+                                class="form-select glass-input"
+                                id="{{ campo.id }}"
+                                name="{{ campo.id }}"
+                                {% if campo.required|default(false) %}required{% endif %}
+                            >
+                                <option value="">Selecione...</option>
+                                {% for opcao in campo.opcoes|default([]) %}
+                                <option value="{{ opcao }}"
+                                    {% if prefill and prefill.get(campo.id) == opcao %}selected{% endif %}
+                                >{{ opcao }}</option>
+                                {% endfor %}
+                            </select>
+
+                            {% elif campo.tipo == 'number' %}
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input
+                                    type="number"
+                                    class="form-control glass-input"
+                                    id="{{ campo.id }}"
+                                    name="{{ campo.id }}"
+                                    step="0.01"
+                                    min="0"
+                                    value="{{ prefill.get(campo.id, '') if prefill else '' }}"
+                                    {% if campo.placeholder|default('') %}placeholder="{{ campo.placeholder }}"{% endif %}
+                                    {% if campo.required|default(false) %}required{% endif %}
+                                >
+                            </div>
+
+                            {% else %}
+                            <input
+                                type="text"
+                                class="form-control glass-input"
+                                id="{{ campo.id }}"
+                                name="{{ campo.id }}"
+                                value="{{ prefill.get(campo.id, '') if prefill else '' }}"
+                                {% if campo.placeholder|default('') %}placeholder="{{ campo.placeholder }}"{% endif %}
+                                {% if campo.required|default(false) %}required{% endif %}
+                            >
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- IA Toggle -->
+                <div class="ia-toggle-wrapper mb-3 no-print">
+                    <div class="form-check form-switch d-flex align-items-center gap-2">
+                        <input class="form-check-input" type="checkbox" id="usar_ia" name="usar_ia"
+                            {% if usar_ia %}checked{% endif %}
+                            {% if not ollama_online %}disabled{% endif %}>
+                        <label class="form-check-label" for="usar_ia">
+                            <i class="fas fa-robot me-1 text-primary"></i>
+                            <strong>Gerar com IA (Maestro)</strong>
+                        </label>
+                        {% if ollama_online %}
+                        <span class="badge bg-success ia-badge ms-2">Online</span>
+                        {% else %}
+                        <span class="badge bg-secondary ia-badge ms-2">Offline</span>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted d-block mt-1 ms-4 ps-2">
+                        {% if ollama_online %}
+                        O Maestro revisará e melhorará a redação jurídica da peça.
+                        {% else %}
+                        Inicie o Ollama para habilitar a revisão com IA.
+                        {% endif %}
+                    </small>
+                </div>
+
+                <!-- Submit -->
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg glass-btn glass-btn--primary" id="btnGerar">
+                        <i class="fas fa-file-signature me-2"></i>Gerar Peça
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Preview Panel (shown after generation) -->
+        {% if texto_gerado %}
+        <div class="col-lg-7 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-eye me-2"></i>Preview
+                        {% if ia_status == 'ok' %}
+                        <span class="badge bg-success ia-badge ms-2">
+                            <i class="fas fa-robot me-1"></i>Revisado por IA
+                            {% if ia_model %}({{ ia_model }}){% endif %}
+                        </span>
+                        {% else %}
+                        <span class="badge bg-secondary ia-badge ms-2">Template</span>
+                        {% endif %}
+                    </h5>
+                    <div class="d-flex gap-2 no-print">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyText()" title="Copiar texto">
+                            <i class="fas fa-copy me-1"></i>Copiar
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()" title="Imprimir">
+                            <i class="fas fa-print me-1"></i>Imprimir
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="preview-panel" id="previewText">{{ texto_gerado }}</div>
+                </div>
+                <div class="card-footer bg-transparent no-print">
+                    <div class="row g-2">
+                        <!-- Download TXT -->
+                        <div class="col-auto">
+                            <form method="POST" action="{{ PREFIX }}/tools/pecas/{{ tipo }}/download" class="d-inline">
+                                <input type="hidden" name="texto" value="{{ texto_gerado }}">
+                                <input type="hidden" name="formato" value="txt">
+                                <button type="submit" class="btn btn-outline-primary btn-download">
+                                    <i class="fas fa-file-alt me-1"></i>Baixar TXT
+                                </button>
+                            </form>
+                        </div>
+                        <!-- Download DOCX -->
+                        <div class="col-auto">
+                            <form method="POST" action="{{ PREFIX }}/tools/pecas/{{ tipo }}/download" class="d-inline">
+                                <input type="hidden" name="texto" value="{{ texto_gerado }}">
+                                <input type="hidden" name="formato" value="docx">
+                                <button type="submit" class="btn btn-primary btn-download glass-btn glass-btn--primary">
+                                    <i class="fas fa-file-word me-1"></i>Baixar DOCX
+                                </button>
+                            </form>
+                        </div>
+                        <!-- New Document -->
+                        <div class="col-auto ms-auto">
+                            <a href="{{ PREFIX }}/tools/pecas/{{ tipo }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-plus me-1"></i>Nova Peca
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if texto_base and ia_status == 'ok' %}
+            <!-- Show original template text for comparison -->
+            <div class="card border-0 shadow-sm mt-3">
+                <div class="card-header bg-transparent">
+                    <h6 class="mb-0">
+                        <i class="fas fa-file-alt me-2 text-muted"></i>Texto Original (Template)
+                        <button class="btn btn-sm btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#originalText">
+                            Mostrar/Ocultar
+                        </button>
+                    </h6>
+                </div>
+                <div class="collapse" id="originalText">
+                    <div class="card-body p-0">
+                        <div class="preview-panel" style="max-height: 40vh; opacity: 0.7;">{{ texto_base }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Copy generated text to clipboard
+function copyText() {
+    const text = document.getElementById('previewText').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        // Show feedback
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Copiado!';
+        btn.classList.remove('btn-outline-primary');
+        btn.classList.add('btn-success');
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-primary');
+        }, 2000);
+    }).catch(() => {
+        // Fallback: select text
+        const range = document.createRange();
+        range.selectNodeContents(document.getElementById('previewText'));
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        alert('Texto selecionado. Use Ctrl+C para copiar.');
+    });
+}
+
+// Loading state on form submit
+document.getElementById('pecaForm').addEventListener('submit', function() {
+    const btn = document.getElementById('btnGerar');
+    const usarIA = document.getElementById('usar_ia');
+    if (usarIA && usarIA.checked) {
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Gerando com IA...';
+    } else {
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Gerando...';
+    }
+    btn.disabled = true;
+});
+</script>
+{% endblock %}

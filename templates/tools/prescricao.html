@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Prescrição Punitiva - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-prescricao.css">
+{% endblock %}
+
+{% block content %}
+<div class="prescricao-main" aria-labelledby="prescricao-title">
+    <header class="prescricao-header prescricao-no-print">
+        <div class="prescricao-header-text">
+            <h1 id="prescricao-title" class="prescricao-title">
+                <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+                <span>Prescrição Punitiva</span>
+            </h1>
+            <p class="prescricao-subtitle">Cálculo conforme Art. 109-117 do Código Penal</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="prescricao-back-link">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="prescricao-alert prescricao-alert--danger" role="alert">
+        <i class="fas fa-exclamation-circle prescricao-alert-icon" aria-hidden="true"></i>
+        <div class="prescricao-alert-body">{{ error }}</div>
+    </div>
+    {% endif %}
+
+    <div class="{% if resultado %}prescricao-grid--with-result{% else %}prescricao-grid{% endif %}">
+        <section class="prescricao-col" aria-labelledby="prescricao-form-title">
+            <h2 id="prescricao-form-title" class="visually-hidden">Formulário de cálculo</h2>
+            <form method="POST" action="{{ PREFIX }}/tools/prescricao/calcular" class="prescricao-form">
+                <section class="prescricao-card" aria-labelledby="prescricao-dados-title">
+                    <div class="prescricao-card-body">
+                        <h3 id="prescricao-dados-title" class="prescricao-section-title">Dados da Pena e do Réu</h3>
+
+                        <div class="prescricao-field-row">
+                            <div class="prescricao-field">
+                                <span class="prescricao-label" id="prescricao-label-pena">Pena (em concreto ou máxima em abstrato)</span>
+                                <div class="prescricao-field-group" role="group" aria-labelledby="prescricao-label-pena">
+                                    <div class="prescricao-input-group">
+                                        <input type="number" class="prescricao-input" id="pena_anos" name="pena_anos"
+                                               value="{{ form.pena_anos if form else 0 }}" min="0" required
+                                               aria-label="Anos">
+                                        <span class="prescricao-input-suffix">anos</span>
+                                    </div>
+                                    <div class="prescricao-input-group">
+                                        <input type="number" class="prescricao-input" id="pena_meses" name="pena_meses"
+                                               value="{{ form.pena_meses if form else 0 }}" min="0" max="11"
+                                               aria-label="Meses">
+                                        <span class="prescricao-input-suffix">meses</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="prescricao-field">
+                                <label class="prescricao-label" for="data_fato">Data do Fato</label>
+                                <input type="date" class="prescricao-input" id="data_fato" name="data_fato"
+                                       value="{{ form.data_fato if form else '' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="prescricao-field-row">
+                            <div class="prescricao-field">
+                                <label class="prescricao-label" for="idade_fato">Idade do Réu na Data do Fato</label>
+                                <div class="prescricao-input-group">
+                                    <input type="number" class="prescricao-input" id="idade_fato" name="idade_fato"
+                                           value="{{ form.idade_fato if form else 30 }}" min="12" max="120" required
+                                           aria-describedby="prescricao-help-idade-fato">
+                                    <span class="prescricao-input-suffix">anos</span>
+                                </div>
+                                <small id="prescricao-help-idade-fato" class="prescricao-helper">
+                                    Se menor de 21, prazo reduzido pela metade (Art. 115 CP)
+                                </small>
+                            </div>
+                            <div class="prescricao-field">
+                                <label class="prescricao-label" for="idade_sentenca">Idade do Réu na Data da Sentença</label>
+                                <div class="prescricao-input-group">
+                                    <input type="number" class="prescricao-input" id="idade_sentenca" name="idade_sentenca"
+                                           value="{{ form.idade_sentenca if form else 0 }}" min="0" max="120"
+                                           aria-describedby="prescricao-help-idade-sentenca">
+                                    <span class="prescricao-input-suffix">anos</span>
+                                </div>
+                                <small id="prescricao-help-idade-sentenca" class="prescricao-helper">
+                                    Se maior de 70, prazo reduzido pela metade (Art. 115 CP). Deixe 0 se não aplicável.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="prescricao-card" aria-labelledby="prescricao-marcos-title">
+                    <div class="prescricao-card-body">
+                        <h3 id="prescricao-marcos-title" class="prescricao-section-title">Marcos Interruptivos (Art. 117 CP)</h3>
+                        <p class="prescricao-section-help">
+                            Cada marco interruptivo reinicia a contagem do prazo prescricional.
+                            Preencha apenas os aplicáveis.
+                        </p>
+
+                        <div class="prescricao-field-row">
+                            <div class="prescricao-field">
+                                <label class="prescricao-label" for="marco1_nome">1. Recebimento da Denúncia</label>
+                                <div class="prescricao-marco-row">
+                                    <input type="text" class="prescricao-input prescricao-input--sm" id="marco1_nome" name="marco1_nome"
+                                           value="{{ form.marco1_nome if form else 'Recebimento da denúncia' }}"
+                                           aria-label="Nome do marco 1">
+                                    <input type="date" class="prescricao-input prescricao-input--sm" id="marco1_data" name="marco1_data"
+                                           value="{{ form.marco1_data if form else '' }}"
+                                           aria-label="Data do marco 1">
+                                </div>
+                            </div>
+                            <div class="prescricao-field">
+                                <label class="prescricao-label" for="marco2_nome">2. Pronúncia</label>
+                                <div class="prescricao-marco-row">
+                                    <input type="text" class="prescricao-input prescricao-input--sm" id="marco2_nome" name="marco2_nome"
+                                           value="{{ form.marco2_nome if form else 'Pronúncia' }}"
+                                           aria-label="Nome do marco 2">
+                                    <input type="date" class="prescricao-input prescricao-input--sm" id="marco2_data" name="marco2_data"
+                                           value="{{ form.marco2_data if form else '' }}"
+                                           aria-label="Data do marco 2">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="prescricao-field-row">
+                            <div class="prescricao-field">
+                                <label class="prescricao-label" for="marco3_nome">3. Decisão Confirmatória da Pronúncia</label>
+                                <div class="prescricao-marco-row">
+                                    <input type="text" class="prescricao-input prescricao-input--sm" id="marco3_nome" name="marco3_nome"
+                                           value="{{ form.marco3_nome if form else 'Decisão confirmatória' }}"
+                                           aria-label="Nome do marco 3">
+                                    <input type="date" class="prescricao-input prescricao-input--sm" id="marco3_data" name="marco3_data"
+                                           value="{{ form.marco3_data if form else '' }}"
+                                           aria-label="Data do marco 3">
+                                </div>
+                            </div>
+                            <div class="prescricao-field">
+                                <label class="prescricao-label" for="marco4_nome">4. Publicação da Sentença Condenatória</label>
+                                <div class="prescricao-marco-row">
+                                    <input type="text" class="prescricao-input prescricao-input--sm" id="marco4_nome" name="marco4_nome"
+                                           value="{{ form.marco4_nome if form else 'Publicação sentença condenatória' }}"
+                                           aria-label="Nome do marco 4">
+                                    <input type="date" class="prescricao-input prescricao-input--sm" id="marco4_data" name="marco4_data"
+                                           value="{{ form.marco4_data if form else '' }}"
+                                           aria-label="Data do marco 4">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <button type="submit" class="prescricao-btn prescricao-btn--primary prescricao-btn--full">
+                    <i class="fas fa-calculator" aria-hidden="true"></i>
+                    <span>Calcular Prescrição</span>
+                </button>
+            </form>
+        </section>
+
+        {% if resultado %}
+        <aside class="prescricao-col" aria-labelledby="prescricao-resultado-title">
+            <section class="prescricao-card">
+                <header class="prescricao-card-header prescricao-card-header--inverse">
+                    <h2 id="prescricao-resultado-title" class="prescricao-card-title">
+                        <i class="fas fa-file-alt" aria-hidden="true"></i>
+                        <span>Resultado da Prescrição</span>
+                    </h2>
+                    <button type="button" class="prescricao-btn prescricao-btn--on-inverse prescricao-btn--sm prescricao-no-print"
+                            onclick="window.print()">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+                <div class="prescricao-card-body">
+                    {% if resultado.prescrito %}
+                    <div class="prescricao-banner prescricao-banner--success" role="status" aria-live="assertive">
+                        <i class="fas fa-check-circle prescricao-banner-icon" aria-hidden="true"></i>
+                        <span class="prescricao-banner-label">PRESCRITO</span>
+                        <span class="prescricao-banner-detail">
+                            A pretensão punitiva está prescrita desde {{ resultado.data_prescricao }}
+                        </span>
+                    </div>
+                    {% else %}
+                    <div class="prescricao-banner prescricao-banner--danger" role="status" aria-live="assertive">
+                        <i class="fas fa-exclamation-triangle prescricao-banner-icon" aria-hidden="true"></i>
+                        <span class="prescricao-banner-label">NÃO PRESCRITO</span>
+                        <span class="prescricao-banner-detail">
+                            Faltam {{ resultado.dias_restantes }} dias para a prescrição ({{ resultado.data_prescricao }})
+                        </span>
+                    </div>
+                    {% endif %}
+
+                    <div class="prescricao-metrics">
+                        <div class="prescricao-metric">
+                            <span class="prescricao-metric-label">Pena</span>
+                            <span class="prescricao-metric-value">{{ resultado.pena }}</span>
+                        </div>
+                        <div class="prescricao-metric">
+                            <span class="prescricao-metric-label">Prazo (Art. 109)</span>
+                            <span class="prescricao-metric-value">{{ resultado.prazo_original }} anos</span>
+                        </div>
+                        <div class="prescricao-metric">
+                            <span class="prescricao-metric-label">Prazo Final</span>
+                            <span class="prescricao-metric-value prescricao-metric-value--accent">{{ resultado.prazo_formatado }}</span>
+                        </div>
+                        <div class="prescricao-metric">
+                            <span class="prescricao-metric-label">Data do Fato</span>
+                            <span class="prescricao-metric-value">{{ resultado.data_fato }}</span>
+                        </div>
+                    </div>
+
+                    {% if resultado.reducao_metade %}
+                    <div class="prescricao-alert prescricao-alert--warning" role="note">
+                        <i class="fas fa-child prescricao-alert-icon" aria-hidden="true"></i>
+                        <div class="prescricao-alert-body">
+                            <strong>Redução pela metade (Art. 115 CP):</strong> {{ resultado.motivo_reducao }}
+                            <small>Prazo original {{ resultado.prazo_original }} anos reduzido para {{ resultado.prazo_formatado }}</small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if resultado.marcos %}
+                    <div>
+                        <h3 class="prescricao-table-heading">
+                            <i class="fas fa-flag" aria-hidden="true"></i>
+                            <span>Marcos Interruptivos (Art. 117 CP)</span>
+                        </h3>
+                        <table class="prescricao-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Marco</th>
+                                    <th scope="col">Data</th>
+                                    <th scope="col">Nova Prescrição</th>
+                                    <th scope="col">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for m in resultado.marcos %}
+                                <tr>
+                                    <td>{{ m.nome }}</td>
+                                    <td>{{ m.data }}</td>
+                                    <td>{{ m.nova_prescricao }}</td>
+                                    <td>
+                                        {% if m.prescrito %}
+                                        <span class="prescricao-badge prescricao-badge--success">Prescrito</span>
+                                        {% else %}
+                                        <span class="prescricao-badge prescricao-badge--danger">Não prescrito</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+
+                    <div class="prescricao-inner-block">
+                        <h3 class="prescricao-table-heading">
+                            <i class="fas fa-table" aria-hidden="true"></i>
+                            <span>Tabela de Prescrição (Art. 109 CP)</span>
+                        </h3>
+                        <table class="prescricao-table prescricao-table--bordered prescricao-table--dense">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Pena</th>
+                                    <th scope="col">Prazo Prescricional</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr {% if resultado.pena_em_anos > 12 %}class="prescricao-row--active" aria-current="true"{% endif %}>
+                                    <td>Superior a 12 anos</td>
+                                    <td>20 anos</td>
+                                </tr>
+                                <tr {% if resultado.pena_em_anos > 8 and resultado.pena_em_anos <= 12 %}class="prescricao-row--active" aria-current="true"{% endif %}>
+                                    <td>Superior a 8 anos, não excedendo 12</td>
+                                    <td>16 anos</td>
+                                </tr>
+                                <tr {% if resultado.pena_em_anos > 4 and resultado.pena_em_anos <= 8 %}class="prescricao-row--active" aria-current="true"{% endif %}>
+                                    <td>Superior a 4 anos, não excedendo 8</td>
+                                    <td>12 anos</td>
+                                </tr>
+                                <tr {% if resultado.pena_em_anos > 2 and resultado.pena_em_anos <= 4 %}class="prescricao-row--active" aria-current="true"{% endif %}>
+                                    <td>Superior a 2 anos, não excedendo 4</td>
+                                    <td>8 anos</td>
+                                </tr>
+                                <tr {% if resultado.pena_em_anos >= 1 and resultado.pena_em_anos <= 2 %}class="prescricao-row--active" aria-current="true"{% endif %}>
+                                    <td>Igual ou superior a 1 ano, não excedendo 2</td>
+                                    <td>4 anos</td>
+                                </tr>
+                                <tr {% if resultado.pena_em_anos < 1 %}class="prescricao-row--active" aria-current="true"{% endif %}>
+                                    <td>Inferior a 1 ano</td>
+                                    <td>3 anos</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="prescricao-inner-block">
+                        <h3 class="prescricao-table-heading">
+                            <i class="fas fa-book" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </h3>
+                        <ul class="prescricao-legal">
+                            <li><strong>Art. 109 CP</strong> — Prazos de prescrição da pretensão punitiva</li>
+                            <li><strong>Art. 110 CP</strong> — Prescrição da pretensão punitiva retroativa</li>
+                            <li><strong>Art. 115 CP</strong> — Redução dos prazos pela metade (menor 21 / maior 70)</li>
+                            <li><strong>Art. 117 CP</strong> — Causas interruptivas da prescrição</li>
+                            <li><strong>Art. 119 CP</strong> — Prescrição no concurso de crimes</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </aside>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

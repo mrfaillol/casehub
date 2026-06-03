@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}{{ task.title }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Comments section glass styling */
+.comment-item {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color-light, #2a2a2a);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s ease;
+}
+.comment-item:hover {
+    border-color: var(--border-color, #444);
+}
+.comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 0.82rem;
+}
+.comment-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #1C2447;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.comment-author {
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e0);
+}
+.comment-time {
+    color: var(--text-secondary, #888);
+    font-size: 0.75rem;
+}
+.comment-body {
+    color: var(--text-primary, #d0d0d0);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+.comment-form textarea {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color-light, #2a2a2a);
+    border-radius: 8px;
+    color: var(--text-primary, #e0e0e0);
+    resize: vertical;
+    min-height: 80px;
+    transition: border-color 0.2s;
+}
+.comment-form textarea:focus {
+    border-color: var(--accent, #1C2447);
+    background: rgba(255,255,255,0.08);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(28, 36, 71,0.15);
+}
+.tag-pill-detail {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: rgba(28, 36, 71,0.12);
+    color: #1C2447;
+    font-weight: 500;
+    display: inline-block;
+}
+.tag-pill-detail:nth-child(3n+2) {
+    background: rgba(230, 126, 34, 0.12);
+    color: #e67e22;
+}
+.tag-pill-detail:nth-child(3n+3) {
+    background: rgba(142, 68, 173, 0.12);
+    color: #a569bd;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <a href="{{ PREFIX }}/tasks" class="text-muted text-decoration-none"><i class="fas fa-arrow-left me-1"></i> {% if product == "lite" %}Voltar as Tarefas{% else %}Back to Tasks{% endif %}</a>
+        <h2 class="mt-2 mb-0"><i class="fas fa-tasks me-2"></i>{{ task.title }}</h2>
+        {% if task.tags %}
+        <div class="d-flex gap-2 flex-wrap mt-2">
+            {% for tag in task.tags.split(',') if tag.strip() %}
+            <span class="tag-pill-detail">{{ tag.strip() }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    <div>
+        {% if task.status != 'completed' %}
+        <form method="post" action="{{ PREFIX }}/tasks/{{ task.id }}/complete" class="d-inline">
+            <button type="submit" class="btn btn-success glass-btn glass-btn--success me-2"><i class="fas fa-check me-1"></i> {% if product == "lite" %}Concluir{% else %}Mark Complete{% endif %}</button>
+        </form>
+        {% endif %}
+        <a href="{{ PREFIX }}/tasks/{{ task.id }}/edit" class="btn btn-outline-primary glass-btn glass-btn--ghost me-2"><i class="fas fa-edit me-1"></i> {% if product == "lite" %}Editar{% else %}Edit{% endif %}</a>
+        <form method="post" action="{{ PREFIX }}/tasks/{{ task.id }}/delete" class="d-inline" onsubmit="return confirm({% if product == 'lite' %}'Deletar esta tarefa?'{% else %}'Delete this task?'{% endif %});">
+            <button type="submit" class="btn btn-outline-danger"><i class="fas fa-trash me-1"></i> {% if product == "lite" %}Deletar{% else %}Delete{% endif %}</button>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 mb-4">
+        <div class="card glass-card">
+            <div class="card-header"><i class="fas fa-info-circle me-1"></i> {% if product == "lite" %}Detalhes da Tarefa{% else %}Task Details{% endif %}</div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-muted" style="width:30%">Status</td>
+                        <td>
+                            {% if task.status == 'completed' %}<span class="badge bg-success">{% if product == "lite" %}Concluida{% else %}Completed{% endif %}</span>
+                            {% elif task.status == 'in_progress' %}<span class="badge bg-primary">{% if product == "lite" %}Em Andamento{% else %}In Progress{% endif %}</span>
+                            {% elif task.status == 'blocked' %}<span class="badge bg-danger">{% if product == "lite" %}Bloqueada{% else %}Blocked{% endif %}</span>
+                            {% else %}<span class="badge bg-secondary">{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</span>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">{% if product == "lite" %}Prioridade{% else %}Priority{% endif %}</td>
+                        <td>
+                            {% if task.priority == 'urgent' %}<span class="badge bg-danger">{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</span>
+                            {% elif task.priority == 'high' %}<span class="badge bg-warning">{% if product == "lite" %}Alta{% else %}High{% endif %}</span>
+                            {% elif task.priority == 'medium' %}<span class="badge bg-info">{% if product == "lite" %}Media{% else %}Medium{% endif %}</span>
+                            {% else %}<span class="badge bg-secondary">{% if product == "lite" %}Baixa{% else %}Low{% endif %}</span>{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</td>
+                        <td>{{ task.task_type or '-' }}</td>
+                    </tr>
+                    {% if task.tags %}
+                    <tr>
+                        <td class="text-muted">Tags</td>
+                        <td>
+                            <div class="d-flex gap-1 flex-wrap">
+                                {% for tag in task.tags.split(',') if tag.strip() %}
+                                <span class="tag-pill-detail">{{ tag.strip() }}</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% if task.estimated_hours %}
+                    <tr>
+                        <td class="text-muted">{% if product == "lite" %}Horas Estimadas{% else %}Estimated Hours{% endif %}</td>
+                        <td>{{ task.estimated_hours }}h</td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td class="text-muted">{% if product == "lite" %}Vencimento{% else %}Due Date{% endif %}</td>
+                        <td>
+                            {% if task.due_date %}
+                                {{ task.due_date.strftime('%d/%m/%Y') if product == "lite" else task.due_date.strftime('%Y-%m-%d') }}
+                                {% if task.due_date < now() and task.status != 'completed' %}
+                                    <span class="badge bg-danger ms-2">{% if product == "lite" %}Atrasada{% else %}Overdue{% endif %}</span>
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">{% if product == "lite" %}Data do Lembrete{% else %}Reminder Date{% endif %}</td>
+                        <td>{{ (task.reminder_date.strftime('%d/%m/%Y') if product == "lite" else task.reminder_date.strftime('%Y-%m-%d')) if task.reminder_date else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">{% if product == "lite" %}Responsável{% else %}Assigned To{% endif %}</td>
+                        <td>{{ task.assignee.name if task.assignee else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted">{% if product == "lite" %}Criada em{% else %}Created{% endif %}</td>
+                        <td>{{ (task.created_at.strftime('%d/%m/%Y %H:%M') if product == "lite" else task.created_at.strftime('%Y-%m-%d %H:%M')) if task.created_at else '-' }}</td>
+                    </tr>
+                    {% if task.completed_at %}
+                    <tr>
+                        <td class="text-muted">{% if product == "lite" %}Concluida em{% else %}Completed{% endif %}</td>
+                        <td>{{ task.completed_at.strftime('%d/%m/%Y %H:%M') if product == "lite" else task.completed_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+
+        {% if task.description %}
+        <div class="card mt-4">
+            <div class="card-header"><i class="fas fa-align-left me-1"></i> {% if product == "lite" %}Descrição{% else %}Description{% endif %}</div>
+            <div class="card-body">
+                <pre style="white-space:pre-wrap;font-family:inherit;">{{ task.description }}</pre>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Subtasks Section -->
+        {% if task.subtasks|length > 0 %}
+        <div class="card mt-4 glass-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-sitemap me-1"></i> {% if product == "lite" %}Subtarefas{% else %}Subtasks{% endif %}</span>
+                <span class="badge bg-secondary">
+                    {{ task.subtasks|selectattr('status', 'equalto', 'completed')|list|length }}/{{ task.subtasks|length }}
+                    {% if product == "lite" %}concluidas{% else %}completed{% endif %}
+                </span>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for sub in task.subtasks %}
+                    <li class="list-group-item d-flex align-items-center gap-2 {% if sub.status == 'completed' %}text-muted{% endif %}" style="background: transparent; border-color: var(--border-color, #333);">
+                        <form method="post" action="{{ PREFIX }}/tasks/api/{{ sub.id }}/subtask/toggle" class="d-inline subtask-toggle-form">
+                            <input type="checkbox" class="form-check-input" {% if sub.status == 'completed' %}checked{% endif %}
+                                   onchange="toggleSubtask({{ sub.id }}, this)" style="cursor: pointer;">
+                        </form>
+                        <span style="{% if sub.status == 'completed' %}text-decoration: line-through; opacity: 0.6;{% endif %}">{{ sub.title }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Comments Section -->
+        <div class="card mt-4 glass-card" id="comments">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-comments me-1"></i> {% if product == "lite" %}Comentarios{% else %}Comments{% endif %}</span>
+                <span class="badge bg-secondary">{{ comments|length if comments is defined else 0 }}</span>
+            </div>
+            <div class="card-body">
+                {% if comments is defined and comments|length > 0 %}
+                    {% for comment in comments %}
+                    <div class="comment-item">
+                        <div class="comment-meta">
+                            <span class="comment-avatar">{{ comment.user.name[0]|upper if comment.user else '?' }}</span>
+                            <span class="comment-author">{{ comment.user.name if comment.user else (product == "lite" and "Usuário" or "User") }}</span>
+                            <span class="comment-time">
+                                {{ comment.created_at.strftime('%d/%m/%Y %H:%M') if product == "lite" else comment.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            </span>
+                        </div>
+                        <div class="comment-body">{{ comment.content }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-3" style="opacity:0.5;">
+                        <i class="far fa-comment-dots d-block mb-2" style="font-size:1.5rem;"></i>
+                        <small>{% if product == "lite" %}Nenhum comentario ainda{% else %}No comments yet{% endif %}</small>
+                    </div>
+                {% endif %}
+
+                <!-- Add comment form -->
+                <form method="post" action="{{ PREFIX }}/tasks/{{ task.id }}/comments" class="comment-form mt-3" style="border-top: 1px solid var(--border-color, #333); padding-top: 14px;">
+                    <div class="mb-2">
+                        <textarea class="form-control glass-input" name="content" rows="3" placeholder="{% if product == 'lite' %}Escreva um comentario...{% else %}Write a comment...{% endif %}" required></textarea>
+                    </div>
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary btn-sm glass-btn glass-btn--primary">
+                            <i class="fas fa-paper-plane me-1"></i> {% if product == "lite" %}Comentar{% else %}Comment{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card glass-card">
+            <div class="card-header"><i class="fas fa-link me-1"></i> {% if product == "lite" %}Registros Vinculados{% else %}Linked Records{% endif %}</div>
+            <div class="card-body">
+                {% if task.client %}
+                <div class="mb-3">
+                    <small class="text-muted d-block">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</small>
+                    <a href="{{ PREFIX }}/clients/{{ task.client.id }}">
+                        <i class="fas fa-user me-1"></i> {{ task.client.first_name }} {{ task.client.last_name }}
+                    </a>
+                </div>
+                {% endif %}
+                {% if task.case %}
+                <div class="mb-3">
+                    <small class="text-muted d-block">{% if product == "lite" %}Processo{% else %}Case{% endif %}</small>
+                    <a href="{{ PREFIX }}/cases/{{ task.case.id }}">
+                        <i class="fas fa-folder me-1"></i> {{ task.case.case_number or task.case.case_name or (('Processo #' if product == "lite" else 'Case #') + task.case.id|string) }}
+                    </a>
+                </div>
+                {% endif %}
+                {% if not task.client and not task.case %}
+                <p class="text-muted mb-0">{% if product == "lite" %}Nenhum registro vinculado{% else %}No linked records{% endif %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function toggleSubtask(subtaskId, checkbox) {
+    const PREFIX = '{{ PREFIX }}';
+    try {
+        const resp = await fetch(`${PREFIX}/tasks/api/${subtaskId}/subtask/toggle`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            const li = checkbox.closest('li');
+            const span = li.querySelector('span');
+            if (data.status === 'completed') {
+                li.classList.add('text-muted');
+                span.style.textDecoration = 'line-through';
+                span.style.opacity = '0.6';
+            } else {
+                li.classList.remove('text-muted');
+                span.style.textDecoration = 'none';
+                span.style.opacity = '1';
+            }
+            // Update the counter badge
+            const badge = document.querySelector('.card-header .badge.bg-secondary');
+            if (badge) {
+                const checkboxes = document.querySelectorAll('.subtask-toggle-form input[type="checkbox"]');
+                const total = checkboxes.length;
+                const done = [...checkboxes].filter(cb => cb.checked).length;
+                const label = '{{ "concluidas" if product == "lite" else "completed" }}';
+                badge.textContent = done + '/' + total + ' ' + label;
+            }
+        } else {
+            checkbox.checked = !checkbox.checked;
+        }
+    } catch (err) {
+        console.error('Failed to toggle subtask:', err);
+        checkbox.checked = !checkbox.checked;
+    }
+}
+</script>
+{% endblock %}

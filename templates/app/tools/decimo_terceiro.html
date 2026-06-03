@@ -1,0 +1,182 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Decimo_Terceiro · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tools-decimo-terceiro.css">
+{% endblock %}
+{% block content %}
+<div class="dt-main" aria-labelledby="dt-page-title">
+    <header class="dt-header dt-no-print">
+        <div>
+            <h1 class="dt-header__title" id="dt-page-title">
+                <i class="fas fa-gift" aria-hidden="true"></i>
+                <span>13º Salário Proporcional</span>
+            </h1>
+            <p class="dt-header__subtitle">Lei 4.090/62, Lei 4.749/65</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="dt-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    <div class="dt-grid {% if resultado %}dt-grid--with-result{% else %}dt-grid--centered{% endif %}">
+        <section aria-labelledby="dt-form-title">
+            <form class="dt-form" method="POST" action="{{ PREFIX }}/tools/decimo-terceiro/calcular">
+                <div class="dt-card">
+                    <div class="dt-card__body">
+                        <h2 class="dt-section-title" id="dt-form-title">Dados do Cálculo</h2>
+
+                        <div class="dt-field">
+                            <label class="dt-label" for="salario">Salário Base (R$)</label>
+                            <div class="dt-input-group">
+                                <span class="dt-input-addon" aria-hidden="true">R$</span>
+                                <input class="dt-input"
+                                       type="number"
+                                       id="salario"
+                                       name="salario"
+                                       step="0.01"
+                                       min="0"
+                                       inputmode="decimal"
+                                       value="{{ form.salario if form else '' }}"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="dt-field-row">
+                            <div class="dt-field">
+                                <label class="dt-label" for="meses_trabalhados">Meses Trabalhados no Ano</label>
+                                <input class="dt-input--plain"
+                                       type="number"
+                                       id="meses_trabalhados"
+                                       name="meses_trabalhados"
+                                       min="1"
+                                       max="12"
+                                       inputmode="numeric"
+                                       value="{{ form.meses_trabalhados if form else '' }}"
+                                       aria-describedby="meses_trabalhados-hint"
+                                       required>
+                                <small class="dt-hint" id="meses_trabalhados-hint">15+ dias no mês = mês cheio</small>
+                            </div>
+                            <div class="dt-field">
+                                <label class="dt-label" for="adicionais_habituais">Adicionais Habituais (R$)</label>
+                                <div class="dt-input-group">
+                                    <span class="dt-input-addon" aria-hidden="true">R$</span>
+                                    <input class="dt-input"
+                                           type="number"
+                                           id="adicionais_habituais"
+                                           name="adicionais_habituais"
+                                           step="0.01"
+                                           min="0"
+                                           inputmode="decimal"
+                                           value="{{ form.adicionais_habituais if form else '0' }}"
+                                           aria-describedby="adicionais_habituais-hint">
+                                </div>
+                                <small class="dt-hint" id="adicionais_habituais-hint">HE habituais, noturno, comissões, etc.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dt-actions dt-no-print">
+                    <button type="submit" class="dt-btn dt-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <a class="dt-btn dt-btn--secondary" href="{{ PREFIX }}/tools/decimo-terceiro">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </section>
+
+        {% if resultado %}
+        <section class="dt-result" id="resultado" aria-labelledby="dt-result-title">
+            <article class="dt-card">
+                <header class="dt-card__header">
+                    <h2 class="dt-card__header-title" id="dt-result-title">
+                        <i class="fas fa-gift" aria-hidden="true"></i>
+                        <span>Resultado — 13º Salário</span>
+                    </h2>
+                    <button type="button" class="dt-btn dt-btn--ghost-on-accent dt-no-print" onclick="window.print()">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+
+                <div class="dt-table-wrapper">
+                    <table class="dt-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Verba</th>
+                                <th scope="col">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Base de Cálculo (salário + adicionais)</td>
+                                <td class="dt-table__value">R$ {{ "%.2f"|format(resultado.base_calculo) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Proporcional ({{ resultado.meses_trabalhados }}/12 avos)</td>
+                                <td class="dt-table__value">R$ {{ "%.2f"|format(resultado.valor_total) }}</td>
+                            </tr>
+                            <tr class="dt-row--parcela">
+                                <td>1ª Parcela (até 30/nov)</td>
+                                <td class="dt-table__value">R$ {{ "%.2f"|format(resultado.primeira_parcela) }}</td>
+                            </tr>
+                            <tr class="dt-row--parcela">
+                                <td>2ª Parcela (até 20/dez)</td>
+                                <td class="dt-table__value">R$ {{ "%.2f"|format(resultado.segunda_parcela) }}</td>
+                            </tr>
+                            <tr class="dt-row--total">
+                                <td>TOTAL 13º SALÁRIO</td>
+                                <td class="dt-table__value">R$ {{ "%.2f"|format(resultado.valor_total) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="dt-card__footer">
+                    <div class="dt-alert dt-alert--warning" role="note">
+                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        <span><strong>Atenção:</strong> na 2ª parcela incidem descontos de INSS e IR. O valor líquido será menor que o apresentado.</span>
+                    </div>
+                    <div class="dt-legal">
+                        <p class="dt-legal__title">
+                            <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </p>
+                        <ul class="dt-legal__list">
+                            <li><strong>Lei 4.090/62, Art. 1º</strong> — Gratificação natalina (13º salário)</li>
+                            <li><strong>Lei 4.749/65, Art. 2º</strong> — Pagamento em duas parcelas</li>
+                            <li><strong>CF Art. 7º, VIII</strong> — Direito ao 13º salário</li>
+                            <li><strong>Súmula 45 TST</strong> — Média das comissões habituais integra o 13º</li>
+                        </ul>
+                    </div>
+                    <p class="dt-note">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Cálculo estimativo bruto. Descontos de INSS e IRRF incidem na 2ª parcela.</span>
+                    </p>
+                </footer>
+            </article>
+        </section>
+        {% endif %}
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 960) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

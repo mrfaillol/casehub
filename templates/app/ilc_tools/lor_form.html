@@ -1,0 +1,158 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Ilc_Tools · Lor_Form · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/ilc-tools" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="fas fa-arrow-left me-1"></i> {{ 'Voltar' if lang == 'pt-BR' else 'Back' }}
+    </a>
+    <h2><i class="fas fa-file-signature me-2"></i>LOR Generator</h2>
+    <p class="text-muted">{{ 'Gere cartas de recomendação profissionais' if lang == 'pt-BR' else 'Generate professional recommendation letters' }}</p>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+</div>
+{% endif %}
+
+<form method="POST" action="{{ PREFIX }}/ilc-tools/lor/generate">
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Beneficiary Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-user me-2"></i>{{ 'Informações do Beneficiário' if lang == 'pt-BR' else 'Beneficiary Information' }}
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Vincular a Caso (opcional)' if lang == 'pt-BR' else 'Link to Case (optional)' }}</label>
+                        <select name="case_id" class="form-select glass-input" id="caseSelect">
+                            <option value="">{{ 'Nenhum caso' if lang == 'pt-BR' else 'No case' }}</option>
+                            {% for c in cases %}
+                            <option value="{{ c.id }}" {% if case and case.id == c.id %}selected{% endif %}>
+                                {{ c.case_name or c.case_number }} - {{ c.visa_type }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Nome do Beneficiário' if lang == 'pt-BR' else 'Beneficiary Name' }} *</label>
+                            <input type="text" name="beneficiary_name" class="form-control glass-input" required
+                                   value="{{ client.first_name ~ ' ' ~ client.last_name if client else lor_data.beneficiary_name|default('') }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Área de Atuação' if lang == 'pt-BR' else 'Field of Expertise' }} *</label>
+                            <input type="text" name="field_of_expertise" class="form-control glass-input" required
+                                   value="{{ case.visa_type if case else lor_data.field_of_expertise|default('') }}"
+                                   placeholder="e.g., Artificial Intelligence, Biomedical Research">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Principais Conquistas' if lang == 'pt-BR' else 'Key Achievements' }}</label>
+                        <textarea name="achievements" class="form-control glass-input" rows="3"
+                                  placeholder="{{ 'Liste as principais conquistas do beneficiário...' if lang == 'pt-BR' else 'List the beneficiary key achievements...' }}">{{ lor_data.achievements|default('') }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Importância Nacional' if lang == 'pt-BR' else 'National Importance' }}</label>
+                        <textarea name="national_importance" class="form-control glass-input" rows="3"
+                                  placeholder="{{ 'Como o trabalho do beneficiário é importante nacionalmente...' if lang == 'pt-BR' else 'How is the beneficiary work nationally important...' }}">{{ lor_data.national_importance|default('') }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Writer Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-pen-fancy me-2"></i>{{ 'Informações do Escritor da Carta' if lang == 'pt-BR' else 'Letter Writer Information' }}
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Nome do Escritor' if lang == 'pt-BR' else 'Writer Name' }} *</label>
+                            <input type="text" name="writer_name" class="form-control glass-input" required
+                                   value="{{ lor_data.writer_name|default('') }}"
+                                   placeholder="Dr. John Smith">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Título/Cargo' if lang == 'pt-BR' else 'Title/Position' }} *</label>
+                            <input type="text" name="writer_title" class="form-control glass-input" required
+                                   value="{{ lor_data.writer_title|default('') }}"
+                                   placeholder="Professor of Computer Science">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Instituição' if lang == 'pt-BR' else 'Institution' }} *</label>
+                            <input type="text" name="writer_institution" class="form-control glass-input" required
+                                   value="{{ lor_data.writer_institution|default('') }}"
+                                   placeholder="MIT, Stanford University">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Relação com Beneficiário' if lang == 'pt-BR' else 'Relationship' }} *</label>
+                            <select name="relationship" class="form-select glass-input" required>
+                                <option value="">{{ 'Selecione...' if lang == 'pt-BR' else 'Select...' }}</option>
+                                <option value="supervisor" {% if lor_data.relationship == 'supervisor' %}selected{% endif %}>Supervisor/Manager</option>
+                                <option value="colleague" {% if lor_data.relationship == 'colleague' %}selected{% endif %}>Colleague/Peer</option>
+                                <option value="collaborator" {% if lor_data.relationship == 'collaborator' %}selected{% endif %}>Collaborator</option>
+                                <option value="professor" {% if lor_data.relationship == 'professor' %}selected{% endif %}>Professor/Advisor</option>
+                                <option value="client" {% if lor_data.relationship == 'client' %}selected{% endif %}>Client</option>
+                                <option value="expert" {% if lor_data.relationship == 'expert' %}selected{% endif %}>Independent Expert</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Anos de Conhecimento' if lang == 'pt-BR' else 'Years Known' }} *</label>
+                        <input type="number" name="years_known" class="form-control glass-input" required min="1" max="50"
+                               value="{{ lor_data.years_known|default('5') }}"
+                               style="max-width: 150px;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Context -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-info-circle me-2"></i>{{ 'Contexto Adicional' if lang == 'pt-BR' else 'Additional Context' }}
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Informações Adicionais' if lang == 'pt-BR' else 'Additional Information' }}</label>
+                        <textarea name="additional_context" class="form-control glass-input" rows="4"
+                                  placeholder="{{ 'Qualquer informação adicional relevante para a carta...' if lang == 'pt-BR' else 'Any additional relevant information for the letter...' }}">{{ lor_data.additional_context|default('') }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Actions -->
+            <div class="card sticky-top" style="top: 1rem;">
+                <div class="card-header">
+                    <i class="fas fa-magic me-2"></i>{{ 'Gerar' if lang == 'pt-BR' else 'Generate' }}
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">
+                        {{ 'A carta será gerada usando IA otimizada para petições de imigração.' if lang == 'pt-BR' else 'The letter will be generated using AI optimized for immigration petitions.' }}
+                    </p>
+                    <button type="submit" class="btn btn-primary glass-btn glass-btn--primary btn-lg w-100">
+                        <i class="fas fa-file-signature me-2"></i>{{ 'Gerar LOR' if lang == 'pt-BR' else 'Generate LOR' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

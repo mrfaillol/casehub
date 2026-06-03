@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+
+{% set is_lite = product == "lite" %}
+{% set currency_code = org_currency|default('BRL' if is_lite else 'USD') %}
+
+{% block title %}{% if is_lite %}Financeiro{% else %}Billing{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/billing-dashboard.css">
+{% endblock %}
+
+{% block content %}
+<main class="billing-dashboard-main" role="main" aria-labelledby="billing-dashboard-title">
+
+    {# ── Header ───────────────────────────────────────── #}
+    <header class="billing-dashboard-header">
+        <h1 id="billing-dashboard-title" class="billing-dashboard-title">
+            <i class="fas fa-chart-line" aria-hidden="true"></i>
+            <span>{% if is_lite %}Financeiro{% else %}Billing{% endif %}</span>
+        </h1>
+        <nav class="billing-dashboard-actions" aria-label="{% if is_lite %}Ações de cobrança{% else %}Billing actions{% endif %}">
+            <a href="{{ PREFIX }}/billing/items/new" class="billing-dashboard-btn billing-dashboard-btn--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if is_lite %}Nova Cobrança{% else %}New Charge{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/billing/time/new" class="billing-dashboard-btn billing-dashboard-btn--ghost">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                <span>{% if is_lite %}Registrar Tempo{% else %}Log Time{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/billing/invoices/new" class="billing-dashboard-btn billing-dashboard-btn--ghost">
+                <i class="fas fa-file-invoice" aria-hidden="true"></i>
+                <span>{% if is_lite %}Gerar Fatura{% else %}Generate Invoice{% endif %}</span>
+            </a>
+        </nav>
+    </header>
+
+    {# ── 4 Summary Cards ──────────────────────────────── #}
+    <section class="billing-dashboard-stats" aria-label="{% if is_lite %}Resumo financeiro{% else %}Financial summary{% endif %}">
+        <article class="billing-dashboard-stat">
+            <div class="billing-dashboard-stat-label">
+                <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+                <span>{% if is_lite %}Total Faturado{% else %}Total Billed{% endif %}</span>
+            </div>
+            <output class="billing-dashboard-stat-value">{{ stats.total_billed|format_currency(currency_code) }}</output>
+        </article>
+        <article class="billing-dashboard-stat billing-dashboard-stat--success">
+            <div class="billing-dashboard-stat-label">
+                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                <span>{% if is_lite %}Recebido{% else %}Received{% endif %}</span>
+            </div>
+            <output class="billing-dashboard-stat-value">{{ stats.total_paid|format_currency(currency_code) }}</output>
+        </article>
+        <article class="billing-dashboard-stat billing-dashboard-stat--warning">
+            <div class="billing-dashboard-stat-label">
+                <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+                <span>{% if is_lite %}Pendente{% else %}Pending{% endif %}</span>
+            </div>
+            <output class="billing-dashboard-stat-value">{{ stats.total_pending|format_currency(currency_code) }}</output>
+        </article>
+        <article class="billing-dashboard-stat billing-dashboard-stat--danger">
+            <div class="billing-dashboard-stat-label">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                <span>{% if is_lite %}Atrasado{% else %}Overdue{% endif %}</span>
+            </div>
+            <output class="billing-dashboard-stat-value">{{ stats.total_overdue|format_currency(currency_code) }}</output>
+        </article>
+    </section>
+
+    {# ── Revenue Chart ────────────────────────────────── #}
+    <section class="billing-dashboard-chart-section" aria-labelledby="billing-dashboard-chart-title">
+        <div class="billing-dashboard-card">
+            <header class="billing-dashboard-card-header">
+                <h2 id="billing-dashboard-chart-title" class="billing-dashboard-card-title">
+                    <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                    <span>{% if is_lite %}Receita Mensal (Últimos 6 Meses){% else %}Monthly Revenue (Last 6 Months){% endif %}</span>
+                </h2>
+            </header>
+            <div class="billing-dashboard-card-body">
+                <div class="billing-dashboard-chart-wrap">
+                    <canvas id="revenueChart" role="img" aria-label="{% if is_lite %}Gráfico de receita mensal{% else %}Monthly revenue chart{% endif %}"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# ── Receivables + Sidebar ────────────────────────── #}
+    <section class="billing-dashboard-split">
+        {# Receivables Table #}
+        <div class="billing-dashboard-card" aria-labelledby="billing-dashboard-receivables-title">
+            <header class="billing-dashboard-card-header">
+                <h2 id="billing-dashboard-receivables-title" class="billing-dashboard-card-title">
+                    <i class="fas fa-hand-holding-usd" aria-hidden="true"></i>
+                    <span>{% if is_lite %}Contas a Receber{% else %}Accounts Receivable{% endif %}</span>
+                </h2>
+            </header>
+            <div class="billing-dashboard-card-body billing-dashboard-card-body--flush">
+                <table class="billing-dashboard-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{% if is_lite %}Processo{% else %}Case{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Descrição{% else %}Description{% endif %}</th>
+                            <th scope="col" class="is-numeric">{% if is_lite %}Valor{% else %}Amount{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Vencimento{% else %}Due Date{% endif %}</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="is-actions">{% if is_lite %}Ações{% else %}Actions{% endif %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in receivables %}
+                        {% set is_overdue = item.due_date and item.due_date < today %}
+                        {% set is_due_soon = item.due_date and not is_overdue and (item.due_date - today).days <= 7 %}
+                        <tr class="{% if is_overdue %}is-overdue{% elif is_due_soon %}is-due-soon{% endif %}">
+                            <td>
+                                <a class="billing-dashboard-link" href="{{ PREFIX }}/cases/{{ item.case.id }}">{{ item.case.case_number or item.case.case_name or 'N/A' }}</a>
+                            </td>
+                            <td>{{ item.description[:40] }}{% if item.description|length > 40 %}…{% endif %}</td>
+                            <td class="is-numeric">
+                                <span class="billing-dashboard-amount" aria-label="{% if is_lite %}Valor{% else %}Amount{% endif %}: {{ item.amount|format_currency(currency_code) }}">
+                                    {{ item.amount|format_currency(currency_code) }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if item.due_date %}
+                                    {% if is_overdue %}
+                                    <span class="billing-dashboard-due billing-dashboard-due--overdue">
+                                        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                                        <time datetime="{{ item.due_date.isoformat() }}">{{ item.due_date.strftime('%d/%m/%Y') }}</time>
+                                    </span>
+                                    {% elif is_due_soon %}
+                                    <span class="billing-dashboard-due billing-dashboard-due--soon">
+                                        <i class="fas fa-clock" aria-hidden="true"></i>
+                                        <time datetime="{{ item.due_date.isoformat() }}">{{ item.due_date.strftime('%d/%m/%Y') }}</time>
+                                    </span>
+                                    {% else %}
+                                    <time datetime="{{ item.due_date.isoformat() }}">{{ item.due_date.strftime('%d/%m/%Y') }}</time>
+                                    {% endif %}
+                                {% else %}
+                                <span class="billing-dashboard-due billing-dashboard-due--neutral">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if is_overdue %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--danger">{% if is_lite %}Atrasado{% else %}Overdue{% endif %}</span>
+                                {% elif item.status == 'invoiced' %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--info">{% if is_lite %}Faturado{% else %}Invoiced{% endif %}</span>
+                                {% else %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--warning">{% if is_lite %}Pendente{% else %}Pending{% endif %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="is-actions">
+                                <form method="post" action="{{ PREFIX }}/billing/items/{{ item.id }}/mark-paid" class="billing-dashboard-icon-btn-form">
+                                    <button type="submit" class="billing-dashboard-icon-btn billing-dashboard-icon-btn--success" aria-label="{% if is_lite %}Marcar como Pago{% else %}Mark as Paid{% endif %}">
+                                        <i class="fas fa-check" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="billing-dashboard-empty">
+                                {% if is_lite %}Nenhuma conta a receber.{% else %}No receivables.{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {# Time Entries + Mini-stat #}
+        <aside class="billing-dashboard-side" aria-labelledby="billing-dashboard-time-title">
+            <div class="billing-dashboard-card">
+                <header class="billing-dashboard-card-header">
+                    <h2 id="billing-dashboard-time-title" class="billing-dashboard-card-title">
+                        <i class="fas fa-clock" aria-hidden="true"></i>
+                        <span>{% if is_lite %}Horas Recentes{% else %}Recent Time Entries{% endif %}</span>
+                    </h2>
+                    <a href="{{ PREFIX }}/billing/time/new" class="billing-dashboard-icon-btn billing-dashboard-icon-btn--primary" aria-label="{% if is_lite %}Registrar tempo{% else %}Log time{% endif %}">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                    </a>
+                </header>
+                <div class="billing-dashboard-card-body billing-dashboard-card-body--flush">
+                    <ul class="billing-dashboard-time-list">
+                        {% for entry in time_entries[:10] %}
+                        <li class="billing-dashboard-time-entry">
+                            <div class="billing-dashboard-time-entry-row">
+                                <time class="billing-dashboard-time-entry-date" datetime="{{ entry.date.isoformat() }}">{{ entry.date.strftime('%d/%m/%Y') }}</time>
+                                <span class="billing-dashboard-time-entry-hours">{{ "%.1f"|format(entry.hours) }}h</span>
+                            </div>
+                            <div class="billing-dashboard-time-entry-description">{{ entry.description[:50] }}{% if entry.description|length > 50 %}…{% endif %}</div>
+                            <div class="billing-dashboard-time-entry-meta">
+                                <a class="billing-dashboard-link" href="{{ PREFIX }}/cases/{{ entry.case.id }}">{{ entry.case.case_number or entry.case.case_name }}</a>
+                                {% if not entry.billable %}<span class="billing-dashboard-badge billing-dashboard-badge--neutral">{% if is_lite %}Não faturável{% else %}Non-billable{% endif %}</span>{% endif %}
+                            </div>
+                        </li>
+                        {% else %}
+                        <li class="billing-dashboard-empty">{% if is_lite %}Nenhuma entrada de tempo.{% else %}No time entries yet.{% endif %}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="billing-dashboard-mini-stat" role="group" aria-labelledby="billing-dashboard-billable-label">
+                <div id="billing-dashboard-billable-label" class="billing-dashboard-stat-label">
+                    <i class="fas fa-business-time" aria-hidden="true"></i>
+                    <span>{% if is_lite %}Horas Faturáveis{% else %}Billable Hours{% endif %}</span>
+                </div>
+                <output class="billing-dashboard-mini-stat-value">{{ "%.1f"|format(stats.billable_hours) }}h</output>
+            </div>
+        </aside>
+    </section>
+
+    {# ── Billing Items Full Table ─────────────────────── #}
+    <section aria-labelledby="billing-dashboard-items-title">
+        <div class="billing-dashboard-card">
+            <header class="billing-dashboard-card-header">
+                <h2 id="billing-dashboard-items-title" class="billing-dashboard-card-title">
+                    <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+                    <span>{% if is_lite %}Itens de Cobrança{% else %}Billing Items{% endif %}</span>
+                </h2>
+                <div class="billing-dashboard-filter">
+                    <label for="billing-dashboard-status-filter" class="billing-dashboard-filter-label">{% if is_lite %}Situação{% else %}Status{% endif %}</label>
+                    <select id="billing-dashboard-status-filter"
+                            class="billing-dashboard-select"
+                            onchange="window.location.href='{{ PREFIX }}/billing?status='+this.value">
+                        <option value="">{% if is_lite %}Todos{% else %}All{% endif %}</option>
+                        <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>{% if is_lite %}Pendente{% else %}Pending{% endif %}</option>
+                        <option value="invoiced" {% if selected_status == 'invoiced' %}selected{% endif %}>{% if is_lite %}Faturado{% else %}Invoiced{% endif %}</option>
+                        <option value="paid" {% if selected_status == 'paid' %}selected{% endif %}>{% if is_lite %}Pago{% else %}Paid{% endif %}</option>
+                    </select>
+                </div>
+            </header>
+            <div class="billing-dashboard-card-body billing-dashboard-card-body--flush">
+                <table class="billing-dashboard-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{% if is_lite %}Processo{% else %}Case{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Descrição{% else %}Description{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Tipo{% else %}Type{% endif %}</th>
+                            <th scope="col" class="is-numeric">{% if is_lite %}Valor{% else %}Amount{% endif %}</th>
+                            <th scope="col">Status</th>
+                            <th scope="col" class="is-actions">{% if is_lite %}Ações{% else %}Actions{% endif %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in billing_items %}
+                        <tr>
+                            <td>
+                                <a class="billing-dashboard-link" href="{{ PREFIX }}/cases/{{ item.case.id }}">{{ item.case.case_number or item.case.case_name or 'Case #' + item.case.id|string }}</a>
+                            </td>
+                            <td>{{ item.description }}</td>
+                            <td>
+                                {% if item.item_type == 'payment' %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--success">{% if is_lite %}Pagamento{% else %}Payment{% endif %}</span>
+                                {% elif item.item_type == 'filing_fee' %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--info">{% if is_lite %}Taxa{% else %}Filing Fee{% endif %}</span>
+                                {% elif item.item_type == 'expense' %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--neutral">{% if is_lite %}Despesa{% else %}Expense{% endif %}</span>
+                                {% else %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--accent">{% if is_lite %}Honorário{% else %}Fee{% endif %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="is-numeric">
+                                {% if item.item_type == 'payment' %}
+                                <span class="billing-dashboard-amount billing-dashboard-amount--positive">+{{ item.amount|format_currency(currency_code) }}</span>
+                                {% else %}
+                                <span class="billing-dashboard-amount">{{ item.amount|format_currency(currency_code) }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.status == 'paid' %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--success">{% if is_lite %}Pago{% else %}Paid{% endif %}</span>
+                                {% elif item.status == 'invoiced' %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--info">{% if is_lite %}Faturado{% else %}Invoiced{% endif %}</span>
+                                {% else %}
+                                <span class="billing-dashboard-badge billing-dashboard-badge--warning">{% if is_lite %}Pendente{% else %}Pending{% endif %}</span>
+                                {% endif %}
+                            </td>
+                            <td class="is-actions">
+                                <div class="billing-dashboard-row-actions">
+                                    {% if item.status != 'paid' %}
+                                    <form method="post" action="{{ PREFIX }}/billing/items/{{ item.id }}/mark-paid" class="billing-dashboard-icon-btn-form">
+                                        <button type="submit" class="billing-dashboard-icon-btn billing-dashboard-icon-btn--success" aria-label="{% if is_lite %}Marcar como Pago{% else %}Mark as Paid{% endif %}">
+                                            <i class="fas fa-check" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    <a href="{{ PREFIX }}/billing/items/{{ item.id }}/edit" class="billing-dashboard-icon-btn billing-dashboard-icon-btn--primary" aria-label="{% if is_lite %}Editar item{% else %}Edit item{% endif %}">
+                                        <i class="fas fa-edit" aria-hidden="true"></i>
+                                    </a>
+                                    <form method="post" action="{{ PREFIX }}/billing/items/{{ item.id }}/delete" class="billing-dashboard-icon-btn-form" onsubmit="return confirm({% if is_lite %}'Deletar este item?'{% else %}'Delete this item?'{% endif %});">
+                                        <button type="submit" class="billing-dashboard-icon-btn billing-dashboard-icon-btn--danger" aria-label="{% if is_lite %}Deletar item{% else %}Delete item{% endif %}">
+                                            <i class="fas fa-trash" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="billing-dashboard-empty">
+                                {% if is_lite %}Nenhum item de cobrança. <a class="billing-dashboard-link" href="{{ PREFIX }}/billing/items/new">Criar um</a>{% else %}No billing items yet. <a class="billing-dashboard-link" href="{{ PREFIX }}/billing/items/new">Create one</a>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('revenueChart');
+    if (!ctx) return;
+
+    const labels = {{ chart_labels|safe }};
+    const values = {{ chart_values|safe }};
+
+    const rootStyles = getComputedStyle(document.documentElement);
+    const accent = rootStyles.getPropertyValue('--accent').trim();
+    const accentMuted = rootStyles.getPropertyValue('--accent-muted').trim();
+    const textMuted = rootStyles.getPropertyValue('--text-muted').trim();
+    const borderSubtle = rootStyles.getPropertyValue('--border-subtle').trim();
+    const surfaceRaised = rootStyles.getPropertyValue('--surface-raised').trim();
+    const textPrimary = rootStyles.getPropertyValue('--text-primary').trim();
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '{{ "Receita (R$)" if is_lite else "Revenue ($)" }}',
+                data: values,
+                backgroundColor: accentMuted,
+                borderColor: accent,
+                borderWidth: 2,
+                borderRadius: 8,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: surfaceRaised,
+                    titleColor: textPrimary,
+                    bodyColor: textPrimary,
+                    borderColor: borderSubtle,
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(context) {
+                            return '{{ "R$ " if is_lite else "$ " }}' + context.parsed.y.toLocaleString('{{ "pt-BR" if is_lite else "en-US" }}', {minimumFractionDigits: 2});
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: borderSubtle },
+                    ticks: {
+                        color: textMuted,
+                        callback: function(value) {
+                            return '{{ "R$ " if is_lite else "$ " }}' + value.toLocaleString();
+                        }
+                    }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: textMuted }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

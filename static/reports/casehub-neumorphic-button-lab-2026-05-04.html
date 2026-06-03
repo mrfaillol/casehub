@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CaseHub Neumorphic Button Lab</title>
+  <style>
+    :root {
+      --bg: #f3f2ef;
+      --panel: #f8f7f3;
+      --text: #242421;
+      --muted: #706d66;
+      --line: rgba(36, 36, 33, 0.12);
+      --shadow-dark: rgba(162, 158, 147, 0.46);
+      --shadow-light: rgba(255, 255, 255, 0.9);
+      --radius: 10px;
+      --depth: 7px;
+      --blur: 16px;
+      --duration: 160ms;
+      --lift: 1px;
+      --raised: calc(var(--depth) * -1) calc(var(--depth) * -1) var(--blur) var(--shadow-light),
+        var(--depth) var(--depth) var(--blur) var(--shadow-dark);
+      --pressed: inset 4px 4px 8px rgba(162, 158, 147, 0.38),
+        inset -4px -4px 8px rgba(255, 255, 255, 0.76);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 32px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      display: grid;
+      gap: 22px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 5vw, 56px);
+      line-height: 0.96;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .surface {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--raised);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(260px, 360px) 1fr;
+      gap: 18px;
+    }
+
+    .controls,
+    .preview,
+    .codebox {
+      padding: 18px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    label,
+    legend {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 760;
+      text-transform: uppercase;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #77746d;
+    }
+
+    .swatches,
+    .presets {
+      display: grid;
+      gap: 8px;
+    }
+
+    .preset {
+      width: 100%;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      box-shadow: var(--raised);
+      cursor: pointer;
+      transition: transform var(--duration), box-shadow var(--duration);
+    }
+
+    .preset[aria-pressed="true"],
+    .preset:active {
+      transform: translateY(var(--lift));
+      box-shadow: var(--pressed);
+    }
+
+    .preview {
+      min-height: 500px;
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .mock-window {
+      width: min(620px, 100%);
+      display: grid;
+      gap: 18px;
+      padding: 22px;
+      border-radius: calc(var(--radius) + 4px);
+      background: var(--bg);
+      box-shadow: var(--raised);
+    }
+
+    .mock-tabs {
+      display: flex;
+      align-items: end;
+      gap: 8px;
+    }
+
+    .tab {
+      min-height: 42px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius) var(--radius) 0 0;
+      background: var(--bg);
+      color: var(--muted);
+      box-shadow: var(--pressed);
+    }
+
+    .tab.active {
+      color: var(--text);
+      background: var(--panel);
+      border-bottom-color: var(--panel);
+      box-shadow: var(--raised);
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .casehub-button {
+      min-height: 54px;
+      min-width: 180px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 20px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      font: 760 15px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+      box-shadow: var(--raised);
+      cursor: pointer;
+      transition: transform var(--duration), box-shadow var(--duration), border-color var(--duration);
+    }
+
+    .casehub-button:hover {
+      transform: translateY(var(--lift));
+      box-shadow: var(--pressed);
+    }
+
+    .casehub-button:active,
+    .casehub-button.is-pressed {
+      transform: translateY(var(--lift)) scale(0.997);
+      box-shadow: var(--pressed);
+    }
+
+    .line-icon {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.75;
+    }
+
+    .microcopy {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+    }
+
+    .codebox {
+      display: grid;
+      gap: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 190px;
+      resize: vertical;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg);
+      color: var(--text);
+      box-shadow: var(--pressed);
+      font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    .copy {
+      justify-self: start;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      padding: 24px;
+      background: rgba(20, 20, 18, 0.16);
+    }
+
+    .modal-backdrop.is-open {
+      display: grid;
+    }
+
+    .modal {
+      width: min(560px, 100%);
+      padding: 22px;
+      border-radius: calc(var(--radius) + 4px);
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--raised);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    @media (max-width: 820px) {
+      body { padding: 16px; }
+      .layout { grid-template-columns: 1fr; }
+      .preview { min-height: 420px; }
+      .casehub-button { min-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>CaseHub button lab</h1>
+        <p>Escolha o comportamento do botao neumorphic. O resultado e copiado como JSON/CSS para aplicar no Lite.</p>
+      </div>
+      <button class="casehub-button" type="button" data-open-modal>
+        <svg class="line-icon" viewBox="0 0 24 24"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+        Abrir modal
+      </button>
+    </header>
+
+    <section class="layout">
+      <aside class="controls surface" aria-label="Controles">
+        <fieldset class="presets">
+          <legend>Preset</legend>
+          <button class="preset" type="button" data-preset="soft" aria-pressed="true">Soft default <span>raised/inset</span></button>
+          <button class="preset" type="button" data-preset="flat">Quase flat <span>baixo contraste</span></button>
+          <button class="preset" type="button" data-preset="deep">Mais profundo <span>mais tato</span></button>
+          <button class="preset" type="button" data-preset="slow">Animacao lenta <span>macOS-like</span></button>
+        </fieldset>
+
+        <div class="field">
+          <label for="depth">Profundidade</label>
+          <input id="depth" type="range" min="2" max="14" value="7">
+        </div>
+        <div class="field">
+          <label for="blur">Sombra suave</label>
+          <input id="blur" type="range" min="8" max="30" value="16">
+        </div>
+        <div class="field">
+          <label for="radius">Raio</label>
+          <input id="radius" type="range" min="6" max="18" value="10">
+        </div>
+        <div class="field">
+          <label for="duration">Duracao</label>
+          <input id="duration" type="range" min="90" max="320" value="160">
+        </div>
+        <div class="field">
+          <label for="lift">Pressao</label>
+          <input id="lift" type="range" min="0" max="3" value="1">
+        </div>
+      </aside>
+
+      <section class="preview surface" aria-label="Preview">
+        <div class="mock-window">
+          <div class="mock-tabs">
+            <div class="tab active">Controladoria</div>
+            <div class="tab">Agenda</div>
+            <div class="tab">Kanban</div>
+          </div>
+          <div class="button-row">
+            <button class="casehub-button" type="button">
+              <svg class="line-icon" viewBox="0 0 24 24"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+              Novo prazo
+            </button>
+            <button class="casehub-button is-pressed" type="button">
+              <svg class="line-icon" viewBox="0 0 24 24"><path d="M4 12h16" /><path d="m14 6 6 6-6 6" /></svg>
+              Estado ativo
+            </button>
+          </div>
+          <div class="microcopy">
+            <strong>Regra visual</strong>
+            <span>Sem preenchimento azul. O botao comunica acao por sombra, inset e movimento curto.</span>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="codebox surface">
+      <strong>Preset para enviar ao Codex</strong>
+      <textarea id="output" readonly></textarea>
+      <button class="casehub-button copy" type="button" data-copy>Copiar preset</button>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" data-modal>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h2 id="modal-title">Confirmar estilo do botao</h2>
+      <p>Este modal usa o mesmo preset do preview. Clique fora ou em fechar para voltar.</p>
+      <div class="modal-actions">
+        <button class="casehub-button" type="button" data-close-modal>Fechar</button>
+        <button class="casehub-button is-pressed" type="button" data-close-modal>Escolher assim</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    const controls = {
+      depth: document.getElementById('depth'),
+      blur: document.getElementById('blur'),
+      radius: document.getElementById('radius'),
+      duration: document.getElementById('duration'),
+      lift: document.getElementById('lift')
+    };
+    const output = document.getElementById('output');
+    const storageKey = 'casehub-neumorphic-button-preset:v1';
+    const channel = 'BroadcastChannel' in window ? new BroadcastChannel('casehub-neumorphic-lab') : null;
+    let selectedPreset = 'soft';
+    const presets = {
+      soft: { depth: 7, blur: 16, radius: 10, duration: 160, lift: 1 },
+      flat: { depth: 3, blur: 12, radius: 8, duration: 140, lift: 1 },
+      deep: { depth: 10, blur: 22, radius: 12, duration: 180, lift: 1 },
+      slow: { depth: 7, blur: 18, radius: 10, duration: 260, lift: 2 }
+    };
+
+    function values() {
+      return Object.fromEntries(Object.entries(controls).map(([key, input]) => [key, Number(input.value)]));
+    }
+
+    function update() {
+      const v = values();
+      root.style.setProperty('--depth', `${v.depth}px`);
+      root.style.setProperty('--blur', `${v.blur}px`);
+      root.style.setProperty('--radius', `${v.radius}px`);
+      root.style.setProperty('--duration', `${v.duration}ms`);
+      root.style.setProperty('--lift', `${v.lift}px`);
+      const payload = {
+        component: 'casehub-button',
+        preset: selectedPreset,
+        palette: 'same-surface-neutral',
+        icon_style: 'line-art-svg',
+        hover: 'pressed-inset-no-color-change',
+        active: 'inset-shadow',
+        tokens: v
+      };
+      output.value = JSON.stringify(payload, null, 2);
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+      if (channel) {
+        channel.postMessage({ type: 'casehub-neumorphic-preset', payload });
+      }
+      document.documentElement.dataset.casehubNuPreset = selectedPreset;
+    }
+
+    Object.values(controls).forEach(input => input.addEventListener('input', update));
+    document.querySelectorAll('[data-preset]').forEach(button => {
+      button.addEventListener('click', () => {
+        const preset = presets[button.dataset.preset];
+        selectedPreset = button.dataset.preset;
+        Object.entries(preset).forEach(([key, value]) => controls[key].value = value);
+        document.querySelectorAll('[data-preset]').forEach(item => item.setAttribute('aria-pressed', 'false'));
+        button.setAttribute('aria-pressed', 'true');
+        update();
+      });
+    });
+
+    const modal = document.querySelector('[data-modal]');
+    document.querySelector('[data-open-modal]').addEventListener('click', () => modal.classList.add('is-open'));
+    document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', () => modal.classList.remove('is-open')));
+    modal.addEventListener('click', event => {
+      if (event.target === modal) modal.classList.remove('is-open');
+    });
+    document.querySelector('[data-copy]').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(output.value);
+    });
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if (saved && saved.tokens) {
+        selectedPreset = saved.preset || 'custom';
+        Object.entries(saved.tokens).forEach(([key, value]) => {
+          if (controls[key]) controls[key].value = value;
+        });
+        document.querySelectorAll('[data-preset]').forEach(item => {
+          item.setAttribute('aria-pressed', item.dataset.preset === selectedPreset ? 'true' : 'false');
+        });
+      }
+    } catch (_) {}
+
+    update();
+  </script>
+</body>
+</html>

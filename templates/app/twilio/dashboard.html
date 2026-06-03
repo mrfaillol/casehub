@@ -1,0 +1,396 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Twilio · SMS e chamadas · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-comments me-2"></i>Twilio - SMS, chamadas e WhatsApp</h2>
+    <div>
+        {% if is_configured %}
+        <span class="badge bg-success me-2"><i class="fas fa-check me-1"></i>Conectado</span>
+        {% else %}
+        <span class="badge bg-warning text-dark me-2"><i class="fas fa-exclamation-triangle me-1"></i>Não configurado</span>
+        {% endif %}
+        {% if whatsapp_configured %}
+        <span class="badge bg-success me-2"><i class="fab fa-whatsapp me-1"></i>WhatsApp</span>
+        {% endif %}
+        <span class="text-muted">{{ from_number }}</span>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Send SMS Panel -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-sms me-2"></i>Enviar SMS
+            </div>
+            <div class="card-body">
+                <form id="smsForm">
+                    <div class="mb-3">
+                        <label class="form-label">Número de destino</label>
+                        <div class="input-group">
+                            <input type="tel" class="form-control glass-input" name="to" id="smsTo" placeholder="+1234567890" required>
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="fas fa-user"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" style="max-height: 300px; overflow-y: auto;">
+                                {% for client in clients %}
+                                <li>
+                                    <a class="dropdown-item client-select" href="#" data-phone="{{ client.phone or client.whatsapp }}" data-name="{{ client.first_name }} {{ client.last_name }}">
+                                        {{ client.first_name }} {{ client.last_name }}
+                                        <small class="text-muted d-block">{{ client.phone or client.whatsapp }}</small>
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mensagem</label>
+                        <textarea class="form-control glass-input" name="message" id="smsMessage" rows="3" maxlength="160" required></textarea>
+                        <small class="text-muted"><span id="smsCharCount">0</span>/160 caracteres</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Modelos rápidos</label>
+                        <div class="btn-group-vertical w-100" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="setTemplate('smsMessage', 'appointment')">
+                                <i class="fas fa-calendar me-1"></i> Lembrete de compromisso
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="setTemplate('smsMessage', 'documents')">
+                                <i class="fas fa-file me-1"></i> Solicitação de documentos
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="setTemplate('smsMessage', 'update')">
+                                <i class="fas fa-info-circle me-1"></i> Atualização do processo
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary glass-btn glass-btn--primary w-100" {% if not is_configured %}disabled{% endif %}>
+                        <i class="fas fa-paper-plane me-1"></i> Enviar SMS
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Make Call Panel -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <i class="fas fa-phone me-2"></i>Fazer chamada
+            </div>
+            <div class="card-body">
+                <form id="callForm">
+                    <div class="mb-3">
+                        <label class="form-label">Número de telefone</label>
+                        <div class="input-group">
+                            <input type="tel" class="form-control glass-input" name="to" id="callTo" placeholder="+1234567890" required>
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="fas fa-user"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" style="max-height: 300px; overflow-y: auto;">
+                                {% for client in clients %}
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="document.getElementById('callTo').value='{{ client.phone or client.whatsapp }}'; document.getElementById('callNumber').textContent='{{ client.first_name }} {{ client.last_name }} - {{ client.phone or client.whatsapp }}'">
+                                        {{ client.first_name }} {{ client.last_name }}
+                                        <small class="text-muted d-block">{{ client.phone or client.whatsapp }}</small>
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center py-4">
+                                <i class="fas fa-phone-volume fa-3x text-success mb-3" id="callIcon"></i>
+                                <p class="mb-0" id="callStatus">Pronto para chamar</p>
+                                <p class="text-muted mb-0" id="callNumber">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success glass-btn glass-btn--success w-100" {% if not is_configured %}disabled{% endif %}>
+                        <i class="fas fa-phone me-1"></i> Iniciar chamada
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- WhatsApp Panel -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-white" style="background-color: #25D366;">
+                <i class="fab fa-whatsapp me-2"></i>Enviar WhatsApp
+            </div>
+            <div class="card-body">
+                <form id="whatsappForm">
+                    <div class="mb-3">
+                        <label class="form-label">Número de destino</label>
+                        <div class="input-group">
+                            <input type="tel" class="form-control glass-input" name="to" id="waTo" placeholder="+1234567890" required>
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="fas fa-user"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" style="max-height: 300px; overflow-y: auto;">
+                                {% for client in clients %}
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="document.getElementById('waTo').value='{{ client.whatsapp or client.phone }}'">
+                                        {{ client.first_name }} {{ client.last_name }}
+                                        <small class="text-muted d-block">{{ client.whatsapp or client.phone }}</small>
+                                    </a>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mensagem</label>
+                        <textarea class="form-control glass-input" name="message" id="waMessage" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Modelos rápidos</label>
+                        <div class="btn-group-vertical w-100" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="setTemplate('waMessage', 'appointment')">
+                                <i class="fas fa-calendar me-1"></i> Lembrete de compromisso
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="setTemplate('waMessage', 'documents')">
+                                <i class="fas fa-file me-1"></i> Solicitação de documentos
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="setTemplate('waMessage', 'followup')">
+                                <i class="fas fa-hand-wave me-1"></i> Acompanhamento
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn w-100 text-white" style="background-color: #25D366;" {% if not whatsapp_configured %}disabled{% endif %}>
+                        <i class="fab fa-whatsapp me-1"></i> Enviar WhatsApp
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- History Tabs -->
+<div class="card glass-card">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#smsHistory">
+                    <i class="fas fa-sms me-1"></i> Histórico de SMS
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#callHistory">
+                    <i class="fas fa-phone me-1"></i> Histórico de chamadas
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#waHistory">
+                    <i class="fab fa-whatsapp me-1"></i> WhatsApp
+                </a>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content">
+            <!-- SMS History -->
+            <div class="tab-pane fade show active" id="smsHistory">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Data/hora</th><th>Para/De</th><th>Mensagem</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="smsHistoryBody">
+                            <tr><td colspan="4" class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-1"></i> Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Call History -->
+            <div class="tab-pane fade" id="callHistory">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Data/hora</th><th>Tipo</th><th>Número</th><th>Duração</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="callHistoryBody">
+                            <tr><td colspan="5" class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin me-1"></i> Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- WhatsApp History -->
+            <div class="tab-pane fade" id="waHistory">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr><th>Data/hora</th><th>Para/De</th><th>Mensagem</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="waHistoryBody">
+                            <tr><td colspan="4" class="text-center text-muted py-3"><i class="fab fa-whatsapp me-1"></i> O histórico do WhatsApp aparecerá aqui quando estiver configurado</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if not is_configured %}
+<div class="alert alert-warning mt-4">
+    <h5><i class="fas fa-exclamation-triangle me-2"></i>Twilio não configurado</h5>
+    <p class="mb-2">Adicione estas variáveis ao arquivo <code>.env</code>:</p>
+    <ul class="mb-0">
+        <li><code>TWILIO_ACCOUNT_SID</code> - SID da conta Twilio</li>
+        <li><code>TWILIO_AUTH_TOKEN</code> - token de autenticação Twilio</li>
+        <li><code>TWILIO_FROM_NUMBER</code> - número Twilio (ex.: +14422197512)</li>
+        <li><code>TWILIO_WHATSAPP_FROM</code> - número WhatsApp (ex.: whatsapp:+14422197512)</li>
+    </ul>
+    <hr>
+    <p class="mb-0"><strong>URLs de webhook</strong> (configure no console da Twilio):</p>
+    <ul class="mb-0">
+        <li>SMS: <code>{{ base_url|default('') }}/casehub/twilio/webhook/sms</code></li>
+        <li>Voz: <code>{{ base_url|default('') }}/casehub/twilio/webhook/call</code></li>
+        <li>WhatsApp: <code>{{ base_url|default('') }}/casehub/twilio/webhook/whatsapp</code></li>
+    </ul>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+const msgTemplates = {
+    appointment: "Olá [NAME], lembramos do seu compromisso em [DATE] às [TIME]. Responda CONFIRMO ou nos avise se precisar remarcar.",
+    documents: "Olá [NAME], precisamos dos seguintes documentos para seu processo: [DOCS]. Envie assim que possível. Dúvidas? Fale conosco.",
+    update: "Olá [NAME], o status do seu processo foi atualizado. Acesse o portal ou fale conosco para mais detalhes.",
+    followup: "Olá [NAME], estamos acompanhando seu caso. Há alguma atualização sobre os documentos solicitados? Pode responder por aqui."
+};
+
+function setTemplate(fieldId, type) {
+    document.getElementById(fieldId).value = msgTemplates[type];
+    if (fieldId === 'smsMessage') updateCharCount();
+}
+
+function updateCharCount() {
+    document.getElementById('smsCharCount').textContent = document.getElementById('smsMessage').value.length;
+}
+document.getElementById('smsMessage').addEventListener('input', updateCharCount);
+
+// Send SMS
+document.getElementById('smsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('button[type="submit"]');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Enviando...';
+    btn.disabled = true;
+    try {
+        const resp = await fetch('{{ PREFIX }}/twilio/api/sms/send', { method: 'POST', body: new FormData(this) });
+        const result = await resp.json();
+        if (result.success) { alert('SMS enviado.'); this.reset(); updateCharCount(); loadSMSHistory(); }
+        else alert('Erro: ' + (result.error || 'Falha no envio'));
+    } catch (err) { alert('Erro: ' + err.message); }
+    btn.innerHTML = orig; btn.disabled = false;
+});
+
+// Initiate Call
+document.getElementById('callForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('button[type="submit"]');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Chamando...';
+    btn.disabled = true;
+    document.getElementById('callIcon').className = 'fas fa-phone-volume fa-3x text-warning mb-3 fa-beat';
+    document.getElementById('callStatus').textContent = 'Iniciando chamada...';
+    try {
+        const resp = await fetch('{{ PREFIX }}/twilio/api/call/initiate', { method: 'POST', body: new FormData(this) });
+        const result = await resp.json();
+        if (result.success) {
+            document.getElementById('callIcon').className = 'fas fa-phone-volume fa-3x text-success mb-3';
+            document.getElementById('callStatus').textContent = 'Chamada iniciada.';
+            loadCallHistory();
+        } else {
+            document.getElementById('callIcon').className = 'fas fa-phone-slash fa-3x text-danger mb-3';
+            document.getElementById('callStatus').textContent = 'Falha: ' + (result.error || 'desconhecida');
+        }
+    } catch (err) {
+        document.getElementById('callIcon').className = 'fas fa-phone-slash fa-3x text-danger mb-3';
+        document.getElementById('callStatus').textContent = 'Erro: ' + err.message;
+    }
+    btn.innerHTML = orig; btn.disabled = false;
+    setTimeout(() => {
+        document.getElementById('callIcon').className = 'fas fa-phone-volume fa-3x text-success mb-3';
+        document.getElementById('callStatus').textContent = 'Pronto para chamar';
+    }, 5000);
+});
+
+// Send WhatsApp
+document.getElementById('whatsappForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('button[type="submit"]');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Enviando...';
+    btn.disabled = true;
+    try {
+        const resp = await fetch('{{ PREFIX }}/twilio/api/whatsapp/send', { method: 'POST', body: new FormData(this) });
+        const result = await resp.json();
+        if (result.success) { alert('Mensagem de WhatsApp enviada.'); this.reset(); }
+        else alert('Erro: ' + (result.error || 'Falha no envio'));
+    } catch (err) { alert('Erro: ' + err.message); }
+    btn.innerHTML = orig; btn.disabled = false;
+});
+
+// Load SMS History
+async function loadSMSHistory() {
+    try {
+        const resp = await fetch('{{ PREFIX }}/twilio/api/sms/history?limit=20');
+        const result = await resp.json();
+        const tbody = document.getElementById('smsHistoryBody');
+        if (result.success && result.data && result.data.length > 0) {
+            tbody.innerHTML = result.data.map(sms => `
+                <tr>
+                    <td><small>${new Date(sms.date_created || sms.created_at).toLocaleString()}</small></td>
+                    <td>${sms.to || sms.from}</td>
+                    <td><small>${(sms.body || '').substring(0, 80)}${(sms.body || '').length > 80 ? '...' : ''}</small></td>
+                    <td><span class="badge bg-${sms.status === 'delivered' ? 'success' : sms.status === 'failed' ? 'danger' : 'secondary'}">${sms.status}</span></td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">Nenhum histórico de SMS</td></tr>';
+        }
+    } catch (err) {
+        document.getElementById('smsHistoryBody').innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">Erro ao carregar histórico</td></tr>';
+    }
+}
+
+// Load Call History
+async function loadCallHistory() {
+    try {
+        const resp = await fetch('{{ PREFIX }}/twilio/api/calls/history?limit=20');
+        const result = await resp.json();
+        const tbody = document.getElementById('callHistoryBody');
+        if (result.success && result.data && result.data.length > 0) {
+            tbody.innerHTML = result.data.map(call => `
+                <tr>
+                    <td><small>${new Date(call.date_created || call.created_at).toLocaleString()}</small></td>
+                    <td><i class="fas fa-${call.direction === 'inbound' ? 'phone-alt text-success' : 'phone text-primary'} me-1"></i>${call.direction || 'outbound'}</td>
+                    <td>${call.to || call.from}</td>
+                    <td>${call.duration ? Math.round(call.duration / 60) + ' min' : '-'}</td>
+                    <td><span class="badge bg-${call.status === 'completed' ? 'success' : 'secondary'}">${call.status}</span></td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Nenhum histórico de chamadas</td></tr>';
+        }
+    } catch (err) {
+        document.getElementById('callHistoryBody').innerHTML = '<tr><td colspan="5" class="text-center text-danger py-3">Erro ao carregar histórico</td></tr>';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSMSHistory();
+    loadCallHistory();
+});
+</script>
+{% endblock %}

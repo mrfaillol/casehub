@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Clientes{% else %}Clients{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/clients-list.css?v=20260519-mobile-cards">
+{% endblock %}
+
+{% block content %}
+<div class="clients-list-main" aria-labelledby="clients-list-title">
+    <header class="clients-list-header">
+        <h1 id="clients-list-title" class="clients-list-title">
+            <i class="fas fa-users" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Clientes{% else %}Clients{% endif %}</span>
+        </h1>
+        <a href="{{ PREFIX }}/clients/new" class="clients-list-btn clients-list-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Novo Cliente{% else %}New Client{% endif %}</span>
+        </a>
+    </header>
+
+    <section class="clients-list-filters" aria-label="{% if product == 'lite' %}Filtros{% else %}Filters{% endif %}">
+        <form method="get" class="clients-list-filters-form">
+            <div class="clients-list-field">
+                <label class="clients-list-field-label" for="clients-list-search">{% if product == "lite" %}Buscar{% else %}Search{% endif %}</label>
+                <div class="clients-list-search">
+                    <i class="fas fa-search clients-list-search-icon" aria-hidden="true"></i>
+                    <input type="text" id="clients-list-search" class="clients-list-input" name="search" placeholder="{% if product == 'lite' %}Buscar clientes...{% else %}Search by name, email, A#...{% endif %}" value="{{ search }}">
+                </div>
+            </div>
+            <div class="clients-list-field">
+                <label class="clients-list-field-label" for="clients-list-status">Status</label>
+                <select id="clients-list-status" name="status" class="clients-list-select" aria-label="{% if product == 'lite' %}Filtrar clientes por status{% else %}Filter clients by status{% endif %}">
+                    {% if product == "lite" %}
+                    <option value="">Todos os Status</option>
+                    <option value="lead" {% if status == "lead" %}selected{% endif %}>Lead</option>
+                    <option value="prospect" {% if status == "prospect" %}selected{% endif %}>Prospecto</option>
+                    <option value="active" {% if status == "active" %}selected{% endif %}>Ativo</option>
+                    <option value="approved" {% if status == "approved" %}selected{% endif %}>Aprovado</option>
+                    <option value="denied" {% if status == "denied" %}selected{% endif %}>Negado</option>
+                    <option value="closed" {% if status == "closed" %}selected{% endif %}>Encerrado</option>
+                    {% else %}
+                    <option value="">All Status</option>
+                    <option value="lead" {% if status == "lead" %}selected{% endif %}>Lead</option>
+                    <option value="prospect" {% if status == "prospect" %}selected{% endif %}>Prospect</option>
+                    <option value="active" {% if status == "active" %}selected{% endif %}>Active</option>
+                    <option value="approved" {% if status == "approved" %}selected{% endif %}>Approved</option>
+                    <option value="denied" {% if status == "denied" %}selected{% endif %}>Denied</option>
+                    <option value="closed" {% if status == "closed" %}selected{% endif %}>Closed</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="clients-list-field">
+                <span class="clients-list-field-label" aria-hidden="true">&nbsp;</span>
+                <button type="submit" class="clients-list-btn clients-list-btn--ghost">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Filtrar{% else %}Filter{% endif %}</span>
+                </button>
+            </div>
+        </form>
+    </section>
+
+    {% if product == "lite" %}
+    <div id="skeleton-loader" class="clients-list-skeleton" aria-hidden="true">
+        <div class="clients-list-skeleton-heading"></div>
+        <div class="clients-list-skeleton-line"></div>
+        <div class="clients-list-skeleton-line"></div>
+        <div class="clients-list-skeleton-line"></div>
+        <div class="clients-list-skeleton-line clients-list-skeleton-line--90"></div>
+        <div class="clients-list-skeleton-line clients-list-skeleton-line--70"></div>
+    </div>
+    {% endif %}
+
+    <section class="clients-list-card" aria-label="{% if product == 'lite' %}Lista de clientes{% else %}Client list{% endif %}">
+        <header class="clients-list-card-header">
+            <span class="clients-list-count">
+                <strong>{{ total }}</strong> {% if product == "lite" %}clientes encontrados{% else %}clients found{% endif %}
+            </span>
+        </header>
+
+        <div class="clients-list-table-wrapper">
+            <table class="clients-list-table" id="clientsTable" role="table">
+                <thead role="rowgroup">
+                    <tr role="row">
+                        <th scope="col" role="columnheader" class="clients-list-sortable" data-sort-col="0" data-sort-type="text" aria-sort="none" tabindex="0">
+                            {% if product == "lite" %}Nome{% else %}Name{% endif %}
+                            <span class="clients-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        <th scope="col" role="columnheader" class="clients-list-sortable" data-sort-col="1" data-sort-type="text" aria-sort="none" tabindex="0">
+                            Email
+                            <span class="clients-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        <th scope="col" role="columnheader" class="clients-list-sortable" data-sort-col="2" data-sort-type="text" aria-sort="none" tabindex="0">
+                            {% if product == "lite" %}Telefone{% else %}Phone{% endif %}
+                            <span class="clients-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        {% if product != "lite" %}
+                        <th scope="col" role="columnheader" class="clients-list-sortable" data-sort-col="3" data-sort-type="text" aria-sort="none" tabindex="0">
+                            A#
+                            <span class="clients-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        {% endif %}
+                        <th scope="col" role="columnheader" class="clients-list-sortable" data-sort-col="{% if product == 'lite' %}3{% else %}4{% endif %}" data-sort-type="text" aria-sort="none" tabindex="0">
+                            Status
+                            <span class="clients-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        <th scope="col" role="columnheader" class="clients-list-sortable" data-sort-col="{% if product == 'lite' %}4{% else %}5{% endif %}" data-sort-type="text" aria-sort="none" tabindex="0">
+                            {% if product == "lite" %}País{% else %}Country{% endif %}
+                            <span class="clients-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        <th scope="col" role="columnheader" class="clients-list-sortable" data-sort-col="{% if product == 'lite' %}5{% else %}6{% endif %}" data-sort-type="date" aria-sort="none" tabindex="0">
+                            {% if product == "lite" %}Cadastro{% else %}Created{% endif %}
+                            <span class="clients-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        <th scope="col" role="columnheader" class="clients-list-actions-cell">
+                            <span class="clients-list-visually-hidden">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody role="rowgroup">
+                    {% for client in clients %}
+                    <tr class="clients-list-row" role="row" data-client-href="{{ PREFIX }}/clients/{{ client.id }}" tabindex="0" aria-label="{% if product == 'lite' %}Abrir cliente {{ client.first_name }} {{ client.last_name }}{% else %}Open client {{ client.first_name }} {{ client.last_name }}{% endif %}">
+                        <td role="cell" class="clients-list-name" data-label="{% if product == 'lite' %}Nome{% else %}Name{% endif %}">{{ client.first_name }} {{ client.last_name }}</td>
+                        <td role="cell" data-label="Email">{{ client.email or "-" }}</td>
+                        <td role="cell" data-label="{% if product == 'lite' %}Telefone{% else %}Phone{% endif %}">{{ client.phone or "-" }}</td>
+                        {% if product != "lite" %}<td role="cell" class="clients-list-alien" data-label="A#">{{ client.alien_number or "-" }}</td>{% endif %}
+                        <td role="cell" data-label="Status">
+                            {% if product == "lite" %}
+                                {% if client.status == "active" %}<span class="clients-list-badge clients-list-badge--active">Ativo</span>
+                                {% elif client.status == "lead" %}<span class="clients-list-badge clients-list-badge--lead">Lead</span>
+                                {% elif client.status == "prospect" %}<span class="clients-list-badge clients-list-badge--prospect">Prospecto</span>
+                                {% elif client.status == "approved" %}<span class="clients-list-badge clients-list-badge--approved">Aprovado</span>
+                                {% elif client.status == "denied" %}<span class="clients-list-badge clients-list-badge--denied">Negado</span>
+                                {% elif client.status == "closed" %}<span class="clients-list-badge clients-list-badge--closed">Encerrado</span>
+                                {% else %}<span class="clients-list-badge clients-list-badge--neutral">{{ client.status }}</span>
+                                {% endif %}
+                            {% else %}
+                                {% if client.status == "active" %}<span class="clients-list-badge clients-list-badge--active">Active</span>
+                                {% elif client.status == "lead" %}<span class="clients-list-badge clients-list-badge--lead">Lead</span>
+                                {% elif client.status == "prospect" %}<span class="clients-list-badge clients-list-badge--prospect">Prospect</span>
+                                {% elif client.status == "approved" %}<span class="clients-list-badge clients-list-badge--approved">Approved</span>
+                                {% elif client.status == "denied" %}<span class="clients-list-badge clients-list-badge--denied">Denied</span>
+                                {% elif client.status == "closed" %}<span class="clients-list-badge clients-list-badge--closed">Closed</span>
+                                {% else %}<span class="clients-list-badge clients-list-badge--neutral">{{ client.status }}</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td role="cell" data-label="{% if product == 'lite' %}País{% else %}Country{% endif %}">{{ client.country_of_origin or "-" }}</td>
+                        <td role="cell" class="clients-list-created" data-label="{% if product == 'lite' %}Cadastro{% else %}Created{% endif %}">{{ client.created_at.strftime("%Y-%m-%d") if client.created_at else "-" }}</td>
+                        <td role="cell" class="clients-list-actions-cell" data-label="{% if product == 'lite' %}Ações{% else %}Actions{% endif %}">
+                            <div class="clients-list-actions">
+                                <a href="{{ PREFIX }}/clients/{{ client.id }}" class="clients-list-icon-btn" aria-label="{% if product == 'lite' %}Ver cliente{% else %}View client{% endif %}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/clients/{{ client.id }}/edit" class="clients-list-icon-btn" aria-label="{% if product == 'lite' %}Editar cliente{% else %}Edit client{% endif %}">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
+                                </a>
+                                {% if client.email %}
+                                <a href="mailto:{{ client.email }}" class="clients-list-icon-btn" aria-label="Email {{ client.email }}">
+                                    <i class="fas fa-envelope" aria-hidden="true"></i>
+                                </a>
+                                {% endif %}
+                                {% if client.phone %}
+                                <a href="https://wa.me/{{ client.phone|replace(' ','')|replace('-','')|replace('(','')|replace(')','') }}" class="clients-list-icon-btn" aria-label="WhatsApp {{ client.phone }}" target="_blank" rel="noopener noreferrer">
+                                    <i class="fab fa-whatsapp" aria-hidden="true"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr role="row">
+                        <td role="cell" colspan="{% if product == 'lite' %}7{% else %}8{% endif %}" class="clients-list-empty">
+                            <i class="fas fa-users clients-list-empty-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Nenhum cliente encontrado{% else %}No clients found{% endif %}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total > per_page %}
+        <nav class="clients-list-pagination-nav" aria-label="{% if product == 'lite' %}Paginação{% else %}Pagination{% endif %}">
+            <ul class="clients-list-pagination">
+                {% if page > 1 %}
+                <li>
+                    <a class="clients-list-page-link" href="?page={{ page-1 }}&search={{ (search or '')|urlencode }}&status={{ (status or '')|urlencode }}" rel="prev">
+                        {% if product == "lite" %}Anterior{% else %}Previous{% endif %}
+                    </a>
+                </li>
+                {% endif %}
+                <li>
+                    <span class="clients-list-page-link" aria-current="page">
+                        {% if product == "lite" %}Página{% else %}Page{% endif %} {{ page }}
+                    </span>
+                </li>
+                {% if page * per_page < total %}
+                <li>
+                    <a class="clients-list-page-link" href="?page={{ page+1 }}&search={{ (search or '')|urlencode }}&status={{ (status or '')|urlencode }}" rel="next">
+                        {% if product == "lite" %}Próxima{% else %}Next{% endif %}
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </section>
+</div>
+
+<script>
+(function() {
+    var table = document.getElementById('clientsTable');
+    if (!table) return;
+
+    function sortTable(th) {
+        var colIndex = parseInt(th.getAttribute('data-sort-col'), 10);
+        var type = th.getAttribute('data-sort-type');
+        var tbody = table.querySelector('tbody');
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.clients-list-row'));
+        var allThs = table.querySelectorAll('thead th.clients-list-sortable');
+        var current = th.getAttribute('aria-sort');
+        var next = (current === 'ascending') ? 'descending' : 'ascending';
+
+        for (var i = 0; i < allThs.length; i++) {
+            allThs[i].setAttribute('aria-sort', 'none');
+        }
+        th.setAttribute('aria-sort', next);
+
+        if (rows.length === 0) return;
+
+        rows.sort(function(a, b) {
+            var aText = (a.children[colIndex] ? a.children[colIndex].textContent : '').trim().toLowerCase();
+            var bText = (b.children[colIndex] ? b.children[colIndex].textContent : '').trim().toLowerCase();
+
+            if (type === 'date') {
+                var aDate = Date.parse(aText);
+                var bDate = Date.parse(bText);
+                var aInvalid = isNaN(aDate);
+                var bInvalid = isNaN(bDate);
+                if (aInvalid && bInvalid) return 0;
+                if (aInvalid) return 1;
+                if (bInvalid) return -1;
+                return next === 'ascending' ? aDate - bDate : bDate - aDate;
+            }
+
+            if (aText < bText) return next === 'ascending' ? -1 : 1;
+            if (aText > bText) return next === 'ascending' ? 1 : -1;
+            return 0;
+        });
+
+        rows.forEach(function(row) { tbody.appendChild(row); });
+    }
+
+    var sortables = table.querySelectorAll('thead th.clients-list-sortable');
+    for (var i = 0; i < sortables.length; i++) {
+        (function(th) {
+            th.addEventListener('click', function() { sortTable(th); });
+            th.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    sortTable(th);
+                }
+            });
+        })(sortables[i]);
+    }
+
+    var rows = table.querySelectorAll('tr.clients-list-row');
+    for (var j = 0; j < rows.length; j++) {
+        (function(row) {
+            var href = row.getAttribute('data-client-href');
+            if (!href) return;
+            row.addEventListener('click', function(e) {
+                if (e.target.closest('.clients-list-actions')) return;
+                window.location = href;
+            });
+            row.addEventListener('keydown', function(e) {
+                if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.clients-list-actions')) {
+                    e.preventDefault();
+                    window.location = href;
+                }
+            });
+        })(rows[j]);
+    }
+
+    function removeClientsSkeleton() {
+        var s = document.getElementById('skeleton-loader');
+        if (s) s.remove();
+    }
+
+    document.addEventListener('DOMContentLoaded', removeClientsSkeleton);
+    document.addEventListener('casehub:soft-navigation', removeClientsSkeleton);
+})();
+</script>
+{% endblock %}

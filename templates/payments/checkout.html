@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Pay Invoice {{ invoice_number }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 600px;">
+    <div class="card mt-4">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="fas fa-credit-card me-2"></i>Pay Invoice {{ invoice_number }}</h4>
+        </div>
+        <div class="card-body">
+            {% if client %}
+            <div class="mb-4">
+                <strong>Bill To:</strong><br>
+                {{ client.first_name }} {{ client.last_name }}<br>
+                {% if client.email %}{{ client.email }}{% endif %}
+            </div>
+            {% endif %}
+
+            {% if case %}
+            <div class="mb-4">
+                <strong>Case:</strong> {{ case.case_name or case.case_number }}
+            </div>
+            {% endif %}
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th class="text-end">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.description }}</td>
+                        <td class="text-end">{{ item.amount|format_currency(org_currency|default('USD')) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-primary">
+                        <th>Total Due</th>
+                        <th class="text-end">{{ total|format_currency(org_currency|default('USD')) }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+
+            {% if stripe_configured %}
+            <div class="d-grid gap-2 mt-4">
+                <button id="checkout-button" class="btn btn-primary glass-btn glass-btn--primary btn-lg">
+                    <i class="fas fa-lock me-2"></i>Pay {{ total|format_currency(org_currency|default('USD')) }} with Card
+                </button>
+                <small class="text-center text-muted">
+                    <i class="fab fa-stripe me-1"></i> Secure payment powered by Stripe
+                </small>
+            </div>
+            {% else %}
+            <div class="alert alert-warning mt-4">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Online payments are not currently configured. Please contact us for payment options.
+            </div>
+            <div class="d-grid gap-2">
+                <a href="mailto:{{ org_email|default('') }}?subject=Payment for Invoice {{ invoice_number }}" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+                    <i class="fas fa-envelope me-2"></i>Contact for Payment
+                </a>
+            </div>
+            {% endif %}
+
+            <hr class="my-4">
+
+            <div class="text-center text-muted small">
+                <p>{{ org_name|default('CaseHub') }}<br>
+                {{ org_email|default('') }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-center mt-3">
+        <a href="{{ PREFIX }}/invoices/{{ invoice_number }}" class="text-muted">
+            <i class="fas fa-arrow-left me-1"></i>Back to Invoice
+        </a>
+    </div>
+</div>
+
+{% if stripe_configured %}
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+var stripe = Stripe('{{ publishable_key }}');
+
+document.getElementById('checkout-button').addEventListener('click', function() {
+    this.disabled = true;
+    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+
+    fetch('{{ PREFIX }}/payments/create-checkout-session', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'invoice_number={{ invoice_number }}'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.checkout_url) {
+            window.location.href = data.checkout_url;
+        } else if (data.error) {
+            alert('Error: ' + data.error);
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-lock me-2"></i>Pay {{ total|format_currency(org_currency|default('USD')) }} with Card';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred. Please try again.');
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-lock me-2"></i>Pay {{ total|format_currency(org_currency|default('USD')) }} with Card';
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

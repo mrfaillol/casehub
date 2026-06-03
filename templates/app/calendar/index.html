@@ -1,0 +1,367 @@
+{% extends "app/base.html" %}
+{% set active_module = 'agenda' %}
+{% block title %}Agenda · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ asset_url('css/app/calendar.css') }}" />
+{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Agenda · Compromissos & prazos</span>
+    <h1>Sua <em>agenda</em> em foco.</h1>
+    <p class="ch-page-head__sub">Alterne entre lista e mês. Tarefas, audiências e processos expirando em um lugar só.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <div class="ch-grid" style="grid-template-columns: auto auto auto auto; gap: var(--space-2); align-items: center;">
+      <button type="button" class="ch-btn ch-btn--ghost" data-cal-view="agenda" aria-pressed="false">
+        <span data-icon="tasks" data-icon-size="14"></span> Lista
+      </button>
+      <button type="button" class="ch-btn ch-btn--ghost is-active" data-cal-view="month" aria-pressed="true">
+        <span data-icon="calendar" data-icon-size="14"></span> Mês
+      </button>
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/google-calendar/settings">
+        <i data-lucide="calendar-sync"></i> Google
+      </a>
+      <button type="button" class="ch-btn ch-btn--primary" data-cal-open-create>
+        <span data-icon="plus"></span> Novo compromisso
+      </button>
+    </div>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--3" style="margin-bottom: var(--space-6);">
+  <article class="ch-kpi ch-kpi--hero">
+    <span class="ch-kpi__label">Hoje</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value" data-today-summary="tasks_due">—</span>
+    </div>
+    <span class="ch-kpi__hint">Tarefas vencendo hoje</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Atrasadas</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value" data-today-summary="overdue_tasks">—</span>
+    </div>
+    <span class="ch-kpi__hint">Tarefas em atraso</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Processos expirando</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value" data-today-summary="expiring_cases">—</span>
+    </div>
+    <span class="ch-kpi__hint">Próximos 30 dias</span>
+  </article>
+</section>
+
+{# ─── Agenda view (secondary) ─── #}
+<section class="ch-card" data-cal-pane="agenda" hidden>
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Próximos 7 dias</span>
+      <h2 class="ch-card__title">Agenda detalhada</h2>
+      <p class="ch-card__subtitle">Tarefas + processos expirando, ordenado por data.</p>
+    </div>
+  </header>
+  <div id="ch-cal-agenda" class="ch-agenda">
+    <div class="ch-empty" id="ch-cal-loading">
+      <span class="ch-empty__icon" aria-hidden="true"><span data-icon="calendar"></span></span>
+      <p>Carregando agenda…</p>
+    </div>
+  </div>
+</section>
+
+{# ─── Month grid view (default/current month) ─── #}
+<section class="ch-card ch-card--bleed" data-cal-pane="month">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) var(--space-3);">
+    <div>
+      <span class="ch-card__eyebrow">Visão mensal</span>
+      <h2 class="ch-card__title" id="ch-cal-month-label">—</h2>
+      <p class="ch-card__subtitle">Clique em um dia para criar um compromisso.</p>
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" data-cal-month-nav="prev" aria-label="Mês anterior">
+        <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span>
+      </button>
+      <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" data-cal-month-nav="today">Hoje</button>
+      <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" data-cal-month-nav="next" aria-label="Próximo mês">
+        <span data-icon="chevron_right" data-icon-size="14"></span>
+      </button>
+    </div>
+  </header>
+  <div class="ch-cal">
+    <div class="ch-cal__grid" role="grid" aria-label="Calendário mensal">
+      <div class="ch-cal__dow" role="columnheader">Dom</div>
+      <div class="ch-cal__dow" role="columnheader">Seg</div>
+      <div class="ch-cal__dow" role="columnheader">Ter</div>
+      <div class="ch-cal__dow" role="columnheader">Qua</div>
+      <div class="ch-cal__dow" role="columnheader">Qui</div>
+      <div class="ch-cal__dow" role="columnheader">Sex</div>
+      <div class="ch-cal__dow" role="columnheader">Sáb</div>
+      <div id="ch-cal-month-grid" style="display: contents;"></div>
+    </div>
+  </div>
+</section>
+
+{# ─── Quick-create modal ─── #}
+<div class="ch-overlay" id="ch-cal-modal" hidden>
+  <div class="ch-modal" role="dialog" aria-labelledby="ch-cal-modal-title" aria-modal="true">
+    <header class="ch-modal__header">
+      <div>
+        <span class="ch-card__eyebrow">Agenda</span>
+        <h2 class="ch-card__title" id="ch-cal-modal-title">Novo compromisso</h2>
+      </div>
+      <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" data-cal-modal-close aria-label="Fechar">
+        <span data-icon="x"></span>
+      </button>
+    </header>
+    <form id="ch-cal-form" class="ch-modal__body" style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div class="ch-field">
+        <label class="ch-field__label" for="cal-title">Título <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input" id="cal-title" name="title" type="text" required placeholder="Ex: Audiência TRT — João Silva" />
+      </div>
+      <div class="ch-grid ch-grid--2">
+        <div class="ch-field">
+          <label class="ch-field__label" for="cal-date">Data <span style="color: var(--c-danger);">*</span></label>
+          <input class="ch-input" id="cal-date" name="due_date" type="date" required />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="cal-priority">Prioridade</label>
+          <select class="ch-select" id="cal-priority" name="priority">
+            <option value="low">Baixa</option>
+            <option value="medium" selected>Média</option>
+            <option value="high">Alta</option>
+            <option value="urgent">Urgente</option>
+          </select>
+        </div>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="cal-notes">Observações</label>
+        <textarea class="ch-textarea" id="cal-notes" name="notes" rows="3" placeholder="Detalhes adicionais…"></textarea>
+      </div>
+    </form>
+    <footer class="ch-modal__footer" style="display: flex; justify-content: flex-end; gap: var(--space-2);">
+      <button type="button" class="ch-btn ch-btn--ghost" data-cal-modal-close>Cancelar</button>
+      <button type="button" class="ch-btn ch-btn--primary" data-cal-submit>
+        <span data-icon="check"></span> Criar tarefa
+      </button>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+  if (window.CaseHubCalendar && typeof window.CaseHubCalendar.loadAll === 'function') {
+    window.CaseHubCalendar.loadAll();
+    return;
+  }
+  var PREFIX = window.CASEHUB_PREFIX || '';
+  var monthCursor = new Date(); monthCursor.setDate(1);
+
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); }
+  function fmtDate(iso) {
+    var d = new Date(iso + 'T00:00:00');
+    return { day: d.getDate(), mon: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''), dow: d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '') };
+  }
+  function setSummary(key, value) {
+    document.querySelectorAll('[data-today-summary="' + key + '"]').forEach(function (el) { el.textContent = String(value); });
+  }
+
+  // ─── Agenda list render ───
+  function renderAgenda(data) {
+    var byDay = {};
+    (data.tasks || []).forEach(function (t) { (byDay[t.due_date] = byDay[t.due_date] || []).push({ kind: 'task', t: t }); });
+    (data.expiring_cases || []).forEach(function (c) { (byDay[c.expiration_date] = byDay[c.expiration_date] || []).push({ kind: 'case', c: c }); });
+    var days = Object.keys(byDay).sort();
+    if (!days.length) {
+      return '<div class="ch-empty"><span class="ch-empty__icon" aria-hidden="true"><span data-icon="check"></span></span><h3>Semana tranquila</h3><p>Nada nos próximos 7 dias. Bom momento para planejar.</p></div>';
+    }
+    return days.map(function (d) {
+      var fmt = fmtDate(d);
+      var items = byDay[d].map(function (it) {
+        if (it.kind === 'task') {
+          var t = it.t;
+          var cls = t.priority === 'urgent' || t.priority === 'high' ? 'is-urgent' : 'is-task';
+          return '<a class="ch-cal-event ' + cls + '" href="' + PREFIX + '/tasks/' + t.id + '">' +
+            '<span data-icon="tasks" data-icon-size="11"></span> ' + escapeHtml(t.title || 'Sem título') +
+            (t.priority ? ' · ' + escapeHtml(t.priority) : '') + '</a>';
+        }
+        var c = it.c;
+        return '<a class="ch-cal-event is-deadline" href="' + PREFIX + '/cases/' + c.id + '">' +
+          '<span data-icon="folder" data-icon-size="11"></span> Expira: ' + escapeHtml(c.name || ('CASE-' + c.id)) + '</a>';
+      }).join('');
+      return '<div class="ch-agenda__day"><div class="ch-agenda__date"><strong>' + fmt.day + '</strong><small>' + fmt.mon + ' · ' + fmt.dow + '</small></div><div class="ch-agenda__items">' + items + '</div></div>';
+    }).join('');
+  }
+
+  // ─── Month grid render ───
+  function renderMonth(year, month) {
+    var first = new Date(year, month, 1);
+    var dow = first.getDay();
+    var start = new Date(year, month, 1 - dow);
+    var todayStr = ymd(new Date());
+    var label = first.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    var labelEl = document.getElementById('ch-cal-month-label');
+    if (labelEl) labelEl.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+
+    var startStr = ymd(start);
+    var end = new Date(start); end.setDate(end.getDate() + 42);
+    var endStr = ymd(end);
+
+    fetch(PREFIX + '/calendar/events?start=' + startStr + '&end=' + endStr, { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (events) {
+        var byDay = {};
+        (events || []).forEach(function (ev) {
+          var date = (ev.start || ev.date || '').slice(0, 10);
+          if (!date) return;
+          (byDay[date] = byDay[date] || []).push(ev);
+        });
+        var html = '';
+        for (var i = 0; i < 42; i++) {
+          var d = new Date(start); d.setDate(start.getDate() + i);
+          var ds = ymd(d);
+          var inMonth = d.getMonth() === month;
+          var isToday = ds === todayStr;
+          var cls = 'ch-cal-day';
+          if (!inMonth) cls += ' is-outside';
+          if (isToday) cls += ' is-today';
+          var events = (byDay[ds] || []).slice(0, 3);
+          var eventsHtml = events.map(function (ev) {
+            var k = (ev.type || ev.kind || '').toLowerCase();
+            var ec = k === 'deadline' || k === 'expiration' ? 'is-deadline' : (ev.priority === 'urgent' || ev.priority === 'high' ? 'is-urgent' : 'is-task');
+            var url = ev.url || '#';
+            return '<a class="ch-cal-event ' + ec + '" href="' + escapeHtml(url) + '">' + escapeHtml(ev.title || ev.name || '—') + '</a>';
+          }).join('');
+          var more = (byDay[ds] || []).length > 3 ? '<span class="ch-cal-event">+' + ((byDay[ds] || []).length - 3) + '</span>' : '';
+          html += '<div class="' + cls + '" data-cal-day="' + ds + '" role="gridcell">' +
+            '<span class="ch-cal-day__num">' + d.getDate() + '</span>' + eventsHtml + more + '</div>';
+        }
+        var grid = document.getElementById('ch-cal-month-grid');
+        if (grid) grid.innerHTML = html;
+        if (window.CHIcon) window.CHIcon.mount();
+      })
+      .catch(function () {
+        var grid = document.getElementById('ch-cal-month-grid');
+        if (grid) grid.innerHTML = '<div class="ch-cal-day" style="grid-column: 1/-1;"><div class="ch-empty"><p>Não foi possível carregar eventos.</p></div></div>';
+      });
+  }
+
+  // ─── View toggle ───
+  function setView(view) {
+    document.querySelectorAll('[data-cal-pane]').forEach(function (el) {
+      el.hidden = el.getAttribute('data-cal-pane') !== view;
+    });
+    document.querySelectorAll('[data-cal-view]').forEach(function (btn) {
+      var active = btn.getAttribute('data-cal-view') === view;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    if (view === 'month') renderMonth(monthCursor.getFullYear(), monthCursor.getMonth());
+  }
+
+  // ─── Modal ───
+  function openModal(dateStr) {
+    var dateInput = document.getElementById('cal-date');
+    if (dateInput) dateInput.value = dateStr || ymd(new Date());
+    var modal = document.getElementById('ch-cal-modal');
+    if (modal) {
+      modal.hidden = false;
+      modal.setAttribute('data-open', 'true');
+    }
+    var titleInput = document.getElementById('cal-title');
+    if (titleInput) titleInput.focus();
+  }
+  function closeModal() {
+    var modal = document.getElementById('ch-cal-modal');
+    if (modal) {
+      modal.removeAttribute('data-open');
+      modal.hidden = true;
+    }
+    var form = document.getElementById('ch-cal-form');
+    if (form) form.reset();
+  }
+  function submitTask() {
+    var form = document.getElementById('ch-cal-form');
+    var fd = new FormData(form);
+    var title = fd.get('title');
+    var due = fd.get('due_date');
+    if (!title || !due) { alert('Título e data são obrigatórios.'); return; }
+    fetch(PREFIX + '/calendar/quick-task', { method: 'POST', body: fd, credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json().catch(function () { return {}; }); })
+      .then(function () { closeModal(); loadAll(); })
+      .catch(function (err) { alert('Não foi possível criar a tarefa: ' + err.message); });
+  }
+
+  // ─── Wiring ───
+  document.addEventListener('click', function (e) {
+    var v = e.target.closest('[data-cal-view]');
+    if (v) { e.preventDefault(); setView(v.getAttribute('data-cal-view')); return; }
+    var nav = e.target.closest('[data-cal-month-nav]');
+    if (nav) {
+      e.preventDefault();
+      var dir = nav.getAttribute('data-cal-month-nav');
+      if (dir === 'prev') monthCursor.setMonth(monthCursor.getMonth() - 1);
+      else if (dir === 'next') monthCursor.setMonth(monthCursor.getMonth() + 1);
+      else { monthCursor = new Date(); monthCursor.setDate(1); }
+      renderMonth(monthCursor.getFullYear(), monthCursor.getMonth());
+      return;
+    }
+    // "Novo compromisso" + clicar num dia → abre o modal IN-PLACE (sem trocar de
+    // rota nem usar ?new=1). 02/06 ([parceiro] A1): o fluxo antigo redirecionava pra
+    // /calendar/agenda?new=1, trocando de tela e deixando o ?new=1 na URL ao voltar.
+    if (e.target.closest('[data-cal-open-create]')) { e.preventDefault(); openModal(); return; }
+    if (e.target.closest('[data-cal-modal-close]')) { e.preventDefault(); closeModal(); return; }
+    if (e.target.closest('[data-cal-submit]')) { e.preventDefault(); submitTask(); return; }
+    var day = e.target.closest('[data-cal-day]');
+    if (day && !e.target.closest('.ch-cal-event')) { e.preventDefault(); openModal(day.getAttribute('data-cal-day')); return; }
+  });
+
+  // ─── Data loading ───
+  function loadSummary() {
+    fetch(PREFIX + '/calendar/today', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function (d) {
+        setSummary('tasks_due', d.tasks_due || 0);
+        setSummary('overdue_tasks', d.overdue_tasks || 0);
+        setSummary('expiring_cases', d.expiring_cases || 0);
+      })
+      .catch(function () { setSummary('tasks_due', '—'); setSummary('overdue_tasks', '—'); setSummary('expiring_cases', '—'); });
+  }
+  function loadAgenda() {
+    fetch(PREFIX + '/calendar/upcoming?days=7', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function (d) {
+        var el = document.getElementById('ch-cal-agenda');
+        if (el) el.innerHTML = renderAgenda(d);
+        if (window.CHIcon) window.CHIcon.mount();
+      })
+      .catch(function () {
+        var el = document.getElementById('ch-cal-agenda');
+        if (el) el.innerHTML = '<div class="ch-empty"><span class="ch-empty__icon" aria-hidden="true"><span data-icon="x"></span></span><h3>Não foi possível carregar</h3><p>Tente recarregar a página.</p></div>';
+        if (window.CHIcon) window.CHIcon.mount();
+      });
+  }
+  function loadAll() {
+    loadSummary();
+    loadAgenda();
+    var monthPane = document.querySelector('[data-cal-pane="month"]');
+    if (!monthPane || !monthPane.hidden) renderMonth(monthCursor.getFullYear(), monthCursor.getMonth());
+  }
+
+  window.CaseHubCalendar = {
+    loadAll: loadAll,
+    openCreate: openModal,
+    setView: setView
+  };
+
+  loadAll();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,75 @@
+    <script>
+        // Early theme init to prevent FOUC — respects: 1) user preference, 2) OS dark mode, 3) light default
+        (function() {
+            var stored = localStorage.getItem('casehub-theme');
+            var t = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {# title block is in base.html (blocks inside includes are not overridable) #}
+    {% if org_favicon %}
+    <link id="route-favicon" rel="icon" href="{{ org_favicon }}">
+    {% else %}
+    <link id="route-favicon" rel="icon" type="image/svg+xml" href="{{ brand_kit_fallback_favicon_url }}">
+    {% endif %}
+    {% if org_settings %}
+    <style>
+        /* Per-org color overrides (must match [data-theme] specificity) */
+        {% set org_accent = org_settings.get('accent_color', '') %}
+        {% set org_primary_color = org_settings.get('primary_color', '') %}
+        {% if org_accent or org_primary_color %}
+        :root,
+        [data-theme="light"],
+        [data-theme="dark"] {
+            {% if org_accent %}--accent: {{ org_accent }};{% endif %}
+            {% if org_primary_color %}--primary: {{ org_primary_color }};{% endif %}
+        }
+        /* Override hardcoded button colors for this org */
+        [data-theme="light"][data-org="{{ org_slug|default('') }}"] {
+            --btn-primary-bg: {{ org_accent or org_primary_color }};
+            --btn-primary-border: {{ org_accent or org_primary_color }};
+            --btn-primary-hover-bg: {{ org_accent or org_primary_color }};
+            --btn-primary-hover-border: {{ org_accent or org_primary_color }};
+            --sidebar-link-hover-color: {{ org_accent or org_primary_color }};
+        }
+        {% endif %}
+        {% if org_settings.get('font_family') %}
+        /* Per-org font override */
+        [data-org="{{ org_slug|default('') }}"] body,
+        [data-org="{{ org_slug|default('') }}"] .sidebar,
+        [data-org="{{ org_slug|default('') }}"] .nav-link,
+        [data-org="{{ org_slug|default('') }}"] .form-control,
+        [data-org="{{ org_slug|default('') }}"] .btn,
+        [data-org="{{ org_slug|default('') }}"] input,
+        [data-org="{{ org_slug|default('') }}"] select,
+        [data-org="{{ org_slug|default('') }}"] textarea,
+        [data-org="{{ org_slug|default('') }}"] .card,
+        [data-org="{{ org_slug|default('') }}"] .stat-card,
+        [data-org="{{ org_slug|default('') }}"] .breadcrumb,
+        [data-org="{{ org_slug|default('') }}"] table {
+            font-family: '{{ org_settings.get('font_family') }}', system-ui, sans-serif !important;
+        }
+        {% if org_settings.get('font_heading') %}
+        [data-org="{{ org_slug|default('') }}"] h1,
+        [data-org="{{ org_slug|default('') }}"] h2,
+        [data-org="{{ org_slug|default('') }}"] h3,
+        [data-org="{{ org_slug|default('') }}"] h4,
+        [data-org="{{ org_slug|default('') }}"] h5,
+        [data-org="{{ org_slug|default('') }}"] h6 {
+            font-family: '{{ org_settings.get('font_heading') }}', system-ui, sans-serif !important;
+            font-weight: 700 !important;
+        }
+        {% endif %}
+        {% endif %}
+        {% if org_settings.get('theme_bg') %}
+        [data-theme="light"][data-org="{{ org_slug|default('') }}"] {
+            --bg-body: {{ org_settings.get('theme_bg') }};
+        }
+        {% endif %}
+    </style>
+    {% endif %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Maven+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">

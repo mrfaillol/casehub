@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Nova Origem de Indicacao{% else %}New Referral Source{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/referrals-create-source.css">
+{% endblock %}
+
+{% block content %}
+<section class="referrals-create-source" aria-labelledby="referrals-create-source-title">
+    <header class="referrals-create-source__header">
+        <a href="{{ PREFIX }}/referrals/sources" class="referrals-create-source__back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar para Origens{% else %}Back to Sources{% endif %}</span>
+        </a>
+        <h1 id="referrals-create-source-title" class="referrals-create-source__title">
+            <i class="fas fa-plus-circle referrals-create-source__title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Nova Origem de Indicacao{% else %}New Referral Source{% endif %}</span>
+        </h1>
+    </header>
+
+    <form class="referrals-create-source__form" method="POST" action="{{ PREFIX }}/referrals/sources/create">
+        <section class="referrals-create-source__card" aria-labelledby="referrals-create-source-info-title">
+            <header class="referrals-create-source__card-header">
+                <h2 id="referrals-create-source-info-title" class="referrals-create-source__card-title">
+                    <i class="fas fa-info-circle referrals-create-source__card-title-icon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Informações da Origem{% else %}Source Information{% endif %}</span>
+                </h2>
+            </header>
+            <div class="referrals-create-source__card-body">
+                <div class="referrals-create-source__row">
+                    <div class="referrals-create-source__field">
+                        <label for="referrals-create-source-name" class="referrals-create-source__label">
+                            {% if product == "lite" %}Nome da Origem{% else %}Source Name{% endif %}
+                            <span class="referrals-create-source__required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text"
+                               id="referrals-create-source-name"
+                               name="name"
+                               class="referrals-create-source__input"
+                               required
+                               aria-required="true"
+                               placeholder="{% if product == 'lite' %}ex.: Joao Silva, Google Ads{% else %}e.g., John Smith, Google Ads{% endif %}">
+                    </div>
+                    <div class="referrals-create-source__field">
+                        <label for="referrals-create-source-type" class="referrals-create-source__label">
+                            {% if product == "lite" %}Tipo de Origem{% else %}Source Type{% endif %}
+                            <span class="referrals-create-source__required" aria-hidden="true">*</span>
+                        </label>
+                        <select id="referrals-create-source-type"
+                                name="source_type"
+                                class="referrals-create-source__select"
+                                required
+                                aria-required="true">
+                            {% for st in source_types %}
+                            <option value="{{ st.value }}">{{ st.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="referrals-create-source__row">
+                    <div class="referrals-create-source__field">
+                        <label for="referrals-create-source-contact-name" class="referrals-create-source__label">
+                            {% if product == "lite" %}Nome do Contato{% else %}Contact Name{% endif %}
+                        </label>
+                        <input type="text"
+                               id="referrals-create-source-contact-name"
+                               name="contact_name"
+                               class="referrals-create-source__input">
+                    </div>
+                    <div class="referrals-create-source__field">
+                        <label for="referrals-create-source-company" class="referrals-create-source__label">
+                            {% if product == "lite" %}Empresa{% else %}Company{% endif %}
+                        </label>
+                        <input type="text"
+                               id="referrals-create-source-company"
+                               name="company"
+                               class="referrals-create-source__input">
+                    </div>
+                </div>
+
+                <div class="referrals-create-source__row">
+                    <div class="referrals-create-source__field">
+                        <label for="referrals-create-source-email" class="referrals-create-source__label">E-mail</label>
+                        <input type="email"
+                               id="referrals-create-source-email"
+                               name="contact_email"
+                               class="referrals-create-source__input"
+                               autocomplete="email">
+                    </div>
+                    <div class="referrals-create-source__field">
+                        <label for="referrals-create-source-phone" class="referrals-create-source__label">
+                            {% if product == "lite" %}Telefone{% else %}Phone{% endif %}
+                        </label>
+                        <input type="tel"
+                               id="referrals-create-source-phone"
+                               name="contact_phone"
+                               class="referrals-create-source__input"
+                               autocomplete="tel">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="referrals-create-source__card" aria-labelledby="referrals-create-source-commission-title">
+            <header class="referrals-create-source__card-header">
+                <h2 id="referrals-create-source-commission-title" class="referrals-create-source__card-title">
+                    <i class="fas fa-dollar-sign referrals-create-source__card-title-icon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Configurações de Comissao{% else %}Commission Settings{% endif %}</span>
+                </h2>
+            </header>
+            <div class="referrals-create-source__card-body">
+                <div class="referrals-create-source__row">
+                    <div class="referrals-create-source__field">
+                        <label for="referrals-create-source-commission-type" class="referrals-create-source__label">
+                            {% if product == "lite" %}Tipo de Comissao{% else %}Commission Type{% endif %}
+                        </label>
+                        <select id="referrals-create-source-commission-type"
+                                name="commission_type"
+                                class="referrals-create-source__select">
+                            <option value="percentage">{% if product == "lite" %}Porcentagem do Valor do Processo{% else %}Percentage of Case Value{% endif %}</option>
+                            <option value="flat">{% if product == "lite" %}Valor Fixo por Indicação{% else %}Flat Fee per Referral{% endif %}</option>
+                        </select>
+                    </div>
+                    <div class="referrals-create-source__field">
+                        <label for="referrals-create-source-commission-rate" class="referrals-create-source__label">
+                            {% if product == "lite" %}Taxa de Comissao{% else %}Commission Rate{% endif %}
+                        </label>
+                        <input type="number"
+                               id="referrals-create-source-commission-rate"
+                               name="commission_rate"
+                               class="referrals-create-source__input referrals-create-source__input--numeric"
+                               value="5"
+                               step="0.01"
+                               min="0"
+                               inputmode="decimal"
+                               aria-describedby="referrals-create-source-commission-rate-help">
+                        <small id="referrals-create-source-commission-rate-help" class="referrals-create-source__help">
+                            {% if product == "lite" %}% ou R$ dependendo do tipo{% else %}% or $ amount depending on type{% endif %}
+                        </small>
+                    </div>
+                </div>
+                <div class="referrals-create-source__field">
+                    <label for="referrals-create-source-notes" class="referrals-create-source__label">
+                        {% if product == "lite" %}Observações{% else %}Notes{% endif %}
+                    </label>
+                    <textarea id="referrals-create-source-notes"
+                              name="notes"
+                              class="referrals-create-source__textarea"
+                              rows="3"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <div class="referrals-create-source__actions">
+            <a href="{{ PREFIX }}/referrals/sources" class="referrals-create-source__btn referrals-create-source__btn--ghost">
+                {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+            </a>
+            <button type="submit" class="referrals-create-source__btn referrals-create-source__btn--primary">
+                <i class="fas fa-save" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Criar Origem{% else %}Create Source{% endif %}</span>
+            </button>
+        </div>
+    </form>
+</section>
+{% endblock %}

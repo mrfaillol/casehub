@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Painel - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ asset_url('css/templates/dashboard_modular.css') }}">
+{% endblock %}
+
+{% block content %}
+{% set dash = basic_dashboard %}
+<main class="ch-dashboard" aria-label="Painel">
+    <header class="ch-dashboard-hero" aria-label="Resumo do escritório">
+        <div class="ch-dashboard-hero__greeting">
+            <p class="ch-dashboard-hero__date">{{ dash.date_label }}</p>
+            <h1>Bom dia, {{ dash.user_first_name }}</h1>
+        </div>
+
+        {% for metric in dash.metrics %}
+        <article class="ch-dashboard-metric">
+            <p class="ch-dashboard-metric__label">{{ metric.label }}</p>
+            <div class="ch-dashboard-metric__row">
+                <strong>{{ metric.value }}</strong>
+                {% if metric.unit %}<span>{{ metric.unit }}</span>{% endif %}
+                <em class="ch-dashboard-delta ch-dashboard-delta--{{ metric.delta.direction }}">
+                    {% if metric.delta.direction == 'down' %}↓{% elif metric.delta.direction == 'up' %}↑{% else %}→{% endif %}
+                    {{ metric.delta.label }}
+                </em>
+            </div>
+            <svg class="ch-dashboard-spark" viewBox="0 0 100 24" role="img" aria-label="{{ metric.label }} tendencia {{ metric.sparkline.trend }}">
+                <polygon points="{{ metric.sparkline.area }}" aria-hidden="true"></polygon>
+                <polyline points="{{ metric.sparkline.points }}"></polyline>
+            </svg>
+        </article>
+        {% endfor %}
+    </header>
+
+    <section class="ch-dashboard-grid ch-dashboard-grid--top">
+        <article class="ch-dashboard-panel ch-dashboard-panel--attention" aria-labelledby="dash-attention-title">
+            <header class="ch-dashboard-panel__header">
+                <h2 id="dash-attention-title">Atenção hoje</h2>
+                <a href="{{ PREFIX }}/tasks/kanban">Ver todas</a>
+            </header>
+            <div class="ch-dashboard-list">
+                {% if dash.tasks_today %}
+                    {% for task in dash.tasks_today %}
+                    <a class="ch-dashboard-task {% if task.overdue %}is-overdue{% endif %}" href="{{ PREFIX }}/tasks/kanban">
+                        <span class="ch-dashboard-task__check" aria-hidden="true">{% if task.done %}✓{% endif %}</span>
+                        <span class="ch-dashboard-task__body">
+                            <strong>{{ task.title }}</strong>
+                            <small>{{ task.case_ref }}</small>
+                        </span>
+                        <time>{{ task.due }}</time>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="ch-dashboard-empty">
+                        <strong>Nenhuma tarefa pendente.</strong>
+                        <span>A fila de atenção está limpa para hoje.</span>
+                    </div>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="ch-dashboard-panel" aria-labelledby="dash-deadlines-title">
+            <header class="ch-dashboard-panel__header">
+                <h2 id="dash-deadlines-title">Prazos da semana</h2>
+                <a href="{{ PREFIX }}/controladoria">Controladoria</a>
+            </header>
+            <div class="ch-dashboard-deadlines">
+                {% if dash.deadlines_week %}
+                    {% for deadline in dash.deadlines_week %}
+                    <a class="ch-dashboard-deadline {% if deadline.urgent %}is-urgent{% endif %}" href="{{ PREFIX }}/controladoria">
+                        <span class="ch-dashboard-deadline__date">
+                            <strong>{{ deadline.day }}</strong>
+                            <small>{{ deadline.month }}</small>
+                        </span>
+                        <span class="ch-dashboard-deadline__body">
+                            <strong>{{ deadline.title }}</strong>
+                            <small>{{ deadline.case_ref }}</small>
+                        </span>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="ch-dashboard-empty">
+                        <strong>Nenhum prazo nos próximos 7 dias.</strong>
+                        <span>A controladoria não tem vencimentos imediatos cadastrados.</span>
+                    </div>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="ch-dashboard-panel" aria-labelledby="dash-team-title">
+            <header class="ch-dashboard-panel__header">
+                <h2 id="dash-team-title">Equipe</h2>
+            </header>
+            <div class="ch-dashboard-team">
+                {% if dash.team %}
+                    {% for member in dash.team %}
+                    <div class="ch-dashboard-team__member">
+                        <span class="ch-dashboard-avatar" aria-hidden="true">{{ member.initials }}</span>
+                        <span class="ch-dashboard-team__body">
+                            <strong>{{ member.name }}</strong>
+                            <small>{{ member.city }}</small>
+                        </span>
+                        <time>{{ "%02d"|format(member.hour) }}:{{ "%02d"|format(member.minute) }}</time>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="ch-dashboard-empty">
+                        <strong>Nenhum usuário ativo.</strong>
+                        <span>Cadastre a equipe para ver disponibilidade.</span>
+                    </div>
+                {% endif %}
+            </div>
+        </article>
+    </section>
+
+    <section class="ch-dashboard-grid ch-dashboard-grid--middle">
+        <article class="ch-dashboard-panel" aria-labelledby="dash-maestro-title">
+            <header class="ch-dashboard-panel__header">
+                <h2 id="dash-maestro-title">{{ dash.maestro_summary.title|default('Resumo do Maestro') }}</h2>
+                <a href="{{ PREFIX }}/maestro">Abrir Maestro</a>
+            </header>
+            <div class="ch-dashboard-empty" style="align-items:flex-start;text-align:left;min-height:220px;">
+                <strong>{{ dash.maestro_summary.text|default('Resumo operacional indisponível.') }}</strong>
+                {% if dash.maestro_summary.bullets %}
+                <ul style="margin: var(--space-3) 0 0; padding-left: 18px; color: var(--fg-muted); line-height: 1.8;">
+                    {% for item in dash.maestro_summary.bullets %}
+                    <li>{{ item }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="ch-dashboard-panel" aria-labelledby="dash-activity-title">
+            <header class="ch-dashboard-panel__header">
+                <h2 id="dash-activity-title">Atividade recente</h2>
+            </header>
+            <div class="ch-dashboard-activity">
+                {% if dash.activity %}
+                    {% for event in dash.activity %}
+                    <div class="ch-dashboard-activity__entry">
+                        <time>{{ event.time }}</time>
+                        <span><strong>{{ event.actor }}</strong> {{ event.verb }} <strong>{{ event.target }}</strong></span>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="ch-dashboard-empty">
+                        <strong>Sem atividade recente.</strong>
+                        <span>Os movimentos do escritório aparecerão aqui.</span>
+                    </div>
+                {% endif %}
+            </div>
+        </article>
+    </section>
+
+    <section class="ch-dashboard-panel ch-dashboard-cases" aria-labelledby="dash-cases-title">
+        <header class="ch-dashboard-panel__header">
+            <h2 id="dash-cases-title">Casos recentes</h2>
+            <a href="{{ PREFIX }}/cases">Ver todos os casos</a>
+        </header>
+        <div class="ch-dashboard-case-strip">
+            {% if dash.recent_cases %}
+                {% for case in dash.recent_cases %}
+                <a class="ch-dashboard-case" href="{{ PREFIX }}/cases">
+                    <span class="ch-dashboard-case__top">
+                        <small>{{ case.ref }}</small>
+                        <em class="is-{{ case.status }}">{{ case.status_label }}</em>
+                    </span>
+                    <strong>{{ case.title }}</strong>
+                    <span>{{ case.client }}</span>
+                    <span class="ch-dashboard-case__foot">
+                        <small>{{ case.last_activity }}</small>
+                        <time>{{ case.next_date }}</time>
+                    </span>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="ch-dashboard-empty ch-dashboard-empty--wide">
+                    <strong>Nenhum caso cadastrado ainda.</strong>
+                    <span>Crie o primeiro caso para começar a acompanhar prazos, clientes e tarefas.</span>
+                    <a href="{{ PREFIX }}/cases/new">Criar caso</a>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+</main>
+{% endblock %}

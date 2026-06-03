@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Close Case - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/cases-close.css">
+{% endblock %}
+
+{% block content %}
+<section class="cases-close" aria-labelledby="cases-close-title">
+
+    <header class="cases-close-header">
+        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-close-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Case</span>
+        </a>
+        <h1 id="cases-close-title" class="cases-close-title">
+            <i class="fas fa-times-circle" aria-hidden="true"></i>
+            <span>Close Case</span>
+        </h1>
+        <p class="cases-close-subtitle">{{ case.case_number }} - {{ case.case_name }}</p>
+    </header>
+
+    <div class="cases-close-grid">
+        <article class="cases-close-card" aria-labelledby="cases-close-form-title">
+            <header class="cases-close-card-header cases-close-card-header--danger">
+                <h2 id="cases-close-form-title" class="cases-close-card-heading">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    <span>Close Case Permanently</span>
+                </h2>
+            </header>
+            <div class="cases-close-card-body">
+                <div class="cases-close-alert" role="note">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span>Closing a case will mark it as complete and remove it from active case lists. You can reopen the case later if needed.</span>
+                </div>
+
+                <form method="POST"
+                      action="{{ PREFIX }}/case-archive/close/{{ case.id }}"
+                      class="cases-close-form"
+                      onsubmit="return confirm('Close this case permanently? You can reopen it later.');">
+                    <fieldset class="cases-close-fieldset">
+                        <legend class="cases-close-legend">
+                            <span>Select Close Reason</span><span class="cases-close-required" aria-label="required">*</span>
+                        </legend>
+                        <div class="cases-close-reasons">
+                            {% for reason in reasons %}
+                            <label class="cases-close-reason" for="reason_{{ reason.id }}">
+                                <input class="cases-close-reason-input"
+                                       type="radio"
+                                       name="reason"
+                                       id="reason_{{ reason.id }}"
+                                       value="{{ reason.id }}"
+                                       required
+                                       {% if loop.first %}checked{% endif %}>
+                                <i class="fas {{ reason.icon }} cases-close-reason-icon cases-close-reason-icon--{{ reason.color }}" aria-hidden="true"></i>
+                                <span class="cases-close-reason-label">{{ reason.label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+
+                    <div class="cases-close-field">
+                        <label for="cases-close-notes" class="cases-close-label">Additional Notes</label>
+                        <textarea id="cases-close-notes"
+                                  name="notes"
+                                  class="cases-close-textarea"
+                                  rows="3"
+                                  placeholder="Any additional notes about why this case is being closed..."></textarea>
+                    </div>
+
+                    <div class="cases-close-actions">
+                        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-close-btn cases-close-btn--secondary">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                            <span>Cancel</span>
+                        </a>
+                        <button type="submit" class="cases-close-btn cases-close-btn--danger">
+                            <i class="fas fa-times-circle" aria-hidden="true"></i>
+                            <span>Close Case</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </article>
+
+        <aside class="cases-close-card" aria-labelledby="cases-close-summary-title">
+            <header class="cases-close-card-header">
+                <h2 id="cases-close-summary-title" class="cases-close-card-heading cases-close-card-heading--compact">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span>Case Summary</span>
+                </h2>
+            </header>
+            <div class="cases-close-card-body">
+                <dl class="cases-close-summary">
+                    <dt>Case Number</dt>
+                    <dd><strong>{{ case.case_number or '-' }}</strong></dd>
+
+                    <dt>Visa Type</dt>
+                    <dd>{{ case.visa_type or '-' }}</dd>
+
+                    <dt>Current Status</dt>
+                    <dd><span class="cases-close-status">{{ case.status }}</span></dd>
+
+                    <dt>Created</dt>
+                    <dd>{{ case.created_at.strftime('%Y-%m-%d') if case.created_at else '-' }}</dd>
+                </dl>
+            </div>
+        </aside>
+    </div>
+
+</section>
+{% endblock %}

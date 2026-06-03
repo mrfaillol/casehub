@@ -1,0 +1,444 @@
+/* ==========================================================================
+   CaseHub Responsive — Breakpoints + Container Queries + Touch Targets
+   Baseado em plano greedy-foraging-pearl.md (Op A)
+   GPU-only animações, zero delay, performance no talo
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   TOUCH TARGETS — WCAG 2.1 AAA (44×44 mínimo) quando body.touch
+   -------------------------------------------------------------------------- */
+body.touch button,
+body.touch .btn,
+body.touch a.nav-link,
+body.touch .os-chrome-btn,
+body.touch .traffic-dot,
+body.touch .orm-btn,
+body.touch .toolbar-btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Exceção: dots de traffic lights precisam ser pequenos visualmente, mas tap area maior via padding */
+body.touch .traffic-dot {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  position: relative;
+}
+body.touch .traffic-dot::before {
+  content: '';
+  position: absolute;
+  inset: -15px;  /* expande tap area invisível pra 44px */
+}
+
+/* --------------------------------------------------------------------------
+   SAFE AREAS — iOS notch + bottom gesture bar
+   -------------------------------------------------------------------------- */
+body.viewport-mobile {
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+body.viewport-mobile.desktop .ui-os-dock-wrapper {
+  bottom: calc(12px + env(safe-area-inset-bottom, 0));
+}
+
+/* --------------------------------------------------------------------------
+   SCROLL behavior — momentum em touch
+   -------------------------------------------------------------------------- */
+body.touch .macos-window-content,
+body.touch .app-content-scroll,
+body.touch .os-dock-apps {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+/* --------------------------------------------------------------------------
+   HOVER states — só aplicar em mouse (evita sticky hover em touch)
+   -------------------------------------------------------------------------- */
+@media (hover: none) {
+  .os-chrome-btn:hover,
+  .nav-link:hover,
+  .orm-btn:hover,
+  .open-window-item:hover,
+  .toolbar-btn:hover {
+    transform: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   INPUT FOCUS — evitar zoom iOS em inputs (precisa font-size ≥16px)
+   -------------------------------------------------------------------------- */
+body.viewport-mobile input[type="text"],
+body.viewport-mobile input[type="email"],
+body.viewport-mobile input[type="password"],
+body.viewport-mobile input[type="search"],
+body.viewport-mobile input[type="number"],
+body.viewport-mobile input[type="tel"],
+body.viewport-mobile textarea,
+body.viewport-mobile select {
+  font-size: 16px !important;
+}
+
+/* --------------------------------------------------------------------------
+   REDUCED MOTION — respeitar preferência do user
+   -------------------------------------------------------------------------- */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 80ms !important;
+  transition-duration: 80ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* --------------------------------------------------------------------------
+   CONTAINER — wrapper dock/main-content adaptam ao container, não viewport
+   (habilita container queries nos filhos)
+   -------------------------------------------------------------------------- */
+/* container-type inline-size colapsa width:auto pra 0 — removido do wrapper.
+   macos-window-content pode ficar porque tem width explícito. */
+.macos-window-content {
+  container-type: inline-size;
+  container-name: window;
+}
+
+/* --------------------------------------------------------------------------
+   VIEWPORT-AWARE DEBUG (dev only) — descomentar pra visualizar breakpoints
+   -------------------------------------------------------------------------- */
+/*
+body.viewport-desktop::before { content: 'DESKTOP'; }
+body.viewport-tablet::before  { content: 'TABLET'; }
+body.viewport-mobile::before  { content: 'MOBILE'; }
+body::before {
+  position: fixed; top: 4px; left: 4px; z-index: 999999;
+  background: red; color: white; padding: 2px 6px; font-size: 10px;
+}
+*/
+
+/* ==========================================================================
+   Op B — Dock responsive (tablet compacto + mobile bottom-nav)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   TABLET (768-1279px) — Dock horizontal compacto
+   Reduz altura/gap, mantém 4 cápsulas bottom
+   -------------------------------------------------------------------------- */
+body.view-web.viewport-tablet {
+  --dock-h: 56px;
+  --dock-gap-group: 6px;
+}
+
+body.view-web.viewport-tablet .ui-os-dock-wrapper {
+  max-width: 98vw;
+}
+
+body.view-web.viewport-tablet .os-dock-apps .nav-link {
+  font-size: 14px;
+  padding: 6px 10px;
+}
+
+body.view-web.viewport-tablet .desk-clock {
+  font-size: 15px;
+}
+
+/* Cápsula de janelas abertas menor em tablet */
+body.view-web.viewport-tablet .open-window-item {
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   MOBILE (<768px) — Dock vira bottom-nav fullwidth
+   Logo no topo-esquerda, User topo-direita, Apps centrais no bottom
+   Janelas abertas escondidas (mobile gerencia via fullscreen swipe — Op C)
+   -------------------------------------------------------------------------- */
+body.view-web.viewport-mobile {
+  --dock-h: 56px;
+}
+
+/* Dock wrapper: passa a ser flex column, esconde flutuação bottom */
+body.view-web.viewport-mobile .ui-os-dock-wrapper {
+  left: 0;
+  right: 0;
+  transform: none;
+  width: 100%;
+  max-width: 100vw;
+  bottom: 0;
+  padding: 0;
+  gap: 0;
+}
+
+/* Logo squircle: vira botão fixo top-left */
+body.view-web.viewport-mobile .os-dock-bubble.os-dock-logo {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top, 0));
+  left: 8px;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  flex: 0 0 40px !important;
+  z-index: 9999;
+  background: rgba(20, 20, 25, 0.65) !important;
+  backdrop-filter: blur(20px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
+}
+
+body.view-web.viewport-mobile .os-dock-logo .logo-squircle {
+  width: 28px;
+  height: 28px;
+}
+
+/* User avatar: vira botão fixo top-right */
+body.view-web.viewport-mobile .os-dock-bubble.os-dock-user {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top, 0));
+  right: 8px;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  flex: 0 0 40px !important;
+  padding: 0 !important;
+  z-index: 9999;
+  background: rgba(20, 20, 25, 0.65) !important;
+  backdrop-filter: blur(20px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(150%) !important;
+}
+
+body.view-web.viewport-mobile .os-dock-user .user-dock-avatar {
+  width: 100%;
+  height: 100%;
+  font-size: 14px;
+}
+
+body.view-web.viewport-mobile .user-dock-exit-os {
+  display: none; /* exit-os em mobile vive no avatar dropdown */
+}
+
+/* User dropdown em mobile: abre de cima pra baixo (ancorado no avatar topo) */
+body.view-web.viewport-mobile .user-dock-dropdown {
+  position: fixed !important;
+  top: 56px !important;
+  right: 8px !important;
+  bottom: auto !important;
+  left: auto !important;
+  max-width: calc(100vw - 16px);
+  min-width: 240px;
+}
+
+/* Bolha de janelas abertas: oculta em mobile (vai ser swipe nativo — Op C) */
+body.view-web.viewport-mobile .os-dock-bubble.os-dock-windows {
+  display: none !important;
+}
+
+/* Apps dock: fullwidth bottom-nav fixo */
+body.view-web.viewport-mobile .os-dock-bubble.os-dock-apps {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 100vw;
+  border-radius: 0 !important;
+  height: calc(60px + env(safe-area-inset-bottom, 0));
+  padding: 0 8px calc(env(safe-area-inset-bottom, 0)) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(20, 20, 25, 0.85) !important;
+  backdrop-filter: blur(30px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(150%) !important;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.3) !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+body.view-web.viewport-mobile .os-dock-bubble.os-dock-apps::-webkit-scrollbar { display: none; }
+
+body.view-web.viewport-mobile .os-dock-apps .nav.flex-column {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  width: max-content;
+  min-width: 100%;
+  justify-content: space-around;
+  align-items: center;
+  height: 60px;
+}
+
+body.view-web.viewport-mobile .os-dock-apps .nav-item {
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+body.view-web.viewport-mobile .os-dock-apps .nav-link {
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  min-width: 56px;
+  font-size: 10px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.75);
+  border-radius: 10px;
+  transition: background-color 0.12s linear, color 0.12s linear;
+}
+
+body.view-web.viewport-mobile .os-dock-apps .nav-link i {
+  font-size: 18px;
+  margin: 0 !important;
+}
+
+body.view-web.viewport-mobile .os-dock-apps .nav-link.has-window {
+  color: rgba(0, 122, 255, 0.95);
+  background: rgba(0, 122, 255, 0.1);
+}
+
+body.view-web.viewport-mobile .os-dock-apps .nav-link.has-window-active {
+  background: rgba(0, 122, 255, 0.2);
+}
+
+/* Conteúdo principal: reserva espaço pro bottom-nav */
+body.view-web.viewport-mobile .main-content {
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0) + 8px) !important;
+  padding-top: calc(56px + env(safe-area-inset-top, 0)) !important;
+}
+
+/* ORM + Global Chrome: some em mobile (espaço precioso) */
+body.view-web.viewport-mobile #osGlobalChrome,
+body.view-web.viewport-mobile #osResourceMonitor {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Op C — Window system responsive
+   Mobile/Tablet: fullscreen inline, sem drag/resize, sem chrome decorativo
+   Desktop: comportamento padrão (drag/resize/snap)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   TABLET — Window maximizada por default, chrome reduzido
+   Ainda mostra titlebar (contexto), mas sem traffic lights clicáveis
+   -------------------------------------------------------------------------- */
+body.view-web.viewport-tablet #mainAppWindow,
+body.view-web.viewport-tablet .macos-window.macos-app-window {
+  position: fixed !important;
+  top: 8px !important;
+  left: 8px !important;
+  right: 8px !important;
+  width: auto !important;
+  max-width: calc(100vw - 16px) !important;
+  height: calc(100vh - 80px) !important; /* espaço pro dock bottom */
+  max-height: calc(100vh - 80px) !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+
+body.view-web.viewport-tablet .macos-titlebar {
+  height: 36px;
+  cursor: default;
+}
+
+body.view-web.viewport-tablet .traffic-lights {
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+/* --------------------------------------------------------------------------
+   MOBILE — Window fullscreen total, sem titlebar nem chrome
+   Navegação via bottom-nav e gestos (swipe)
+   -------------------------------------------------------------------------- */
+body.view-web.viewport-mobile #mainAppWindow,
+body.view-web.viewport-mobile .macos-window.macos-app-window {
+  position: fixed !important;
+  top: calc(56px + env(safe-area-inset-top, 0)) !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: calc(60px + env(safe-area-inset-bottom, 0)) !important;
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100vw !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: var(--bg-main, #f5f5f7) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.view-web.viewport-mobile .macos-titlebar,
+body.view-web.viewport-mobile .traffic-lights {
+  display: none !important;
+}
+
+body.view-web.viewport-mobile .macos-window-content,
+body.view-web.viewport-mobile .app-content-scroll {
+  padding: 12px !important;
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+}
+
+/* Tab-bar em mobile: inline no topo da janela (se ainda existir) */
+body.view-web.viewport-mobile .tab-bar {
+  display: none !important; /* redundante com bottom-nav */
+}
+
+/* Grid-stack em mobile: 1 coluna fullwidth */
+body.view-web.viewport-mobile .grid-stack {
+  min-height: auto !important;
+}
+body.view-web.viewport-mobile .grid-stack > .grid-stack-item {
+  position: static !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 180px;
+  margin-bottom: 10px !important;
+  left: 0 !important;
+  top: 0 !important;
+  transform: none !important;
+}
+body.view-web.viewport-mobile .grid-stack > .grid-stack-item > .grid-stack-item-content {
+  position: static !important;
+  inset: 0 !important;
+  height: auto !important;
+}
+
+/* Tabelas: scroll horizontal nativo */
+body.view-web.viewport-mobile .table-responsive,
+body.view-web.viewport-mobile table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+  max-width: 100%;
+}
+
+/* Swipe hint (indicator sutil pra descobrir gesto) */
+body.view-web.viewport-mobile::after {
+  content: '';
+  position: fixed;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 9998;
+}
+
+body.view-web.viewport-mobile.swipe-hint::after {
+  opacity: 1;
+}

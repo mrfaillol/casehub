@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Pagamentos{% else %}Payments{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-credit-card me-2"></i>{% if product == "lite" %}Pagamentos{% else %}Payments{% endif %}</h2>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4 payments-stats-row">
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-2">{% if product == "lite" %}Total Pago{% else %}Total Paid{% endif %}</h6>
+                        <h3 class="text-success">{{ stats.total_paid|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</h3>
+                    </div>
+                    <div class="text-success opacity-50">
+                        <i class="fas fa-check-circle fa-3x"></i>
+                    </div>
+                </div>
+                <small class="text-muted">{{ stats.paid_invoices }} {% if product == "lite" %}faturas{% else %}invoices{% endif %}</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-2">{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</h6>
+                        <h3 class="text-warning">{{ stats.total_pending|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</h3>
+                    </div>
+                    <div class="text-warning opacity-50">
+                        <i class="fas fa-clock fa-3x"></i>
+                    </div>
+                </div>
+                <small class="text-muted">{{ stats.pending_invoices }} {% if product == "lite" %}faturas{% else %}invoices{% endif %}</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card glass-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-2">{% if product == "lite" %}Receita Total{% else %}Total Revenue{% endif %}</h6>
+                        <h3>{{ (stats.total_paid + stats.total_pending)|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</h3>
+                    </div>
+                    <div class="text-primary opacity-50">
+                        <i class="fas fa-dollar-sign fa-3x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card {% if stripe_configured %}border-success{% else %}border-danger{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-2">{% if product == "lite" %}Status Stripe{% else %}Stripe Status{% endif %}</h6>
+                        {% if stripe_configured %}
+                        <h4 class="text-success"><i class="fas fa-check me-1"></i>{% if product == "lite" %}Ativo{% else %}Active{% endif %}</h4>
+                        {% else %}
+                        <h4 class="text-danger"><i class="fas fa-times me-1"></i>{% if product == "lite" %}Não configurado{% else %}Not Configured{% endif %}</h4>
+                        {% endif %}
+                    </div>
+                    <div class="{% if stripe_configured %}text-success{% else %}text-danger{% endif %} opacity-50">
+                        <i class="fab fa-stripe fa-3x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">{% if product == "lite" %}Ações rápidas{% else %}Quick Actions{% endif %}</h5>
+    </div>
+    <div class="card-body">
+        <div class="row payments-actions-row">
+            <div class="col-md-4">
+                <a href="{{ PREFIX }}/invoices" class="btn btn-outline-primary glass-btn glass-btn--ghost w-100">
+                    <i class="fas fa-file-invoice me-1"></i> {% if product == "lite" %}Ver faturas{% else %}View All Invoices{% endif %}
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ PREFIX }}/billing" class="btn btn-outline-primary glass-btn glass-btn--ghost w-100">
+                    <i class="fas fa-money-bill me-1"></i> {% if product == "lite" %}Itens de cobrança{% else %}Billing Items{% endif %}
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ PREFIX }}/reports/billing" class="btn btn-outline-primary glass-btn glass-btn--ghost w-100">
+                    <i class="fas fa-chart-bar me-1"></i> {% if product == "lite" %}Relatórios financeiros{% else %}Billing Reports{% endif %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if not stripe_configured %}
+<!-- Stripe Setup Guide -->
+<div class="card border-info">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fab fa-stripe me-2"></i>{% if product == "lite" %}Configurar pagamentos Stripe{% else %}Setup Stripe Payments{% endif %}</h5>
+    </div>
+    <div class="card-body">
+        <p>{% if product == "lite" %}Para habilitar pagamentos online, configure o Stripe:{% else %}To enable online payments, you need to configure Stripe:{% endif %}</p>
+        <ol>
+            <li>{% if product == "lite" %}Crie uma conta Stripe em{% else %}Create a Stripe account at{% endif %} <a href="https://stripe.com" target="_blank">stripe.com</a></li>
+            <li>{% if product == "lite" %}Copie as chaves de API no painel do Stripe{% else %}Get your API keys from the Stripe Dashboard{% endif %}</li>
+            <li>{% if product == "lite" %}Adicione as variáveis de ambiente no servidor:{% else %}Add the following environment variables to your server:{% endif %}
+                <pre class="bg-light p-3 mt-2">
+STRIPE_SECRET_KEY=sk_live_xxxxx
+STRIPE_PUBLISHABLE_KEY=pk_live_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+                </pre>
+            </li>
+            <li>{% if product == "lite" %}Reinicie a aplicação{% else %}Restart the{% endif %} {{ org_name|default('CaseHub') }}{% if product != "lite" %} application{% endif %}</li>
+        </ol>
+        <p class="mb-0">
+            <strong>{% if product == "lite" %}Observação:{% else %}Note:{% endif %}</strong> {% if product == "lite" %}use chaves <code>sk_test_</code> e <code>pk_test_</code> para testes.{% else %}Use <code>sk_test_</code> and <code>pk_test_</code> keys for testing.{% endif %}
+        </p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media (max-width: 767.98px) {
+        .payments-stats-row,
+        .payments-actions-row {
+            margin-left: 0;
+            margin-right: 0;
+            row-gap: 0.75rem;
+        }
+        .payments-stats-row > [class*="col-"],
+        .payments-actions-row > [class*="col-"] {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .payments-stats-row h3,
+        .payments-stats-row h4 {
+            overflow-wrap: anywhere;
+        }
+        .payments-actions-row .glass-btn {
+            min-height: 44px;
+        }
+    }
+</style>
+{% endblock %}

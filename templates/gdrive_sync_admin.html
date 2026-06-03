@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive Sync - CaseHub Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .stat-card {
+            border-left: 4px solid #1C2447;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #1C2447;
+        }
+        .sync-log {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        .sync-log .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .sync-log .log-entry:last-child {
+            border-bottom: none;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .status-active { background: #d1e7dd; color: #0f5132; }
+        .status-inactive { background: #f8d7da; color: #842029; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-6">
+                    <svg width="40" height="40" fill="currentColor" class="me-2" style="vertical-align: text-bottom;">
+                        <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+                        <path d="M7 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2H7zm0 1h7a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>
+                    </svg>
+                    Google Drive Sync
+                </h1>
+                <p class="text-muted">Bidirectional document synchronization between CaseHub and Google Drive</p>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card h-100">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Total Documents</h6>
+                        <div class="stat-value" id="stat-total">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card h-100">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Synced to Drive</h6>
+                        <div class="stat-value" id="stat-synced">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card h-100">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Hashed Locally</h6>
+                        <div class="stat-value" id="stat-hashed">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card h-100">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">Duplicates</h6>
+                        <div class="stat-value text-warning" id="stat-duplicates">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Sync Controls -->
+            <div class="col-lg-6">
+                <div class="card glass-card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Sync Controls</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h6>Automatic Sync</h6>
+                            {% if product == "lite" %}
+                            <label class="pill-toggle">
+                                <input type="checkbox" id="autoSyncToggle">
+                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                                <span class="ms-2">Sincronização automática a cada 6 horas</span>
+                            </label>
+                            {% else %}
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="autoSyncToggle">
+                                <label class="form-check-label" for="autoSyncToggle">
+                                    Enable automatic sync every 6 hours
+                                </label>
+                            </div>
+                            {% endif %}
+                            <small class="text-muted">Uses cron job: /etc/cron.d/gdrive-sync</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <h6>Manual Sync</h6>
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost" onclick="syncAllClients()">
+                                    <svg width="16" height="16" fill="currentColor" class="me-1">
+                                        <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                                        <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                                    </svg>
+                                    Sync All Clients
+                                </button>
+                                <button type="button" class="btn btn-outline-success" onclick="refreshStats()">
+                                    <svg width="16" height="16" fill="currentColor" class="me-1">
+                                        <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                                        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                                    </svg>
+                                    Refresh Stats
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h6>Sync Specific Client</h6>
+                            <div class="input-group">
+                                <input type="number" class="form-control glass-input" id="clientIdInput" placeholder="Client ID">
+                                <button class="btn btn-primary glass-btn glass-btn--primary" onclick="syncSpecificClient()">Sync</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sync Log -->
+            <div class="col-lg-6">
+                <div class="card glass-card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">Sync Log</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="sync-log" id="syncLog">
+                            <div class="text-muted text-center py-5">
+                                No sync operations yet. Click "Sync All Clients" to start.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Storage by Visa Category -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card glass-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Storage by Visa Category</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="storageTable">
+                                <thead>
+                                    <tr>
+                                        <th>Visa Category</th>
+                                        <th>Document Count</th>
+                                        <th>Total Size</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Load stats on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshStats();
+            setupAutoSyncControl();
+        });
+
+        const API_PREFIX = '{{ PREFIX }}';
+        const AUTO_SYNC_AVAILABLE = {{ auto_sync_available|default(false)|tojson }};
+
+        async function readJson(response) {
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                throw new Error('Unexpected server response');
+            }
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || data.message || data.error || `HTTP ${response.status}`);
+            }
+            return data;
+        }
+
+        async function refreshStats() {
+            try {
+                const response = await fetch(`${API_PREFIX}/api/documents/drive/status`);
+                const data = await readJson(response);
+
+                document.getElementById('stat-total').textContent = data.total_documents.toLocaleString();
+                document.getElementById('stat-synced').textContent = data.synced_to_drive.toLocaleString();
+                document.getElementById('stat-hashed').textContent = data.hashed_locally.toLocaleString();
+                document.getElementById('stat-duplicates').textContent = data.duplicates_detected.toLocaleString();
+
+                // Update storage table
+                const tbody = document.querySelector('#storageTable tbody');
+                if (data.storage_by_visa && data.storage_by_visa.length > 0) {
+                    tbody.innerHTML = data.storage_by_visa.map(item => `
+                        <tr>
+                            <td><strong>${item.visa_category}</strong></td>
+                            <td>${item.document_count.toLocaleString()}</td>
+                            <td>${item.total_size_mb.toFixed(2)} MB</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No data available</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+                addLogEntry('error', 'Failed to load statistics: ' + error.message);
+            }
+        }
+
+        async function syncAllClients() {
+            addLogEntry('info', 'Starting bulk sync for all clients...');
+
+            try {
+                const response = await fetch(`${API_PREFIX}/api/documents/drive/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skip_existing: true })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    addLogEntry('success', `Bulk sync complete! ${result.synced_clients}/${result.total_clients} clients synced, ${result.total_downloaded} files downloaded`);
+
+                    // Show details for each client
+                    if (result.clients && result.clients.length > 0) {
+                        result.clients.forEach(client => {
+                            if (client.downloaded > 0) {
+                                addLogEntry('success', `  ✓ ${client.client_name}: ${client.downloaded} files`);
+                            } else if (client.error) {
+                                addLogEntry('warning', `  ⚠ ${client.client_name}: ${client.error}`);
+                            }
+                        });
+                    }
+
+                    refreshStats();
+                } else {
+                    throw new Error(result.detail || 'Sync failed');
+                }
+            } catch (error) {
+                console.error('Sync error:', error);
+                addLogEntry('error', 'Bulk sync failed: ' + error.message);
+            }
+        }
+
+        async function syncSpecificClient() {
+            const clientId = document.getElementById('clientIdInput').value;
+            if (!clientId) {
+                alert('Please enter a client ID');
+                return;
+            }
+
+            addLogEntry('info', `Syncing client ${clientId}...`);
+
+            try {
+                const response = await fetch(`${API_PREFIX}/api/documents/drive/sync-client/${clientId}?skip_existing=true`, {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    addLogEntry('success', `Client ${result.client_name}: ${result.downloaded} downloaded, ${result.skipped} skipped, ${result.failed} failed`);
+                    refreshStats();
+                } else {
+                    throw new Error(result.detail || 'Sync failed');
+                }
+            } catch (error) {
+                console.error('Sync error:', error);
+                addLogEntry('error', `Client ${clientId} sync failed: ` + error.message);
+            }
+        }
+
+        function setupAutoSyncControl() {
+            const toggle = document.getElementById('autoSyncToggle');
+            if (!toggle) {
+                return;
+            }
+            if (!AUTO_SYNC_AVAILABLE) {
+                toggle.checked = false;
+                toggle.disabled = true;
+                toggle.setAttribute('title', 'Auto-sync unavailable in this environment');
+                addLogEntry('info', 'Auto-sync unavailable in this environment.');
+                return;
+            }
+            checkAutoSyncStatus();
+        }
+
+        async function checkAutoSyncStatus() {
+            try {
+                const response = await fetch(`${API_PREFIX}/admin/gdrive-sync/api/auto-sync-status`);
+                const data = await readJson(response);
+                document.getElementById('autoSyncToggle').checked = data.enabled;
+            } catch (error) {
+                console.log('Auto-sync status not available');
+            }
+        }
+
+        document.getElementById('autoSyncToggle').addEventListener('change', async (e) => {
+            if (!AUTO_SYNC_AVAILABLE) {
+                e.target.checked = false;
+                addLogEntry('warning', 'Auto-sync unavailable in this environment.');
+                return;
+            }
+            try {
+                const response = await fetch(`${API_PREFIX}/admin/gdrive-sync/api/auto-sync-toggle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: e.target.checked })
+                });
+
+                const result = await readJson(response);
+                addLogEntry('info', `Auto-sync ${e.target.checked ? 'enabled' : 'disabled'}`);
+            } catch (error) {
+                console.error('Toggle error:', error);
+                addLogEntry('error', 'Failed to toggle auto-sync: ' + error.message);
+                e.target.checked = !e.target.checked; // Revert
+            }
+        });
+
+        function addLogEntry(type, message) {
+            const log = document.getElementById('syncLog');
+
+            // Remove placeholder if present
+            if (log.querySelector('.text-muted')) {
+                log.innerHTML = '';
+            }
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✗' : type === 'warning' ? '⚠' : 'ℹ';
+            const color = type === 'success' ? '#0f5132' : type === 'error' ? '#842029' : type === 'warning' ? '#664d03' : '#055160';
+
+            entry.innerHTML = `<span style="color: ${color}; font-weight: bold;">[${timestamp}] ${icon}</span> ${message}`;
+
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+    </script>
+</body>
+</html>

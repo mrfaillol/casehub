@@ -1,0 +1,122 @@
+{% extends "app/base.html" %}
+{% set active_module = 'processes' %}
+{% block title %}Processes · Form · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/processes-form.css">
+{% endblock %}
+{% block content %}
+<section class="processes-form-main" aria-labelledby="processes-form-title">
+    <div class="processes-form-container">
+        <header class="processes-form-header">
+            <a href="{{ PREFIX }}/processes" class="processes-form-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Voltar aos Processos{% else %}Back to Processes{% endif %}</span>
+            </a>
+            <h1 id="processes-form-title" class="processes-form-title">
+                <i class="fas fa-project-diagram processes-form-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}{% if process %}Editar{% else %}Novo{% endif %} Modelo de Processo{% else %}{% if process %}Edit{% else %}New{% endif %} Process Template{% endif %}</span>
+            </h1>
+        </header>
+
+        <form action="{{ PREFIX }}/processes{% if process %}/{{ process.id }}/edit{% else %}/new{% endif %}" method="POST">
+            <div class="processes-form-grid">
+                <section class="processes-form-card" aria-labelledby="processes-form-details-heading">
+                    <h2 id="processes-form-details-heading" class="sr-only">{% if product == "lite" %}Dados do Processo{% else %}Process Details{% endif %}</h2>
+                    <div class="processes-form-card-body">
+                        <div class="processes-form-field">
+                            <label for="processes-form-name" class="processes-form-label">
+                                {% if product == "lite" %}Nome do Processo{% else %}Process Name{% endif %}
+                                <span class="processes-form-required" aria-hidden="true">*</span>
+                            </label>
+                            <input id="processes-form-name" type="text" name="name" class="processes-form-input" value="{{ process.name if process else '' }}" required aria-required="true">
+                        </div>
+
+                        <div class="processes-form-field">
+                            <label for="processes-form-description" class="processes-form-label">{% if product == "lite" %}Descrição{% else %}Description{% endif %}</label>
+                            <textarea id="processes-form-description" name="description" class="processes-form-textarea" rows="3">{{ process.description if process else '' }}</textarea>
+                        </div>
+
+                        <div class="processes-form-row">
+                            <div>
+                                <label for="processes-form-area" class="processes-form-label">{% if product == "lite" %}Área de Atuação{% else %}Area of Practice{% endif %}</label>
+                                <select id="processes-form-area" name="area_of_practice" class="processes-form-select">
+                                    <option value="">{% if product == "lite" %}Selecione...{% else %}Select...{% endif %}</option>
+                                    {% if product == "lite" %}
+                                    {% for area in ['Cível', 'Trabalhista', 'Tributário', 'Família', 'Criminal', 'Empresarial', 'Previdenciário', 'Outro'] %}
+                                    <option value="{{ area }}" {% if process and process.area_of_practice == area %}selected{% endif %}>{{ area }}</option>
+                                    {% endfor %}
+                                    {% else %}
+                                    {% for area in ['Employment-Based', 'Family-Based', 'Humanitarian', 'Citizenship', 'Other'] %}
+                                    <option value="{{ area }}" {% if process and process.area_of_practice == area %}selected{% endif %}>{{ area }}</option>
+                                    {% endfor %}
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="processes-form-days" class="processes-form-label">{% if product == "lite" %}Duração Estimada (dias){% else %}Estimated Duration (days){% endif %}</label>
+                                <input id="processes-form-days" type="number" name="estimated_days" class="processes-form-input" min="0" value="{{ process.estimated_days if process else '' }}">
+                            </div>
+                        </div>
+
+                        {% if product != "lite" %}
+                        <div class="processes-form-field">
+                            <label for="processes-form-visa" class="processes-form-label">Applicable Visa Types</label>
+                            <input id="processes-form-visa" type="text" name="visa_types" class="processes-form-input" placeholder="e.g., EB-1A, EB-2, H-1B (comma separated)"
+                                   value="{% if process and process.visa_types %}{{ process.visa_types|replace('[', '')|replace(']', '')|replace('\"', '') }}{% endif %}"
+                                   aria-describedby="processes-form-visa-help">
+                            <small id="processes-form-visa-help" class="processes-form-help">Leave empty for all visa types</small>
+                        </div>
+                        {% endif %}
+
+                        {% if process %}
+                        <div class="processes-form-field">
+                            <label class="processes-form-check" for="processes-form-enabled">
+                                <input id="processes-form-enabled" type="checkbox" name="enabled" value="true" class="processes-form-check-input" {% if process.enabled %}checked{% endif %}>
+                                <span>{% if product == "lite" %}Processo ativo{% else %}Process is active{% endif %}</span>
+                            </label>
+                        </div>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <aside class="processes-form-aside" aria-labelledby="processes-form-tips-heading">
+                    <h2 id="processes-form-tips-heading" class="processes-form-aside-header">
+                        <i class="fas fa-info-circle processes-form-aside-header-icon" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Dicas{% else %}Tips{% endif %}</span>
+                    </h2>
+                    <div class="processes-form-aside-body">
+                        <ul class="processes-form-tips">
+                            {% if product == "lite" %}
+                            <li>Crie um modelo de processo para definir o fluxo padrão de um tipo de caso</li>
+                            <li>Adicione etapas após criar o processo</li>
+                            <li>Marque etapas importantes como "marcos" para acompanhamento</li>
+                            <li>Você pode atribuir processos a casos individuais</li>
+                            {% else %}
+                            <li>Create a process template to define the standard workflow for a type of case</li>
+                            <li>Add steps after creating the process</li>
+                            <li>Mark important steps as "milestones" for easy tracking</li>
+                            <li>You can assign processes to individual cases</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </aside>
+            </div>
+
+            <hr class="processes-form-divider">
+
+            <div class="processes-form-actions">
+                <button type="submit" class="processes-form-btn processes-form-btn--primary">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}{% if process %}Atualizar{% else %}Criar{% endif %} Processo{% else %}{% if process %}Update{% else %}Create{% endif %} Process{% endif %}</span>
+                </button>
+                <a href="{{ PREFIX }}/processes" class="processes-form-btn processes-form-btn--ghost">
+                    {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+                </a>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

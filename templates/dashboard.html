@@ -1,0 +1,761 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.dashboard_title }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ asset_url('css/templates/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+{% if product == "immigration" %}
+<!-- BOT CONTROL PANEL -->
+<section class="dashboard-bot-panel" id="bot-control-panel" aria-labelledby="bot-control-heading">
+    <div class="dashboard-bot-panel__row">
+        <div>
+            <h2 id="bot-control-heading" class="dashboard-bot-panel__title">
+                <i class="fas fa-robot me-2" aria-hidden="true"></i>WhatsApp Bot Control
+            </h2>
+            <span id="bot-status-text" class="dashboard-bot-panel__status" aria-live="polite">
+                Carregando status...
+            </span>
+        </div>
+        <div class="dashboard-bot-panel__meters">
+            <div class="dashboard-bot-panel__meter">
+                <span class="dashboard-bot-panel__meter-label">Hora BRT</span>
+                <span id="current-time-brt" class="dashboard-bot-panel__meter-value">--:--</span>
+            </div>
+            <div class="dashboard-bot-panel__meter">
+                <label for="business-hours-toggle" class="dashboard-bot-panel__meter-label">Horário Comercial</label>
+                <div class="d-flex justify-content-center">
+                    {% if product == "lite" %}
+                    <span class="pill-toggle">
+                        <input type="checkbox" id="business-hours-toggle" aria-label="Alternar horário comercial">
+                        <span class="pill-toggle-track" aria-hidden="true"><span class="pill-toggle-indicator"></span></span>
+                    </span>
+                    {% else %}
+                    <input class="form-check-input dashboard-switch" type="checkbox" id="business-hours-toggle" role="switch" aria-label="Toggle business hours">
+                    {% endif %}
+                </div>
+            </div>
+            <button id="bot-global-toggle" type="button" class="dashboard-bot-toggle" aria-pressed="false">
+                <i class="fas fa-power-off" aria-hidden="true"></i>
+                <span id="bot-toggle-text">Carregando...</span>
+            </button>
+        </div>
+    </div>
+</section>
+
+<!-- WORLD CLOCK -->
+<section class="card mb-4" aria-label="World clock map">
+    <div class="card-body p-0">
+        <div id="world-map" class="dashboard-map" role="img" aria-label="Interactive world map with local time on hover"></div>
+        <div class="dashboard-clocks">
+            <div class="dashboard-clocks__item">
+                <span class="dashboard-clocks__label">New York</span>
+                <span id="clock-ny" class="dashboard-clocks__time" aria-live="off">--:--</span>
+            </div>
+            <div class="dashboard-clocks__item">
+                <span class="dashboard-clocks__label">São Paulo</span>
+                <span id="clock-sp" class="dashboard-clocks__time" aria-live="off">--:--</span>
+            </div>
+            <div class="dashboard-clocks__item">
+                <span class="dashboard-clocks__label">London</span>
+                <span id="clock-ldn" class="dashboard-clocks__time" aria-live="off">--:--</span>
+            </div>
+            <div class="dashboard-clocks__item">
+                <span class="dashboard-clocks__label">Tokyo</span>
+                <span id="clock-tky" class="dashboard-clocks__time" aria-live="off">--:--</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- amCharts 5 -->
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/map.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/geodata/worldLow.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Dark.js"></script>
+
+<script>
+am5.ready(function() {
+    var mapEl = document.getElementById("world-map");
+    var mapStyles = getComputedStyle(mapEl);
+    function mapColor(name) {
+        var v = mapStyles.getPropertyValue(name).trim();
+        return v ? am5.color(v) : am5.color(0);
+    }
+    var mapFill = mapColor("--map-fill");
+    var mapStroke = mapColor("--map-stroke");
+    var mapFillHover = mapColor("--map-fill-hover");
+    var mapFillActive = mapColor("--map-fill-active");
+    var mapTooltipBg = mapColor("--map-tooltip-bg");
+    var mapTooltipFg = mapColor("--map-tooltip-fg");
+    var mapTooltipBorder = mapColor("--map-tooltip-border");
+
+    var countryTimezones = {
+        "US": "America/New_York", "BR": "America/Sao_Paulo", "GB": "Europe/London", "JP": "Asia/Tokyo",
+        "AU": "Australia/Sydney", "DE": "Europe/Berlin", "FR": "Europe/Paris", "IN": "Asia/Kolkata",
+        "CN": "Asia/Shanghai", "RU": "Europe/Moscow", "MX": "America/Mexico_City", "CA": "America/Toronto",
+        "AR": "America/Buenos_Aires", "CL": "America/Santiago", "CO": "America/Bogota", "PE": "America/Lima",
+        "ES": "Europe/Madrid", "IT": "Europe/Rome", "PT": "Europe/Lisbon", "NL": "Europe/Amsterdam",
+        "CH": "Europe/Zurich", "PL": "Europe/Warsaw", "SE": "Europe/Stockholm", "NO": "Europe/Oslo",
+        "IE": "Europe/Dublin", "GR": "Europe/Athens", "TR": "Europe/Istanbul", "IL": "Asia/Jerusalem",
+        "AE": "Asia/Dubai", "SA": "Asia/Riyadh", "EG": "Africa/Cairo", "ZA": "Africa/Johannesburg",
+        "NG": "Africa/Lagos", "KE": "Africa/Nairobi", "TH": "Asia/Bangkok", "VN": "Asia/Ho_Chi_Minh",
+        "SG": "Asia/Singapore", "MY": "Asia/Kuala_Lumpur", "ID": "Asia/Jakarta", "PH": "Asia/Manila",
+        "KR": "Asia/Seoul", "TW": "Asia/Taipei", "HK": "Asia/Hong_Kong", "NZ": "Pacific/Auckland",
+        "FI": "Europe/Helsinki", "DK": "Europe/Copenhagen", "BE": "Europe/Brussels", "AT": "Europe/Vienna",
+        "CZ": "Europe/Prague", "HU": "Europe/Budapest", "RO": "Europe/Bucharest", "UA": "Europe/Kiev"
+    };
+
+    function getLocalTime(countryCode) {
+        var tz = countryTimezones[countryCode];
+        if (!tz) return "";
+        try {
+            return new Date().toLocaleTimeString("en-US", {timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true});
+        } catch(e) { return ""; }
+    }
+
+    var root = am5.Root.new("world-map");
+    root.setThemes([am5themes_Dark.new(root)]);
+
+    var chart = root.container.children.push(am5map.MapChart.new(root, {
+        panX: "none", panY: "none", wheelY: "none",
+        projection: am5map.geoNaturalEarth1(),
+        homeGeoPoint: { latitude: 20, longitude: 0 }
+    }));
+
+    var polygonSeries = chart.series.push(am5map.MapPolygonSeries.new(root, {
+        geoJSON: am5geodata_worldLow,
+        exclude: ["AQ"]
+    }));
+
+    polygonSeries.mapPolygons.template.setAll({
+        fill: mapFill,
+        stroke: mapStroke,
+        strokeWidth: 0.5,
+        interactive: true,
+        tooltipPosition: "pointer"
+    });
+
+    polygonSeries.mapPolygons.template.set("tooltipText", "{name}");
+    var tooltip = polygonSeries.mapPolygons.template.get("tooltip");
+    if (tooltip) {
+        tooltip.label.setAll({ fill: mapTooltipFg, fontSize: 14 });
+        tooltip.get("background").setAll({
+            fill: mapTooltipBg,
+            fillOpacity: 0.95,
+            stroke: mapTooltipBorder,
+            strokeWidth: 2
+        });
+    }
+
+    polygonSeries.mapPolygons.template.adapters.add("tooltipText", function(text, target) {
+        var id = target.dataItem.get("id");
+        var name = target.dataItem.dataContext.name;
+        var time = getLocalTime(id);
+        if (time) {
+            return name + "\n" + time;
+        }
+        return name;
+    });
+
+    polygonSeries.mapPolygons.template.states.create("hover", { fill: mapFillHover });
+
+    polygonSeries.mapPolygons.template.adapters.add("fill", function(fill, target) {
+        var id = target.dataItem.get("id");
+        if (["US", "BR", "GB", "JP"].includes(id)) return mapFillActive;
+        return fill;
+    });
+
+    chart.appear(1000, 100);
+});
+
+function updateWorldClocks() {
+    var now = new Date();
+    document.getElementById("clock-ny").textContent = now.toLocaleTimeString("en-US", {timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hour12: true});
+    document.getElementById("clock-sp").textContent = now.toLocaleTimeString("pt-BR", {timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit"});
+    document.getElementById("clock-ldn").textContent = now.toLocaleTimeString("en-GB", {timeZone: "Europe/London", hour: "2-digit", minute: "2-digit"});
+    document.getElementById("clock-tky").textContent = now.toLocaleTimeString("ja-JP", {timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit"});
+}
+updateWorldClocks();
+setInterval(updateWorldClocks, 1000);
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    var API_BASE = "/whatsapp-api";
+    var toggleBtn = document.getElementById("bot-global-toggle");
+    var toggleText = document.getElementById("bot-toggle-text");
+    var statusText = document.getElementById("bot-status-text");
+    var timeDisplay = document.getElementById("current-time-brt");
+    var businessHoursToggle = document.getElementById("business-hours-toggle");
+
+    async function fetchBotStatus() {
+        try {
+            var response = await fetch(API_BASE + "/api/admin/bot-status");
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            var data = await response.json();
+            updateUI(data);
+        } catch (error) {
+            statusText.textContent = "Erro ao conectar";
+            toggleBtn.className = "dashboard-bot-toggle";
+            toggleText.textContent = "Offline";
+            toggleBtn.setAttribute("aria-pressed", "false");
+        }
+    }
+
+    function updateUI(data) {
+        timeDisplay.textContent = data.currentTime || "--:--";
+        businessHoursToggle.checked = !!data.businessHoursEnabled;
+        statusText.textContent = "";
+        var icon = document.createElement("i");
+        icon.setAttribute("aria-hidden", "true");
+        icon.className = "me-1 " + (data.botIsActive ? "fas fa-check-circle" : "fas fa-pause-circle");
+        var reason = document.createTextNode(data.reason || (data.botIsActive ? "Ativo" : "Desativado"));
+        statusText.appendChild(icon);
+        statusText.appendChild(reason);
+        if (data.botIsActive) {
+            toggleBtn.className = "dashboard-bot-toggle dashboard-bot-toggle--on";
+            toggleBtn.setAttribute("aria-pressed", "true");
+            toggleText.textContent = "BOT ATIVO";
+        } else {
+            toggleBtn.className = "dashboard-bot-toggle dashboard-bot-toggle--off";
+            toggleBtn.setAttribute("aria-pressed", "false");
+            toggleText.textContent = "BOT OFF";
+        }
+    }
+
+    toggleBtn.addEventListener("click", async function() {
+        toggleBtn.disabled = true;
+        toggleText.textContent = "...";
+        try {
+            var response = await fetch(API_BASE + "/api/admin/bot-global-toggle", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: !toggleBtn.classList.contains("dashboard-bot-toggle--on") })
+            });
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            await fetchBotStatus();
+        } catch (error) {
+            alert("Erro ao alterar status: " + error.message);
+        } finally {
+            toggleBtn.disabled = false;
+        }
+    });
+
+    fetchBotStatus();
+    setInterval(fetchBotStatus, 30000);
+});
+</script>
+<!-- END BOT CONTROL + WORLD CLOCK -->
+{% endif %}{# end product == "immigration" for Bot Control + World Clock #}
+
+<!-- Welcome Section -->
+<header class="dashboard-welcome">
+    <div>
+        <h1 class="dashboard-welcome__title">
+            {% if product == "lite" %}
+            Visão Geral
+            {% else %}
+            Firm Overview
+            {% endif %}
+        </h1>
+        <p class="dashboard-welcome__meta">
+            <i class="fas fa-calendar-day me-1" aria-hidden="true"></i>
+            {% if product == "lite" %}
+            {{ today.strftime('%d/%m/%Y') }}
+            {% else %}
+            {{ today.strftime('%A, %d %B %Y') }}
+            {% endif %}
+            {% if user %} | <i class="fas fa-user me-1" aria-hidden="true"></i> {{ user.full_name or user.email }}{% endif %}
+        </p>
+    </div>
+    <div class="dashboard-welcome__actions btn-group" role="group" aria-label="Ações rápidas">
+        <a href="{{ PREFIX }}/clients/new" class="btn btn-primary glass-btn glass-btn--primary btn-sm">
+            <i class="fas fa-user-plus me-1" aria-hidden="true"></i> {{ t.btn_new_client }}
+        </a>
+        <a href="{{ PREFIX }}/cases/new" class="btn btn-success glass-btn glass-btn--success btn-sm">
+            <i class="fas fa-folder-plus me-1" aria-hidden="true"></i> {{ t.btn_new_case }}
+        </a>
+    </div>
+</header>
+
+<!-- Stats Row -->
+<section class="row mb-4" aria-label="{% if product == 'lite' %}Estatísticas{% else %}Statistics{% endif %}">
+    <div class="{% if product == 'lite' %}col-6 col-md-4 col-lg{% else %}col-md-2 col-sm-4 col-6{% endif %} mb-3">
+        <div class="card stat-card dashboard-stat-card h-100">
+            <div class="number">{{ stats.total_clients }}</div>
+            <div class="label">{{ t.total_clients }}</div>
+            <small class="text-success">
+                {% if stats.new_clients_month > 0 %}+{{ stats.new_clients_month }} {% if product == "lite" %}este mês{% else %}this month{% endif %}{% endif %}
+            </small>
+        </div>
+    </div>
+    <div class="{% if product == 'lite' %}col-6 col-md-4 col-lg{% else %}col-md-2 col-sm-4 col-6{% endif %} mb-3">
+        <div class="card stat-card dashboard-stat-card h-100">
+            <div class="number">{{ stats.total_cases }}</div>
+            <div class="label">{{ t.total_cases }}</div>
+            <small class="text-success">
+                {% if stats.new_cases_month > 0 %}+{{ stats.new_cases_month }} {% if product == "lite" %}este mês{% else %}this month{% endif %}{% endif %}
+            </small>
+        </div>
+    </div>
+    <div class="{% if product == 'lite' %}col-6 col-md-4 col-lg{% else %}col-md-2 col-sm-4 col-6{% endif %} mb-3">
+        <div class="card stat-card dashboard-stat-card h-100">
+            <div class="number text-success">{{ stats.active_cases }}</div>
+            <div class="label">{{ t.active_cases }}</div>
+        </div>
+    </div>
+    {% if product == "immigration" %}
+    <div class="col-md-2 col-sm-4 col-6 mb-3">
+        <div class="card stat-card dashboard-stat-card h-100">
+            <div class="number text-warning">{{ stats.rfe_cases }}</div>
+            <div class="label">RFE Cases</div>
+        </div>
+    </div>
+    {% endif %}
+    <div class="{% if product == 'lite' %}col-6 col-md-4 col-lg{% else %}col-md-2 col-sm-4 col-6{% endif %} mb-3">
+        <div class="card stat-card dashboard-stat-card h-100">
+            <div class="number text-info">{{ stats.pending_tasks }}</div>
+            <div class="label">{{ t.pending_tasks }}</div>
+        </div>
+    </div>
+    <div class="{% if product == 'lite' %}col-6 col-md-4 col-lg{% else %}col-md-2 col-sm-4 col-6{% endif %} mb-3">
+        <div class="card stat-card dashboard-stat-card h-100">
+            <div class="number text-danger">{{ stats.overdue_tasks }}</div>
+            <div class="label">{{ t.overdue_tasks }}</div>
+        </div>
+    </div>
+</section>
+
+<!-- Quick Actions -->
+{% if product != "lite" %}
+<section class="card mb-4" aria-labelledby="quick-actions-heading">
+    <div class="card-header" id="quick-actions-heading">
+        <i class="fas fa-bolt me-2" aria-hidden="true"></i>{{ t.quick_actions }}
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-auto mb-2">
+                <a href="{{ PREFIX }}/clients/new" class="btn btn-primary glass-btn glass-btn--primary">
+                    <i class="fas fa-user-plus me-1" aria-hidden="true"></i> {{ t.btn_new_client }}
+                </a>
+            </div>
+            <div class="col-auto mb-2">
+                <a href="{{ PREFIX }}/cases/new" class="btn btn-success glass-btn glass-btn--success">
+                    <i class="fas fa-folder-plus me-1" aria-hidden="true"></i> {{ t.btn_new_case }}
+                </a>
+            </div>
+            <div class="col-auto mb-2">
+                <a href="{{ PREFIX }}/tasks/new" class="btn btn-warning">
+                    <i class="fas fa-plus me-1" aria-hidden="true"></i> {{ t.btn_new_task }}
+                </a>
+            </div>
+            <div class="col-auto mb-2">
+                <a href="{{ PREFIX }}/documents/upload" class="btn btn-secondary">
+                    <i class="fas fa-upload me-1" aria-hidden="true"></i> {{ t.btn_upload_document }}
+                </a>
+            </div>
+            <div class="col-auto mb-2">
+                <a href="{{ PREFIX }}/reports" class="btn btn-info">
+                    <i class="fas fa-chart-bar me-1" aria-hidden="true"></i> Reports
+                </a>
+            </div>
+            <div class="col-auto mb-2">
+                <a href="{{ base_url|default('') }}/tools/" class="btn btn-dark" target="_blank" rel="noopener">
+                    <i class="fas fa-tools me-1" aria-hidden="true"></i> {{ t.btn_ilc_tools }}
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- Alerts Section -->
+{% if cases_attention or expiring_soon %}
+<section class="row mb-4" aria-labelledby="alerts-heading">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark" id="alerts-heading">
+                <i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>{% if product == "lite" %}Requer Atenção{% else %}Requires Attention{% endif %}
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% if product == "immigration" and cases_attention %}
+                    <div class="col-md-6">
+                        <h3 class="h6"><i class="fas fa-file-alt me-1" aria-hidden="true"></i> RFE Cases ({{ cases_attention|length }})</h3>
+                        <ul class="list-unstyled mb-0">
+                            {% for case in cases_attention[:5] %}
+                            <li class="mb-1">
+                                <a href="{{ PREFIX }}/cases/{{ case.id }}">
+                                    {{ case.case_name or case.case_number or "Case #" ~ case.id }}
+                                </a>
+                                <span class="badge bg-warning text-dark">RFE</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                    {% if expiring_soon %}
+                    <div class="col-md-6">
+                        <h3 class="h6"><i class="fas fa-clock me-1" aria-hidden="true"></i> {% if product == "lite" %}Expirando em 30 Dias{% else %}Expiring in 30 Days{% endif %} ({{ expiring_soon|length }})</h3>
+                        <ul class="list-unstyled mb-0">
+                            {% for case in expiring_soon[:5] %}
+                            <li class="mb-1">
+                                <a href="{{ PREFIX }}/cases/{{ case.id }}">
+                                    {{ case.case_name or case.case_number or "Case #" ~ case.id }}
+                                </a>
+                                <span class="badge bg-danger">{% if product == "lite" %}{{ case.expiration_date.strftime('%d/%m/%Y') }}{% else %}{{ case.expiration_date.strftime('%m/%d/%Y') }}{% endif %}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- Revenue & Activity Row -->
+<section class="row mb-4" aria-label="{% if product == 'lite' %}Receita e atividade{% else %}Revenue and activity{% endif %}">
+    <div class="col-md-4 mb-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-dollar-sign me-2" aria-hidden="true"></i>{% if product == "lite" %}Receita do Mês{% else %}Revenue This Month{% endif %}
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h3 class="mb-0 text-success">{{ (revenue.total_paid or 0)|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</h3>
+                        <small class="text-muted">{% if product == "lite" %}Recebido{% else %}Received{% endif %}</small>
+                    </div>
+                    <div class="text-end">
+                        <h4 class="mb-0 text-warning">{{ (revenue.pending or 0)|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</h4>
+                        <small class="text-muted">{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</small>
+                    </div>
+                </div>
+                {% set total = (revenue.total_paid or 0) + (revenue.pending or 0) %}
+                {% if total > 0 %}
+                {% set paid_pct = ((revenue.total_paid or 0) / total * 100)|int %}
+                {% set pending_pct = ((revenue.pending or 0) / total * 100)|int %}
+                <div class="dashboard-progress" role="progressbar" aria-valuenow="{{ paid_pct }}" aria-valuemin="0" aria-valuemax="100" aria-label="{% if product == 'lite' %}Recebido vs pendente{% else %}Received vs pending{% endif %}">
+                    <div class="dashboard-progress__bar dashboard-progress__bar--success" style="width: {{ paid_pct }}%"></div>
+                    <div class="dashboard-progress__bar dashboard-progress__bar--warning" style="width: {{ pending_pct }}%"></div>
+                </div>
+                {% endif %}
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-clock me-1" aria-hidden="true"></i> {{ revenue.hours_logged or 0 }} {% if product == "lite" %}horas registradas{% else %}hours logged{% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8 mb-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-chart-line me-2" aria-hidden="true"></i>{% if product == "lite" %}Tendência de Processos (Últimos 6 Meses){% else %}Cases Trend (Last 6 Months){% endif %}
+            </div>
+            <div class="card-body">
+                <canvas id="casesTrendChart" height="120" aria-label="{% if product == 'lite' %}Tendência de novos processos nos últimos 6 meses{% else %}New cases trend last 6 months{% endif %}" role="img"></canvas>
+                <table class="dashboard-sr-only">
+                    <caption>{% if product == "lite" %}Novos processos por mês{% else %}New cases per month{% endif %}</caption>
+                    <thead><tr><th scope="col">{% if product == "lite" %}Mês{% else %}Month{% endif %}</th><th scope="col">{% if product == "lite" %}Processos{% else %}Cases{% endif %}</th></tr></thead>
+                    <tbody>
+                        {% for m in trend_months %}
+                        <tr><th scope="row">{{ m }}</th><td>{{ trend_counts[loop.index0] }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Charts Row -->
+<section class="row mb-4" aria-label="{% if product == 'lite' %}Distribuição de processos{% else %}Cases distribution{% endif %}">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-chart-pie me-2" aria-hidden="true"></i>{{ t.cases_by_status }}
+            </div>
+            <div class="card-body">
+                <canvas id="casesByStatusChart" height="200" aria-label="{{ t.cases_by_status }}" role="img"></canvas>
+                <table class="dashboard-sr-only">
+                    <caption>{{ t.cases_by_status }}</caption>
+                    <thead><tr><th scope="col">Status</th><th scope="col">{% if product == "lite" %}Quantidade{% else %}Count{% endif %}</th></tr></thead>
+                    <tbody>
+                        <tr><th scope="row">{{ t.status_filed }}</th><td>{{ case_stats.filed or 0 }}</td></tr>
+                        <tr><th scope="row">{{ t.status_approved }}</th><td>{{ case_stats.approved or 0 }}</td></tr>
+                        <tr><th scope="row">{{ t.status_pending }}</th><td>{{ case_stats.pending or 0 }}</td></tr>
+                        {% if product == "immigration" %}<tr><th scope="row">RFE</th><td>{{ case_stats.rfe or 0 }}</td></tr>{% endif %}
+                        <tr><th scope="row">{{ t.status_denied }}</th><td>{{ case_stats.denied or 0 }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% if product == "immigration" %}
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-chart-bar me-2" aria-hidden="true"></i>{{ t.cases_by_visa_type }}
+            </div>
+            <div class="card-body">
+                <canvas id="casesByVisaChart" height="200" aria-label="{{ t.cases_by_visa_type }}" role="img"></canvas>
+                <table class="dashboard-sr-only">
+                    <caption>{{ t.cases_by_visa_type }}</caption>
+                    <thead><tr><th scope="col">Visa</th><th scope="col">Count</th></tr></thead>
+                    <tbody>
+                        {% for v in visa_types %}
+                        <tr><th scope="row">{{ v }}</th><td>{{ visa_counts[loop.index0] }}</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% if product == "lite" %}
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-chart-bar me-2" aria-hidden="true"></i>Processos por Tipo de Ação
+            </div>
+            <div class="card-body">
+                <p class="text-muted text-center py-5 mb-0">Em breve</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</section>
+
+<section class="row" aria-label="{% if product == 'lite' %}Atividade recente{% else %}Recent activity{% endif %}">
+    <!-- Recent Clients -->
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-users me-2" aria-hidden="true"></i>{{ t.recent_clients }}</span>
+                <a href="{{ PREFIX }}/clients" class="btn btn-sm btn-outline-primary">{{ t.view_all }}</a>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_clients %}
+                <ul class="list-group list-group-flush">
+                    {% for client in recent_clients %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <a href="{{ PREFIX }}/clients/{{ client.id }}" class="text-decoration-none">
+                                {{ client.first_name }} {{ client.last_name }}
+                            </a>
+                            <br><small class="text-muted">{{ client.created_at.strftime('%m/%d') if client.created_at else '' }}</small>
+                        </div>
+                        <span class="badge bg-{% if client.status == 'active' %}success{% else %}secondary{% endif %}">{{ client.status }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted text-center py-3 mb-0">{{ t.no_data }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Cases -->
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-folder me-2" aria-hidden="true"></i>{{ t.recent_cases }}</span>
+                <a href="{{ PREFIX }}/cases" class="btn btn-sm btn-outline-primary">{{ t.view_all }}</a>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_cases %}
+                <ul class="list-group list-group-flush">
+                    {% for case in recent_cases %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <a href="{{ PREFIX }}/cases/{{ case.id }}" class="text-decoration-none">
+                                {{ case.case_name or case.case_number or "Case #" ~ case.id }}
+                            </a>
+                            {% if case.status == 'approved' %}
+                            <span class="badge bg-success">{{ case.status }}</span>
+                            {% elif case.status == 'filed' %}
+                            <span class="badge bg-primary">{{ case.status }}</span>
+                            {% elif case.status == 'rfe' %}
+                            <span class="badge bg-warning">{{ case.status }}</span>
+                            {% elif case.status == 'denied' %}
+                            <span class="badge bg-danger">{{ case.status }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ case.status }}</span>
+                            {% endif %}
+                        </div>
+                        {% if product == "immigration" %}
+                        <small class="text-muted">{{ case.visa_type or 'N/A' }}</small>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted text-center py-3 mb-0">{{ t.no_data }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Upcoming Tasks -->
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-tasks me-2" aria-hidden="true"></i>{{ t.upcoming_tasks }}</span>
+                <a href="{{ PREFIX }}/tasks" class="btn btn-sm btn-outline-primary">{{ t.view_all }}</a>
+            </div>
+            <div class="card-body p-0">
+                {% if upcoming_tasks %}
+                <ul class="list-group list-group-flush">
+                    {% for task in upcoming_tasks %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <a href="{{ PREFIX }}/tasks/{{ task.id }}" class="text-decoration-none">
+                                {{ task.title }}
+                            </a>
+                            {% if task.priority == 'urgent' %}<span class="badge bg-danger" aria-label="Urgente">!</span>
+                            {% elif task.priority == 'high' %}<span class="badge bg-warning" aria-label="Alta prioridade">!</span>{% endif %}
+                        </div>
+                        {% if task.due_date %}
+                        <small class="{% if task.due_date < today %}text-danger{% else %}text-muted{% endif %}">
+                            <i class="fas fa-clock me-1" aria-hidden="true"></i>{{ task.due_date.strftime('%m/%d/%Y') }}
+                            {% if task.due_date < today %} ({% if product == "lite" %}Atrasado{% else %}Overdue{% endif %}){% endif %}
+                        </small>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted text-center py-3 mb-0">{{ t.no_data }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Read CSS variables for chart colors (semantic tokens resolved via theme).
+var _rootStyles = getComputedStyle(document.documentElement);
+function cssVar(name) {
+    return _rootStyles.getPropertyValue(name).trim();
+}
+var chartAccent = cssVar('--color-chart-accent');
+var chartSuccess = cssVar('--color-chart-success');
+var chartMuted = cssVar('--color-chart-muted');
+var chartWarning = cssVar('--color-chart-warning');
+var chartDanger = cssVar('--color-chart-danger');
+var chartInfo = cssVar('--color-chart-info');
+var chartPurple = cssVar('--color-chart-purple');
+
+// Cases by Status Chart
+var statusCtx = document.getElementById('casesByStatusChart').getContext('2d');
+new Chart(statusCtx, {
+    type: 'doughnut',
+    data: {
+        labels: [
+            '{{ t.status_filed }}',
+            '{{ t.status_approved }}',
+            '{{ t.status_pending }}',
+            {% if product == "immigration" %}'RFE',{% endif %}
+            '{{ t.status_denied }}'
+        ],
+        datasets: [{
+            data: [
+                {{ case_stats.filed or 0 }},
+                {{ case_stats.approved or 0 }},
+                {{ case_stats.pending or 0 }},
+                {% if product == "immigration" %}{{ case_stats.rfe or 0 }},{% endif %}
+                {{ case_stats.denied or 0 }}
+            ],
+            backgroundColor: [
+                chartAccent,
+                chartSuccess,
+                chartMuted,
+                {% if product == "immigration" %}chartWarning,{% endif %}
+                chartDanger
+            ],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom',
+                labels: { padding: 15, usePointStyle: true }
+            }
+        }
+    }
+});
+
+{% if product == "immigration" %}
+// Cases by Visa Type Chart
+var visaCtx = document.getElementById('casesByVisaChart').getContext('2d');
+new Chart(visaCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ visa_types|tojson|safe }},
+        datasets: [{
+            label: '{{ t.cases }}',
+            data: {{ visa_counts|tojson|safe }},
+            backgroundColor: [
+                chartAccent,
+                chartSuccess,
+                chartWarning,
+                chartMuted,
+                chartDanger,
+                chartInfo,
+                chartPurple
+            ],
+            borderWidth: 0,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
+});
+{% endif %}
+
+// Cases Trend Chart
+var trendCtx = document.getElementById('casesTrendChart').getContext('2d');
+new Chart(trendCtx, {
+    type: 'line',
+    data: {
+        labels: {{ trend_months|tojson|safe }},
+        datasets: [{
+            label: '{% if product == "lite" %}Novos Processos{% else %}New Cases{% endif %}',
+            data: {{ trend_counts|tojson|safe }},
+            borderColor: chartAccent,
+            backgroundColor: chartAccent,
+            fill: false,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: chartAccent
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
+});
+</script>
+{% endblock %}

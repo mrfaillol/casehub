@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Alertas Gerais{% else %}Global Alerts{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/global-alerts-list.css">
+{% endblock %}
+
+{% block content %}
+<main class="global-alerts-list-main" aria-labelledby="global-alerts-list-title">
+    <header class="global-alerts-list-header">
+        <div class="global-alerts-list-heading">
+            <h1 id="global-alerts-list-title" class="global-alerts-list-title">
+                <i class="fas fa-bullhorn global-alerts-list-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Alertas Gerais{% else %}Global Alerts{% endif %}</span>
+            </h1>
+            <p class="global-alerts-list-subtitle">
+                {% if product == "lite" %}Gerenciar banners de alerta do sistema{% else %}Manage system-wide alert banners{% endif %}
+            </p>
+        </div>
+        <div class="global-alerts-list-actions">
+            <a href="{{ PREFIX }}/global-alerts{% if not show_inactive %}?show_inactive=true{% endif %}"
+               class="global-alerts-list-btn global-alerts-list-btn--ghost">
+                <i class="fas fa-{% if show_inactive %}eye-slash{% else %}eye{% endif %}" aria-hidden="true"></i>
+                <span>
+                    {% if show_inactive %}{% if product == "lite" %}Ocultar{% else %}Hide{% endif %}{% else %}{% if product == "lite" %}Mostrar{% else %}Show{% endif %}{% endif %}
+                    {% if product == "lite" %}Inativos{% else %}Inactive{% endif %}
+                </span>
+            </a>
+            <a href="{{ PREFIX }}/global-alerts/new" class="global-alerts-list-btn global-alerts-list-btn--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Novo Alerta{% else %}New Alert{% endif %}</span>
+            </a>
+        </div>
+    </header>
+
+    <section class="global-alerts-list-section" aria-labelledby="global-alerts-list-preview-title">
+        <h2 id="global-alerts-list-preview-title" class="global-alerts-list-section-title">
+            <i class="fas fa-eye" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Pré-visualização dos Alertas Ativos{% else %}Preview Active Alerts{% endif %}</span>
+        </h2>
+        <div id="global-alerts-list-preview" class="global-alerts-list-preview" aria-live="polite" aria-busy="true">
+        </div>
+    </section>
+
+    {% if alerts %}
+    <section class="global-alerts-list-card" aria-labelledby="global-alerts-list-table-title">
+        <h2 id="global-alerts-list-table-title" class="visually-hidden">
+            {% if product == "lite" %}Lista de alertas{% else %}Alerts list{% endif %}
+        </h2>
+        <div class="global-alerts-list-table-wrap" role="region" tabindex="0">
+            <table class="global-alerts-list-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Alerta{% else %}Alert{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Destino{% else %}Target{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Agendamento{% else %}Schedule{% endif %}</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" data-align="end">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alert in alerts %}
+                    <tr {% if not alert.is_active %}data-state="inactive"{% endif %}>
+                        <td>
+                            <span class="global-alerts-list-row-title">{{ alert.title }}</span>
+                            <span class="global-alerts-list-row-message">{{ alert.message[:80] }}{% if alert.message|length > 80 %}…{% endif %}</span>
+                        </td>
+                        <td>
+                            {% if alert.alert_type == 'info' %}
+                            <span class="global-alerts-list-badge global-alerts-list-badge--info">{% if product == "lite" %}Informação{% else %}Info{% endif %}</span>
+                            {% elif alert.alert_type == 'warning' %}
+                            <span class="global-alerts-list-badge global-alerts-list-badge--warning">{% if product == "lite" %}Aviso{% else %}Warning{% endif %}</span>
+                            {% elif alert.alert_type == 'danger' %}
+                            <span class="global-alerts-list-badge global-alerts-list-badge--danger">{% if product == "lite" %}Perigo{% else %}Danger{% endif %}</span>
+                            {% elif alert.alert_type == 'success' %}
+                            <span class="global-alerts-list-badge global-alerts-list-badge--success">{% if product == "lite" %}Sucesso{% else %}Success{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="global-alerts-list-row-target">
+                                <span class="global-alerts-list-badge global-alerts-list-badge--neutral">{{ alert.target }}</span>
+                                {% if alert.priority > 0 %}
+                                <span class="global-alerts-list-badge global-alerts-list-badge--strong"
+                                      title="{% if product == 'lite' %}Prioridade{% else %}Priority{% endif %}">P{{ alert.priority }}</span>
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            {% if alert.start_date or alert.end_date %}
+                            <span class="global-alerts-list-row-schedule">
+                                {% if alert.start_date %}
+                                <span>
+                                    {% if product == "lite" %}De:{% else %}From:{% endif %}
+                                    <time datetime="{{ alert.start_date.isoformat() }}">
+                                        {% if product == "lite" %}{{ alert.start_date.strftime('%d/%m/%Y') }}{% else %}{{ alert.start_date.strftime('%m/%d/%Y') }}{% endif %}
+                                    </time>
+                                </span>
+                                {% endif %}
+                                {% if alert.end_date %}
+                                <span>
+                                    {% if product == "lite" %}Até:{% else %}To:{% endif %}
+                                    <time datetime="{{ alert.end_date.isoformat() }}">
+                                        {% if product == "lite" %}{{ alert.end_date.strftime('%d/%m/%Y') }}{% else %}{{ alert.end_date.strftime('%m/%d/%Y') }}{% endif %}
+                                    </time>
+                                </span>
+                                {% endif %}
+                            </span>
+                            {% else %}
+                            <span class="global-alerts-list-row-schedule" data-state="always">
+                                {% if product == "lite" %}Sempre{% else %}Always{% endif %}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="global-alerts-list-row-status">
+                                {% if alert.is_active %}
+                                <span class="global-alerts-list-badge global-alerts-list-badge--success">{% if product == "lite" %}Ativo{% else %}Active{% endif %}</span>
+                                {% else %}
+                                <span class="global-alerts-list-badge global-alerts-list-badge--neutral">{% if product == "lite" %}Inativo{% else %}Inactive{% endif %}</span>
+                                {% endif %}
+                                {% if alert.dismissible %}
+                                <span class="global-alerts-list-badge global-alerts-list-badge--neutral"
+                                      title="{% if product == 'lite' %}Dispensável{% else %}Dismissible{% endif %}">
+                                    <i class="fas fa-times-circle" aria-hidden="true"></i>
+                                    <span class="visually-hidden">{% if product == "lite" %}Dispensável{% else %}Dismissible{% endif %}</span>
+                                </span>
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td data-align="end">
+                            <div class="global-alerts-list-row-actions">
+                                <form method="POST" action="{{ PREFIX }}/global-alerts/{{ alert.id }}/toggle">
+                                    {% set toggle_label = ('Desativar' if product == 'lite' else 'Deactivate') if alert.is_active else ('Ativar' if product == 'lite' else 'Activate') %}
+                                    <button type="submit"
+                                            class="global-alerts-list-icon-btn global-alerts-list-icon-btn--{% if alert.is_active %}warning{% else %}success{% endif %}"
+                                            aria-label="{{ toggle_label }}: {{ alert.title }}"
+                                            title="{{ toggle_label }}">
+                                        <i class="fas fa-{% if alert.is_active %}pause{% else %}play{% endif %}" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                                <form method="POST"
+                                      action="{{ PREFIX }}/global-alerts/{{ alert.id }}/delete"
+                                      data-confirm="{% if product == 'lite' %}Excluir este alerta?{% else %}Delete this alert?{% endif %}">
+                                    {% set delete_label = 'Excluir' if product == 'lite' else 'Delete' %}
+                                    <button type="submit"
+                                            class="global-alerts-list-icon-btn global-alerts-list-icon-btn--danger"
+                                            aria-label="{{ delete_label }}: {{ alert.title }}"
+                                            title="{{ delete_label }}">
+                                        <i class="fas fa-trash" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% else %}
+    <section class="global-alerts-list-empty" aria-labelledby="global-alerts-list-empty-title">
+        <i class="fas fa-bullhorn global-alerts-list-empty-icon" aria-hidden="true"></i>
+        <h2 id="global-alerts-list-empty-title" class="global-alerts-list-empty-title">
+            {% if product == "lite" %}Nenhum Alerta{% else %}No Alerts{% endif %}
+        </h2>
+        <p class="global-alerts-list-empty-text">
+            {% if product == "lite" %}Crie alertas gerais para notificar os usuários sobre atualizações importantes.{% else %}Create global alerts to notify users about important updates.{% endif %}
+        </p>
+        <a href="{{ PREFIX }}/global-alerts/new" class="global-alerts-list-btn global-alerts-list-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Criar Alerta{% else %}Create Alert{% endif %}</span>
+        </a>
+    </section>
+    {% endif %}
+</main>
+
+<script>
+    (function () {
+        var PREFIX = '{{ PREFIX }}';
+        var I18N = {
+            empty: {% if product == "lite" %}'Nenhum alerta ativo para exibir'{% else %}'No active alerts to display'{% endif %},
+            dismiss: {% if product == "lite" %}'Dispensar'{% else %}'Dismiss'{% endif %}
+        };
+        var TYPE_CLASS = {
+            info: 'global-alerts-list-banner--info',
+            warning: 'global-alerts-list-banner--warning',
+            danger: 'global-alerts-list-banner--danger',
+            success: 'global-alerts-list-banner--success'
+        };
+
+        function escapeHtml(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function bannerClass(alert) {
+            var key = (alert && alert.alert_type) || 'info';
+            return TYPE_CLASS[key] || TYPE_CLASS.info;
+        }
+
+        function renderBanner(alert) {
+            var classes = ['global-alerts-list-banner', bannerClass(alert)];
+            var iconClass = (alert && alert.icon) ? alert.icon : 'fa-info-circle';
+            var dismissBtn = alert && alert.dismissible
+                ? '<button type="button" class="global-alerts-list-banner-dismiss" data-action="dismiss" aria-label="' + escapeHtml(I18N.dismiss) + '"><i class="fas fa-times" aria-hidden="true"></i></button>'
+                : '';
+            return '<div class="' + classes.join(' ') + '" role="alert">' +
+                '<i class="fas ' + escapeHtml(iconClass) + ' global-alerts-list-banner-icon" aria-hidden="true"></i>' +
+                '<div class="global-alerts-list-banner-body">' +
+                    '<span class="global-alerts-list-banner-title">' + escapeHtml(alert.title) + '</span> — ' +
+                    escapeHtml(alert.message) +
+                '</div>' +
+                dismissBtn +
+            '</div>';
+        }
+
+        function renderEmpty() {
+            return '<div class="global-alerts-list-preview-empty" role="status">' +
+                '<i class="fas fa-info-circle" aria-hidden="true"></i>' +
+                '<span>' + escapeHtml(I18N.empty) + '</span>' +
+            '</div>';
+        }
+
+        function loadPreview() {
+            var container = document.getElementById('global-alerts-list-preview');
+            if (!container) return;
+
+            fetch(PREFIX + '/global-alerts/api/active')
+                .then(function (response) { return response.json(); })
+                .then(function (alerts) {
+                    if (!alerts || alerts.length === 0) {
+                        container.innerHTML = renderEmpty();
+                    } else {
+                        container.innerHTML = alerts.map(renderBanner).join('');
+                    }
+                })
+                .catch(function (e) {
+                    console.error('Error loading preview:', e);
+                })
+                .then(function () {
+                    container.setAttribute('aria-busy', 'false');
+                });
+        }
+
+        document.addEventListener('click', function (event) {
+            var dismiss = event.target.closest('[data-action="dismiss"]');
+            if (dismiss) {
+                var banner = dismiss.closest('.global-alerts-list-banner');
+                if (banner && banner.parentNode) {
+                    banner.parentNode.removeChild(banner);
+                }
+            }
+        });
+
+        document.addEventListener('submit', function (event) {
+            var form = event.target.closest('form[data-confirm]');
+            if (form && !window.confirm(form.getAttribute('data-confirm'))) {
+                event.preventDefault();
+            }
+        });
+
+        loadPreview();
+    })();
+</script>
+{% endblock %}

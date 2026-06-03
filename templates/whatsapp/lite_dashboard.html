@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp — {{ org_name|default('CaseHub Lite') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/whatsapp-lite-dashboard.css">
+{% endblock %}
+
+{% block content %}
+<main class="whatsapp-lite-main" aria-labelledby="whatsapp-lite-title">
+    <header class="whatsapp-lite-header">
+        <h1 id="whatsapp-lite-title" class="whatsapp-lite-title">
+            <i class="fab fa-whatsapp whatsapp-lite-title-icon" aria-hidden="true"></i>
+            <span>WhatsApp</span>
+        </h1>
+        <div class="whatsapp-lite-header-actions">
+            <a href="{{ PREFIX }}/whatsapp/mensagens" class="whatsapp-lite-btn whatsapp-lite-btn--ghost">
+                <i class="fas fa-history" aria-hidden="true"></i>
+                <span>Mensagens</span>
+            </a>
+        </div>
+    </header>
+
+    <section class="whatsapp-lite-status-grid" aria-label="Status e métricas">
+        <article class="whatsapp-lite-card" aria-labelledby="whatsapp-lite-bot-title">
+            <header class="whatsapp-lite-card-header">
+                <h2 id="whatsapp-lite-bot-title" class="whatsapp-lite-card-title">
+                    <i class="fas fa-robot" aria-hidden="true"></i>
+                    <span>Status do Bot</span>
+                </h2>
+                <span id="bot-status-badge" class="whatsapp-lite-badge whatsapp-lite-badge--neutral" role="status" aria-live="polite">Verificando…</span>
+            </header>
+            <div class="whatsapp-lite-card-body whatsapp-lite-card-body--center">
+                <div class="whatsapp-lite-status">
+                    <p class="whatsapp-lite-status-line">
+                        <span class="whatsapp-lite-status-dot whatsapp-lite-status-dot--disconnected" id="status-dot" aria-hidden="true"></span>
+                        <span id="bot-status-text">Verificando…</span>
+                    </p>
+                    <p class="whatsapp-lite-status-time" id="bot-status-time">--</p>
+                    <div class="whatsapp-lite-status-actions">
+                        <button type="button" class="whatsapp-lite-btn whatsapp-lite-btn--success-outline" id="btn-bot-toggle" onclick="toggleBot()">
+                            <i class="fas fa-power-off" aria-hidden="true"></i>
+                            <span id="toggle-text">Ativar</span>
+                        </button>
+                        <a href="/whatsapp-api/qr" target="_blank" rel="noopener" class="whatsapp-lite-btn whatsapp-lite-btn--ghost" id="btn-qr">
+                            <i class="fas fa-qrcode" aria-hidden="true"></i>
+                            <span>QR Code</span>
+                        </a>
+                    </div>
+                </div>
+                <div class="whatsapp-lite-qr" id="qr-area" hidden>
+                    <i class="fas fa-qrcode whatsapp-lite-qr-icon" aria-hidden="true"></i>
+                    <p class="whatsapp-lite-qr-text">Escaneie o QR Code no WhatsApp para conectar</p>
+                    <a href="/whatsapp-api/qr" target="_blank" rel="noopener" class="whatsapp-lite-btn whatsapp-lite-btn--primary">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                        <span>Abrir QR Code</span>
+                    </a>
+                </div>
+            </div>
+        </article>
+
+        <div class="whatsapp-lite-stats-grid" role="list" aria-label="Métricas de mensagens">
+            <article class="whatsapp-lite-card" role="listitem">
+                <div class="whatsapp-lite-stat">
+                    <span class="whatsapp-lite-stat-number whatsapp-lite-stat-number--success">{{ stats.hoje or 0 }}</span>
+                    <span class="whatsapp-lite-stat-label">Hoje</span>
+                </div>
+            </article>
+            <article class="whatsapp-lite-card" role="listitem">
+                <div class="whatsapp-lite-stat">
+                    <span class="whatsapp-lite-stat-number whatsapp-lite-stat-number--info">{{ stats.semana or 0 }}</span>
+                    <span class="whatsapp-lite-stat-label">Esta Semana</span>
+                </div>
+            </article>
+            <article class="whatsapp-lite-card" role="listitem">
+                <div class="whatsapp-lite-stat">
+                    <span class="whatsapp-lite-stat-number whatsapp-lite-stat-number--accent">{{ stats.mes or 0 }}</span>
+                    <span class="whatsapp-lite-stat-label">Este Mês</span>
+                </div>
+            </article>
+            <article class="whatsapp-lite-card" role="listitem">
+                <div class="whatsapp-lite-stat">
+                    <span class="whatsapp-lite-stat-number whatsapp-lite-stat-number--warning">{{ stats.total or 0 }}</span>
+                    <span class="whatsapp-lite-stat-label">Total</span>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="whatsapp-lite-send-grid" aria-label="Envio rápido e mensagens recentes">
+        <article class="whatsapp-lite-card" aria-labelledby="whatsapp-lite-send-title">
+            <header class="whatsapp-lite-card-header">
+                <h2 id="whatsapp-lite-send-title" class="whatsapp-lite-card-title">
+                    <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                    <span>Envio Rápido</span>
+                </h2>
+            </header>
+            <div class="whatsapp-lite-card-body">
+                <div class="whatsapp-lite-form-row">
+                    <div class="whatsapp-lite-field">
+                        <label class="whatsapp-lite-label" for="send-client">Cliente</label>
+                        <select class="whatsapp-lite-select" id="send-client" onchange="onClientSelect()">
+                            <option value="">Selecionar cliente…</option>
+                            {% for c in clients %}
+                            <option value="{{ c.whatsapp or c.phone }}" data-name="{{ c.first_name }} {{ c.last_name }}">
+                                {{ c.first_name }} {{ c.last_name }} ({{ c.whatsapp or c.phone }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="whatsapp-lite-field">
+                        <label class="whatsapp-lite-label" for="send-phone">Telefone</label>
+                        <input type="tel" class="whatsapp-lite-input" id="send-phone" placeholder="+REDACTED-PHONE" autocomplete="tel">
+                    </div>
+                </div>
+
+                <fieldset class="whatsapp-lite-fieldset">
+                    <legend class="whatsapp-lite-legend">Template (opcional)</legend>
+                    <div class="whatsapp-lite-templates" id="template-grid" role="group" aria-label="Templates de mensagem">
+                        {% for key, tmpl in templates_br.items() %}
+                        <button type="button"
+                                class="whatsapp-lite-template-card"
+                                data-template="{{ key }}"
+                                aria-pressed="false"
+                                onclick="selectTemplate('{{ key }}')">
+                            <span class="whatsapp-lite-template-head">
+                                <span class="whatsapp-lite-template-icon" style="background: {{ tmpl.cor }}">
+                                    <i class="{{ tmpl.icone }}" aria-hidden="true"></i>
+                                </span>
+                                <span class="whatsapp-lite-template-name">{{ tmpl.nome }}</span>
+                            </span>
+                            <span class="whatsapp-lite-template-preview">{{ tmpl.mensagem[:60] }}…</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+
+                <div class="whatsapp-lite-template-fields" id="template-fields" hidden aria-label="Campos do template">
+                    <p class="whatsapp-lite-template-fields-title">Preencher campos do template</p>
+                    <div id="template-fields-container" class="whatsapp-lite-template-fields-grid"></div>
+                </div>
+
+                <div class="whatsapp-lite-field">
+                    <label class="whatsapp-lite-label" for="send-message">Mensagem</label>
+                    <textarea class="whatsapp-lite-textarea" id="send-message" rows="3" placeholder="Digite sua mensagem…"></textarea>
+                </div>
+
+                <div class="whatsapp-lite-preview" id="message-preview-area" hidden>
+                    <span class="whatsapp-lite-label" id="message-preview-label">Pré-visualização</span>
+                    <div class="whatsapp-lite-preview-box" id="message-preview" role="region" aria-labelledby="message-preview-label" aria-live="polite"></div>
+                </div>
+
+                <div class="whatsapp-lite-send-actions">
+                    <button type="button" class="whatsapp-lite-btn whatsapp-lite-btn--ghost" onclick="clearSend()">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </button>
+                    <button type="button" class="whatsapp-lite-btn whatsapp-lite-btn--primary" onclick="sendMessage()" id="btn-send">
+                        <i class="fab fa-whatsapp" aria-hidden="true"></i>
+                        <span>Enviar</span>
+                    </button>
+                </div>
+            </div>
+        </article>
+
+        <article class="whatsapp-lite-card" aria-labelledby="whatsapp-lite-recent-title">
+            <header class="whatsapp-lite-card-header">
+                <h2 id="whatsapp-lite-recent-title" class="whatsapp-lite-card-title">
+                    <i class="fas fa-history" aria-hidden="true"></i>
+                    <span>Últimas Mensagens</span>
+                </h2>
+                <a href="{{ PREFIX }}/whatsapp/mensagens" class="whatsapp-lite-btn whatsapp-lite-btn--ghost whatsapp-lite-btn--sm">
+                    <span>Ver todas</span>
+                </a>
+            </header>
+            <div class="whatsapp-lite-card-body whatsapp-lite-card-body--flush">
+                {% if recent %}
+                <ul class="whatsapp-lite-recent" role="list">
+                    {% for msg in recent %}
+                    <li class="whatsapp-lite-msg-row">
+                        <div class="whatsapp-lite-msg-head">
+                            <span class="whatsapp-lite-msg-phone">
+                                <span>{{ msg.phone }}</span>
+                                {% if msg.success %}
+                                <span class="whatsapp-lite-badge whatsapp-lite-badge--success">Enviada</span>
+                                {% else %}
+                                <span class="whatsapp-lite-badge whatsapp-lite-badge--danger">Falha</span>
+                                {% endif %}
+                            </span>
+                            <time class="whatsapp-lite-msg-time"{% if msg.sent_at %} datetime="{{ msg.sent_at.isoformat() }}"{% endif %}>{{ msg.sent_at.strftime('%d/%m %H:%M') if msg.sent_at else '-' }}</time>
+                        </div>
+                        <div class="whatsapp-lite-msg-text">{{ msg.message[:80] if msg.message else (msg.template or '-') }}</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="whatsapp-lite-empty">
+                    <i class="fab fa-whatsapp whatsapp-lite-empty-icon" aria-hidden="true"></i>
+                    <p class="whatsapp-lite-empty-text">Nenhuma mensagem ainda</p>
+                </div>
+                {% endif %}
+            </div>
+        </article>
+    </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var PREFIX = '{{ PREFIX }}';
+var selectedTemplate = null;
+var TEMPLATES = {{ templates_br | tojson }};
+
+async function checkBotStatus() {
+    try {
+        var res = await fetch("/whatsapp-api/api/bot-status");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        var data = await res.json();
+
+        var badge = document.getElementById("bot-status-badge");
+        var dot = document.getElementById("status-dot");
+        var text = document.getElementById("bot-status-text");
+        var time = document.getElementById("bot-status-time");
+        var toggleText = document.getElementById("toggle-text");
+        var qrArea = document.getElementById("qr-area");
+
+        if (data.botIsActive) {
+            badge.textContent = "Conectado";
+            badge.className = "whatsapp-lite-badge whatsapp-lite-badge--success";
+            dot.className = "whatsapp-lite-status-dot whatsapp-lite-status-dot--connected";
+            text.textContent = "Bot respondendo";
+            toggleText.textContent = "Desativar";
+            qrArea.hidden = true;
+        } else {
+            badge.textContent = "Desconectado";
+            badge.className = "whatsapp-lite-badge whatsapp-lite-badge--danger";
+            dot.className = "whatsapp-lite-status-dot whatsapp-lite-status-dot--disconnected";
+            text.textContent = data.reason || "Bot inativo";
+            toggleText.textContent = "Ativar";
+            qrArea.hidden = false;
+        }
+        if (data.currentTime) {
+            time.textContent = data.currentTime;
+        }
+    } catch (e) {
+        var badge = document.getElementById("bot-status-badge");
+        badge.textContent = "Erro";
+        badge.className = "whatsapp-lite-badge whatsapp-lite-badge--neutral";
+        document.getElementById("bot-status-text").textContent = "Sem conexão";
+    }
+}
+
+async function toggleBot() {
+    try {
+        var res = await fetch("/whatsapp-api/api/bot-toggle", { method: "POST" });
+        if (res.ok) checkBotStatus();
+    } catch (e) {
+        showToast("Erro ao alterar status: " + e.message, "error");
+    }
+}
+
+function onClientSelect() {
+    var sel = document.getElementById("send-client");
+    var opt = sel.options[sel.selectedIndex];
+    if (opt.value) {
+        document.getElementById("send-phone").value = opt.value;
+        updateTemplatePreview();
+    }
+}
+
+function selectTemplate(key) {
+    document.querySelectorAll('.whatsapp-lite-template-card').forEach(function(c) {
+        c.classList.remove('is-selected');
+        c.setAttribute('aria-pressed', 'false');
+    });
+
+    if (selectedTemplate === key) {
+        selectedTemplate = null;
+        document.getElementById('template-fields').hidden = true;
+        document.getElementById('message-preview-area').hidden = true;
+        document.getElementById('send-message').value = '';
+        return;
+    }
+
+    selectedTemplate = key;
+    var card = document.querySelector('[data-template="' + key + '"]');
+    if (card) {
+        card.classList.add('is-selected');
+        card.setAttribute('aria-pressed', 'true');
+    }
+
+    var tmpl = TEMPLATES[key];
+    var container = document.getElementById('template-fields-container');
+    container.innerHTML = '';
+
+    var clientSel = document.getElementById("send-client");
+    var clientName = (clientSel.options[clientSel.selectedIndex] && clientSel.options[clientSel.selectedIndex].dataset && clientSel.options[clientSel.selectedIndex].dataset.name) || '';
+
+    tmpl.campos.forEach(function(campo, idx) {
+        var fieldId = 'tmpl-field-' + key + '-' + idx;
+        var wrap = document.createElement('div');
+        wrap.className = 'whatsapp-lite-field';
+
+        var label = document.createElement('label');
+        label.className = 'whatsapp-lite-label';
+        label.setAttribute('for', fieldId);
+        label.textContent = campo;
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.id = fieldId;
+        input.className = 'whatsapp-lite-input';
+        input.placeholder = campo;
+        input.dataset.campo = campo;
+        if (campo === 'cliente' && clientName) input.value = clientName;
+        input.addEventListener('input', updateTemplatePreview);
+
+        wrap.appendChild(label);
+        wrap.appendChild(input);
+        container.appendChild(wrap);
+    });
+
+    document.getElementById('template-fields').hidden = false;
+    document.getElementById('send-message').value = tmpl.mensagem;
+    updateTemplatePreview();
+}
+
+function updateTemplatePreview() {
+    if (!selectedTemplate) return;
+    var tmpl = TEMPLATES[selectedTemplate];
+    var msg = tmpl.mensagem;
+    var fields = document.querySelectorAll('#template-fields-container input');
+    fields.forEach(function(input) {
+        var campo = input.dataset.campo;
+        var val = input.value || '{' + campo + '}';
+        msg = msg.split('{' + campo + '}').join(val);
+    });
+    document.getElementById('send-message').value = msg;
+    document.getElementById('message-preview').textContent = msg;
+    document.getElementById('message-preview-area').hidden = false;
+}
+
+async function sendMessage() {
+    var phone = document.getElementById('send-phone').value.replace(/\D/g, '');
+    var message = document.getElementById('send-message').value;
+
+    if (!phone) { showToast('Selecione um cliente ou insira um telefone.', 'error'); return; }
+    if (!message) { showToast('Digite uma mensagem.', 'error'); return; }
+
+    var btn = document.getElementById('btn-send');
+    btn.disabled = true;
+    var originalLabel = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Enviando…</span>';
+
+    try {
+        var form = new FormData();
+        form.append('phone', phone);
+        form.append('message', message);
+        if (selectedTemplate) form.append('template_key', selectedTemplate);
+
+        var res = await fetch(PREFIX + '/whatsapp/enviar', { method: 'POST', body: form });
+        var data = await res.json();
+
+        if (data.success !== false && !data.error) {
+            showToast('Mensagem enviada!', 'success');
+            clearSend();
+            setTimeout(function() { location.reload(); }, 1000);
+        } else {
+            showToast(data.error || 'Erro ao enviar', 'error');
+        }
+    } catch (e) {
+        showToast('Erro: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+    }
+}
+
+function clearSend() {
+    document.getElementById('send-client').value = '';
+    document.getElementById('send-phone').value = '';
+    document.getElementById('send-message').value = '';
+    document.getElementById('message-preview-area').hidden = true;
+    document.getElementById('template-fields').hidden = true;
+    document.querySelectorAll('.whatsapp-lite-template-card').forEach(function(c) {
+        c.classList.remove('is-selected');
+        c.setAttribute('aria-pressed', 'false');
+    });
+    selectedTemplate = null;
+}
+
+function showToast(msg, type) {
+    var t = document.createElement('div');
+    var variant = (type === 'success' || type === 'error') ? type : 'info';
+    t.className = 'whatsapp-lite-toast whatsapp-lite-toast--' + variant;
+    t.setAttribute('role', 'status');
+    t.setAttribute('aria-live', 'polite');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function() {
+        t.classList.add('is-leaving');
+        setTimeout(function() { t.remove(); }, 300);
+    }, 3000);
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    checkBotStatus();
+    setInterval(checkBotStatus, 30000);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,890 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Gerenciador de Arquivos{% else %}Files{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/files-index.css">
+{% endblock %}
+
+{% block content %}
+<section class="files-index" aria-labelledby="files-index-title">
+    <h1 id="files-index-title" class="files-index__sr-only">
+        {% if product == "lite" %}Gerenciador de Arquivos{% else %}Files Manager{% endif %}
+    </h1>
+
+    {# ── Sidebar: client list ─────────────────────────────── #}
+    <aside class="files-index__sidebar" aria-label="{% if product == 'lite' %}Lista de clientes{% else %}Client list{% endif %}">
+        <div class="files-index__search">
+            <label for="clientSearch" class="files-index__sr-only">
+                {% if product == "lite" %}Buscar clientes{% else %}Search clients{% endif %}
+            </label>
+            <input type="search"
+                   id="clientSearch"
+                   class="files-index__search-input"
+                   placeholder="{% if product == 'lite' %}Buscar clientes...{% else %}Search clients...{% endif %}"
+                   autocomplete="off">
+        </div>
+
+        <div id="clientList" class="files-index__client-list" role="list">
+            {% for c in clients %}
+            <button type="button"
+                    class="files-index__client-item{% if selected_client_id and c.id == selected_client_id %} files-index__client-item--active{% endif %}"
+                    role="listitem"
+                    data-id="{{ c.id }}"
+                    data-name="{{ c.last_name }}, {{ c.first_name }}"
+                    data-action="select-client"
+                    aria-pressed="{% if selected_client_id and c.id == selected_client_id %}true{% else %}false{% endif %}">
+                <span class="files-index__client-name">{{ c.last_name }}, {{ c.first_name }}</span>
+                <span class="files-index__client-badges">
+                    {% if c.drive_folder_id %}
+                    <i class="fas fa-link files-index__client-linked"
+                       title="{% if product == 'lite' %}Drive vinculado{% else %}Drive linked{% endif %}"
+                       aria-label="{% if product == 'lite' %}Drive vinculado{% else %}Drive linked{% endif %}"></i>
+                    {% endif %}
+                    <span class="files-index__client-count" aria-label="{% if product == 'lite' %}{{ c.doc_count }} documento(s){% else %}{{ c.doc_count }} document(s){% endif %}">{{ c.doc_count }}</span>
+                </span>
+            </button>
+            {% endfor %}
+        </div>
+    </aside>
+
+    {# ── Main: file panels ────────────────────────────────── #}
+    <section class="files-index__main" aria-live="polite">
+        {# Stats bar #}
+        <div id="statsBar" class="files-index__stats-bar files-index__hidden" aria-label="{% if product == 'lite' %}Estatísticas do cliente{% else %}Client stats{% endif %}">
+            <strong id="clientNameHeader" class="files-index__stats-name"></strong>
+            <div class="files-index__stats-grid">
+                <span class="files-index__stat">
+                    <span class="files-index__stat-num" id="statVps">-</span>
+                    <span class="files-index__stat-label">{{ org_name|default('CaseHub') }}</span>
+                </span>
+                <span class="files-index__stat">
+                    <span class="files-index__stat-num" id="statDrive">-</span>
+                    <span class="files-index__stat-label">Drive</span>
+                </span>
+                <span class="files-index__stat">
+                    <span class="files-index__stat-num files-index__stat-num--accent" id="statAC">-</span>
+                    <span class="files-index__stat-label">Active Cl.</span>
+                </span>
+                <span class="files-index__stat">
+                    <span class="files-index__stat-num files-index__stat-num--info" id="statTasks">-</span>
+                    <span class="files-index__stat-label">{% if product == "lite" %}Tarefas{% else %}Tasks{% endif %}</span>
+                </span>
+                <span class="files-index__stat">
+                    <span class="files-index__stat-num files-index__stat-num--success" id="statSynced">-</span>
+                    <span class="files-index__stat-label">{% if product == "lite" %}Sincr.{% else %}Synced{% endif %}</span>
+                </span>
+                <span class="files-index__stat">
+                    <span class="files-index__stat-num files-index__stat-num--warning" id="statVpsOnly">-</span>
+                    <span class="files-index__stat-label">{% if product == "lite" %}Apenas CH{% else %}CH Only{% endif %}</span>
+                </span>
+                <span class="files-index__stat">
+                    <span class="files-index__stat-num files-index__stat-num--info" id="statDriveOnly">-</span>
+                    <span class="files-index__stat-label">{% if product == "lite" %}Apenas Drive{% else %}Drive Only{% endif %}</span>
+                </span>
+            </div>
+            <button type="button"
+                    class="files-index__btn files-index__btn--icon"
+                    data-action="refresh"
+                    aria-label="{% if product == 'lite' %}Atualizar{% else %}Refresh{% endif %}"
+                    title="{% if product == 'lite' %}Atualizar{% else %}Refresh{% endif %}">
+                <i class="fas fa-sync" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        {# Bulk actions bar #}
+        <div id="bulkBar" class="files-index__bulk-bar files-index__hidden" role="toolbar" aria-label="{% if product == 'lite' %}Ações em massa{% else %}Bulk actions{% endif %}">
+            <span class="files-index__bulk-count">
+                <strong id="selectedCount">0</strong>
+                {% if product == "lite" %}selecionado(s){% else %}selected{% endif %}
+            </span>
+            <button type="button"
+                    class="files-index__btn files-index__btn--success files-index__btn--sm"
+                    data-action="download-selected"
+                    id="btnDownload">
+                <i class="fas fa-cloud-download-alt" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Baixar para o CaseHub{% else %}Download to CaseHub{% endif %}</span>
+            </button>
+            <button type="button"
+                    class="files-index__btn files-index__btn--ghost files-index__btn--sm files-index__bulk-spacer"
+                    data-action="clear-selection">
+                {% if product == "lite" %}Limpar{% else %}Clear{% endif %}
+            </button>
+        </div>
+
+        {# Empty state — initial / errors #}
+        <div id="emptyState" class="files-index__state" role="status">
+            <i class="fas fa-folder-open files-index__state-icon" aria-hidden="true"></i>
+            <h2 class="files-index__state-title">{% if product == "lite" %}Selecione um cliente{% else %}Select a client{% endif %}</h2>
+            <p class="files-index__state-text">{% if product == "lite" %}Escolha um cliente da lista para ver seus arquivos.{% else %}Choose a client from the list to view their files.{% endif %}</p>
+        </div>
+
+        {# Loading state #}
+        <div id="loadingState" class="files-index__state files-index__hidden" role="status" aria-live="polite">
+            <div class="files-index__spinner" aria-hidden="true"></div>
+            <p class="files-index__state-text">{% if product == "lite" %}Carregando arquivos...{% else %}Loading files...{% endif %}</p>
+        </div>
+
+        {# No-folder state — manual link UI #}
+        <div id="noFolderState" class="files-index__alert-wrap files-index__hidden">
+            <div class="files-index__alert" role="alert">
+                <p class="files-index__alert-title">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    <span>
+                        {% if product == "lite" %}Nenhuma pasta do Google Drive encontrada{% else %}No Google Drive folder found{% endif %}
+                    </span>
+                </p>
+                <p class="files-index__alert-text">
+                    {% if product == "lite" %}Selecione a pasta correta do Active Clients Drive:{% else %}Select the correct folder from the Active Clients Drive:{% endif %}
+                </p>
+                <div class="files-index__alert-actions">
+                    <label for="manualFolderSelect" class="files-index__sr-only">
+                        {% if product == "lite" %}Pasta do Drive{% else %}Drive folder{% endif %}
+                    </label>
+                    <select id="manualFolderSelect" class="files-index__select">
+                        <option value="">{% if product == "lite" %}Carregando pastas...{% else %}Loading folders...{% endif %}</option>
+                    </select>
+                    <button type="button"
+                            class="files-index__btn files-index__btn--primary files-index__btn--sm"
+                            data-action="link-folder-manual">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Vincular{% else %}Link{% endif %}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# Relink bar #}
+        <div id="relinkBar" class="files-index__relink-bar files-index__hidden" role="region" aria-label="{% if product == 'lite' %}Alterar pasta vinculada{% else %}Change linked folder{% endif %}">
+            <span class="files-index__relink-bar-label">
+                <i class="fas fa-link" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Alterar pasta do Drive:{% else %}Change Drive folder:{% endif %}</span>
+            </span>
+            <label for="relinkFolderSelect" class="files-index__sr-only">
+                {% if product == "lite" %}Nova pasta{% else %}New folder{% endif %}
+            </label>
+            <select id="relinkFolderSelect" class="files-index__select">
+                <option value="">{% if product == "lite" %}Carregando...{% else %}Loading...{% endif %}</option>
+            </select>
+            <button type="button" class="files-index__btn files-index__btn--primary files-index__btn--sm" data-action="relink-folder">
+                {% if product == "lite" %}Salvar{% else %}Save{% endif %}
+            </button>
+            <button type="button" class="files-index__btn files-index__btn--ghost files-index__btn--sm" data-action="hide-relink">
+                {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+            </button>
+        </div>
+
+        {# File panels (split view) #}
+        <div id="filePanels" class="files-index__panels files-index__hidden">
+            {# CaseHub Files #}
+            <div class="files-index__panel">
+                <div class="files-index__panel-header">
+                    <span class="files-index__panel-title">
+                        <i class="fas fa-server files-index__panel-title-icon--warning" aria-hidden="true"></i>
+                        <span>{{ org_name|default('CaseHub') }}</span>
+                        <span class="files-index__panel-count" id="vpsCount">0</span>
+                    </span>
+                </div>
+                <div class="files-index__panel-body">
+                    <table class="files-index__table">
+                        <caption class="files-index__sr-only">
+                            {% if product == "lite" %}Documentos no CaseHub{% else %}Documents in CaseHub{% endif %}
+                        </caption>
+                        <thead>
+                            <tr>
+                                <th scope="col" class="files-index__table-cell--check"></th>
+                                <th scope="col">{% if product == "lite" %}Arquivo{% else %}File{% endif %}</th>
+                                <th scope="col" class="files-index__table-cell--type">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                                <th scope="col" class="files-index__table-cell--sync">Sync</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vpsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            {# Google Drive Files #}
+            <div class="files-index__panel">
+                <div class="files-index__panel-header">
+                    <span class="files-index__panel-title">
+                        <i class="fab fa-google-drive files-index__panel-title-icon--info" aria-hidden="true"></i>
+                        <span>Google Drive</span>
+                        <span class="files-index__panel-count" id="driveCount">0</span>
+                    </span>
+                    <label for="driveFilterSource" class="files-index__sr-only">
+                        {% if product == "lite" %}Filtrar por origem{% else %}Filter by source{% endif %}
+                    </label>
+                    <select id="driveFilterSource"
+                            class="files-index__select files-index__select--sm files-index__hidden"
+                            data-action="filter-drive">
+                        <option value="">{% if product == "lite" %}Todas as Origens{% else %}All Sources{% endif %}</option>
+                    </select>
+                    <label for="driveFilterFolder" class="files-index__sr-only">
+                        {% if product == "lite" %}Filtrar por pasta{% else %}Filter by folder{% endif %}
+                    </label>
+                    <select id="driveFilterFolder"
+                            class="files-index__select files-index__select--sm files-index__hidden"
+                            data-action="filter-drive">
+                        <option value="">{% if product == "lite" %}Todas as Pastas{% else %}All Folders{% endif %}</option>
+                    </select>
+                    <span id="driveFolderLink" class="files-index__panel-link-wrap"></span>
+                    <button type="button"
+                            class="files-index__btn files-index__btn--ghost files-index__btn--sm"
+                            data-action="show-relink"
+                            title="{% if product == 'lite' %}Alterar pasta vinculada{% else %}Change linked folder{% endif %}"
+                            aria-label="{% if product == 'lite' %}Alterar pasta vinculada{% else %}Change linked folder{% endif %}">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="files-index__panel-body">
+                    <table class="files-index__table">
+                        <caption class="files-index__sr-only">
+                            {% if product == "lite" %}Arquivos no Google Drive{% else %}Files in Google Drive{% endif %}
+                        </caption>
+                        <thead>
+                            <tr>
+                                <th scope="col" class="files-index__table-cell--check">
+                                    <label for="selectAllDrive" class="files-index__sr-only">
+                                        {% if product == "lite" %}Selecionar todos{% else %}Select all{% endif %}
+                                    </label>
+                                    <input type="checkbox" id="selectAllDrive" class="files-index__checkbox" data-action="toggle-all">
+                                </th>
+                                <th scope="col">{% if product == "lite" %}Arquivo{% else %}File{% endif %}</th>
+                                <th scope="col" class="files-index__table-cell--type">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                                <th scope="col" class="files-index__table-cell--sync">Sync</th>
+                            </tr>
+                        </thead>
+                        <tbody id="driveBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {# Progress bar #}
+        <div id="progressBar" class="files-index__progress-wrap files-index__hidden">
+            <div class="files-index__progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div id="progressFill" class="files-index__progress-fill">
+                    <span id="progressText">0%</span>
+                </div>
+            </div>
+        </div>
+    </section>
+</section>
+
+<script>
+(function () {
+    const PREFIX = {{ PREFIX|tojson }};
+    const PRODUCT_LITE = {{ (product == 'lite')|tojson }};
+
+    const I18N = {
+        failed: PRODUCT_LITE ? 'Falhou' : 'Failed',
+        error: PRODUCT_LITE ? 'Erro' : 'Error',
+        errorLoading: PRODUCT_LITE ? 'Erro ao carregar arquivos' : 'Error loading files',
+        loadingFolders: PRODUCT_LITE ? 'Carregando pastas...' : 'Loading folders...',
+        errorLoadingFolders: PRODUCT_LITE ? 'Erro ao carregar pastas' : 'Error loading folders',
+        errorLinking: PRODUCT_LITE ? 'Erro ao vincular' : 'Error linking',
+        selectFolder: PRODUCT_LITE ? 'Selecionar pasta' : 'Select folder',
+        allSources: PRODUCT_LITE ? 'Todas as Origens' : 'All Sources',
+        allFolders: PRODUCT_LITE ? 'Todas as Pastas' : 'All Folders',
+        root: PRODUCT_LITE ? 'Raiz' : 'Root',
+        noVpsDocs: PRODUCT_LITE ? 'Nenhum documento no CaseHub' : 'No CaseHub documents',
+        noDriveFiles: PRODUCT_LITE ? 'Nenhum arquivo no Drive' : 'No Drive files found',
+        synced: PRODUCT_LITE ? 'Sincronizado' : 'Synced',
+        chOnly: PRODUCT_LITE ? 'Apenas CaseHub' : 'CaseHub only',
+        inCaseHub: PRODUCT_LITE ? 'No CaseHub' : 'In CaseHub',
+        driveOnly: PRODUCT_LITE ? 'Apenas Drive' : 'Drive only',
+        tasks: PRODUCT_LITE ? 'Tarefas' : 'Tasks',
+        confirmDownload: PRODUCT_LITE ? 'Baixar {n} arquivo(s) do Google Drive para o CaseHub?' : 'Download {n} file(s) from Google Drive to CaseHub?',
+        done: PRODUCT_LITE ? 'Concluído!' : 'Done!',
+        downloaded: PRODUCT_LITE ? 'baixado(s)' : 'downloaded',
+        alreadyInCh: PRODUCT_LITE ? 'já no CaseHub' : 'already in CaseHub',
+        failures: PRODUCT_LITE ? 'falha(s)' : 'failed'
+    };
+
+    let currentClientId = null;
+    let vpsFiles = [];
+    let driveFiles = [];
+    let allDriveFiles = [];
+    let matchedMap = {};
+    let selectedIds = new Set();
+    let driveFoldersCache = null;
+    let availableSources = [];
+
+    const $ = (id) => document.getElementById(id);
+    const HIDDEN = 'files-index__hidden';
+
+    function show(el) { el.classList.remove(HIDDEN); }
+    function hide(el) { el.classList.add(HIDDEN); }
+
+    // === Client Sidebar ===
+    function selectClient(id) {
+        currentClientId = id;
+        document.querySelectorAll('.files-index__client-item').forEach(el => {
+            const isActive = parseInt(el.dataset.id) === id;
+            el.classList.toggle('files-index__client-item--active', isActive);
+            el.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+        loadFiles(id);
+    }
+
+    function filterClients() {
+        const q = $('clientSearch').value.toLowerCase();
+        document.querySelectorAll('.files-index__client-item').forEach(el => {
+            el.style.display = el.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+        });
+    }
+
+    // === Load Files ===
+    async function loadFiles(clientId) {
+        hideAllStates();
+        show($('loadingState'));
+        selectedIds.clear();
+
+        try {
+            const resp = await fetch(PREFIX + '/files/api/client/' + clientId + '/compare');
+            if (!resp.ok) {
+                const text = await resp.text();
+                throw new Error('HTTP ' + resp.status + ': ' + text.substring(0, 200));
+            }
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.detail || I18N.failed);
+
+            vpsFiles = data.vps_files || [];
+            driveFiles = data.drive_files || [];
+            allDriveFiles = [...driveFiles];
+            matchedMap = data.matched || {};
+
+            $('clientNameHeader').textContent = data.client.name;
+
+            if (!data.drive_folder && driveFiles.length === 0) {
+                hideAllStates();
+                show($('noFolderState'));
+                if (vpsFiles.length > 0) {
+                    show($('statsBar'));
+                    updateStats(data.stats);
+                }
+                loadDriveFoldersDropdown('manualFolderSelect');
+                return;
+            }
+
+            const dfLink = $('driveFolderLink');
+            if (data.drive_folder) {
+                const a = document.createElement('a');
+                a.className = 'files-index__panel-link';
+                a.href = 'https://drive.google.com/drive/folders/' + data.drive_folder.id;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.title = data.drive_folder.name;
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-external-link-alt';
+                icon.setAttribute('aria-hidden', 'true');
+                a.appendChild(icon);
+                a.appendChild(document.createTextNode(' ' + trunc(data.drive_folder.name, 25)));
+                dfLink.replaceChildren(a);
+            } else {
+                dfLink.replaceChildren();
+            }
+
+            updateStats(data.stats);
+            availableSources = data.sources || [];
+            populateSourceFilter(availableSources);
+            populateFolderFilter(data.folder_paths || []);
+            renderVps();
+            renderDrive();
+
+            hideAllStates();
+            show($('filePanels'));
+            show($('statsBar'));
+            $('vpsCount').textContent = vpsFiles.length;
+            $('driveCount').textContent = driveFiles.length;
+        } catch (e) {
+            console.error('Load error:', e);
+            hideAllStates();
+            const empty = $('emptyState');
+            empty.innerHTML = '';
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-exclamation-triangle files-index__state-icon files-index__state-icon--danger';
+            icon.setAttribute('aria-hidden', 'true');
+            const title = document.createElement('h2');
+            title.className = 'files-index__state-title files-index__state-title--danger';
+            title.textContent = I18N.errorLoading;
+            const text = document.createElement('p');
+            text.className = 'files-index__state-text';
+            text.textContent = e.message;
+            empty.appendChild(icon);
+            empty.appendChild(title);
+            empty.appendChild(text);
+            show(empty);
+        }
+    }
+
+    function hideAllStates() {
+        ['emptyState', 'loadingState', 'noFolderState', 'filePanels', 'statsBar', 'bulkBar', 'relinkBar'].forEach(id => hide($(id)));
+    }
+
+    function updateStats(s) {
+        $('statVps').textContent = s.vps_total;
+        $('statDrive').textContent = s.drive_total;
+        $('statAC').textContent = s.ac_total || 0;
+        $('statTasks').textContent = s.tasks_total || 0;
+        $('statSynced').textContent = s.synced;
+        $('statVpsOnly').textContent = s.vps_only;
+        $('statDriveOnly').textContent = s.drive_only;
+    }
+
+    // === Source Filter ===
+    function populateSourceFilter(sources) {
+        const sel = $('driveFilterSource');
+        if (!sources || sources.length <= 1) { hide(sel); return; }
+        show(sel);
+        sel.innerHTML = '';
+        appendOption(sel, '', I18N.allSources + ' (' + allDriveFiles.length + ')');
+        sources.forEach(s => {
+            const cnt = allDriveFiles.filter(f => getSourceKey(f) === s).length;
+            const label = s === 'active_clients' ? 'Active Clients' : s.replace('tasks/', 'Tasks/');
+            appendOption(sel, s, label + ' (' + cnt + ')');
+        });
+    }
+
+    function getSourceKey(f) {
+        const src = f.source || 'active_clients';
+        if (src === 'tasks' && f.paralegal) return 'tasks/' + f.paralegal;
+        return src;
+    }
+
+    // === Folder Filter ===
+    function populateFolderFilter(paths) {
+        const sel = $('driveFilterFolder');
+        if (!paths || paths.length === 0) { hide(sel); return; }
+        show(sel);
+        sel.innerHTML = '';
+        const rootCount = allDriveFiles.filter(f => !f.folder_path).length;
+        appendOption(sel, '', I18N.allFolders + ' (' + allDriveFiles.length + ')');
+        if (rootCount > 0) appendOption(sel, '__root__', I18N.root + ' (' + rootCount + ')');
+        paths.forEach(p => {
+            const cnt = allDriveFiles.filter(f => f.folder_path === p || (f.folder_path && f.folder_path.startsWith(p + '/'))).length;
+            appendOption(sel, p, p + ' (' + cnt + ')');
+        });
+    }
+
+    function appendOption(sel, value, label) {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        sel.appendChild(opt);
+    }
+
+    function filterDriveFiles() {
+        const srcVal = $('driveFilterSource').value;
+        const folderVal = $('driveFilterFolder').value;
+
+        driveFiles = allDriveFiles.filter(f => {
+            if (srcVal && getSourceKey(f) !== srcVal) return false;
+            if (folderVal === '__root__' && f.folder_path) return false;
+            if (folderVal && folderVal !== '__root__') {
+                if (f.folder_path !== folderVal && !(f.folder_path && f.folder_path.startsWith(folderVal + '/'))) return false;
+            }
+            return true;
+        });
+
+        $('driveCount').textContent = driveFiles.length;
+        renderDrive();
+    }
+
+    // === Render Files ===
+    function renderVps() {
+        const body = $('vpsBody');
+        body.innerHTML = '';
+        if (vpsFiles.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 4;
+            td.className = 'files-index__table-empty';
+            td.textContent = I18N.noVpsDocs;
+            tr.appendChild(td);
+            body.appendChild(tr);
+            return;
+        }
+        vpsFiles.forEach(f => {
+            const tr = document.createElement('tr');
+
+            const tdIcon = document.createElement('td');
+            tdIcon.className = 'files-index__table-cell--center';
+            const icon = document.createElement('i');
+            icon.className = fileIconClass(f.mime_type, f.name);
+            icon.setAttribute('aria-hidden', 'true');
+            tdIcon.appendChild(icon);
+
+            const tdName = document.createElement('td');
+            tdName.title = f.name;
+            tdName.appendChild(document.createTextNode(trunc(f.name, 30)));
+            const meta = document.createElement('small');
+            meta.className = 'files-index__table-meta';
+            meta.textContent = f.created_at || '';
+            tdName.appendChild(meta);
+
+            const tdType = document.createElement('td');
+            const tdTypeText = document.createElement('small');
+            tdTypeText.textContent = f.doc_type || '-';
+            tdType.appendChild(tdTypeText);
+
+            const tdSync = document.createElement('td');
+            tdSync.className = 'files-index__table-cell--center';
+            tdSync.appendChild(syncBadge(f.drive_file_id ? 'synced' : 'vps-only'));
+
+            tr.append(tdIcon, tdName, tdType, tdSync);
+            body.appendChild(tr);
+        });
+    }
+
+    function renderDrive() {
+        const body = $('driveBody');
+        body.innerHTML = '';
+        const selectAll = $('selectAllDrive');
+        if (driveFiles.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 4;
+            td.className = 'files-index__table-empty';
+            td.textContent = I18N.noDriveFiles;
+            tr.appendChild(td);
+            body.appendChild(tr);
+            selectAll.style.display = 'none';
+            return;
+        }
+        selectAll.style.display = '';
+
+        driveFiles.forEach(f => {
+            const inCh = !!matchedMap[f.id];
+            const tr = document.createElement('tr');
+
+            // checkbox cell
+            const tdCb = document.createElement('td');
+            tdCb.className = 'files-index__table-cell--center';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'files-index__checkbox dcb';
+            cb.dataset.id = f.id;
+            if (inCh) cb.disabled = true;
+            if (selectedIds.has(f.id)) cb.checked = true;
+            cb.addEventListener('change', updateSel);
+            tdCb.appendChild(cb);
+
+            // name cell
+            const tdName = document.createElement('td');
+            tdName.appendChild(sourceTagFor(f));
+
+            if (f.webViewLink) {
+                const a = document.createElement('a');
+                a.className = 'files-index__file-link';
+                a.href = f.webViewLink;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.title = f.name;
+                a.textContent = trunc(f.name, 28);
+                tdName.appendChild(a);
+            } else {
+                tdName.appendChild(document.createTextNode(trunc(f.name, 28)));
+            }
+
+            if (f.folder_path) {
+                const ft = document.createElement('span');
+                ft.className = 'files-index__folder-tag';
+                const fi = document.createElement('i');
+                fi.className = 'fas fa-folder-open';
+                fi.setAttribute('aria-hidden', 'true');
+                ft.appendChild(fi);
+                ft.appendChild(document.createTextNode(' ' + f.folder_path));
+                tdName.appendChild(ft);
+            }
+
+            const meta = document.createElement('small');
+            meta.className = 'files-index__table-meta';
+            meta.textContent = f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString() : '';
+            tdName.appendChild(meta);
+
+            // type cell
+            const tdType = document.createElement('td');
+            const tdTypeText = document.createElement('small');
+            tdTypeText.textContent = mimeLabel(f.mimeType);
+            tdType.appendChild(tdTypeText);
+
+            // sync cell
+            const tdSync = document.createElement('td');
+            tdSync.className = 'files-index__table-cell--center';
+            tdSync.appendChild(syncBadge(inCh ? 'synced' : 'drive-only'));
+
+            tr.append(tdCb, tdName, tdType, tdSync);
+            body.appendChild(tr);
+        });
+    }
+
+    function sourceTagFor(f) {
+        const span = document.createElement('span');
+        const icon = document.createElement('i');
+        icon.setAttribute('aria-hidden', 'true');
+        if (f.source === 'tasks') {
+            span.className = 'files-index__source-tag ' + (f.archived ? 'files-index__source-tag--archived' : 'files-index__source-tag--tasks');
+            icon.className = f.archived ? 'fas fa-archive' : 'fas fa-tasks';
+            span.appendChild(icon);
+            span.appendChild(document.createTextNode(' ' + (f.paralegal || I18N.tasks)));
+        } else {
+            span.className = 'files-index__source-tag files-index__source-tag--ac';
+            icon.className = 'fas fa-folder';
+            span.appendChild(icon);
+            span.appendChild(document.createTextNode(' AC'));
+        }
+        return span;
+    }
+
+    function syncBadge(state) {
+        const span = document.createElement('span');
+        const icon = document.createElement('i');
+        icon.setAttribute('aria-hidden', 'true');
+        if (state === 'synced') {
+            span.className = 'files-index__sync-badge files-index__sync-badge--synced';
+            span.title = I18N.synced;
+            icon.className = 'fas fa-check';
+        } else if (state === 'vps-only') {
+            span.className = 'files-index__sync-badge files-index__sync-badge--vps-only';
+            span.title = I18N.chOnly;
+            icon.className = 'fas fa-server';
+        } else {
+            span.className = 'files-index__sync-badge files-index__sync-badge--drive-only';
+            span.title = I18N.driveOnly;
+            icon.className = 'fab fa-google-drive';
+        }
+        span.appendChild(icon);
+        return span;
+    }
+
+    // === Selection ===
+    function updateSel() {
+        selectedIds.clear();
+        document.querySelectorAll('.dcb:checked:not(:disabled)').forEach(cb => selectedIds.add(cb.dataset.id));
+        const n = selectedIds.size;
+        $('selectedCount').textContent = n;
+        const bulk = $('bulkBar');
+        if (n === 0) hide(bulk); else show(bulk);
+        const all = document.querySelectorAll('.dcb:not(:disabled)');
+        const chk = document.querySelectorAll('.dcb:checked:not(:disabled)');
+        const sa = $('selectAllDrive');
+        sa.checked = all.length > 0 && chk.length === all.length;
+        sa.indeterminate = chk.length > 0 && chk.length < all.length;
+    }
+
+    function toggleAll(el) {
+        document.querySelectorAll('.dcb:not(:disabled)').forEach(cb => cb.checked = el.checked);
+        updateSel();
+    }
+
+    function clearSelection() {
+        document.querySelectorAll('.dcb').forEach(cb => cb.checked = false);
+        $('selectAllDrive').checked = false;
+        selectedIds.clear();
+        hide($('bulkBar'));
+    }
+
+    // === Download ===
+    async function downloadSelected() {
+        if (selectedIds.size === 0 || !currentClientId) return;
+        const ids = Array.from(selectedIds);
+        const total = ids.length;
+        if (!confirm(I18N.confirmDownload.replace('{n}', total))) return;
+
+        const wrap = $('progressBar');
+        const fill = $('progressFill');
+        const text = $('progressText');
+        const bar = wrap.querySelector('.files-index__progress');
+        show(wrap);
+        let ok = 0, skip = 0, fail = 0;
+
+        for (let i = 0; i < ids.length; i++) {
+            const file = allDriveFiles.find(f => f.id === ids[i]);
+            if (!file) continue;
+            const pct = Math.round(((i + 1) / total) * 100);
+            fill.style.width = pct + '%';
+            text.textContent = (i + 1) + '/' + total;
+            if (bar) bar.setAttribute('aria-valuenow', String(pct));
+
+            try {
+                const fd = new FormData();
+                fd.append('file_id', file.id);
+                fd.append('client_id', currentClientId);
+                fd.append('file_name', file.name);
+                fd.append('mime_type', file.mimeType || '');
+                fd.append('file_size', file.size || 0);
+                const r = await fetch(PREFIX + '/api/documents/drive/download-to-casehub', { method: 'POST', body: fd });
+                const d = await r.json();
+                if (d.success) { if (d.skipped) skip++; else ok++; } else fail++;
+            } catch (e) { fail++; }
+        }
+
+        hide(wrap);
+        let msg = I18N.done + ' ' + ok + ' ' + I18N.downloaded;
+        if (skip) msg += ', ' + skip + ' ' + I18N.alreadyInCh;
+        if (fail) msg += ', ' + fail + ' ' + I18N.failures;
+        alert(msg);
+        clearSelection();
+        loadFiles(currentClientId);
+    }
+
+    // === Folder Linking ===
+    async function loadDriveFoldersDropdown(selectId) {
+        const sel = $(selectId);
+        if (driveFoldersCache) {
+            populateFolderDropdown(sel, driveFoldersCache);
+            return;
+        }
+        sel.innerHTML = '';
+        appendOption(sel, '', I18N.loadingFolders);
+        try {
+            const resp = await fetch(PREFIX + '/files/api/drive-folders');
+            const data = await resp.json();
+            if (data.success) {
+                driveFoldersCache = data.folders;
+                populateFolderDropdown(sel, data.folders);
+            } else {
+                sel.innerHTML = '';
+                appendOption(sel, '', I18N.errorLoadingFolders);
+            }
+        } catch (e) {
+            sel.innerHTML = '';
+            appendOption(sel, '', I18N.error + ': ' + e.message);
+        }
+    }
+
+    function populateFolderDropdown(sel, folders) {
+        sel.innerHTML = '';
+        appendOption(sel, '', '-- ' + I18N.selectFolder + ' --');
+        folders.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f.id;
+            opt.dataset.name = f.name;
+            opt.textContent = f.name;
+            sel.appendChild(opt);
+        });
+    }
+
+    async function linkFolderManual() {
+        await linkFolderFromSelect('manualFolderSelect', () => loadFiles(currentClientId));
+    }
+
+    async function relinkFolder() {
+        await linkFolderFromSelect('relinkFolderSelect', () => {
+            hideRelinkUI();
+            driveFoldersCache = null;
+            loadFiles(currentClientId);
+        });
+    }
+
+    async function linkFolderFromSelect(selectId, onSuccess) {
+        const sel = $(selectId);
+        const folderId = sel.value;
+        if (!folderId || !currentClientId) return;
+        const folderName = sel.options[sel.selectedIndex].dataset.name || sel.options[sel.selectedIndex].textContent;
+        try {
+            const fd = new FormData();
+            fd.append('folder_id', folderId);
+            fd.append('folder_name', folderName);
+            const resp = await fetch(PREFIX + '/files/api/client/' + currentClientId + '/link-folder', { method: 'POST', body: fd });
+            const data = await resp.json();
+            if (data.success) {
+                onSuccess();
+            } else {
+                alert(I18N.error + ': ' + (data.detail || I18N.failed));
+            }
+        } catch (e) {
+            alert(I18N.errorLinking + ': ' + e.message);
+        }
+    }
+
+    function showRelinkUI() {
+        show($('relinkBar'));
+        loadDriveFoldersDropdown('relinkFolderSelect');
+    }
+
+    function hideRelinkUI() {
+        hide($('relinkBar'));
+    }
+
+    function refreshFiles() {
+        if (currentClientId) loadFiles(currentClientId);
+    }
+
+    // === Utils ===
+    function fileIconClass(mime, name) {
+        mime = mime || ''; name = name || '';
+        if (mime.includes('pdf') || name.endsWith('.pdf')) return 'fas fa-file-pdf files-index__file-icon files-index__file-icon--pdf';
+        if (mime.includes('word') || name.endsWith('.doc') || name.endsWith('.docx')) return 'fas fa-file-word files-index__file-icon files-index__file-icon--word';
+        if (mime.includes('excel') || mime.includes('spreadsheet') || name.endsWith('.xls')) return 'fas fa-file-excel files-index__file-icon files-index__file-icon--excel';
+        if (mime.includes('image')) return 'fas fa-file-image files-index__file-icon files-index__file-icon--image';
+        return 'fas fa-file files-index__file-icon files-index__file-icon--default';
+    }
+
+    function mimeLabel(m) {
+        if (!m) return '-';
+        if (m.includes('pdf')) return 'PDF';
+        if (m.includes('document') || m.includes('word')) return 'DOC';
+        if (m.includes('spreadsheet') || m.includes('excel')) return 'XLS';
+        if (m.includes('presentation')) return 'PPT';
+        if (m.includes('image/jpeg')) return 'JPG';
+        if (m.includes('image/png')) return 'PNG';
+        if (m.includes('image')) return 'IMG';
+        return m.split('/').pop().substring(0, 4).toUpperCase();
+    }
+
+    function trunc(s, n) { return (!s) ? '' : s.length > n ? s.substring(0, n) + '...' : s; }
+
+    // === Event delegation ===
+    document.addEventListener('click', (e) => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+        const action = target.dataset.action;
+        switch (action) {
+            case 'select-client':
+                selectClient(parseInt(target.dataset.id, 10));
+                break;
+            case 'refresh':
+                refreshFiles();
+                break;
+            case 'download-selected':
+                downloadSelected();
+                break;
+            case 'clear-selection':
+                clearSelection();
+                break;
+            case 'show-relink':
+                showRelinkUI();
+                break;
+            case 'hide-relink':
+                hideRelinkUI();
+                break;
+            case 'link-folder-manual':
+                linkFolderManual();
+                break;
+            case 'relink-folder':
+                relinkFolder();
+                break;
+        }
+    });
+
+    document.addEventListener('change', (e) => {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+        const action = target.dataset.action;
+        if (action === 'toggle-all') toggleAll(target);
+        else if (action === 'filter-drive') filterDriveFiles();
+    });
+
+    document.addEventListener('input', (e) => {
+        if (e.target && e.target.id === 'clientSearch') filterClients();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        {% if selected_client_id %}
+        selectClient({{ selected_client_id }});
+        {% endif %}
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,368 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Progressao · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tools-progressao.css">
+{% endblock %}
+{% block content %}
+<main class="tools-prog-main" aria-labelledby="tools-prog-title">
+    <div class="tools-prog-container">
+        <header class="tools-prog-header tools-prog-no-print">
+            <div class="tools-prog-heading">
+                <h1 id="tools-prog-title" class="tools-prog-title">
+                    <i class="fas fa-door-open tools-prog-title-icon" aria-hidden="true"></i>
+                    <span>Progressão de Regime</span>
+                </h1>
+                <p class="tools-prog-subtitle">Cálculo conforme LEP Art. 112 (Lei 13.964/2019 — Pacote Anticrime)</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="tools-prog-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        {% if error %}
+        <div class="tools-prog-alert" role="alert">
+            <i class="fas fa-exclamation-circle tools-prog-alert-icon" aria-hidden="true"></i>
+            <p class="tools-prog-alert-message">{{ error }}</p>
+            <button type="button"
+                    class="tools-prog-alert-close tools-prog-no-print"
+                    onclick="this.closest('.tools-prog-alert').remove()"
+                    aria-label="Fechar alerta">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        {% endif %}
+
+        <div class="tools-prog-layout {% if resultado %}tools-prog-layout--with-result{% else %}tools-prog-layout--form-only{% endif %}">
+            <div class="tools-prog-column">
+                <form method="POST"
+                      action="{{ PREFIX }}/tools/progressao/calcular"
+                      class="tools-prog-form"
+                      aria-labelledby="tools-prog-form-title">
+                    <section class="tools-prog-card" aria-labelledby="tools-prog-form-title">
+                        <header class="tools-prog-card-header">
+                            <h2 id="tools-prog-form-title" class="tools-prog-card-title">
+                                <i class="fas fa-gavel" aria-hidden="true"></i>
+                                <span>Dados da Pena</span>
+                            </h2>
+                        </header>
+                        <div class="tools-prog-card-body">
+                            <fieldset class="tools-prog-fieldset">
+                                <legend class="tools-prog-legend">Pena e Regime</legend>
+
+                                <div class="tools-prog-grid">
+                                    <div class="tools-prog-field">
+                                        <span class="tools-prog-label" id="tools-prog-pena-label">Pena Total</span>
+                                        <div class="tools-prog-grid" role="group" aria-labelledby="tools-prog-pena-label">
+                                            <div class="tools-prog-field">
+                                                <label class="tools-prog-sr-only" for="pena_anos">Pena em anos</label>
+                                                <div class="tools-prog-input-group">
+                                                    <input type="number"
+                                                           class="tools-prog-input"
+                                                           id="pena_anos"
+                                                           name="pena_anos"
+                                                           value="{{ form.pena_anos if form else 0 }}"
+                                                           min="0"
+                                                           inputmode="numeric"
+                                                           required
+                                                           aria-required="true">
+                                                    <span class="tools-prog-addon tools-prog-addon--suffix" aria-hidden="true">anos</span>
+                                                </div>
+                                            </div>
+                                            <div class="tools-prog-field">
+                                                <label class="tools-prog-sr-only" for="pena_meses">Pena em meses</label>
+                                                <div class="tools-prog-input-group">
+                                                    <input type="number"
+                                                           class="tools-prog-input"
+                                                           id="pena_meses"
+                                                           name="pena_meses"
+                                                           value="{{ form.pena_meses if form else 0 }}"
+                                                           min="0"
+                                                           max="11"
+                                                           inputmode="numeric">
+                                                    <span class="tools-prog-addon tools-prog-addon--suffix" aria-hidden="true">meses</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="tools-prog-field">
+                                        <label for="regime_inicial" class="tools-prog-label">Regime Inicial</label>
+                                        <select class="tools-prog-select"
+                                                id="regime_inicial"
+                                                name="regime_inicial"
+                                                required
+                                                aria-required="true">
+                                            <option value="fechado" {% if form and form.regime_inicial == 'fechado' %}selected{% endif %}>Fechado</option>
+                                            <option value="semiaberto" {% if form and form.regime_inicial == 'semiaberto' %}selected{% endif %}>Semiaberto</option>
+                                            <option value="aberto" {% if form and form.regime_inicial == 'aberto' %}selected{% endif %}>Aberto</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="tools-prog-grid">
+                                    <div class="tools-prog-field">
+                                        <label for="tipo_crime" class="tools-prog-label">Tipo de Crime</label>
+                                        <select class="tools-prog-select"
+                                                id="tipo_crime"
+                                                name="tipo_crime"
+                                                required
+                                                aria-required="true">
+                                            <option value="comum" {% if form and form.tipo_crime == 'comum' %}selected{% endif %}>Crime Comum</option>
+                                            <option value="hediondo" {% if form and form.tipo_crime == 'hediondo' %}selected{% endif %}>Crime Hediondo (Lei 8.072/90)</option>
+                                            <option value="hediondo_resultado_morte" {% if form and form.tipo_crime == 'hediondo_resultado_morte' %}selected{% endif %}>Hediondo com Resultado Morte</option>
+                                            <option value="administracao_militar" {% if form and form.tipo_crime == 'administracao_militar' %}selected{% endif %}>Crime contra Adm. Militar</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="tools-prog-field">
+                                        <span class="tools-prog-label">Antecedentes</span>
+                                        <div class="tools-prog-check">
+                                            <input type="checkbox"
+                                                   class="tools-prog-checkbox"
+                                                   id="reincidente"
+                                                   name="reincidente"
+                                                   value="true"
+                                                   {% if form and form.reincidente %}checked{% endif %}>
+                                            <label class="tools-prog-check-label" for="reincidente">
+                                                <strong>Reincidente</strong> (Art. 63 CP)
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="tools-prog-fieldset">
+                                <legend class="tools-prog-legend">
+                                    Remição (Art. 126-130 LEP)
+                                    <span class="tools-prog-legend-hint">
+                                        Trabalho: 1 dia remido a cada 3 dias trabalhados.
+                                        Estudo: 1 dia remido a cada 12 horas de estudo.
+                                    </span>
+                                </legend>
+
+                                <div class="tools-prog-grid">
+                                    <div class="tools-prog-field">
+                                        <label for="dias_trabalho" class="tools-prog-label">Dias de Trabalho</label>
+                                        <div class="tools-prog-input-group">
+                                            <span class="tools-prog-addon" aria-hidden="true">
+                                                <i class="fas fa-hard-hat"></i>
+                                            </span>
+                                            <input type="number"
+                                                   class="tools-prog-input"
+                                                   id="dias_trabalho"
+                                                   name="dias_trabalho"
+                                                   value="{{ form.dias_trabalho if form else 0 }}"
+                                                   min="0"
+                                                   inputmode="numeric"
+                                                   aria-describedby="tools-prog-hint-trabalho">
+                                            <span class="tools-prog-addon tools-prog-addon--suffix" aria-hidden="true">dias</span>
+                                        </div>
+                                        <span id="tools-prog-hint-trabalho" class="tools-prog-hint">
+                                            = {{ (form.dias_trabalho // 3) if form and form.dias_trabalho else 0 }} dia(s) remidos
+                                        </span>
+                                    </div>
+
+                                    <div class="tools-prog-field">
+                                        <label for="dias_estudo" class="tools-prog-label">Dias de Estudo</label>
+                                        <div class="tools-prog-input-group">
+                                            <span class="tools-prog-addon" aria-hidden="true">
+                                                <i class="fas fa-book-reader"></i>
+                                            </span>
+                                            <input type="number"
+                                                   class="tools-prog-input"
+                                                   id="dias_estudo"
+                                                   name="dias_estudo"
+                                                   value="{{ form.dias_estudo if form else 0 }}"
+                                                   min="0"
+                                                   inputmode="numeric"
+                                                   aria-describedby="tools-prog-hint-estudo">
+                                            <span class="tools-prog-addon tools-prog-addon--suffix" aria-hidden="true">dias</span>
+                                        </div>
+                                        <span id="tools-prog-hint-estudo" class="tools-prog-hint">
+                                            = {{ (form.dias_estudo // 3) if form and form.dias_estudo else 0 }} dia(s) remidos
+                                        </span>
+                                    </div>
+                                </div>
+                            </fieldset>
+                        </div>
+                    </section>
+
+                    <div class="tools-prog-actions tools-prog-no-print">
+                        <button type="submit" class="tools-prog-btn tools-prog-btn--primary">
+                            <i class="fas fa-calculator" aria-hidden="true"></i>
+                            <span>Calcular Progressão</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {% if resultado %}
+            <div class="tools-prog-column" id="resultado">
+                <section class="tools-prog-card" aria-labelledby="tools-prog-result-title">
+                    <header class="tools-prog-card-header tools-prog-card-header--accent">
+                        <h2 id="tools-prog-result-title" class="tools-prog-card-title">
+                            <i class="fas fa-file-alt" aria-hidden="true"></i>
+                            <span>Resultado da Progressão</span>
+                        </h2>
+                        <button type="button"
+                                class="tools-prog-btn tools-prog-btn--on-accent tools-prog-btn--sm tools-prog-no-print"
+                                onclick="window.print()"
+                                aria-label="Imprimir resultado">
+                            <i class="fas fa-print" aria-hidden="true"></i>
+                            <span>Imprimir</span>
+                        </button>
+                    </header>
+                    <div class="tools-prog-card-body">
+                        <div class="tools-prog-summary">
+                            <div class="tools-prog-summary-cell">
+                                <span class="tools-prog-summary-label">Pena Total</span>
+                                <span class="tools-prog-summary-value">{{ resultado.pena_total }}</span>
+                            </div>
+                            <div class="tools-prog-summary-cell">
+                                <span class="tools-prog-summary-label">Regime Inicial</span>
+                                <span class="tools-prog-badge tools-prog-badge--{{ resultado.regime_inicial|lower }}"
+                                      aria-label="Regime {{ resultado.regime_inicial }}">{{ resultado.regime_inicial }}</span>
+                            </div>
+                            <div class="tools-prog-summary-cell">
+                                <span class="tools-prog-summary-label">Fração de Progressão</span>
+                                <span class="tools-prog-summary-value">{{ resultado.fracao_label }}</span>
+                            </div>
+                        </div>
+
+                        {% if resultado.total_remicao > 0 %}
+                        <div class="tools-prog-alert tools-prog-alert--success" role="status">
+                            <i class="fas fa-clock tools-prog-alert-icon" aria-hidden="true"></i>
+                            <div class="tools-prog-alert-message">
+                                <span class="tools-prog-alert-title">
+                                    Remição: {{ resultado.total_remicao }} dia(s) remidos
+                                </span>
+                                <span>({{ resultado.dias_remicao_trabalho }} por trabalho + {{ resultado.dias_remicao_estudo }} por estudo)</span>
+                                <span class="tools-prog-alert-meta">Pena efetiva: {{ resultado.pena_efetiva }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <h3 class="tools-prog-section-title">Cronograma de Progressão</h3>
+                        <div class="tools-prog-table-wrap">
+                            <table class="tools-prog-table" aria-label="Cronograma de progressão de regime">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">De</th>
+                                        <th scope="col" class="tools-prog-sr-only">Transição</th>
+                                        <th scope="col">Para</th>
+                                        <th scope="col">Tempo Necessário</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for p in resultado.progressoes %}
+                                    <tr>
+                                        <td>
+                                            <span class="tools-prog-badge tools-prog-badge--{{ p.de|lower }}"
+                                                  aria-label="Regime {{ p.de }}">{{ p.de }}</span>
+                                        </td>
+                                        <td class="tools-prog-table-arrow" aria-hidden="true">
+                                            <i class="fas fa-arrow-right"></i>
+                                        </td>
+                                        <td>
+                                            <span class="tools-prog-badge tools-prog-badge--{{ p.para|lower }}"
+                                                  aria-label="Regime {{ p.para }}">{{ p.para }}</span>
+                                        </td>
+                                        <td class="tools-prog-table-tempo">{{ p.formatado }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="tools-prog-alert tools-prog-alert--warning" role="note">
+                            <i class="fas fa-exclamation-triangle tools-prog-alert-icon" aria-hidden="true"></i>
+                            <div class="tools-prog-alert-message">
+                                <span class="tools-prog-alert-title">
+                                    Tempo para 1ª progressão: {{ resultado.tempo_progressao }}
+                                </span>
+                                <span class="tools-prog-alert-meta">
+                                    {{ resultado.tipo_crime }} · {{ 'Reincidente' if resultado.reincidente else 'Primário' }} · Fração {{ resultado.fracao_label }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <section class="tools-prog-card tools-prog-card--reference" aria-labelledby="tools-prog-fracoes-title">
+                            <header class="tools-prog-card-header">
+                                <h3 id="tools-prog-fracoes-title" class="tools-prog-card-title">
+                                    <i class="fas fa-table" aria-hidden="true"></i>
+                                    <span>Frações de Progressão (Lei 13.964/2019)</span>
+                                </h3>
+                            </header>
+                            <div class="tools-prog-card-body tools-prog-card-body--flush">
+                                <div class="tools-prog-table-wrap">
+                                    <table class="tools-prog-table tools-prog-table--compact" aria-label="Tabela de frações por tipo de crime">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Tipo de Crime</th>
+                                                <th scope="col">Primário</th>
+                                                <th scope="col">Reincidente</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Crime Comum</td>
+                                                <td>1/6 (16%)</td>
+                                                <td>1/5 (20%)</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Crime Hediondo</td>
+                                                <td>2/5 (40%)</td>
+                                                <td>3/5 (60%)</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Hediondo c/ resultado morte</td>
+                                                <td>1/2 (50%)</td>
+                                                <td>7/10 (70%)</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Crime contra Adm. Militar</td>
+                                                <td>1/8 (12,5%)</td>
+                                                <td>1/4 (25%)</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                    <footer class="tools-prog-card-footer">
+                        <h3 class="tools-prog-legal-title">
+                            <i class="fas fa-book" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </h3>
+                        <ul class="tools-prog-legal-list">
+                            <li><strong>LEP Art. 112</strong> — Progressão de regime (redação Lei 13.964/2019)</li>
+                            <li><strong>CP Art. 33</strong> — Regimes de cumprimento de pena</li>
+                            <li><strong>LEP Art. 126-130</strong> — Remição por trabalho e estudo</li>
+                            <li><strong>Lei 8.072/90</strong> — Crimes hediondos</li>
+                            <li><strong>Lei 13.964/2019</strong> — Pacote Anticrime (novas frações)</li>
+                        </ul>
+                    </footer>
+                </section>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</main>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById('resultado');
+        if (el && window.innerWidth < 992) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

@@ -1,0 +1,291 @@
+{% extends "app/base.html" %}
+{% set active_module = 'controladoria' %}
+{% block title %}Global_Alerts · Create · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/global-alerts-create.css">
+{% endblock %}
+{% block content %}
+<main class="global-alerts-create-main" aria-labelledby="global-alerts-create-title">
+    <header class="global-alerts-create-header">
+        <a href="{{ PREFIX }}/global-alerts" class="global-alerts-create-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar aos Alertas{% else %}Back to Alerts{% endif %}</span>
+        </a>
+        <h1 id="global-alerts-create-title" class="global-alerts-create-title">
+            <i class="fas fa-bullhorn global-alerts-create-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Novo Alerta Geral{% else %}New Global Alert{% endif %}</span>
+        </h1>
+    </header>
+
+    <div class="global-alerts-create-layout">
+        <form method="POST" action="{{ PREFIX }}/global-alerts/create" class="global-alerts-create-form" novalidate>
+            <section class="global-alerts-create-card" aria-labelledby="global-alerts-create-content-title">
+                <header id="global-alerts-create-content-title" class="global-alerts-create-card-header">
+                    <i class="fas fa-edit global-alerts-create-card-header-icon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Conteúdo do Alerta{% else %}Alert Content{% endif %}</span>
+                </header>
+                <div class="global-alerts-create-card-body">
+                    <div class="global-alerts-create-field">
+                        <label for="global-alerts-create-title-input" class="global-alerts-create-label">
+                            {% if product == "lite" %}Título{% else %}Title{% endif %}<span class="global-alerts-create-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text"
+                               id="global-alerts-create-title-input"
+                               name="title"
+                               class="global-alerts-create-input"
+                               placeholder="{% if product == 'lite' %}Ex.: Manutenção do Sistema Agendada{% else %}e.g., System Maintenance Scheduled{% endif %}"
+                               autocomplete="off"
+                               required>
+                    </div>
+
+                    <div class="global-alerts-create-field">
+                        <label for="global-alerts-create-message-input" class="global-alerts-create-label">
+                            {% if product == "lite" %}Mensagem{% else %}Message{% endif %}<span class="global-alerts-create-required" aria-hidden="true">*</span>
+                        </label>
+                        <textarea id="global-alerts-create-message-input"
+                                  name="message"
+                                  class="global-alerts-create-textarea"
+                                  rows="3"
+                                  placeholder="{% if product == 'lite' %}Conteúdo da mensagem do alerta...{% else %}Alert message content...{% endif %}"
+                                  required></textarea>
+                    </div>
+
+                    <div class="global-alerts-create-row">
+                        <div class="global-alerts-create-field">
+                            <label for="global-alerts-create-type-select" class="global-alerts-create-label">
+                                {% if product == "lite" %}Tipo de Alerta{% else %}Alert Type{% endif %}
+                            </label>
+                            <select id="global-alerts-create-type-select"
+                                    name="alert_type"
+                                    class="global-alerts-create-select">
+                                <option value="info">{% if product == "lite" %}Informação (Azul){% else %}Info (Blue){% endif %}</option>
+                                <option value="warning">{% if product == "lite" %}Aviso (Amarelo){% else %}Warning (Yellow){% endif %}</option>
+                                <option value="danger">{% if product == "lite" %}Perigo (Vermelho){% else %}Danger (Red){% endif %}</option>
+                                <option value="success">{% if product == "lite" %}Sucesso (Verde){% else %}Success (Green){% endif %}</option>
+                            </select>
+                        </div>
+                        <div class="global-alerts-create-field">
+                            <label for="global-alerts-create-priority-select" class="global-alerts-create-label">
+                                {% if product == "lite" %}Prioridade{% else %}Priority{% endif %}
+                            </label>
+                            <select id="global-alerts-create-priority-select"
+                                    name="priority"
+                                    class="global-alerts-create-select"
+                                    aria-describedby="global-alerts-create-priority-hint">
+                                <option value="0">{% if product == "lite" %}Normal{% else %}Normal{% endif %}</option>
+                                <option value="1">{% if product == "lite" %}Alta{% else %}High{% endif %}</option>
+                                <option value="2">{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</option>
+                            </select>
+                            <small id="global-alerts-create-priority-hint" class="global-alerts-create-hint">
+                                {% if product == "lite" %}Alertas de maior prioridade aparecem primeiro{% else %}Higher priority alerts show first{% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="global-alerts-create-card" aria-labelledby="global-alerts-create-targeting-title">
+                <header id="global-alerts-create-targeting-title" class="global-alerts-create-card-header">
+                    <i class="fas fa-bullseye global-alerts-create-card-header-icon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Direcionamento{% else %}Targeting{% endif %}</span>
+                </header>
+                <div class="global-alerts-create-card-body">
+                    <div class="global-alerts-create-row">
+                        <div class="global-alerts-create-field">
+                            <label for="global-alerts-create-target-select" class="global-alerts-create-label">
+                                {% if product == "lite" %}Público-alvo{% else %}Target Audience{% endif %}
+                            </label>
+                            <select id="global-alerts-create-target-select"
+                                    name="target"
+                                    class="global-alerts-create-select">
+                                <option value="all">{% if product == "lite" %}Todos os Usuários{% else %}All Users{% endif %}</option>
+                                <option value="staff">{% if product == "lite" %}Apenas Equipe{% else %}Staff Only{% endif %}</option>
+                                <option value="clients">{% if product == "lite" %}Apenas Portal do Cliente{% else %}Client Portal Only{% endif %}</option>
+                                <option value="case">{% if product == "lite" %}Processo Específico{% else %}Specific Case{% endif %}</option>
+                                <option value="client">{% if product == "lite" %}Cliente Específico{% else %}Specific Client{% endif %}</option>
+                            </select>
+                        </div>
+                        <div class="global-alerts-create-field" id="global-alerts-create-case-field" hidden>
+                            <label for="global-alerts-create-case-select" class="global-alerts-create-label">
+                                {% if product == "lite" %}Selecionar Processo{% else %}Select Case{% endif %}
+                            </label>
+                            <select id="global-alerts-create-case-select"
+                                    name="target_id"
+                                    class="global-alerts-create-select"
+                                    disabled>
+                                <option value="">-- {% if product == "lite" %}Selecionar Processo{% else %}Select Case{% endif %} --</option>
+                                {% for case in cases %}
+                                <option value="{{ case.id }}">{{ case.case_number }} - {{ case.case_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="global-alerts-create-field" id="global-alerts-create-client-field" hidden>
+                            <label for="global-alerts-create-client-select" class="global-alerts-create-label">
+                                {% if product == "lite" %}Selecionar Cliente{% else %}Select Client{% endif %}
+                            </label>
+                            <select id="global-alerts-create-client-select"
+                                    name="target_id"
+                                    class="global-alerts-create-select"
+                                    disabled>
+                                <option value="">-- {% if product == "lite" %}Selecionar Cliente{% else %}Select Client{% endif %} --</option>
+                                {% for client in clients %}
+                                <option value="{{ client.id }}">{{ client.first_name }} {{ client.last_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="global-alerts-create-card" aria-labelledby="global-alerts-create-schedule-title">
+                <header id="global-alerts-create-schedule-title" class="global-alerts-create-card-header">
+                    <i class="fas fa-clock global-alerts-create-card-header-icon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Agendamento e Opções{% else %}Schedule & Options{% endif %}</span>
+                </header>
+                <div class="global-alerts-create-card-body">
+                    <div class="global-alerts-create-row">
+                        <div class="global-alerts-create-field">
+                            <label for="global-alerts-create-start-input" class="global-alerts-create-label">
+                                {% if product == "lite" %}Data de Início{% else %}Start Date{% endif %}
+                            </label>
+                            <input type="datetime-local"
+                                   id="global-alerts-create-start-input"
+                                   name="start_date"
+                                   class="global-alerts-create-input"
+                                   aria-describedby="global-alerts-create-start-hint">
+                            <small id="global-alerts-create-start-hint" class="global-alerts-create-hint">
+                                {% if product == "lite" %}Deixe vazio para iniciar imediatamente{% else %}Leave empty to start immediately{% endif %}
+                            </small>
+                        </div>
+                        <div class="global-alerts-create-field">
+                            <label for="global-alerts-create-end-input" class="global-alerts-create-label">
+                                {% if product == "lite" %}Data de Término{% else %}End Date{% endif %}
+                            </label>
+                            <input type="datetime-local"
+                                   id="global-alerts-create-end-input"
+                                   name="end_date"
+                                   class="global-alerts-create-input"
+                                   aria-describedby="global-alerts-create-end-hint">
+                            <small id="global-alerts-create-end-hint" class="global-alerts-create-hint">
+                                {% if product == "lite" %}Deixe vazio para não expirar{% else %}Leave empty for no expiration{% endif %}
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="global-alerts-create-checkbox-row">
+                        <input type="checkbox"
+                               id="global-alerts-create-dismissible"
+                               name="dismissible"
+                               value="true"
+                               class="global-alerts-create-checkbox"
+                               checked>
+                        <label for="global-alerts-create-dismissible" class="global-alerts-create-checkbox-label">
+                            {% if product == "lite" %}Permitir que usuários dispensem este alerta{% else %}Allow users to dismiss this alert{% endif %}
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <div class="global-alerts-create-actions">
+                <a href="{{ PREFIX }}/global-alerts" class="global-alerts-create-btn global-alerts-create-btn--ghost">
+                    <span>{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</span>
+                </a>
+                <button type="submit" class="global-alerts-create-btn global-alerts-create-btn--primary">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Criar Alerta{% else %}Create Alert{% endif %}</span>
+                </button>
+            </div>
+        </form>
+
+        <aside class="global-alerts-create-aside" aria-labelledby="global-alerts-create-preview-title">
+            <section class="global-alerts-create-card">
+                <header id="global-alerts-create-preview-title" class="global-alerts-create-card-header">
+                    <i class="fas fa-eye global-alerts-create-card-header-icon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Pré-visualização{% else %}Preview{% endif %}</span>
+                </header>
+                <div class="global-alerts-create-card-body">
+                    <div id="global-alerts-create-preview"
+                         class="global-alerts-create-preview global-alerts-create-preview--info"
+                         role="status"
+                         aria-live="polite">
+                        <i class="fas fa-info-circle global-alerts-create-preview-icon" id="global-alerts-create-preview-icon" aria-hidden="true"></i>
+                        <div class="global-alerts-create-preview-body">
+                            <strong id="global-alerts-create-preview-title-text">{% if product == "lite" %}Título do Alerta{% else %}Alert Title{% endif %}</strong>
+                            <span id="global-alerts-create-preview-message" class="global-alerts-create-preview-message">- {% if product == "lite" %}A mensagem do alerta aparecerá aqui...{% else %}Alert message will appear here...{% endif %}</span>
+                        </div>
+                        <button type="button"
+                                class="global-alerts-create-preview-close"
+                                id="global-alerts-create-preview-close"
+                                aria-label="{% if product == 'lite' %}Dispensar pré-visualização{% else %}Dismiss preview{% endif %}">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <small class="global-alerts-create-preview-hint">
+                        {% if product == "lite" %}Assim seu alerta aparecerá para os usuários.{% else %}This is how your alert will appear to users.{% endif %}
+                    </small>
+                </div>
+            </section>
+        </aside>
+    </div>
+</main>
+
+<script>
+(function() {
+    const targetSelect = document.getElementById('global-alerts-create-target-select');
+    const caseField = document.getElementById('global-alerts-create-case-field');
+    const clientField = document.getElementById('global-alerts-create-client-field');
+    const caseSelect = document.getElementById('global-alerts-create-case-select');
+    const clientSelect = document.getElementById('global-alerts-create-client-select');
+
+    const typeSelect = document.getElementById('global-alerts-create-type-select');
+    const titleInput = document.getElementById('global-alerts-create-title-input');
+    const messageInput = document.getElementById('global-alerts-create-message-input');
+    const preview = document.getElementById('global-alerts-create-preview');
+    const previewIcon = document.getElementById('global-alerts-create-preview-icon');
+    const previewTitle = document.getElementById('global-alerts-create-preview-title-text');
+    const previewMessage = document.getElementById('global-alerts-create-preview-message');
+
+    const defaultTitle = {% if product == "lite" %}'Título do Alerta'{% else %}'Alert Title'{% endif %};
+    const defaultMessage = {% if product == "lite" %}'A mensagem do alerta aparecerá aqui...'{% else %}'Alert message will appear here...'{% endif %};
+
+    const typeConfig = {
+        'info':    { variant: 'global-alerts-create-preview--info',    icon: 'fa-info-circle' },
+        'warning': { variant: 'global-alerts-create-preview--warning', icon: 'fa-exclamation-triangle' },
+        'danger':  { variant: 'global-alerts-create-preview--danger',  icon: 'fa-exclamation-circle' },
+        'success': { variant: 'global-alerts-create-preview--success', icon: 'fa-check-circle' }
+    };
+
+    function updateTargetFields() {
+        const value = targetSelect.value;
+        const showCase = value === 'case';
+        const showClient = value === 'client';
+        caseField.hidden = !showCase;
+        clientField.hidden = !showClient;
+        caseSelect.disabled = !showCase;
+        clientSelect.disabled = !showClient;
+    }
+
+    function updatePreview() {
+        const config = typeConfig[typeSelect.value] || typeConfig.info;
+        const title = titleInput.value || defaultTitle;
+        const message = messageInput.value || defaultMessage;
+
+        preview.className = 'global-alerts-create-preview ' + config.variant;
+        previewIcon.className = 'fas global-alerts-create-preview-icon ' + config.icon;
+        previewTitle.textContent = title;
+        previewMessage.textContent = ' - ' + message;
+    }
+
+    targetSelect.addEventListener('change', updateTargetFields);
+    typeSelect.addEventListener('change', updatePreview);
+    titleInput.addEventListener('input', updatePreview);
+    messageInput.addEventListener('input', updatePreview);
+
+    updateTargetFields();
+    updatePreview();
+})();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

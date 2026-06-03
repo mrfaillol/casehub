@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Seguro-Desemprego - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-seguro-desemprego.css">
+{% endblock %}
+
+{% block content %}
+<div class="seguro-main" aria-labelledby="seguro-title">
+    <header class="seguro-header seguro-no-print">
+        <div class="seguro-header-text">
+            <h1 id="seguro-title" class="seguro-title">
+                <i class="fas fa-hand-holding-usd" aria-hidden="true"></i>
+                <span>Seguro-Desemprego</span>
+            </h1>
+            <p class="seguro-subtitle">Lei 7.998/90, Art. 5º — Cálculo de parcelas</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="seguro-back-link">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="seguro-alert seguro-alert--danger" role="alert">
+        <i class="fas fa-exclamation-circle seguro-alert-icon" aria-hidden="true"></i>
+        <div class="seguro-alert-body">{{ error }}</div>
+    </div>
+    {% endif %}
+
+    <div class="seguro-grid {% if resultado %}seguro-grid--with-result{% endif %}">
+        <section class="seguro-col" aria-labelledby="seguro-form-title">
+            <h2 id="seguro-form-title" class="seguro-sr-only">Formulário de cálculo</h2>
+            <form method="POST" action="{{ PREFIX }}/tools/seguro-desemprego/calcular" class="seguro-form">
+                <section class="seguro-card" aria-labelledby="seguro-salarios-title">
+                    <div class="seguro-card-body">
+                        <h3 id="seguro-salarios-title" class="seguro-section-title">3 Últimos Salários</h3>
+
+                        <div class="seguro-field-row seguro-field-row--3">
+                            <div class="seguro-field">
+                                <label class="seguro-label" for="salario_1">Último Salário (R$)</label>
+                                <div class="seguro-input-group">
+                                    <span class="seguro-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="seguro-input" id="salario_1" name="salario_1"
+                                           step="0.01" min="0" value="{{ form.salario_1 if form else '' }}"
+                                           required aria-required="true" inputmode="decimal">
+                                </div>
+                            </div>
+                            <div class="seguro-field">
+                                <label class="seguro-label" for="salario_2">Penúltimo (R$)</label>
+                                <div class="seguro-input-group">
+                                    <span class="seguro-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="seguro-input" id="salario_2" name="salario_2"
+                                           step="0.01" min="0" value="{{ form.salario_2 if form else '' }}"
+                                           required aria-required="true" inputmode="decimal">
+                                </div>
+                            </div>
+                            <div class="seguro-field">
+                                <label class="seguro-label" for="salario_3">Antepenúltimo (R$)</label>
+                                <div class="seguro-input-group">
+                                    <span class="seguro-input-prefix" aria-hidden="true">R$</span>
+                                    <input type="number" class="seguro-input" id="salario_3" name="salario_3"
+                                           step="0.01" min="0" value="{{ form.salario_3 if form else '' }}"
+                                           required aria-required="true" inputmode="decimal">
+                                </div>
+                            </div>
+                        </div>
+
+                        <h3 class="seguro-section-title">Histórico</h3>
+
+                        <div class="seguro-field-row seguro-field-row--2">
+                            <div class="seguro-field">
+                                <label class="seguro-label" for="meses_trabalhados">Meses Trabalhados</label>
+                                <input type="number" class="seguro-input" id="meses_trabalhados" name="meses_trabalhados"
+                                       min="1" value="{{ form.meses_trabalhados if form else '' }}"
+                                       required aria-required="true" inputmode="numeric"
+                                       aria-describedby="seguro-help-meses">
+                                <small id="seguro-help-meses" class="seguro-helper">
+                                    Nos últimos 36 meses antes da demissão
+                                </small>
+                            </div>
+                            <div class="seguro-field">
+                                <label class="seguro-label" for="vezes_recebeu">Vezes que Já Recebeu</label>
+                                <select class="seguro-select" id="vezes_recebeu" name="vezes_recebeu">
+                                    <option value="0" {% if form and form.vezes_recebeu == 0 %}selected{% endif %}>1ª vez (nunca recebeu)</option>
+                                    <option value="1" {% if form and form.vezes_recebeu == 1 %}selected{% endif %}>2ª vez</option>
+                                    <option value="2" {% if form and form.vezes_recebeu == 2 %}selected{% endif %}>3ª vez ou mais</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="seguro-alert seguro-alert--info" role="note">
+                            <i class="fas fa-info-circle seguro-alert-icon" aria-hidden="true"></i>
+                            <div class="seguro-alert-body">
+                                <strong>Requisitos mínimos de tempo:</strong><br>
+                                1ª solicitação: 12 meses | 2ª solicitação: 9 meses | 3ª+ solicitação: 6 meses
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="seguro-actions seguro-no-print">
+                    <button type="submit" class="seguro-btn seguro-btn--primary seguro-btn--grow">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <button type="button" class="seguro-btn seguro-btn--ghost"
+                            onclick="window.location.href='{{ PREFIX }}/tools/seguro-desemprego'">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        {% if resultado %}
+        <aside class="seguro-col" id="resultado" aria-labelledby="seguro-resultado-title">
+            <section class="seguro-card">
+                <header class="seguro-card-header {% if resultado.tem_direito %}seguro-card-header--accent{% else %}seguro-card-header--danger{% endif %}">
+                    <h2 id="seguro-resultado-title" class="seguro-card-title">
+                        <i class="fas fa-hand-holding-usd" aria-hidden="true"></i>
+                        <span>Resultado — Seguro-Desemprego</span>
+                    </h2>
+                    <button type="button"
+                            class="seguro-btn seguro-btn--on-inverse seguro-btn--sm seguro-no-print{% if not resultado.tem_direito %} seguro-btn--on-danger{% endif %}"
+                            onclick="window.print()">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+
+                {% if not resultado.tem_direito %}
+                <div class="seguro-alert seguro-alert--danger" role="alert">
+                    <i class="fas fa-exclamation-triangle seguro-alert-icon" aria-hidden="true"></i>
+                    <div class="seguro-alert-body">
+                        <strong>Não atende aos requisitos.</strong>
+                        Mínimo de {{ resultado.meses_minimo }} meses trabalhados necessários.
+                        Informado: {{ resultado.meses_trabalhados }} meses.
+                    </div>
+                </div>
+                {% else %}
+                <div class="seguro-table-wrap">
+                    <table class="seguro-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Verba</th>
+                                <th scope="col" class="seguro-table-value">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Média dos 3 Últimos Salários</td>
+                                <td class="seguro-table-value">R$ {{ "%.2f"|format(resultado.media_salarial) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Valor da Parcela</td>
+                                <td class="seguro-table-value">R$ {{ "%.2f"|format(resultado.valor_parcela) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Número de Parcelas</td>
+                                <td class="seguro-table-value">{{ resultado.num_parcelas }} parcelas</td>
+                            </tr>
+                            <tr class="seguro-row--total">
+                                <td>TOTAL ESTIMADO</td>
+                                <td class="seguro-table-value">R$ {{ "%.2f"|format(resultado.total) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                <footer class="seguro-card-footer">
+                    <h3 class="seguro-legal-heading">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="seguro-legal-list">
+                        <li><strong>Lei 7.998/90, Art. 3º</strong> — Requisitos para habilitação</li>
+                        <li><strong>Lei 7.998/90, Art. 4º</strong> — Número de parcelas (3 a 5)</li>
+                        <li><strong>Lei 7.998/90, Art. 5º</strong> — Cálculo do valor: faixas salariais</li>
+                        <li><strong>Lei 13.134/2015</strong> — Alteração dos requisitos mínimos</li>
+                        <li><strong>Resolução CODEFAT</strong> — Faixas e valores atualizados anualmente</li>
+                    </ul>
+                    <small class="seguro-footer-note">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Valores das faixas referentes a 2026 (Resolução CODEFAT). Piso = salário mínimo (R$ 1.518,00). Teto = R$ 2.313,74.</span>
+                    </small>
+                </footer>
+            </section>
+        </aside>
+        {% endif %}
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 992) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+</script>
+{% endif %}
+{% endblock %}

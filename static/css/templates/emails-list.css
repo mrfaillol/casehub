@@ -1,0 +1,974 @@
+/* ============================================================
+   emails-list.css — Theme-agnostic IMAP inbox list.
+   Consome APENAS tokens semânticos de themes/_tokens.css.
+
+   Notas:
+   - Color-coding de paralegais é mapeado a tokens de status
+     (juliana→danger, ana→warning, danielle→info, daniel→accent)
+     para evitar tokens hardcoded por pessoa. Caso a feature
+     vire multi-org, abstrair via data-attr + map JSON server-side
+     (ver brief per-template/emails-list.md).
+   ============================================================ */
+
+.el-list-main {
+  display: block;
+  padding: var(--space-6) var(--space-4);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+
+.el-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.el-list-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.el-list-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.01em;
+}
+
+.el-list-title-icon {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xl);
+}
+
+.el-list-subtitle {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.el-list-sync-status {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--status-info);
+}
+
+.el-list-sync-status[data-state="syncing"] { color: var(--status-warning); }
+.el-list-sync-status[data-state="success"] { color: var(--status-success); }
+.el-list-sync-status[data-state="error"] { color: var(--status-danger); }
+
+.el-list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ── Buttons (theme-agnostic shell on top of bootstrap base) ── */
+
+.el-list-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target-min);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-base) var(--motion-curve-organic),
+    border-color var(--motion-base) var(--motion-curve-organic),
+    color var(--motion-base) var(--motion-curve-organic),
+    transform var(--motion-fast) var(--motion-curve-organic);
+}
+
+.el-list-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.el-list-btn:disabled,
+.el-list-btn[aria-busy="true"] {
+  opacity: 0.6;
+  cursor: progress;
+  pointer-events: none;
+}
+
+.el-list-btn--primary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+.el-list-btn--primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.el-list-btn--primary:active { transform: translateY(1px); background: var(--accent-active); }
+
+.el-list-btn--ghost {
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+.el-list-btn--ghost:hover {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+}
+.el-list-btn--ghost:active { transform: translateY(1px); }
+
+.el-list-btn--warning {
+  color: var(--status-warning);
+  border-color: var(--border-default);
+  background: var(--status-warning-bg);
+}
+.el-list-btn--warning:hover {
+  border-color: var(--status-warning);
+}
+
+.el-list-btn--sm {
+  min-height: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-xs);
+}
+
+.el-list-btn--icon {
+  min-height: 0;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.el-list-btn--icon:hover {
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+}
+
+/* ── Folder navigation (segmented control) ────────────────── */
+
+.el-list-folders {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.el-list-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.el-list-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-base) var(--motion-curve-organic),
+    color var(--motion-base) var(--motion-curve-organic);
+}
+
+.el-list-tab:hover {
+  color: var(--text-primary);
+  background: var(--surface-base);
+}
+
+.el-list-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.el-list-tab[aria-current="page"],
+.el-list-tab.is-active {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border-color: var(--border-default);
+  box-shadow: var(--elevation-1);
+}
+
+.el-list-tab--archived[aria-current="page"] {
+  color: var(--status-warning);
+  background: var(--status-warning-bg);
+  border-color: var(--status-warning);
+}
+
+.el-list-tab--auto[aria-current="page"] {
+  color: var(--status-info);
+  background: var(--status-info-bg);
+  border-color: var(--status-info);
+}
+
+/* ── Legend ──────────────────────────────────────────────── */
+
+.el-list-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.el-list-legend-label {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.el-list-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.el-list-legend-divider {
+  width: 1px;
+  height: var(--space-4);
+  background: var(--border-default);
+}
+
+.el-list-swatch {
+  display: inline-block;
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.el-list-swatch--juliana {
+  background: var(--status-danger-bg);
+  border-color: var(--status-danger);
+}
+.el-list-swatch--ana {
+  background: var(--status-warning-bg);
+  border-color: var(--status-warning);
+}
+.el-list-swatch--danielle {
+  background: var(--status-info-bg);
+  border-color: var(--status-info);
+}
+.el-list-swatch--daniel {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+}
+
+/* ── Filters row ─────────────────────────────────────────── */
+
+.el-list-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 720px) {
+  .el-list-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+.el-list-search {
+  position: relative;
+  display: block;
+}
+
+.el-list-search-icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  pointer-events: none;
+}
+
+.el-list-input,
+.el-list-select {
+  width: 100%;
+  min-height: var(--tap-target-min);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--motion-base) var(--motion-curve-organic),
+    box-shadow var(--motion-base) var(--motion-curve-organic);
+}
+
+.el-list-input::placeholder { color: var(--text-muted); }
+
+.el-list-input:focus,
+.el-list-select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.el-list-search .el-list-input { padding-left: var(--space-10); }
+
+.el-list-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.el-list-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.el-list-toggle input[type="checkbox"] { accent-color: var(--accent); }
+
+.el-list-count {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+/* ── Flash / alert ───────────────────────────────────────── */
+
+.el-list-alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--status-success);
+  background: var(--status-success-bg);
+  color: var(--status-success);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+}
+
+.el-list-alert-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+.el-list-alert-close:hover { background: var(--status-success-bg); }
+
+.el-list-alert-close:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* ── Bulk action bar ─────────────────────────────────────── */
+
+.el-list-bulk {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elevation-1);
+  flex-wrap: wrap;
+}
+
+.el-list-bulk-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.el-list-bulk-count strong {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-semibold);
+  color: var(--accent);
+}
+
+/* ── Table card ──────────────────────────────────────────── */
+
+.el-list-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  overflow: hidden;
+}
+
+.el-list-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.el-list-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.el-list-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border-default);
+  padding: var(--space-3) var(--space-2);
+  text-align: left;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.el-list-table tbody td {
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.el-list-table tbody tr:last-child td { border-bottom: none; }
+
+.el-list-row {
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-curve-organic);
+}
+
+.el-list-row:hover { background: var(--surface-sunken); }
+
+.el-list-row:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.el-list-row--unread { font-weight: var(--font-weight-semibold); }
+
+.el-list-row--unread td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.el-list-cell--center { text-align: center; }
+.el-list-cell--actions { white-space: nowrap; }
+
+.el-list-cell-sender {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.el-list-cell-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: inherit;
+  color: var(--text-primary);
+}
+
+.el-list-cell-date {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.el-list-unread-dot {
+  display: inline-block;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+
+.el-list-checkbox { accent-color: var(--accent); }
+
+/* Paralegal color coding ─ mapeado a status tokens.
+   Anti-padrão: nomes hardcoded — substituir por data-attr server-side
+   quando a feature virar multi-org. */
+.el-list-row--paralegal-juliana {
+  background: var(--status-danger-bg);
+}
+.el-list-row--paralegal-juliana:hover {
+  background: var(--status-danger-bg);
+  filter: brightness(0.97);
+}
+.el-list-row--paralegal-juliana td:first-child {
+  box-shadow: inset 3px 0 0 var(--status-danger);
+}
+
+.el-list-row--paralegal-ana {
+  background: var(--status-warning-bg);
+}
+.el-list-row--paralegal-ana:hover {
+  background: var(--status-warning-bg);
+  filter: brightness(0.97);
+}
+.el-list-row--paralegal-ana td:first-child {
+  box-shadow: inset 3px 0 0 var(--status-warning);
+}
+
+.el-list-row--paralegal-danielle {
+  background: var(--status-info-bg);
+}
+.el-list-row--paralegal-danielle:hover {
+  background: var(--status-info-bg);
+  filter: brightness(0.97);
+}
+.el-list-row--paralegal-danielle td:first-child {
+  box-shadow: inset 3px 0 0 var(--status-info);
+}
+
+.el-list-row--paralegal-daniel {
+  background: var(--accent-muted);
+}
+.el-list-row--paralegal-daniel:hover {
+  background: var(--accent-muted);
+  filter: brightness(0.97);
+}
+.el-list-row--paralegal-daniel td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Unread takes precedence on the indicator stripe */
+.el-list-row--unread.el-list-row--paralegal-juliana td:first-child,
+.el-list-row--unread.el-list-row--paralegal-ana td:first-child,
+.el-list-row--unread.el-list-row--paralegal-danielle td:first-child,
+.el-list-row--unread.el-list-row--paralegal-daniel td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Domain color coding */
+.el-list-row--domain-ias {
+  background: var(--surface-sunken);
+}
+.el-list-row--domain-ashoori {
+  background: var(--surface-sunken);
+  filter: brightness(0.98);
+}
+
+/* ── Badges (linked client/case) ──────────────────────────── */
+
+.el-list-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 130px;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.el-list-badge:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.el-list-badge:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.el-list-badge--client {
+  color: var(--status-info);
+  background: var(--status-info-bg);
+  border-color: var(--status-info);
+}
+
+.el-list-badge--case {
+  color: var(--accent);
+  background: var(--accent-muted);
+  border-color: var(--accent);
+}
+
+.el-list-badge--domain {
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border-color: var(--border-default);
+}
+
+.el-list-badge--archived {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.el-list-badge--sent {
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+}
+
+/* ── Notion status indicators ────────────────────────────── */
+
+.el-list-notion {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+}
+
+.el-list-notion--created { color: var(--status-success); }
+.el-list-notion--pending { color: var(--status-warning); }
+.el-list-notion--none    { color: var(--text-muted); }
+
+/* ── Row actions ─────────────────────────────────────────── */
+
+.el-list-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.el-list-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-8);
+  height: var(--space-6);
+  padding: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast) var(--motion-curve-organic),
+    color var(--motion-fast) var(--motion-curve-organic);
+}
+
+.el-list-action:hover {
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+}
+
+.el-list-action:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.el-list-action--reply:hover { color: var(--status-info); }
+.el-list-action--forward:hover { color: var(--text-primary); }
+.el-list-action--link:hover { color: var(--status-warning); }
+.el-list-action--archive:hover { color: var(--status-warning); }
+
+/* ── Thread grouping ─────────────────────────────────────── */
+
+.el-list-thread-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  margin-left: var(--space-1);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--status-info);
+  background: var(--status-info-bg);
+  border-radius: var(--radius-full);
+}
+
+.el-list-thread-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  transition: transform var(--motion-base) var(--motion-curve-organic),
+              background-color var(--motion-base) var(--motion-curve-organic);
+}
+
+.el-list-thread-toggle:hover { background: var(--status-info-bg); color: var(--status-info); }
+.el-list-thread-toggle.is-expanded { transform: rotate(90deg); }
+
+.el-list-row--thread-child { display: none; }
+.el-list-row--thread-child td {
+  background: var(--surface-sunken);
+  border-left: 2px solid var(--status-info);
+  font-size: var(--font-size-sm);
+  opacity: 0.85;
+}
+.el-list-row--thread-child td:nth-child(4) { padding-left: var(--space-8); }
+.el-list-row--thread-child td:nth-child(5) { padding-left: var(--space-6); }
+
+.el-list-row--thread-header .el-list-cell-subject { cursor: pointer; }
+
+/* ── Empty state ─────────────────────────────────────────── */
+
+.el-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-12) var(--space-6);
+  background: var(--surface-raised);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+.el-list-empty-icon {
+  font-size: var(--font-size-4xl);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.el-list-empty-title {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.el-list-empty-text {
+  max-width: 48ch;
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* ── Footer / load more ──────────────────────────────────── */
+
+.el-list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.el-list-load-more {
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+/* ── Modal (Link to client) ──────────────────────────────── */
+
+.el-list-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.el-list-modal-meta {
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.el-list-modal-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.el-list-modal-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-base) var(--motion-curve-organic),
+    color var(--motion-base) var(--motion-curve-organic);
+}
+
+.el-list-modal-tab:hover { color: var(--text-primary); }
+
+.el-list-modal-tab[aria-selected="true"],
+.el-list-modal-tab.is-active {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border-color: var(--border-default);
+}
+
+.el-list-modal-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.el-list-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+@media (max-width: 520px) {
+  .el-list-form-row { grid-template-columns: 1fr; }
+}
+
+.el-list-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.el-list-form-label {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.el-list-form-required { color: var(--status-danger); }
+
+.el-list-modal-select {
+  width: 100%;
+  min-height: calc(var(--space-6) * 4);
+  padding: var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.el-list-modal-select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+/* ── Spin ────────────────────────────────────────────────── */
+
+.el-list-spin {
+  animation: el-list-spin var(--motion-slow) linear infinite;
+}
+
+@keyframes el-list-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .el-list-main { padding: var(--space-4) var(--space-3); }
+  .el-list-table thead th { font-size: 0.65rem; }
+  .el-list-table tbody td { padding: var(--space-2) var(--space-1); }
+}
+
+/* ── Reduced motion ──────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .el-list-btn,
+  .el-list-tab,
+  .el-list-row,
+  .el-list-action,
+  .el-list-thread-toggle,
+  .el-list-modal-tab {
+    transition: none;
+  }
+  .el-list-btn:active { transform: none; }
+  .el-list-spin { animation: none; }
+}

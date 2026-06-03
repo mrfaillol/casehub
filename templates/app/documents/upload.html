@@ -1,0 +1,161 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Enviar documento · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Documentos · Novo upload</span>
+    <h1>Enviar <em>documento</em></h1>
+    <p class="ch-page-head__sub">
+      Arquivos até 50 MB. Tipos suportados: PDF, DOC/DOCX, XLS/XLSX, imagens (JPG/PNG/TIFF), TXT, RTF, ZIP, e-mails (MSG/EML).
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/documents">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<form method="post"
+      action="{{ PREFIX }}/documents/upload"
+      enctype="multipart/form-data"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  {# ─── Arquivo ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Arquivo</span>
+        <h2 class="ch-card__title">Seleção & metadados</h2>
+      </div>
+      <span data-icon="file" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+
+    {# Drag-and-drop hint area — pure CSS pseudo-state via :hover/:focus-within (sem JS) #}
+    <label for="file" class="ch-field"
+           style="
+             display: flex;
+             flex-direction: column;
+             align-items: center;
+             justify-content: center;
+             gap: var(--space-2);
+             padding: var(--space-6) var(--space-4);
+             border: 2px dashed var(--line);
+             border-radius: var(--radius-md);
+             background: var(--surface-soft);
+             cursor: pointer;
+             transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+             text-align: center;
+           "
+           onmouseover="this.style.borderColor='var(--c-pollen)'; this.style.background='var(--surface-raised)';"
+           onmouseout="this.style.borderColor='var(--line)'; this.style.background='var(--surface-soft)';">
+      <span data-icon="cube" data-icon-size="32" style="color: var(--c-green-d);"></span>
+      <strong style="font-size: var(--fs-md);">Arraste o arquivo aqui ou clique para escolher</strong>
+      <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted); letter-spacing: 0.10em; text-transform: uppercase;">
+        PDF · DOCX · XLSX · JPG · PNG · TIFF · TXT · ZIP · MSG / EML
+      </span>
+      <input class="ch-input" id="file" name="file" type="file" required
+             style="margin-top: var(--space-3); max-width: 360px;" />
+    </label>
+
+    <div class="ch-grid ch-grid--2" style="margin-top: var(--space-4);">
+      <div class="ch-field">
+        <label class="ch-field__label" for="name">Nome do documento</label>
+        <input class="ch-input" id="name" name="name" type="text"
+               placeholder="Deixe vazio para usar o nome do arquivo" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="doc_type">Tipo</label>
+        <select class="ch-select" id="doc_type" name="doc_type">
+          <option value="other">Outro</option>
+          <option value="contract">Contrato</option>
+          <option value="petition">Petição</option>
+          <option value="evidence">Prova</option>
+          <option value="receipt">Recibo</option>
+          <option value="id">Identidade</option>
+          <option value="passport">Passaporte</option>
+          <option value="visa">Visto</option>
+          <option value="i94">I-94</option>
+          <option value="diploma">Diploma</option>
+          <option value="transcript">Histórico escolar</option>
+          <option value="lor">Carta de recomendação</option>
+          <option value="cv">CV / Currículo</option>
+          <option value="paystub">Holerite</option>
+          <option value="tax">Documento fiscal</option>
+        </select>
+      </div>
+    </div>
+  </article>
+
+  {# ─── Vínculos ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Vínculos</span>
+        <h2 class="ch-card__title">Cliente & processo</h2>
+      </div>
+      <span data-icon="clients" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="client_id">Cliente</label>
+        <select class="ch-select" id="client_id" name="client_id">
+          <option value="">— Sem vínculo —</option>
+          {% for c in clients %}
+            <option value="{{ c.id }}" {% if selected_client_id == c.id %}selected{% endif %}>
+              {{ c.first_name }} {{ c.last_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="case_id">Processo</label>
+        <select class="ch-select" id="case_id" name="case_id">
+          <option value="">— Sem vínculo —</option>
+          {% for cs in cases %}
+            <option value="{{ cs.id }}" {% if selected_case_id == cs.id %}selected{% endif %}>
+              {{ cs.case_number or cs.case_name or 'CASE-' ~ cs.id }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <p style="margin-top: var(--space-3); font-size: var(--fs-xs); color: var(--fg-muted);">
+      Documentos sem vínculo ficam no acervo geral — você poderá vincular depois pela tela de detalhe.
+    </p>
+  </article>
+
+  {# ─── Observações ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Observações</span>
+        <h2 class="ch-card__title">Descrição & contexto</h2>
+      </div>
+      <span data-icon="docs" data-icon-size="20" style="color: var(--fg-muted);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="notes">Notas internas</label>
+      <textarea class="ch-textarea" id="notes" name="notes" rows="4"
+                placeholder="Origem, contexto, instruções internas…"></textarea>
+    </div>
+  </article>
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      Limite 50 MB · armazenamento criptografado em repouso
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/documents">Cancelar</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span> Enviar documento
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

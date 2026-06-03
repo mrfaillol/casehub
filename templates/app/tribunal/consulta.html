@@ -1,0 +1,463 @@
+{% extends "app/base.html" %}
+{% set active_module = 'controladoria' %}
+{% block title %}Tribunal · Consulta · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tribunal-consulta.css">
+{% endblock %}
+{% block content %}
+<main class="tribunal-consulta-main" aria-labelledby="tribunal-consulta-title">
+    <header class="tribunal-consulta-header">
+        <div class="tribunal-consulta-heading">
+            <h1 id="tribunal-consulta-title" class="tribunal-consulta-title">
+                <i class="fas fa-gavel tribunal-consulta-title-icon" aria-hidden="true"></i>
+                <span>Consulta de Processos</span>
+            </h1>
+            <p class="tribunal-consulta-subtitle">Busca unificada: DataJud, Escavador e JusBrasil</p>
+        </div>
+        <div class="tribunal-consulta-header-actions">
+            <a href="{{ PREFIX }}/tribunal/publicacoes" class="tribunal-consulta-btn tribunal-consulta-btn--ghost">
+                <i class="fas fa-newspaper" aria-hidden="true"></i>
+                <span>Publicações</span>
+            </a>
+        </div>
+    </header>
+
+    {% if error %}
+    <div class="tribunal-consulta-alert" role="alert">
+        <i class="fas fa-exclamation-triangle tribunal-consulta-alert-icon" aria-hidden="true"></i>
+        <p class="tribunal-consulta-alert-text">{{ error }}</p>
+        <button type="button" class="tribunal-consulta-alert-close" aria-label="Fechar alerta" data-tribunal-alert-close>
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="tribunal-consulta-grid">
+        <!-- Formulário de Busca -->
+        <aside class="tribunal-consulta-sidebar" aria-label="Formulário de busca">
+            <section class="tribunal-consulta-card" aria-labelledby="tribunal-consulta-search-title">
+                <header class="tribunal-consulta-card-header">
+                    <h2 id="tribunal-consulta-search-title" class="tribunal-consulta-card-title">
+                        <i class="fas fa-search tribunal-consulta-card-title-icon" aria-hidden="true"></i>
+                        <span>Buscar Processo</span>
+                    </h2>
+                </header>
+                <div class="tribunal-consulta-card-body">
+                    <form method="POST" action="{{ PREFIX }}/tribunal/consulta" id="searchForm">
+                        <div class="tribunal-consulta-field">
+                            <label for="search_type" class="tribunal-consulta-label">Tipo de Busca</label>
+                            <select class="tribunal-consulta-select" id="search_type" name="search_type">
+                                <option value="auto" {% if search_type == 'auto' or not search_type %}selected{% endif %}>Detecção automática</option>
+                                <option value="numero" {% if search_type == 'numero' %}selected{% endif %}>Número do Processo (CNJ)</option>
+                                <option value="nome" {% if search_type == 'nome' %}selected{% endif %}>Nome da Parte</option>
+                                <option value="oab" {% if search_type == 'oab' %}selected{% endif %}>Número OAB</option>
+                            </select>
+                        </div>
+
+                        <div class="tribunal-consulta-field">
+                            <label for="query" class="tribunal-consulta-label">Consulta</label>
+                            <input type="text" class="tribunal-consulta-input" id="query" name="query"
+                                   value="{{ query|default('') }}"
+                                   placeholder="Ex: 0001234-56.2024.8.13.0145 ou João Silva ou MG123456"
+                                   aria-describedby="queryHelp"
+                                   required aria-required="true">
+                            <p class="tribunal-consulta-help" id="queryHelp">
+                                Informe o número CNJ, nome da parte ou número OAB.
+                            </p>
+                        </div>
+
+                        <div class="tribunal-consulta-field">
+                            <label for="tribunal" class="tribunal-consulta-label">Tribunal</label>
+                            <select class="tribunal-consulta-select" id="tribunal" name="tribunal">
+                                <optgroup label="Justiça Estadual">
+                                    <option value="TJMG" {% if tribunal == 'TJMG' %}selected{% endif %}>TJMG - Minas Gerais</option>
+                                    <option value="TJSP" {% if tribunal == 'TJSP' %}selected{% endif %}>TJSP - São Paulo</option>
+                                    <option value="TJRJ" {% if tribunal == 'TJRJ' %}selected{% endif %}>TJRJ - Rio de Janeiro</option>
+                                    <option value="TJRS" {% if tribunal == 'TJRS' %}selected{% endif %}>TJRS - Rio Grande do Sul</option>
+                                    <option value="TJPR" {% if tribunal == 'TJPR' %}selected{% endif %}>TJPR - Paraná</option>
+                                    <option value="TJSC" {% if tribunal == 'TJSC' %}selected{% endif %}>TJSC - Santa Catarina</option>
+                                    <option value="TJBA" {% if tribunal == 'TJBA' %}selected{% endif %}>TJBA - Bahia</option>
+                                    <option value="TJPE" {% if tribunal == 'TJPE' %}selected{% endif %}>TJPE - Pernambuco</option>
+                                    <option value="TJCE" {% if tribunal == 'TJCE' %}selected{% endif %}>TJCE - Ceará</option>
+                                    <option value="TJGO" {% if tribunal == 'TJGO' %}selected{% endif %}>TJGO - Goiás</option>
+                                    <option value="TJDFT" {% if tribunal == 'TJDFT' %}selected{% endif %}>TJDFT - Distrito Federal</option>
+                                    <option value="TJES" {% if tribunal == 'TJES' %}selected{% endif %}>TJES - Espírito Santo</option>
+                                    <option value="TJMA" {% if tribunal == 'TJMA' %}selected{% endif %}>TJMA - Maranhão</option>
+                                    <option value="TJPA" {% if tribunal == 'TJPA' %}selected{% endif %}>TJPA - Pará</option>
+                                    <option value="TJAM" {% if tribunal == 'TJAM' %}selected{% endif %}>TJAM - Amazonas</option>
+                                    <option value="TJMT" {% if tribunal == 'TJMT' %}selected{% endif %}>TJMT - Mato Grosso</option>
+                                    <option value="TJMS" {% if tribunal == 'TJMS' %}selected{% endif %}>TJMS - Mato Grosso do Sul</option>
+                                    <option value="TJAL" {% if tribunal == 'TJAL' %}selected{% endif %}>TJAL - Alagoas</option>
+                                    <option value="TJPB" {% if tribunal == 'TJPB' %}selected{% endif %}>TJPB - Paraíba</option>
+                                    <option value="TJPI" {% if tribunal == 'TJPI' %}selected{% endif %}>TJPI - Piauí</option>
+                                    <option value="TJRN" {% if tribunal == 'TJRN' %}selected{% endif %}>TJRN - Rio Grande do Norte</option>
+                                    <option value="TJSE" {% if tribunal == 'TJSE' %}selected{% endif %}>TJSE - Sergipe</option>
+                                    <option value="TJTO" {% if tribunal == 'TJTO' %}selected{% endif %}>TJTO - Tocantins</option>
+                                    <option value="TJRO" {% if tribunal == 'TJRO' %}selected{% endif %}>TJRO - Rondônia</option>
+                                    <option value="TJAC" {% if tribunal == 'TJAC' %}selected{% endif %}>TJAC - Acre</option>
+                                    <option value="TJAP" {% if tribunal == 'TJAP' %}selected{% endif %}>TJAP - Amapá</option>
+                                    <option value="TJRR" {% if tribunal == 'TJRR' %}selected{% endif %}>TJRR - Roraima</option>
+                                </optgroup>
+                                <optgroup label="Justiça Federal">
+                                    <option value="TRF1" {% if tribunal == 'TRF1' %}selected{% endif %}>TRF1 - 1ª Região</option>
+                                    <option value="TRF2" {% if tribunal == 'TRF2' %}selected{% endif %}>TRF2 - 2ª Região</option>
+                                    <option value="TRF3" {% if tribunal == 'TRF3' %}selected{% endif %}>TRF3 - 3ª Região</option>
+                                    <option value="TRF4" {% if tribunal == 'TRF4' %}selected{% endif %}>TRF4 - 4ª Região</option>
+                                    <option value="TRF5" {% if tribunal == 'TRF5' %}selected{% endif %}>TRF5 - 5ª Região</option>
+                                    <option value="TRF6" {% if tribunal == 'TRF6' %}selected{% endif %}>TRF6 - 6ª Região</option>
+                                </optgroup>
+                                <optgroup label="Tribunais Superiores">
+                                    <option value="STF" {% if tribunal == 'STF' %}selected{% endif %}>STF</option>
+                                    <option value="STJ" {% if tribunal == 'STJ' %}selected{% endif %}>STJ</option>
+                                    <option value="TST" {% if tribunal == 'TST' %}selected{% endif %}>TST</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="tribunal-consulta-btn tribunal-consulta-btn--primary tribunal-consulta-btn--block">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <span>Buscar</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            {% if source %}
+            <section class="tribunal-consulta-card" aria-label="Fonte dos dados">
+                <div class="tribunal-consulta-card-body tribunal-consulta-card-body--compact">
+                    <p class="tribunal-consulta-source">
+                        <i class="fas fa-database" aria-hidden="true"></i>
+                        <span>Fonte: <strong>{{ source }}</strong></span>
+                    </p>
+                </div>
+            </section>
+            {% endif %}
+        </aside>
+
+        <!-- Resultados -->
+        <section class="tribunal-consulta-results" aria-label="Resultados da consulta">
+            <!-- Skeleton Loader durante busca -->
+            <div id="searchSkeletonLoader" class="tribunal-consulta-card tribunal-consulta-skeleton" aria-busy="false" aria-live="polite" aria-label="Carregando resultados">
+                <header class="tribunal-consulta-card-header">
+                    <div class="tribunal-consulta-skeleton-bar tribunal-consulta-skeleton-bar--header tribunal-consulta-skeleton-bar--w40">&nbsp;</div>
+                </header>
+                <div class="tribunal-consulta-card-body">
+                    <div class="tribunal-consulta-skeleton-bar tribunal-consulta-skeleton-bar--w80">&nbsp;</div>
+                    <div class="tribunal-consulta-skeleton-bar tribunal-consulta-skeleton-bar--w65">&nbsp;</div>
+                    <div class="tribunal-consulta-skeleton-bar tribunal-consulta-skeleton-bar--w70">&nbsp;</div>
+                    <div class="tribunal-consulta-skeleton-bar tribunal-consulta-skeleton-bar--w55">&nbsp;</div>
+                    <div class="tribunal-consulta-skeleton-bar tribunal-consulta-skeleton-bar--w60">&nbsp;</div>
+                </div>
+            </div>
+
+            {% if processo %}
+            <!-- Detalhes do Processo -->
+            <article class="tribunal-consulta-card" aria-labelledby="tribunal-consulta-processo-title">
+                <header class="tribunal-consulta-card-header">
+                    <h2 id="tribunal-consulta-processo-title" class="tribunal-consulta-card-title">
+                        <i class="fas fa-folder-open tribunal-consulta-card-title-icon" aria-hidden="true"></i>
+                        <span>Processo {{ numero_cnj }}</span>
+                    </h2>
+                    <form method="POST" action="{{ PREFIX }}/tribunal/monitorar" id="monitorForm">
+                        <input type="hidden" name="numero_cnj" value="{{ numero_cnj }}">
+                        <button type="button" class="tribunal-consulta-btn tribunal-consulta-btn--success tribunal-consulta-btn--sm" data-tribunal-monitor>
+                            <i class="fas fa-bell" aria-hidden="true"></i>
+                            <span>Monitorar</span>
+                        </button>
+                    </form>
+                </header>
+                <div class="tribunal-consulta-card-body">
+                    <dl class="tribunal-consulta-detail-grid">
+                        <div class="tribunal-consulta-detail-item">
+                            <dt class="tribunal-consulta-detail-label">Número</dt>
+                            <dd class="tribunal-consulta-detail-value tribunal-consulta-detail-value--mono">{{ processo.get('numeroProcesso', processo.get('numero_cnj', numero_cnj)) }}</dd>
+                        </div>
+                        <div class="tribunal-consulta-detail-item">
+                            <dt class="tribunal-consulta-detail-label">Data Ajuizamento</dt>
+                            <dd class="tribunal-consulta-detail-value tribunal-consulta-detail-value--mono">{{ processo.get('dataAjuizamento', processo.get('data_distribuicao', 'N/A'))[:10] if processo.get('dataAjuizamento') or processo.get('data_distribuicao') else 'N/A' }}</dd>
+                        </div>
+                        <div class="tribunal-consulta-detail-item">
+                            <dt class="tribunal-consulta-detail-label">Classe</dt>
+                            <dd class="tribunal-consulta-detail-value">{{ processo.get('classe', {}).get('nome', processo.get('classe', 'N/A')) if processo.get('classe') is mapping else processo.get('classe', 'N/A') }}</dd>
+                        </div>
+                        <div class="tribunal-consulta-detail-item">
+                            <dt class="tribunal-consulta-detail-label">Grau</dt>
+                            <dd class="tribunal-consulta-detail-value">{{ processo.get('grau', processo.get('grau', 'N/A')) }}</dd>
+                        </div>
+                        <div class="tribunal-consulta-detail-item">
+                            <dt class="tribunal-consulta-detail-label">Tribunal</dt>
+                            <dd class="tribunal-consulta-detail-value">{{ processo.get('tribunal', 'N/A') }}</dd>
+                        </div>
+                        <div class="tribunal-consulta-detail-item">
+                            <dt class="tribunal-consulta-detail-label">Status</dt>
+                            <dd class="tribunal-consulta-detail-value">{{ processo.get('status', 'N/A') }}</dd>
+                        </div>
+                    </dl>
+
+                    {% if processo.get('assuntos') %}
+                    <div class="tribunal-consulta-detail-section">
+                        <h3 class="tribunal-consulta-detail-section-title">Assuntos</h3>
+                        <ul class="tribunal-consulta-tags">
+                            {% for assunto in processo.get('assuntos', []) %}
+                            <li class="tribunal-consulta-tags-item">
+                                <i class="fas fa-tag tribunal-consulta-tags-icon" aria-hidden="true"></i>
+                                <span>{% if assunto is mapping %}{{ assunto.get('nome', assunto) }}{% else %}{{ assunto }}{% endif %}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if processo.get('partes') %}
+                    <div class="tribunal-consulta-detail-section">
+                        <h3 class="tribunal-consulta-detail-section-title">Partes</h3>
+                        <div class="tribunal-consulta-table-wrap">
+                            <table class="tribunal-consulta-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Nome</th>
+                                        <th scope="col">Polo</th>
+                                        <th scope="col">Tipo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for parte in processo.get('partes', []) %}
+                                    <tr>
+                                        <td>{{ parte.get('nome', 'N/A') }}</td>
+                                        <td>{{ parte.get('polo', parte.get('tipo_parte', 'N/A')) }}</td>
+                                        <td>{{ parte.get('tipo', '') }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </article>
+
+            <!-- Movimentações -->
+            {% if movimentacoes %}
+            <article class="tribunal-consulta-card" aria-labelledby="tribunal-consulta-mov-title">
+                <header class="tribunal-consulta-card-header">
+                    <h2 id="tribunal-consulta-mov-title" class="tribunal-consulta-card-title">
+                        <i class="fas fa-history tribunal-consulta-card-title-icon" aria-hidden="true"></i>
+                        <span>Movimentações ({{ movimentacoes|length }})</span>
+                    </h2>
+                </header>
+                <div class="tribunal-consulta-card-body tribunal-consulta-card-body--flush">
+                    <div class="tribunal-consulta-table-wrap">
+                        <table class="tribunal-consulta-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="tribunal-consulta-table-col-date">Data</th>
+                                    <th scope="col">Descrição</th>
+                                    <th scope="col" class="tribunal-consulta-table-col-type">Tipo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for mov in movimentacoes[:50] %}
+                                <tr>
+                                    <td class="tribunal-consulta-table-date">{{ (mov.get('dataHora') or mov.get('data', ''))[:10] }}</td>
+                                    <td>
+                                        {{ mov.get('nome', mov.get('descricao', '')) }}
+                                        {% if mov.get('complementosTabelados') %}
+                                        <span class="tribunal-consulta-table-meta-secondary">
+                                            {% for comp in mov.get('complementosTabelados', []) %}{{ comp.get('descricao', '') }}{{ ', ' if not loop.last else '' }}{% endfor %}
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="tribunal-consulta-table-meta">{{ mov.get('tipo', mov.get('codigo', '')) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </article>
+            {% endif %}
+
+            {% elif results %}
+            <!-- Lista de Resultados -->
+            <article class="tribunal-consulta-card" aria-labelledby="tribunal-consulta-results-title">
+                <header class="tribunal-consulta-card-header">
+                    <h2 id="tribunal-consulta-results-title" class="tribunal-consulta-card-title">
+                        <i class="fas fa-list tribunal-consulta-card-title-icon" aria-hidden="true"></i>
+                        <span>Resultados ({{ results|length }})</span>
+                    </h2>
+                </header>
+                <div class="tribunal-consulta-card-body tribunal-consulta-card-body--flush">
+                    <div class="tribunal-consulta-table-wrap">
+                        <table class="tribunal-consulta-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Número</th>
+                                    <th scope="col">Classe</th>
+                                    <th scope="col">Partes</th>
+                                    <th scope="col">Data</th>
+                                    <th scope="col" class="tribunal-consulta-table-col-actions"><span class="tribunal-consulta-sr-only">Ações</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in results %}
+                                <tr>
+                                    <td><code class="tribunal-consulta-table-code">{{ r.get('numeroProcesso', r.get('numero_cnj', 'N/A')) }}</code></td>
+                                    <td>
+                                        {% if r.get('classe') is mapping %}{{ r.get('classe', {}).get('nome', 'N/A') }}{% else %}{{ r.get('classe', 'N/A') }}{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if r.get('partes') is iterable and r.get('partes') is not string %}
+                                        <div class="tribunal-consulta-table-parties">
+                                            {% for p in r.get('partes', [])[:3] %}
+                                            <span>{{ p.get('nome', p) if p is mapping else p }}</span>
+                                            {% endfor %}
+                                        </div>
+                                        {% elif r.get('titulo_polo_ativo') %}
+                                        <span>{{ r.get('titulo_polo_ativo', '') }}</span>
+                                        {% else %}
+                                        <span class="tribunal-consulta-table-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="tribunal-consulta-table-date">{{ (r.get('dataAjuizamento') or r.get('data_distribuicao') or r.get('ano_inicio', '') | string)[:10] }}</td>
+                                    <td class="tribunal-consulta-table-col-actions">
+                                        {% set cnj_num = r.get('numeroProcesso', r.get('numero_cnj', '')) %}
+                                        {% if cnj_num %}
+                                        <a href="{{ PREFIX }}/tribunal/processo/{{ cnj_num }}" class="tribunal-consulta-btn tribunal-consulta-btn--icon" aria-label="Ver detalhes do processo {{ cnj_num }}">
+                                            <i class="fas fa-eye" aria-hidden="true"></i>
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </article>
+
+            {% elif publicacoes %}
+            <!-- Lista de Publicações -->
+            <article class="tribunal-consulta-card" aria-labelledby="tribunal-consulta-pub-title">
+                <header class="tribunal-consulta-card-header">
+                    <h2 id="tribunal-consulta-pub-title" class="tribunal-consulta-card-title">
+                        <i class="fas fa-newspaper tribunal-consulta-card-title-icon" aria-hidden="true"></i>
+                        <span>Publicações ({{ publicacoes|length }})</span>
+                    </h2>
+                </header>
+                <div class="tribunal-consulta-card-body tribunal-consulta-card-body--flush">
+                    <ul class="tribunal-consulta-pub-list">
+                        {% for pub in publicacoes %}
+                        <li class="tribunal-consulta-pub-item">
+                            <div class="tribunal-consulta-pub-header">
+                                <h3 class="tribunal-consulta-pub-title">{{ pub.get('diario', 'Diário de Justiça') }}</h3>
+                                <time class="tribunal-consulta-pub-date">{{ pub.get('data', '') }}</time>
+                            </div>
+                            {% if pub.get('caderno') %}
+                            <span class="tribunal-consulta-pub-caderno">{{ pub.get('caderno', '') }}</span>
+                            {% endif %}
+                            <p class="tribunal-consulta-pub-content">
+                                {{ pub.get('conteudo', '')[:500] }}{% if pub.get('conteudo', '')|length > 500 %}…{% endif %}
+                            </p>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </article>
+
+            {% elif query %}
+            <article class="tribunal-consulta-card">
+                <div class="tribunal-consulta-card-body tribunal-consulta-card-body--centered">
+                    <div class="tribunal-consulta-empty">
+                        <i class="fas fa-search tribunal-consulta-empty-icon" aria-hidden="true"></i>
+                        <h2 class="tribunal-consulta-empty-title">Nenhum resultado encontrado</h2>
+                        <p class="tribunal-consulta-empty-text">Tente refinar sua busca ou selecionar outro tribunal.</p>
+                    </div>
+                </div>
+            </article>
+
+            {% else %}
+            <article class="tribunal-consulta-card">
+                <div class="tribunal-consulta-card-body tribunal-consulta-card-body--centered">
+                    <div class="tribunal-consulta-empty">
+                        <i class="fas fa-gavel tribunal-consulta-empty-icon" aria-hidden="true"></i>
+                        <h2 class="tribunal-consulta-empty-title">Consulta de Processos</h2>
+                        <p class="tribunal-consulta-empty-text">
+                            Utilize o formulário ao lado para buscar processos por número CNJ,
+                            nome da parte ou número OAB. A busca é feita em ordem de prioridade:
+                            DataJud (CNJ), Escavador e JusBrasil.
+                        </p>
+                    </div>
+                </div>
+            </article>
+            {% endif %}
+        </section>
+    </div>
+</main>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    var searchForm = document.getElementById('searchForm');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function () {
+            var skeleton = document.getElementById('searchSkeletonLoader');
+            if (skeleton) skeleton.setAttribute('aria-busy', 'true');
+        });
+    }
+
+    document.querySelectorAll('[data-tribunal-alert-close]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var alert = btn.closest('.tribunal-consulta-alert');
+            if (alert) alert.remove();
+        });
+    });
+
+    document.querySelectorAll('[data-tribunal-monitor]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            var form = document.getElementById('monitorForm');
+            if (!form) return;
+            var formData = new FormData(form);
+            try {
+                var resp = await fetch(form.action, { method: 'POST', body: formData });
+                var data = await resp.json();
+                if (data.status === 'ok') {
+                    alert('Monitoramento iniciado com sucesso!');
+                } else if (data.status === 'warning') {
+                    alert(data.message);
+                } else {
+                    alert('Erro: ' + (data.error || data.message || 'Erro desconhecido'));
+                }
+            } catch (err) {
+                alert('Erro ao monitorar processo: ' + err.message);
+            }
+        });
+    });
+
+    var searchType = document.getElementById('search_type');
+    if (searchType) {
+        searchType.addEventListener('change', function () {
+            var input = document.getElementById('query');
+            var help = document.getElementById('queryHelp');
+            if (!input || !help) return;
+            switch (this.value) {
+                case 'numero':
+                    input.placeholder = 'Ex: 0001234-56.2024.8.13.0145';
+                    help.textContent = 'Informe o número completo no formato CNJ.';
+                    break;
+                case 'nome':
+                    input.placeholder = 'Ex: João Silva';
+                    help.textContent = 'Informe o nome completo ou parcial da parte.';
+                    break;
+                case 'oab':
+                    input.placeholder = 'Ex: MG123456 ou 123456';
+                    help.textContent = 'Informe o número OAB com ou sem estado.';
+                    break;
+                default:
+                    input.placeholder = 'Ex: 0001234-56.2024.8.13.0145 ou João Silva ou MG123456';
+                    help.textContent = 'Informe o número CNJ, nome da parte ou número OAB.';
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} {% if product == "lite" %}Campo Personalizado{% else %}Custom Field{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/custom-fields-form.css">
+{% endblock %}
+
+{% block content %}
+<main class="custom-fields-form-main" aria-labelledby="custom-fields-form-title">
+    <header class="custom-fields-form-header">
+        <a href="{{ PREFIX }}/custom-fields" class="custom-fields-form-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar aos Campos{% else %}Back to Fields{% endif %}</span>
+        </a>
+        <h1 id="custom-fields-form-title" class="custom-fields-form-title">
+            <i class="fas fa-list-alt custom-fields-form-title-icon" aria-hidden="true"></i>
+            <span>{{ action }} {% if product == "lite" %}Campo Personalizado{% else %}Custom Field{% endif %}</span>
+        </h1>
+    </header>
+
+    <form method="post" novalidate>
+        <section class="custom-fields-form-card" aria-labelledby="custom-fields-form-section-title">
+            <header id="custom-fields-form-section-title" class="custom-fields-form-card-header">
+                <span>{% if product == "lite" %}Detalhes do Campo{% else %}Field Details{% endif %}</span>
+            </header>
+            <div class="custom-fields-form-card-body">
+                <div class="custom-fields-form-row">
+                    <div class="custom-fields-form-field">
+                        <label for="custom-fields-form-entity-type" class="custom-fields-form-label">
+                            {% if product == "lite" %}Tipo de Entidade{% else %}Entity Type{% endif %}<span class="custom-fields-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <select id="custom-fields-form-entity-type"
+                                name="entity_type"
+                                class="custom-fields-form-select"
+                                aria-describedby="custom-fields-form-entity-type-hint"
+                                required>
+                            {% for et in entity_types %}
+                            <option value="{{ et }}" {% if definition and definition.entity_type == et %}selected{% endif %}>{{ et|title }}</option>
+                            {% endfor %}
+                        </select>
+                        <small id="custom-fields-form-entity-type-hint" class="custom-fields-form-hint">
+                            {% if product == "lite" %}A qual entidade este campo se aplica{% else %}Which entity this field applies to{% endif %}
+                        </small>
+                    </div>
+                    <div class="custom-fields-form-field">
+                        <label for="custom-fields-form-field-type" class="custom-fields-form-label">
+                            {% if product == "lite" %}Tipo do Campo{% else %}Field Type{% endif %}<span class="custom-fields-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <select id="custom-fields-form-field-type"
+                                name="field_type"
+                                class="custom-fields-form-select"
+                                onchange="toggleOptions(this.value)"
+                                required>
+                            {% for ft in field_types %}
+                            <option value="{{ ft }}" {% if definition and definition.field_type == ft %}selected{% endif %}>{{ ft|title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="custom-fields-form-row">
+                    <div class="custom-fields-form-field">
+                        <label for="custom-fields-form-field-name" class="custom-fields-form-label">
+                            {% if product == "lite" %}Nome do Campo (ID){% else %}Field Name (ID){% endif %}<span class="custom-fields-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text"
+                               id="custom-fields-form-field-name"
+                               name="field_name"
+                               class="custom-fields-form-input"
+                               value="{{ definition.field_name if definition else '' }}"
+                               pattern="[a-z0-9_]+"
+                               placeholder="{% if product == 'lite' %}ex.: categoria_processo{% else %}e.g., visa_category{% endif %}"
+                               aria-describedby="custom-fields-form-field-name-hint"
+                               autocomplete="off"
+                               required>
+                        <small id="custom-fields-form-field-name-hint" class="custom-fields-form-hint">
+                            {% if product == "lite" %}Minúsculo, sem espaços (use underscores){% else %}Lowercase, no spaces (use underscores){% endif %}
+                        </small>
+                    </div>
+                    <div class="custom-fields-form-field">
+                        <label for="custom-fields-form-field-label" class="custom-fields-form-label">
+                            {% if product == "lite" %}Rótulo de Exibição{% else %}Display Label{% endif %}<span class="custom-fields-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text"
+                               id="custom-fields-form-field-label"
+                               name="field_label"
+                               class="custom-fields-form-input"
+                               value="{{ definition.field_label if definition else '' }}"
+                               placeholder="{% if product == 'lite' %}ex.: Categoria do Processo{% else %}e.g., Visa Category{% endif %}"
+                               aria-describedby="custom-fields-form-field-label-hint"
+                               autocomplete="off"
+                               required>
+                        <small id="custom-fields-form-field-label-hint" class="custom-fields-form-hint">
+                            {% if product == "lite" %}Rótulo exibido aos usuários{% else %}Label shown to users{% endif %}
+                        </small>
+                    </div>
+                </div>
+
+                <div id="custom-fields-form-options-group" class="custom-fields-form-field custom-fields-form-field--hidden">
+                    <label for="custom-fields-form-options" class="custom-fields-form-label">
+                        {% if product == "lite" %}Opções{% else %}Options{% endif %}
+                    </label>
+                    <textarea id="custom-fields-form-options"
+                              name="options"
+                              class="custom-fields-form-textarea"
+                              rows="3"
+                              placeholder="{% if product == 'lite' %}Opção 1, Opção 2, Opção 3{% else %}Option 1, Option 2, Option 3{% endif %}"
+                              aria-describedby="custom-fields-form-options-hint">{% if definition and definition.options %}{{ definition.options }}{% endif %}</textarea>
+                    <small id="custom-fields-form-options-hint" class="custom-fields-form-hint">
+                        {% if product == "lite" %}Para campos de seleção: valores separados por vírgula ou array JSON{% else %}For select fields: comma-separated values or JSON array{% endif %}
+                    </small>
+                </div>
+
+                <div class="custom-fields-form-row">
+                    <div class="custom-fields-form-field">
+                        <label for="custom-fields-form-display-order" class="custom-fields-form-label">
+                            {% if product == "lite" %}Ordem de Exibição{% else %}Display Order{% endif %}
+                        </label>
+                        <input type="number"
+                               id="custom-fields-form-display-order"
+                               name="display_order"
+                               class="custom-fields-form-input"
+                               value="{{ definition.display_order if definition else 0 }}"
+                               inputmode="numeric"
+                               aria-describedby="custom-fields-form-display-order-hint">
+                        <small id="custom-fields-form-display-order-hint" class="custom-fields-form-hint">
+                            {% if product == "lite" %}Números menores aparecem primeiro{% else %}Lower numbers appear first{% endif %}
+                        </small>
+                    </div>
+                    <div class="custom-fields-form-field">
+                        <label class="custom-fields-form-checkbox" for="custom-fields-form-required">
+                            <input type="checkbox"
+                                   id="custom-fields-form-required"
+                                   name="required"
+                                   value="true"
+                                   class="custom-fields-form-checkbox-input"
+                                   {% if definition and definition.required %}checked{% endif %}>
+                            <span>{% if product == "lite" %}Campo Obrigatório{% else %}Required Field{% endif %}</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="custom-fields-form-actions">
+            <a href="{{ PREFIX }}/custom-fields" class="custom-fields-form-btn custom-fields-form-btn--ghost">
+                <span>{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</span>
+            </a>
+            <button type="submit" class="custom-fields-form-btn custom-fields-form-btn--primary">
+                <i class="fas fa-save" aria-hidden="true"></i>
+                <span>{{ action }} {% if product == "lite" %}Campo{% else %}Field{% endif %}</span>
+            </button>
+        </div>
+    </form>
+</main>
+
+<script>
+function toggleOptions(fieldType) {
+    const optionsGroup = document.getElementById('custom-fields-form-options-group');
+    if (!optionsGroup) return;
+    optionsGroup.classList.toggle('custom-fields-form-field--hidden', fieldType !== 'select');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const fieldTypeSelect = document.querySelector('select[name="field_type"]');
+    if (fieldTypeSelect) {
+        toggleOptions(fieldTypeSelect.value);
+    }
+});
+</script>
+{% endblock %}

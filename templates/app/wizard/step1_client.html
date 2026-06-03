@@ -1,0 +1,219 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Wizard · Step1_Client · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/wizard-step1-client.css">
+{% endblock %}
+{% block content %}
+<main class="wizard-step1" aria-labelledby="wizard-step1-title">
+    <section class="wizard-step1-progress" aria-labelledby="wizard-step1-title">
+        <div class="wizard-step1-progress-head">
+            <h1 id="wizard-step1-title" class="wizard-step1-progress-title">Case Creation Wizard</h1>
+            <span class="wizard-step1-progress-count">Step {{ step }} of {{ total_steps }}</span>
+        </div>
+        <div class="wizard-step1-progress-bar"
+             role="progressbar"
+             aria-valuenow="{{ step }}"
+             aria-valuemin="0"
+             aria-valuemax="{{ total_steps }}"
+             aria-label="Wizard progress">
+            <div class="wizard-step1-progress-fill"
+                 style="--wizard-step1-progress: {{ (step / total_steps * 100)|int }}%; width: var(--wizard-step1-progress);"></div>
+        </div>
+        <ol class="wizard-step1-progress-steps">
+            <li class="wizard-step1-progress-step{% if step >= 1 %} wizard-step1-progress-step--active{% endif %}">1. Client</li>
+            <li class="wizard-step1-progress-step{% if step >= 2 %} wizard-step1-progress-step--active{% endif %}">2. Case Type</li>
+            <li class="wizard-step1-progress-step{% if step >= 3 %} wizard-step1-progress-step--active{% endif %}">3. Parties</li>
+            <li class="wizard-step1-progress-step{% if step >= 4 %} wizard-step1-progress-step--active{% endif %}">4. Review</li>
+        </ol>
+    </section>
+
+    <div class="wizard-step1-grid">
+        <section class="wizard-step1-card" aria-labelledby="wizard-step1-existing-title">
+            <header id="wizard-step1-existing-title" class="wizard-step1-card-header">
+                <i class="fas fa-users wizard-step1-card-header-icon wizard-step1-card-header-icon--accent" aria-hidden="true"></i>
+                <span>Select Existing Client</span>
+            </header>
+            <div class="wizard-step1-card-body">
+                <form method="POST" action="{{ PREFIX }}/wizard/step1" novalidate>
+                    <input type="hidden" name="action" value="select">
+
+                    <div class="wizard-step1-field">
+                        <label for="clientSearch" class="wizard-step1-label">Search Client</label>
+                        <input type="text"
+                               id="clientSearch"
+                               class="wizard-step1-input"
+                               placeholder="Type to search..."
+                               aria-controls="clientSelect">
+                    </div>
+
+                    <div class="wizard-step1-field">
+                        <label for="clientSelect" class="wizard-step1-label">Client</label>
+                        <select name="client_id"
+                                id="clientSelect"
+                                class="wizard-step1-client-list"
+                                size="10"
+                                required
+                                aria-describedby="clientPreview">
+                            {% if clients %}
+                            {% for client in clients %}
+                            <option value="{{ client.id }}"
+                                    data-name="{{ client.first_name }} {{ client.last_name }}"
+                                    data-email="{{ client.email or '' }}">
+                                {{ client.first_name }} {{ client.last_name }}{% if client.email %} - {{ client.email }}{% endif %}
+                            </option>
+                            {% endfor %}
+                            {% else %}
+                            <option value="" disabled>No clients found</option>
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <div id="clientPreview"
+                         class="wizard-step1-preview wizard-step1-is-hidden"
+                         role="status"
+                         aria-live="polite">
+                        <span class="wizard-step1-preview-name">
+                            <strong>Selected:</strong> <span id="selectedClientName"></span>
+                        </span>
+                        <span id="selectedClientEmail" class="wizard-step1-preview-email"></span>
+                    </div>
+
+                    <div class="wizard-step1-actions">
+                        <button type="submit"
+                                class="wizard-step1-btn wizard-step1-btn--primary"
+                                {% if not clients %}disabled{% endif %}>
+                            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                            <span>Continue with Selected Client</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <section class="wizard-step1-card" aria-labelledby="wizard-step1-new-title">
+            <header id="wizard-step1-new-title" class="wizard-step1-card-header">
+                <i class="fas fa-user-plus wizard-step1-card-header-icon wizard-step1-card-header-icon--success" aria-hidden="true"></i>
+                <span>Create New Client</span>
+            </header>
+            <div class="wizard-step1-card-body">
+                <form method="POST" action="{{ PREFIX }}/wizard/step1" novalidate>
+                    <input type="hidden" name="action" value="create">
+
+                    <div class="wizard-step1-row">
+                        <div class="wizard-step1-field">
+                            <label for="wizard-step1-first-name" class="wizard-step1-label">
+                                First Name<span class="wizard-step1-required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="text"
+                                   id="wizard-step1-first-name"
+                                   name="first_name"
+                                   class="wizard-step1-input"
+                                   required
+                                   aria-required="true">
+                        </div>
+                        <div class="wizard-step1-field">
+                            <label for="wizard-step1-middle-name" class="wizard-step1-label">Middle Name</label>
+                            <input type="text"
+                                   id="wizard-step1-middle-name"
+                                   name="middle_name"
+                                   class="wizard-step1-input">
+                        </div>
+                        <div class="wizard-step1-field">
+                            <label for="wizard-step1-last-name" class="wizard-step1-label">
+                                Last Name<span class="wizard-step1-required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="text"
+                                   id="wizard-step1-last-name"
+                                   name="last_name"
+                                   class="wizard-step1-input"
+                                   required
+                                   aria-required="true">
+                        </div>
+                    </div>
+
+                    <div class="wizard-step1-field">
+                        <label for="wizard-step1-email" class="wizard-step1-label">Email</label>
+                        <input type="email"
+                               id="wizard-step1-email"
+                               name="email"
+                               class="wizard-step1-input"
+                               placeholder="name@domain.com"
+                               autocomplete="email">
+                    </div>
+
+                    <div class="wizard-step1-field">
+                        <label for="wizard-step1-phone" class="wizard-step1-label">Phone</label>
+                        <input type="tel"
+                               id="wizard-step1-phone"
+                               name="phone"
+                               class="wizard-step1-input"
+                               placeholder="+55 (11) 90000-0000"
+                               autocomplete="tel">
+                    </div>
+
+                    <div class="wizard-step1-field">
+                        <label for="wizard-step1-country" class="wizard-step1-label">Country of Origin</label>
+                        <input type="text"
+                               id="wizard-step1-country"
+                               name="country_of_origin"
+                               class="wizard-step1-input"
+                               placeholder="e.g., Brazil, India, China">
+                    </div>
+
+                    <div class="wizard-step1-actions">
+                        <button type="submit" class="wizard-step1-btn wizard-step1-btn--success">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Create Client &amp; Continue</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <div class="wizard-step1-cancel">
+        <a href="{{ PREFIX }}/cases" class="wizard-step1-btn wizard-step1-btn--ghost">
+            <i class="fas fa-times" aria-hidden="true"></i>
+            <span>Cancel Wizard</span>
+        </a>
+    </div>
+</main>
+
+<script>
+(function () {
+    const HIDDEN = 'wizard-step1-is-hidden';
+    const search = document.getElementById('clientSearch');
+    const select = document.getElementById('clientSelect');
+    const preview = document.getElementById('clientPreview');
+    const nameOut = document.getElementById('selectedClientName');
+    const emailOut = document.getElementById('selectedClientEmail');
+
+    if (search && select) {
+        search.addEventListener('input', function () {
+            const term = this.value.toLowerCase();
+            select.querySelectorAll('option').forEach(function (opt) {
+                const text = opt.textContent.toLowerCase();
+                opt.hidden = term && !text.includes(term);
+            });
+        });
+    }
+
+    if (select && preview) {
+        select.addEventListener('change', function () {
+            const selected = this.options[this.selectedIndex];
+            if (selected && selected.value) {
+                preview.classList.remove(HIDDEN);
+                if (nameOut) nameOut.textContent = selected.dataset.name || '';
+                if (emailOut) emailOut.textContent = selected.dataset.email || 'No email';
+            } else {
+                preview.classList.add(HIDDEN);
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

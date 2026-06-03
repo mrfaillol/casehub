@@ -1,0 +1,283 @@
+# ILC CaseHub - Docker Compose Configuration
+# Full stack deployment with PostgreSQL and Redis
+
+version: '3.8'
+
+# Shared healthcheck definition for all CaseHub app services.
+# Targets the deep health route registered at f"{PREFIX}/healthz" in
+# core/app_factory.py (returns 503 on degraded state, vs /api/health
+# which always returns 200). PREFIX defaults to /casehub for app, lite,
+# and demo (demo/demo_config.env explicitly sets PREFIX=/casehub).
+#
+# CMD-SHELL is intentional: $${PREFIX:-/casehub} uses double-$ to escape
+# Compose interpolation, so the variable is expanded by the shell INSIDE
+# the container against the container's env (from env_file/environment),
+# not by Docker Compose itself (which would read PREFIX from the host
+# environment or .env file at compose-parse time). This way any deployer
+# who overrides PREFIX in env_file or environment: gets a healthcheck
+# path that matches their app's actual prefix.
+#
+# `curl -fs ... > /dev/null` keeps `docker inspect` logs clean: -f makes
+# curl exit non-zero on HTTP 4xx/5xx, -s silences progress meter, and
+# the redirect drops the response body. Failure stderr from curl itself
+# (DNS/connect refused) still surfaces.
+x-casehub-healthcheck: &casehub-healthcheck
+  test: ["CMD-SHELL", "curl -fs http://localhost:8001$${PREFIX:-/casehub}/healthz > /dev/null"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 15s
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: casehub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-casehub}
+      POSTGRES_USER: ${POSTGRES_USER:-casehub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-casehub}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - casehub-network
+
+  # Redis (for caching and sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: casehub-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - casehub-network
+
+  # CaseHub Application
+  casehub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: casehub-app
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-casehub}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/${POSTGRES_DB:-casehub}
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set in .env}
+      - CASEHUB_PRODUCT=${CASEHUB_PRODUCT:-lite}
+      - DEFAULT_LOCALE=pt-BR
+      - ORG_NAME=${ORG_NAME_LITE:-CaseHub Lite}
+      - PREFIX=${PREFIX:-/casehub}
+      - NOTION_TOKEN=${NOTION_TOKEN:-}
+      - ILC_TOOLS_URL=${ILC_TOOLS_URL:-http://host.docker.internal:8000/tools}
+      - BASE_URL=${BASE_URL:-}
+      - WHATSAPP_BOT_URL=${WHATSAPP_BOT_URL:-}
+      - GOOGLE_DRIVE_CREDENTIALS_PATH=${GOOGLE_DRIVE_CREDENTIALS_PATH:-}
+      - GOOGLE_DRIVE_TOKEN_PATH=${GOOGLE_DRIVE_TOKEN_PATH:-}
+      - GOOGLE_DRIVE_ROOT_ID=${GOOGLE_DRIVE_ROOT_ID:-}
+      - GOOGLE_DRIVE_TASKS_ID=${GOOGLE_DRIVE_TASKS_ID:-}
+      - GOOGLE_CALENDAR_CREDENTIALS_PATH=${GOOGLE_CALENDAR_CREDENTIALS_PATH:-}
+      - GOOGLE_CALENDAR_TOKEN_DIR=${GOOGLE_CALENDAR_TOKEN_DIR:-}
+      - GOOGLE_CALENDAR_LEGACY_TOKEN_PATH=${GOOGLE_CALENDAR_LEGACY_TOKEN_PATH:-}
+      - GOOGLE_CALENDAR_DEFAULT_ACCOUNTS=${GOOGLE_CALENDAR_DEFAULT_ACCOUNTS:-center,info}
+      - GOOGLE_CALENDAR_SEND_UPDATES=${GOOGLE_CALENDAR_SEND_UPDATES:-none}
+      - GOOGLE_CALENDAR_CREATE_MEET=${GOOGLE_CALENDAR_CREATE_MEET:-false}
+      - GOOGLE_CALENDAR_EVENT_DETAIL_MODE=${GOOGLE_CALENDAR_EVENT_DETAIL_MODE:-details}
+      - GOOGLE_CALENDAR_EVENT_LANG=${GOOGLE_CALENDAR_EVENT_LANG:-pt-BR}
+      # Google SSO (login) OAuth client — lido por services/sso_service.py via
+      # os.environ. Sem estas linhas o .env do host nao chega ao container e
+      # /casehub/sso/login/google retorna 400 "Provider not configured" (#646).
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-}
+      - GMAIL_CENTER_EMAIL=${GMAIL_CENTER_EMAIL:-}
+      - GMAIL_CENTER_APP_PASSWORD=${GMAIL_CENTER_APP_PASSWORD:-}
+      - COMUNICAAPI_OABS=${COMUNICAAPI_OABS:-}
+      - PDPJ_CLIENT_ID=${PDPJ_CLIENT_ID:-}
+      - PDPJ_CLIENT_SECRET=${PDPJ_CLIENT_SECRET:-}
+      - PDPJ_REFRESH_TOKEN=${PDPJ_REFRESH_TOKEN:-}
+      - PDPJ_BASE_URL=${PDPJ_BASE_URL:-}
+      - PDPJ_SSO_URL=${PDPJ_SSO_URL:-}
+      - DATAJUD_API_KEY=${DATAJUD_API_KEY:-}
+      - ESCAVADOR_API_KEY=${ESCAVADOR_API_KEY:-}
+      - JUSBRASIL_API_KEY=${JUSBRASIL_API_KEY:-}
+      - CASEHUB_RELEASE_NOTICE_ENABLED=${CASEHUB_RELEASE_NOTICE_ENABLED:-false}
+      - CASEHUB_RELEASE_NOTICE_ID=${CASEHUB_RELEASE_NOTICE_ID:-vieira-salles-2026-05-04-pdpj-beta}
+      - CASEHUB_MAESTRO_FAB_ENABLED=${CASEHUB_MAESTRO_FAB_ENABLED:-false}
+      # cmd-control-center improvement-tasks receiver (ruling 2026-05-06).
+      # Default-OFF (`:-0`); ativar via env override depois de plantar
+      # CASEHUB_IMPROVEMENT_HMAC_KEY (mesmo valor em casehub + workspace).
+      # Sem HMAC, endpoint só aceita JWT admin — manter OFF por default
+      # reduz surface até a key estar provisionada.
+      - CASEHUB_IMPROVEMENT_TASKS_ENABLED=${CASEHUB_IMPROVEMENT_TASKS_ENABLED:-0}
+      - CASEHUB_IMPROVEMENT_HMAC_KEY=${CASEHUB_IMPROVEMENT_HMAC_KEY:-}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./credentials:/app/credentials
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck: *casehub-healthcheck
+    networks:
+      - casehub-network
+
+  # CaseHub Lite (Brazilian law firms)
+  casehub-lite:
+    build:
+      context: .
+      dockerfile: Dockerfile.lite
+    container_name: casehub-lite
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-casehub}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/${POSTGRES_DB:-casehub}
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set in .env}
+      - CASEHUB_PRODUCT=lite
+      - DEFAULT_LOCALE=pt-BR
+      - ORG_NAME=${ORG_NAME_LITE:-CaseHub Lite}
+      - PREFIX=${PREFIX:-/casehub}
+      - BASE_URL=${BASE_URL:-}
+      - WHATSAPP_BOT_URL=${WHATSAPP_BOT_URL:-}
+      - GOOGLE_DRIVE_CREDENTIALS_PATH=${GOOGLE_DRIVE_CREDENTIALS_PATH:-}
+      - GOOGLE_DRIVE_TOKEN_PATH=${GOOGLE_DRIVE_TOKEN_PATH:-}
+      - GOOGLE_DRIVE_ROOT_ID=${GOOGLE_DRIVE_ROOT_ID:-}
+      - GOOGLE_DRIVE_TASKS_ID=${GOOGLE_DRIVE_TASKS_ID:-}
+      - GOOGLE_CALENDAR_CREDENTIALS_PATH=${GOOGLE_CALENDAR_CREDENTIALS_PATH:-}
+      - GOOGLE_CALENDAR_TOKEN_DIR=${GOOGLE_CALENDAR_TOKEN_DIR:-}
+      - GOOGLE_CALENDAR_LEGACY_TOKEN_PATH=${GOOGLE_CALENDAR_LEGACY_TOKEN_PATH:-}
+      - GOOGLE_CALENDAR_DEFAULT_ACCOUNTS=${GOOGLE_CALENDAR_DEFAULT_ACCOUNTS:-center,info}
+      - GOOGLE_CALENDAR_SEND_UPDATES=${GOOGLE_CALENDAR_SEND_UPDATES:-none}
+      - GOOGLE_CALENDAR_CREATE_MEET=${GOOGLE_CALENDAR_CREATE_MEET:-false}
+      - GOOGLE_CALENDAR_EVENT_DETAIL_MODE=${GOOGLE_CALENDAR_EVENT_DETAIL_MODE:-details}
+      - GOOGLE_CALENDAR_EVENT_LANG=${GOOGLE_CALENDAR_EVENT_LANG:-pt-BR}
+      # Google SSO (login) OAuth client — lido por services/sso_service.py via
+      # os.environ. Sem estas linhas o .env do host nao chega ao container e
+      # /casehub/sso/login/google retorna 400 "Provider not configured" (#646).
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-}
+      - GMAIL_CENTER_EMAIL=${GMAIL_CENTER_EMAIL:-}
+      - GMAIL_CENTER_APP_PASSWORD=${GMAIL_CENTER_APP_PASSWORD:-}
+      - COMUNICAAPI_OABS=${COMUNICAAPI_OABS:-}
+      - PDPJ_CLIENT_ID=${PDPJ_CLIENT_ID:-}
+      - PDPJ_CLIENT_SECRET=${PDPJ_CLIENT_SECRET:-}
+      - PDPJ_REFRESH_TOKEN=${PDPJ_REFRESH_TOKEN:-}
+      - PDPJ_BASE_URL=${PDPJ_BASE_URL:-}
+      - PDPJ_SSO_URL=${PDPJ_SSO_URL:-}
+      - DATAJUD_API_KEY=${DATAJUD_API_KEY:-}
+      - ESCAVADOR_API_KEY=${ESCAVADOR_API_KEY:-}
+      - JUSBRASIL_API_KEY=${JUSBRASIL_API_KEY:-}
+      - CASEHUB_RELEASE_NOTICE_ENABLED=${CASEHUB_RELEASE_NOTICE_ENABLED:-false}
+      - CASEHUB_RELEASE_NOTICE_ID=${CASEHUB_RELEASE_NOTICE_ID:-vieira-salles-2026-05-04-pdpj-beta}
+      - CASEHUB_MAESTRO_FAB_ENABLED=${CASEHUB_MAESTRO_FAB_ENABLED:-false}
+      # cmd-control-center improvement-tasks receiver (ruling 2026-05-06).
+      # Default-OFF (:-0) — alinhar com bloco casehub. Operador ativa via env
+      # override depois de plantar CASEHUB_IMPROVEMENT_HMAC_KEY (mesmo valor
+      # em casehub + workspace).
+      - CASEHUB_IMPROVEMENT_TASKS_ENABLED=${CASEHUB_IMPROVEMENT_TASKS_ENABLED:-0}
+      - CASEHUB_IMPROVEMENT_HMAC_KEY=${CASEHUB_IMPROVEMENT_HMAC_KEY:-}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./credentials:/app/credentials
+    ports:
+      - "8002:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck: *casehub-healthcheck
+    networks:
+      - casehub-network
+    profiles:
+      - lite
+      - full
+
+  # CaseHub Demo (public demo with hardcoded data, no external integrations)
+  casehub-demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.lite
+    container_name: casehub-demo
+    restart: unless-stopped
+    env_file: ./demo/demo_config.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-casehub}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/casehub_demo
+      - DEMO_MODE=true
+    volumes:
+      - ./uploads:/app/uploads:ro
+      - ./logs:/app/logs
+      - ./demo:/app/demo:ro
+    ports:
+      - "8003:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: *casehub-healthcheck
+    networks:
+      - casehub-network
+    profiles:
+      - demo
+      - full
+
+  # Nginx Reverse Proxy (optional, for production)
+  nginx:
+    image: nginx:alpine
+    container_name: casehub-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./static:/usr/share/nginx/html/static:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - casehub
+    networks:
+      - casehub-network
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  casehub-network:
+    driver: bridge

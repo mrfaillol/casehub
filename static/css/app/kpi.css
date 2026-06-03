@@ -1,0 +1,102 @@
+/* CaseHub App · KPI tiles + sparklines */
+
+.ch-kpi {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  background: var(--surface-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+  contain: layout style;
+  position: relative; overflow: hidden;
+}
+.ch-kpi__label {
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--fg-muted); font-weight: 700;
+}
+.ch-kpi__value {
+  font-family: var(--display); font-weight: 700;
+  font-size: var(--fs-3xl); line-height: 0.95;
+  letter-spacing: -0.035em; color: var(--fg-default);
+  font-variant-numeric: tabular-nums;
+}
+.ch-kpi__value em {
+  font-family: var(--serif); font-style: italic; font-weight: 500;
+  color: var(--c-green-d);
+}
+.ch-kpi__delta {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  font-family: var(--mono); font-size: var(--fs-sm); font-weight: 700;
+  color: var(--fg-muted);
+}
+.ch-kpi__delta.is-up    { color: var(--c-green-d); }
+.ch-kpi__delta.is-down  { color: var(--c-danger); }
+.ch-kpi__delta svg { width: 12px; height: 12px; }
+
+.ch-kpi__row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--space-3);
+}
+.ch-kpi__spark {
+  flex: 0 0 90px; height: 36px;
+  display: flex; align-items: center; justify-content: flex-end;
+}
+.ch-sparkline {
+  width: 100%; height: 100%;
+  overflow: visible;
+}
+.ch-sparkline path {
+  fill: none;
+  stroke: var(--c-green-d);
+  stroke-width: 1.75;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.ch-sparkline .area { fill: rgba(0, 140, 77, 0.10); stroke: none; }
+[data-theme="dark"] .ch-sparkline .area { fill: rgba(78, 211, 138, 0.14); }
+.ch-sparkline circle { fill: var(--c-green-d); }
+
+.ch-kpi.is-warn .ch-sparkline path { stroke: var(--c-warn); }
+.ch-kpi.is-warn .ch-sparkline circle { fill: var(--c-warn); }
+.ch-kpi.is-warn .ch-sparkline .area { fill: rgba(217, 119, 6, 0.10); }
+.ch-kpi.is-danger .ch-sparkline path { stroke: var(--c-danger); }
+.ch-kpi.is-danger .ch-sparkline circle { fill: var(--c-danger); }
+.ch-kpi.is-danger .ch-sparkline .area { fill: rgba(185, 28, 28, 0.10); }
+
+.ch-kpi__hint {
+  font-size: var(--fs-xs); color: var(--fg-faint);
+  font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* Accent stripe variant (when used as hero KPI)
+ *
+ * Light: navy(#001F3E) → blue(#1E4890) gradient; number/labels in paper
+ * (#FAFBF7) for inverted hi-contrast.
+ *
+ * Dark: in [data-theme="dark"] `--c-navy` flips to light (#E2E8F4) and
+ * `--c-paper` flips to near-black (#0A0F1A). To preserve the dark-blue
+ * accent stripe + paper inverted-text contract, the dark override
+ * remaps the gradient to the static brand-blue tints used in the light
+ * theme rather than chasing the flipped tokens.
+ */
+.ch-kpi--hero {
+  background: linear-gradient(135deg, var(--c-navy) 0%, var(--c-blue) 100%);
+  color: var(--c-paper);
+  border: none;
+}
+.ch-kpi--hero .ch-kpi__label,
+.ch-kpi--hero .ch-kpi__hint { color: rgba(255, 255, 255, 0.78); }
+.ch-kpi--hero .ch-kpi__value { color: var(--c-paper); }
+.ch-kpi--hero .ch-kpi__value em { color: var(--c-pollen); }
+.ch-kpi--hero .ch-sparkline path { stroke: var(--c-pollen); }
+.ch-kpi--hero .ch-sparkline .area { fill: rgba(219, 230, 76, 0.18); }
+
+/* Hero KPI dark mode — restore navy→blue accent so paper text stays
+ * white-on-dark instead of becoming dark-on-light (which is what
+ * happened when --c-navy + --c-paper both flipped at the same time). */
+[data-theme="dark"] .ch-kpi--hero {
+  background: linear-gradient(135deg, #122440 0%, #2C4A7E 100%);
+  color: #FAFBF7;
+}
+[data-theme="dark"] .ch-kpi--hero .ch-kpi__label,
+[data-theme="dark"] .ch-kpi--hero .ch-kpi__hint { color: rgba(250, 251, 247, 0.78); }
+[data-theme="dark"] .ch-kpi--hero .ch-kpi__value { color: #FAFBF7; }

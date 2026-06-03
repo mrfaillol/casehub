@@ -1,0 +1,132 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Custom_Fields · List · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/custom-fields-list.css">
+{% endblock %}
+{% block content %}
+<main class="custom-fields-list-main" aria-labelledby="custom-fields-list-title">
+    <header class="custom-fields-list-header">
+        <div class="custom-fields-list-heading">
+            <h1 id="custom-fields-list-title" class="custom-fields-list-title">
+                {% if product == "lite" %}Campos Personalizados{% else %}Custom Fields{% endif %}
+            </h1>
+            <p class="custom-fields-list-subtitle">
+                {% if product == "lite" %}Gerencie campos personalizados para clientes, processos e documentos{% else %}Manage custom fields for clients, cases, and documents{% endif %}
+            </p>
+        </div>
+        <a href="{{ PREFIX }}/custom-fields/new" class="custom-fields-list-btn custom-fields-list-btn--primary">
+            <i class="bi bi-plus-circle" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Novo Campo{% else %}New Field{% endif %}</span>
+        </a>
+    </header>
+
+    <section class="custom-fields-list-filters" aria-label="{% if product == 'lite' %}Filtros{% else %}Filters{% endif %}">
+        <form method="get" class="custom-fields-list-filter-form">
+            <div class="custom-fields-list-field">
+                <label for="custom-fields-list-entity-type" class="custom-fields-list-label">
+                    {% if product == "lite" %}Tipo de Entidade{% else %}Entity Type{% endif %}
+                </label>
+                <select id="custom-fields-list-entity-type"
+                        name="entity_type"
+                        class="custom-fields-list-select"
+                        data-action="auto-submit">
+                    <option value="">{% if product == "lite" %}Todos os Tipos{% else %}All Types{% endif %}</option>
+                    {% for et in entity_types %}
+                    <option value="{{ et }}" {% if entity_type == et %}selected{% endif %}>{{ et|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </section>
+
+    {% if definitions %}
+    <section class="custom-fields-list-table-wrapper" aria-label="{% if product == 'lite' %}Lista de campos personalizados{% else %}Custom fields list{% endif %}">
+        <table class="custom-fields-list-table">
+            <thead>
+                <tr>
+                    <th scope="col">{% if product == "lite" %}Entidade{% else %}Entity{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Nome do Campo{% else %}Field Name{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Rótulo{% else %}Label{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Obrigatório{% else %}Required{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Ordem{% else %}Order{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in definitions %}
+                <tr>
+                    <td><span class="custom-fields-list-badge">{{ d.entity_type }}</span></td>
+                    <td><code class="custom-fields-list-code">{{ d.field_name }}</code></td>
+                    <td>{{ d.field_label }}</td>
+                    <td>{{ d.field_type }}</td>
+                    <td>
+                        {% if d.required %}
+                        <i class="bi bi-check-circle-fill custom-fields-list-icon-success" aria-label="{% if product == 'lite' %}Sim{% else %}Yes{% endif %}"></i>
+                        {% else %}
+                        <i class="bi bi-x-circle custom-fields-list-icon-muted" aria-label="{% if product == 'lite' %}Não{% else %}No{% endif %}"></i>
+                        {% endif %}
+                    </td>
+                    <td>{{ d.display_order }}</td>
+                    <td>
+                        <div class="custom-fields-list-actions">
+                            <a href="{{ PREFIX }}/custom-fields/{{ d.id }}/edit"
+                               class="custom-fields-list-btn custom-fields-list-btn--icon custom-fields-list-btn--ghost"
+                               aria-label="{% if product == 'lite' %}Editar {{ d.field_label }}{% else %}Edit {{ d.field_label }}{% endif %}">
+                                <i class="bi bi-pencil" aria-hidden="true"></i>
+                            </a>
+                            <form method="post"
+                                  action="{{ PREFIX }}/custom-fields/{{ d.id }}/delete"
+                                  data-confirm="{% if product == 'lite' %}Excluir este campo? Todos os valores armazenados também serão excluídos.{% else %}Delete this field? This will also delete all stored values.{% endif %}">
+                                <button type="submit"
+                                        class="custom-fields-list-btn custom-fields-list-btn--icon custom-fields-list-btn--danger"
+                                        aria-label="{% if product == 'lite' %}Excluir {{ d.field_label }}{% else %}Delete {{ d.field_label }}{% endif %}">
+                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% else %}
+    <section class="custom-fields-list-empty" aria-labelledby="custom-fields-list-empty-title">
+        <i class="bi bi-collection custom-fields-list-empty-icon" aria-hidden="true"></i>
+        <h2 id="custom-fields-list-empty-title" class="custom-fields-list-empty-title">
+            {% if product == "lite" %}Nenhum campo personalizado definido ainda{% else %}No custom fields defined yet{% endif %}
+        </h2>
+        <p class="custom-fields-list-empty-text">
+            {% if product == "lite" %}Crie seu primeiro campo personalizado para começar a estender clientes, processos e documentos.{% else %}Create your first custom field to start extending clients, cases, and documents.{% endif %}
+        </p>
+        <a href="{{ PREFIX }}/custom-fields/new" class="custom-fields-list-btn custom-fields-list-btn--primary">
+            <i class="bi bi-plus-circle" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Criar Primeiro Campo{% else %}Create First Field{% endif %}</span>
+        </a>
+    </section>
+    {% endif %}
+</main>
+
+<script>
+    (function () {
+        document.addEventListener('change', function (event) {
+            var el = event.target.closest('[data-action="auto-submit"]');
+            if (el && el.form) {
+                el.form.submit();
+            }
+        });
+
+        document.addEventListener('submit', function (event) {
+            var form = event.target.closest('form[data-confirm]');
+            if (form && !window.confirm(form.getAttribute('data-confirm'))) {
+                event.preventDefault();
+            }
+        });
+    })();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

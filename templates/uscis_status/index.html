@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}USCIS Status Checker - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/uscis-status-index.css">
+{% endblock %}
+
+{% block content %}
+<div class="uscis-status-main" aria-labelledby="uscis-status-title">
+    <header class="uscis-status-header">
+        <h1 id="uscis-status-title" class="uscis-status-title">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <span>USCIS Case Status Checker</span>
+        </h1>
+    </header>
+
+    <div class="uscis-status-grid">
+        <div class="uscis-status-column">
+            <section class="uscis-status-card" aria-labelledby="uscis-status-check-title">
+                <header class="uscis-status-card-header">
+                    <h2 id="uscis-status-check-title" class="uscis-status-card-title">
+                        <i class="fas fa-clipboard-check" aria-hidden="true"></i>
+                        <span>Check Case Status</span>
+                    </h2>
+                </header>
+                <div class="uscis-status-card-body">
+                    <form class="uscis-status-form" id="statusForm" novalidate>
+                        <div class="uscis-status-field">
+                            <label class="uscis-status-label" for="receiptNumber">Receipt Number</label>
+                            <input type="text"
+                                   class="uscis-status-input uscis-status-input--mono"
+                                   name="receipt_number"
+                                   id="receiptNumber"
+                                   placeholder="EAC2190123456"
+                                   maxlength="13"
+                                   pattern="[A-Za-z]{3}[0-9]{10}"
+                                   required
+                                   aria-describedby="receiptNumberHelp">
+                            <small id="receiptNumberHelp" class="uscis-status-help">Format: 3 letters + 10 digits (e.g., EAC2190123456)</small>
+                        </div>
+
+                        <div class="uscis-status-field">
+                            <label class="uscis-status-label" for="caseSelect">Link to Case (Optional)</label>
+                            <select class="uscis-status-select" name="case_id" id="caseSelect">
+                                <option value="">-- Select Case --</option>
+                                {% for case in cases_with_receipts %}
+                                <option value="{{ case.id }}" data-receipt="{{ case.receipt_number }}">
+                                    {{ case.case_name or case.case_number or "Case #" ~ case.id }} - {{ case.receipt_number }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <button type="submit"
+                                class="uscis-status-btn uscis-status-btn--primary uscis-status-btn--lg uscis-status-btn--block"
+                                id="checkBtn">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <span>Check Status</span>
+                        </button>
+                    </form>
+
+                    <div class="uscis-status-results" id="results" aria-live="polite" hidden>
+                        <hr class="uscis-status-divider">
+                        <div id="statusResult"></div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="uscis-status-column">
+            <section class="uscis-status-card" aria-labelledby="uscis-status-cases-title">
+                <header class="uscis-status-card-header">
+                    <h2 id="uscis-status-cases-title" class="uscis-status-card-title">
+                        <i class="fas fa-folder" aria-hidden="true"></i>
+                        <span>Cases with Receipt Numbers</span>
+                    </h2>
+                    <button type="button"
+                            class="uscis-status-btn uscis-status-btn--ghost"
+                            id="bulkCheckBtn"
+                            data-action="bulk-check">
+                        <i class="fas fa-sync" aria-hidden="true"></i>
+                        <span>Check All</span>
+                    </button>
+                </header>
+                <div class="uscis-status-card-body uscis-status-card-body--flush uscis-status-card-body--scroll">
+                    {% if cases_with_receipts %}
+                    <ul class="uscis-status-list">
+                        {% for case in cases_with_receipts %}
+                        <li class="uscis-status-list-item">
+                            <div class="uscis-status-list-content">
+                                <a class="uscis-status-link" href="{{ PREFIX }}/cases/{{ case.id }}">
+                                    {{ case.case_name or case.case_number or "Case #" ~ case.id }}
+                                </a>
+                                <span class="uscis-status-list-row">
+                                    <code class="uscis-status-code">{{ case.receipt_number }}</code>
+                                    <span class="uscis-status-chip">{{ case.status }}</span>
+                                </span>
+                            </div>
+                            <button type="button"
+                                    class="uscis-status-btn uscis-status-btn--ghost uscis-status-btn--icon"
+                                    data-action="quick-check"
+                                    data-receipt="{{ case.receipt_number }}"
+                                    data-case-id="{{ case.id }}"
+                                    aria-label="Check status for {{ case.receipt_number }}">
+                                <i class="fas fa-search" aria-hidden="true"></i>
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="uscis-status-empty" role="status">
+                        <i class="fas fa-folder-open uscis-status-empty-icon" aria-hidden="true"></i>
+                        <p class="uscis-status-empty-text">No cases with receipt numbers</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="uscis-status-card" aria-labelledby="uscis-status-recent-title">
+                <header class="uscis-status-card-header">
+                    <h2 id="uscis-status-recent-title" class="uscis-status-card-title">
+                        <i class="fas fa-history" aria-hidden="true"></i>
+                        <span>Recent Checks</span>
+                    </h2>
+                </header>
+                <div class="uscis-status-card-body uscis-status-card-body--flush uscis-status-card-body--scroll-sm">
+                    {% if recent_checks %}
+                    <ul class="uscis-status-list">
+                        {% for check in recent_checks %}
+                        <li class="uscis-status-list-item">
+                            <div class="uscis-status-list-content">
+                                <span class="uscis-status-list-row">
+                                    <code class="uscis-status-code">{{ check.receipt_number }}</code>
+                                    <span class="uscis-status-meta uscis-status-meta--mono">
+                                        {{ check.checked_at.strftime('%m/%d %H:%M') if check.checked_at else '' }}
+                                    </span>
+                                </span>
+                                <span class="uscis-status-meta {% if check.success %}uscis-status-meta--success{% else %}uscis-status-meta--danger{% endif %}">
+                                    {{ check.status_title or 'Check failed' }}
+                                </span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="uscis-status-empty" role="status">
+                        <p class="uscis-status-empty-text">No recent checks</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <section class="uscis-status-card" aria-labelledby="uscis-status-prefixes-title">
+        <header class="uscis-status-card-header">
+            <h2 id="uscis-status-prefixes-title" class="uscis-status-card-title">
+                <i class="fas fa-info-circle" aria-hidden="true"></i>
+                <span>Receipt Number Prefixes</span>
+            </h2>
+        </header>
+        <div class="uscis-status-card-body">
+            <dl class="uscis-status-glossary">
+                <div class="uscis-status-glossary-item">
+                    <dt class="uscis-status-glossary-term">EAC</dt>
+                    <dd class="uscis-status-glossary-definition">Vermont Service Center</dd>
+                </div>
+                <div class="uscis-status-glossary-item">
+                    <dt class="uscis-status-glossary-term">WAC</dt>
+                    <dd class="uscis-status-glossary-definition">California Service Center</dd>
+                </div>
+                <div class="uscis-status-glossary-item">
+                    <dt class="uscis-status-glossary-term">LIN</dt>
+                    <dd class="uscis-status-glossary-definition">Nebraska Service Center</dd>
+                </div>
+                <div class="uscis-status-glossary-item">
+                    <dt class="uscis-status-glossary-term">SRC</dt>
+                    <dd class="uscis-status-glossary-definition">Texas Service Center</dd>
+                </div>
+                <div class="uscis-status-glossary-item">
+                    <dt class="uscis-status-glossary-term">MSC/NBC</dt>
+                    <dd class="uscis-status-glossary-definition">National Benefits Center</dd>
+                </div>
+                <div class="uscis-status-glossary-item">
+                    <dt class="uscis-status-glossary-term">IOE</dt>
+                    <dd class="uscis-status-glossary-definition">Electronic Immigration System</dd>
+                </div>
+                <div class="uscis-status-glossary-item">
+                    <dt class="uscis-status-glossary-term">YSC</dt>
+                    <dd class="uscis-status-glossary-definition">Potomac Service Center</dd>
+                </div>
+            </dl>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    var prefix = {{ PREFIX|tojson }};
+    var form = document.getElementById('statusForm');
+    var receiptInput = document.getElementById('receiptNumber');
+    var caseSelect = document.getElementById('caseSelect');
+    var checkBtn = document.getElementById('checkBtn');
+    var bulkBtn = document.getElementById('bulkCheckBtn');
+    var resultsDiv = document.getElementById('results');
+    var statusResult = document.getElementById('statusResult');
+
+    var STATUS_VARIANT = {
+        approved: 'success',
+        denied: 'danger',
+        rfe: 'warning',
+        received: 'info',
+        pending: 'neutral'
+    };
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+        });
+    }
+
+    function setButtonBusy(btn, busy, busyLabel, idleHtml) {
+        if (!btn) return;
+        btn.disabled = busy;
+        btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+        btn.innerHTML = busy
+            ? '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>' + escapeHtml(busyLabel) + '</span>'
+            : idleHtml;
+    }
+
+    function displayResult(data) {
+        resultsDiv.hidden = false;
+
+        if (data && data.success) {
+            var variant = STATUS_VARIANT[data.internal_status] || 'neutral';
+            statusResult.innerHTML =
+                '<div class="uscis-status-alert uscis-status-alert--' + variant + '" role="status">' +
+                    '<h3 class="uscis-status-alert-title">' +
+                        '<i class="fas fa-check-circle" aria-hidden="true"></i>' +
+                        '<span>' + escapeHtml(data.status_title) + '</span>' +
+                    '</h3>' +
+                    '<p class="uscis-status-alert-message">' +
+                        escapeHtml(data.status_details || 'No additional details available.') +
+                    '</p>' +
+                    '<p class="uscis-status-alert-footer">' +
+                        '<strong>Receipt:</strong> ' + escapeHtml(data.receipt_number) + '<br>' +
+                        '<strong>Checked:</strong> ' + escapeHtml(new Date(data.checked_at).toLocaleString()) +
+                    '</p>' +
+                '</div>';
+        } else {
+            statusResult.innerHTML =
+                '<div class="uscis-status-alert uscis-status-alert--danger" role="alert">' +
+                    '<h3 class="uscis-status-alert-title">' +
+                        '<i class="fas fa-exclamation-circle" aria-hidden="true"></i>' +
+                        '<span>Error</span>' +
+                    '</h3>' +
+                    '<p class="uscis-status-alert-message">' +
+                        escapeHtml((data && data.error) || 'Unknown error') +
+                    '</p>' +
+                '</div>';
+        }
+    }
+
+    async function checkStatus() {
+        var idleHtml = '<i class="fas fa-search" aria-hidden="true"></i><span>Check Status</span>';
+        setButtonBusy(checkBtn, true, 'Checking...', idleHtml);
+        try {
+            var formData = new FormData();
+            formData.append('receipt_number', receiptInput.value);
+            if (caseSelect.value) formData.append('case_id', caseSelect.value);
+
+            var response = await fetch(prefix + '/uscis-status/check', {
+                method: 'POST',
+                body: formData
+            });
+            var data = await response.json();
+            displayResult(data);
+        } catch (error) {
+            displayResult({ success: false, error: error.message });
+        } finally {
+            setButtonBusy(checkBtn, false, '', idleHtml);
+        }
+    }
+
+    async function bulkCheck() {
+        if (!confirm('Check status for all active cases with receipt numbers? This may take a while.')) return;
+
+        var idleHtml = '<i class="fas fa-sync" aria-hidden="true"></i><span>Check All</span>';
+        setButtonBusy(bulkBtn, true, 'Checking...', idleHtml);
+
+        try {
+            var response = await fetch(prefix + '/uscis-status/bulk-check', { method: 'POST' });
+            var data = await response.json();
+            if (data && data.error) {
+                alert('Error: ' + data.error);
+            } else {
+                alert('Checked ' + (data.checked || 0) + ' cases. Refresh to see updates.');
+                location.reload();
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        } finally {
+            setButtonBusy(bulkBtn, false, '', idleHtml);
+        }
+    }
+
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            checkStatus();
+        });
+    }
+
+    if (caseSelect) {
+        caseSelect.addEventListener('change', function () {
+            var option = this.options[this.selectedIndex];
+            if (option && option.dataset.receipt) {
+                receiptInput.value = option.dataset.receipt;
+            }
+        });
+    }
+
+    document.addEventListener('click', function (event) {
+        var trigger = event.target.closest('[data-action]');
+        if (!trigger) return;
+
+        var action = trigger.getAttribute('data-action');
+        if (action === 'bulk-check') {
+            event.preventDefault();
+            bulkCheck();
+        } else if (action === 'quick-check') {
+            event.preventDefault();
+            var receipt = trigger.getAttribute('data-receipt');
+            var caseId = trigger.getAttribute('data-case-id');
+            if (receipt) receiptInput.value = receipt;
+            if (caseId) caseSelect.value = caseId;
+            checkStatus();
+        }
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}{% if product == "lite" %}Painel Administrativo{% else %}Administration{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Admin · Painel</span>
+    <h1>Painel <em>administrativo</em>.</h1>
+    <p class="ch-page-head__sub">
+      {% if product == "lite" %}Visão geral, usuários, configurações e integrações.{% else %}Overview, users, settings and integrations.{% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/settings">
+      <span data-icon="settings"></span> Configurações
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/admin/users/new">
+      <span data-icon="plus"></span> {% if product == "lite" %}Adicionar usuário{% else %}Add user{% endif %}
+    </a>
+  </div>
+</section>
+
+{# ─── KPI tiles ─── #}
+<section class="ch-grid ch-grid--4" style="margin-bottom: var(--space-5);" aria-label="{% if product == 'lite' %}Métricas gerais{% else %}Overview metrics{% endif %}">
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">{% if product == "lite" %}Usuários{% else %}Users{% endif %}</span>
+    <span class="ch-kpi__value">{{ stats.users }}</span>
+    <span class="ch-kpi__hint">{% if product == "lite" %}Cadastrados{% else %}Total{% endif %}</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">{% if product == "lite" %}Clientes{% else %}Clients{% endif %}</span>
+    <span class="ch-kpi__value">{{ stats.clients }}</span>
+    <span class="ch-kpi__hint">{% if product == "lite" %}Ativos{% else %}Total{% endif %}</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">{% if product == "lite" %}Processos{% else %}Cases{% endif %}</span>
+    <span class="ch-kpi__value">{{ stats.cases }}</span>
+    <span class="ch-kpi__hint">{% if product == "lite" %}Em andamento{% else %}Active{% endif %}</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">{% if product == "lite" %}Documentos{% else %}Documents{% endif %}</span>
+    <span class="ch-kpi__value">{{ stats.documents }}</span>
+    <span class="ch-kpi__hint">{% if product == "lite" %}Arquivados{% else %}Stored{% endif %}</span>
+  </article>
+</section>
+
+{# ─── Action sections ─── #}
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);" aria-label="{% if product == 'lite' %}Ações administrativas{% else %}Administrative actions{% endif %}">
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Equipe</span>
+        <h2 class="ch-card__title">{% if product == "lite" %}Gerenciamento de usuários{% else %}User Management{% endif %}</h2>
+        <p class="ch-card__subtitle">{% if product == "lite" %}Convidar, editar permissões.{% else %}Invite, edit permissions.{% endif %}</p>
+      </div>
+      <span data-icon="clients" data-icon-size="22" style="color: var(--c-green-d);"></span>
+    </header>
+    <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+      <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/admin/users">
+        <span data-icon="clients"></span>
+        {% if product == "lite" %}Gerenciar usuários{% else %}Manage Users{% endif %}
+      </a>
+      <a class="ch-btn" href="{{ PREFIX }}/admin/users/new" style="color: var(--c-green-d);">
+        <span data-icon="plus"></span>
+        {% if product == "lite" %}Adicionar usuário{% else %}Add User{% endif %}
+      </a>
+    </div>
+  </article>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Sistema</span>
+        <h2 class="ch-card__title">{% if product == "lite" %}Configurações do sistema{% else %}Settings{% endif %}</h2>
+        <p class="ch-card__subtitle">{% if product == "lite" %}Gerais, branding e personalização.{% else %}General, branding & customization.{% endif %}</p>
+      </div>
+      <span data-icon="settings" data-icon-size="22" style="color: var(--fg-muted);"></span>
+    </header>
+    <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+      <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/admin/settings">
+        <span data-icon="settings"></span>
+        {% if product == "lite" %}Configurações gerais{% else %}Application Settings{% endif %}</a>
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/admin/branding">
+        <span data-icon="target"></span>
+        {% if product == "lite" %}Personalização da marca{% else %}Branding{% endif %}
+      </a>
+    </div>
+  </article>
+</section>
+
+{% if product == "lite" %}
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);" aria-label="Manutenção e integrações">
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Backup</span>
+        <h2 class="ch-card__title">Backup e manutenção</h2>
+      </div>
+      <span data-icon="cube" data-icon-size="22" style="color: var(--c-warn);"></span>
+    </header>
+    <p style="margin: 0 0 var(--space-3); color: var(--fg-default);">
+      Backups automáticos diários estão habilitados. Último backup disponível no painel.
+    </p>
+    <a class="ch-btn" href="{{ PREFIX }}/settings" style="color: var(--c-warn);">
+      <span data-icon="bolt"></span> Backup e segurança
+    </a>
+  </article>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Conectar</span>
+        <h2 class="ch-card__title">Integrações</h2>
+      </div>
+      <span data-icon="processes" data-icon-size="22" style="color: var(--c-info);"></span>
+    </header>
+    <p style="margin: 0 0 var(--space-3); color: var(--fg-default);">
+      Google Drive, Google Calendar, DataJud e Escavador.
+    </p>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/integrations">
+      <span data-icon="processes"></span> Gerenciar integrações
+    </a>
+  </article>
+</section>
+{% endif %}
+
+{% if product != "lite" %}
+<section class="ch-card" style="margin-bottom: var(--space-5);" aria-label="Quick links">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Ferramentas</span>
+      <h2 class="ch-card__title">Quick Links</h2>
+    </div>
+    <span data-icon="bolt" data-icon-size="22" style="color: var(--c-info);"></span>
+  </header>
+  <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+    <a class="ch-btn" href="{{ base_url|default('') }}/tools/" target="_blank" rel="noopener noreferrer" style="color: var(--c-info);">
+      <span data-icon="bolt"></span> Tools
+    </a>
+    <a class="ch-btn ch-btn--ghost" href="{{ base_url|default('') }}/wp-admin/" target="_blank" rel="noopener noreferrer">
+      <span data-icon="folder"></span> WordPress Admin
+    </a>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

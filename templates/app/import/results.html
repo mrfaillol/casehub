@@ -1,0 +1,129 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Import · Results · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/import" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="fas fa-arrow-left me-1"></i> {{ 'Voltar' if lang == 'pt-BR' else 'Back' }}
+    </a>
+    <h2><i class="fas fa-check-circle me-2"></i>{{ 'Resultado da Importação' if lang == 'pt-BR' else 'Import Results' }}</h2>
+    <p class="text-muted">{{ 'Fonte' if lang == 'pt-BR' else 'Source' }}: {{ source }}</p>
+</div>
+
+{% if results.error %}
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle me-2"></i>{{ results.error }}
+</div>
+{% else %}
+
+<div class="row">
+    {% for data_type, result in results.items() %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="fas fa-{% if data_type == 'clients' %}users{% elif data_type == 'cases' %}folder{% else %}file-alt{% endif %} me-2"></i>
+                {{ data_type|capitalize }}
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="h4 text-success mb-0">{{ result.imported }}</div>
+                        <small class="text-muted">{{ 'Importados' if lang == 'pt-BR' else 'Imported' }}</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 text-primary mb-0">{{ result.updated }}</div>
+                        <small class="text-muted">{{ 'Atualizados' if lang == 'pt-BR' else 'Updated' }}</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 text-warning mb-0">{{ result.skipped }}</div>
+                        <small class="text-muted">{{ 'Ignorados' if lang == 'pt-BR' else 'Skipped' }}</small>
+                    </div>
+                </div>
+
+                {% if result.errors %}
+                <hr>
+                <details>
+                    <summary class="text-danger small">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        {{ result.errors|length }} {{ 'erros' if lang == 'pt-BR' else 'errors' }}
+                    </summary>
+                    <ul class="small mt-2 mb-0">
+                        {% for error in result.errors[:10] %}
+                        <li class="text-danger">{{ error }}</li>
+                        {% endfor %}
+                        {% if result.errors|length > 10 %}
+                        <li class="text-muted">... {{ 'e mais' if lang == 'pt-BR' else 'and' }} {{ result.errors|length - 10 }} {{ 'erros' if lang == 'pt-BR' else 'more' }}</li>
+                        {% endif %}
+                    </ul>
+                </details>
+                {% else %}
+                <div class="alert alert-success py-2 mb-0">
+                    <i class="fas fa-check me-1"></i>
+                    {{ 'Sem erros!' if lang == 'pt-BR' else 'No errors!' }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Summary -->
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="fas fa-chart-bar me-2"></i>{{ 'Resumo Total' if lang == 'pt-BR' else 'Total Summary' }}
+    </div>
+    <div class="card-body">
+        {% set total_imported = namespace(value=0) %}
+        {% set total_updated = namespace(value=0) %}
+        {% set total_skipped = namespace(value=0) %}
+        {% set total_errors = namespace(value=0) %}
+
+        {% for data_type, result in results.items() %}
+            {% set total_imported.value = total_imported.value + result.imported %}
+            {% set total_updated.value = total_updated.value + result.updated %}
+            {% set total_skipped.value = total_skipped.value + result.skipped %}
+            {% set total_errors.value = total_errors.value + result.errors|length %}
+        {% endfor %}
+
+        <div class="row text-center">
+            <div class="col-md-3">
+                <div class="display-6 text-success">{{ total_imported.value }}</div>
+                <div class="text-muted">{{ 'Total Importados' if lang == 'pt-BR' else 'Total Imported' }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="display-6 text-primary">{{ total_updated.value }}</div>
+                <div class="text-muted">{{ 'Total Atualizados' if lang == 'pt-BR' else 'Total Updated' }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="display-6 text-warning">{{ total_skipped.value }}</div>
+                <div class="text-muted">{{ 'Total Ignorados' if lang == 'pt-BR' else 'Total Skipped' }}</div>
+            </div>
+            <div class="col-md-3">
+                <div class="display-6 text-danger">{{ total_errors.value }}</div>
+                <div class="text-muted">{{ 'Total Erros' if lang == 'pt-BR' else 'Total Errors' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 d-flex gap-2">
+    <a href="{{ PREFIX }}/import" class="btn btn-primary glass-btn glass-btn--primary">
+        <i class="fas fa-redo me-1"></i> {{ 'Nova Importação' if lang == 'pt-BR' else 'New Import' }}
+    </a>
+    <a href="{{ PREFIX }}/clients" class="btn btn-outline-secondary">
+        <i class="fas fa-users me-1"></i> {{ 'Ver Clientes' if lang == 'pt-BR' else 'View Clients' }}
+    </a>
+    <a href="{{ PREFIX }}/cases" class="btn btn-outline-secondary">
+        <i class="fas fa-folder me-1"></i> {{ 'Ver Casos' if lang == 'pt-BR' else 'View Cases' }}
+    </a>
+</div>
+
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

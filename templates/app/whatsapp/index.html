@@ -1,0 +1,246 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}WhatsApp Bot · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">WhatsApp · Bot</span>
+    <h1>WhatsApp <em>Maestro</em>.</h1>
+    <p class="ch-page-head__sub">
+      Status da conexão, controle do bot, métricas em tempo real. Comandos via WhatsApp para admins.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="/whatsapp-api/qr" target="_blank" rel="noopener noreferrer">
+      <span data-icon="bell"></span> QR Code
+    </a>
+  </div>
+</section>
+
+{# ─── Status da conexão ─── #}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Status da conexão</span>
+      <h2 class="ch-card__title">Bot em tempo real</h2>
+    </div>
+  </header>
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: var(--space-3);" role="status" aria-live="polite">
+      <span id="status-indicator"
+            data-state="unknown"
+            aria-label="Verificando status do bot"
+            style="width: 14px; height: 14px; border-radius: 50%; background: var(--fg-faint); box-shadow: 0 0 0 4px rgba(139,142,134,0.20); transition: background var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out);"></span>
+      <div>
+        <p id="status-text" style="margin: 0; font-family: var(--display); font-size: var(--fs-lg); font-weight: 700; color: var(--fg-default);">Verificando…</p>
+        <small id="status-time" style="display: block; margin-top: 2px; color: var(--fg-muted); font-size: var(--fs-xs); font-family: var(--mono); letter-spacing: 0.08em;">--</small>
+      </div>
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <button id="btn-toggle" type="button" class="ch-btn ch-btn--ghost"
+              aria-pressed="true" aria-label="Alternar bot" onclick="toggleBot()">
+        <span data-icon="bolt"></span>
+        <span id="toggle-text">Desativar</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+{# ─── Horário + Comandos ─── #}
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);">
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Configuração</span>
+        <h2 class="ch-card__title">Horário de funcionamento</h2>
+      </div>
+      <span data-icon="calendar" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2);">
+      <li style="display: flex; align-items: center; gap: var(--space-2);">
+        <span data-icon="check" data-icon-size="16" style="color: var(--c-green-d);"></span>
+        <span>Segunda a Sexta: <strong>12h–18h BRT</strong></span>
+      </li>
+      <li style="display: flex; align-items: center; gap: var(--space-2);">
+        <span data-icon="check" data-icon-size="16" style="color: var(--c-green-d);"></span>
+        <span>Sábado e Domingo: <strong>24 horas</strong></span>
+      </li>
+    </ul>
+  </article>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Atalhos</span>
+        <h2 class="ch-card__title">Comandos via WhatsApp</h2>
+      </div>
+      <span data-icon="bolt" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2);">
+      <li style="display: flex; align-items: center; gap: var(--space-3);">
+        <code style="font-family: var(--mono); background: var(--surface-card-2); padding: 4px 10px; border-radius: var(--radius-xs); color: var(--c-green-d); font-weight: 700;">!status</code>
+        <span style="color: var(--fg-muted); font-size: var(--fs-sm);">Ver status do bot</span>
+      </li>
+      <li style="display: flex; align-items: center; gap: var(--space-3);">
+        <code style="font-family: var(--mono); background: var(--surface-card-2); padding: 4px 10px; border-radius: var(--radius-xs); color: var(--c-danger); font-weight: 700;">!bot-off</code>
+        <span style="color: var(--fg-muted); font-size: var(--fs-sm);">Desativar bot</span>
+      </li>
+      <li style="display: flex; align-items: center; gap: var(--space-3);">
+        <code style="font-family: var(--mono); background: var(--surface-card-2); padding: 4px 10px; border-radius: var(--radius-xs); color: var(--c-green-d); font-weight: 700;">!bot-on</code>
+        <span style="color: var(--fg-muted); font-size: var(--fs-sm);">Ativar bot</span>
+      </li>
+    </ul>
+    <p style="margin-top: var(--space-3); font-size: var(--fs-xs); color: var(--fg-faint); font-style: italic;">
+      Comandos disponíveis apenas para administradores.
+    </p>
+  </article>
+</section>
+
+{# ─── Métricas ─── #}
+<section class="ch-grid ch-grid--4">
+  <article class="ch-kpi ch-kpi--hero">
+    <span class="ch-kpi__label">Leads hoje</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value" id="leads-today" aria-live="polite">--</span>
+    </div>
+    <span class="ch-kpi__hint">Capturados pelo bot</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Mensagens hoje</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value" id="messages-today" aria-live="polite">--</span>
+    </div>
+    <span class="ch-kpi__hint">Volume de tráfego</span>
+  </article>
+  <article class="ch-kpi is-warn">
+    <span class="ch-kpi__label">Aguardando humano</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value" id="awaiting-human" aria-live="polite">--</span>
+    </div>
+    <span class="ch-kpi__hint">Precisa atendimento</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Leads semana</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value" id="leads-week" aria-live="polite">--</span>
+    </div>
+    <span class="ch-kpi__hint">Últimos 7 dias</span>
+  </article>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+  let currentStatus = {};
+
+  function setStatusDot(state, label) {
+    const dot = document.getElementById('status-indicator');
+    if (!dot) return;
+    dot.setAttribute('data-state', state);
+    dot.setAttribute('aria-label', label);
+    const colors = {
+      connected: { bg: 'var(--c-green-d)', ring: 'rgba(0,140,77,0.20)' },
+      disconnected: { bg: 'var(--c-danger)', ring: 'rgba(185,28,28,0.20)' },
+      unknown: { bg: 'var(--fg-faint)', ring: 'rgba(139,142,134,0.20)' },
+    };
+    const c = colors[state] || colors.unknown;
+    dot.style.background = c.bg;
+    dot.style.boxShadow = `0 0 0 4px ${c.ring}`;
+  }
+
+  function setStatusText(text) {
+    const el = document.getElementById('status-text');
+    if (el) el.textContent = text;
+  }
+  function setStatusTime(text) {
+    const el = document.getElementById('status-time');
+    if (el) el.textContent = text;
+  }
+  function setToggle(variant, label, pressed) {
+    const btn = document.getElementById('btn-toggle');
+    const text = document.getElementById('toggle-text');
+    if (!btn || !text) return;
+    btn.classList.toggle('ch-btn--primary', variant === 'success');
+    btn.classList.toggle('ch-btn--ghost', variant !== 'success');
+    btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    btn.setAttribute('aria-label', pressed ? 'Desativar bot' : 'Ativar bot');
+    text.textContent = label;
+  }
+
+  async function checkStatus() {
+    try {
+      const res = await fetch('/whatsapp-api/api/status');
+      const data = await res.json();
+      currentStatus = data;
+      if (data.connected || data.isReady) {
+        setStatusDot('connected', 'Bot conectado');
+        setStatusText('Conectado');
+      } else {
+        setStatusDot('disconnected', 'Bot desconectado');
+        setStatusText('Desconectado');
+      }
+      const configRes = await fetch('/whatsapp-api/api/admin/bot-status');
+      const configData = await configRes.json();
+      if (configData.hardOff) {
+        setToggle('success', 'Ativar', false);
+        setStatusTime('HARD OFF — desativado por ' + (configData.hardOffBy || 'admin'));
+      } else if (configData.globalEnabled === false) {
+        setToggle('success', 'Ativar', false);
+        setStatusTime('Bot DESATIVADO manualmente');
+      } else if (configData.botIsActive) {
+        setToggle('warning', 'Desativar', true);
+        setStatusTime('ATIVO · ' + (configData.currentTime || ''));
+      } else {
+        setToggle('success', 'Ativar', false);
+        setStatusTime('Fora do horário · ' + (configData.reason || ''));
+      }
+    } catch (err) {
+      console.error('Erro status:', err);
+    }
+  }
+
+  window.toggleBot = async function () {
+    try {
+      const statusRes = await fetch('/whatsapp-api/api/admin/bot-status');
+      const statusData = await statusRes.json();
+      const isCurrentlyOn = statusData.globalEnabled && !statusData.hardOff;
+      const res = await fetch('/whatsapp-api/api/admin/bot-global-toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !isCurrentlyOn, updatedBy: 'CaseHub' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        checkStatus();
+        if (window.toast) window.toast.success('Status do bot atualizado');
+      }
+    } catch (err) {
+      console.error('Erro toggle:', err);
+      if (window.toast) window.toast.error('Erro ao alterar status do bot');
+      else alert('Erro ao alterar status do bot');
+    }
+  };
+
+  async function loadMetrics() {
+    try {
+      const res = await fetch('/whatsapp-api/stats');
+      const data = await res.json();
+      document.getElementById('leads-today').textContent = data.leadsToday || '0';
+      document.getElementById('messages-today').textContent = data.messagesToday || '0';
+      document.getElementById('awaiting-human').textContent = data.awaitingHuman || '0';
+      document.getElementById('leads-week').textContent = data.leadsThisWeek || '0';
+    } catch (err) {
+      console.error('Erro métricas:', err);
+    }
+  }
+
+  checkStatus();
+  loadMetrics();
+  setInterval(checkStatus, 30000);
+  setInterval(loadMetrics, 60000);
+})();
+</script>
+{% endblock %}

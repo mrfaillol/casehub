@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Document Versions - {{ document.name }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/versions-document.css">
+{% endblock %}
+
+{% block content %}
+<main class="versions-document-main" aria-labelledby="versions-document-title">
+    <header class="versions-document-header">
+        <div class="versions-document-heading">
+            <h1 id="versions-document-title" class="versions-document-title">
+                <i class="fas fa-history versions-document-title-icon" aria-hidden="true"></i>
+                <span>Document Versions</span>
+            </h1>
+            <p class="versions-document-subtitle">{{ document.name }}</p>
+        </div>
+        <button type="button"
+                class="versions-document-btn versions-document-btn--primary"
+                data-action="open-upload">
+            <i class="fas fa-upload" aria-hidden="true"></i>
+            <span>Upload New Version</span>
+        </button>
+    </header>
+
+    <section class="versions-document-card" aria-labelledby="versions-document-title">
+        <header class="versions-document-card-header">
+            <span class="versions-document-badge versions-document-badge--count">
+                {{ versions|length }} version{% if versions|length != 1 %}s{% endif %}
+            </span>
+            <span class="versions-document-current">
+                Current Version:
+                <span class="versions-document-current-num">v{{ document.current_version or 1 }}</span>
+            </span>
+        </header>
+
+        {% if versions %}
+        <div class="versions-document-table-wrap">
+            <table class="versions-document-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Version</th>
+                        <th scope="col">Uploaded</th>
+                        <th scope="col">By</th>
+                        <th scope="col">Size</th>
+                        <th scope="col">Notes</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in versions %}
+                    <tr {% if v.version_number == document.current_version %}class="versions-document-row--current"{% endif %}>
+                        <td>
+                            <span class="versions-document-version">
+                                <span>v{{ v.version_number }}</span>
+                                {% if v.version_number == document.current_version %}
+                                <span class="versions-document-badge versions-document-badge--current">Current</span>
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td class="versions-document-cell--time">
+                            {% if v.created_at %}
+                            <time datetime="{{ v.created_at[:19] }}">{{ v.created_at[:16] }}</time>
+                            {% else %}
+                            <span class="versions-document-cell--empty" aria-label="No date">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="versions-document-cell--user">
+                            {% if v.uploaded_by %}{{ v.uploaded_by }}{% else %}<span class="versions-document-cell--empty" aria-label="Unknown">—</span>{% endif %}
+                        </td>
+                        <td class="versions-document-cell--size">{{ ((v.file_size or 0) / 1024) | round(1) }} KB</td>
+                        <td class="versions-document-cell--notes" title="{{ v.notes or '' }}">
+                            {% if v.notes %}{{ v.notes }}{% else %}<span class="versions-document-cell--empty" aria-label="No notes">—</span>{% endif %}
+                        </td>
+                        <td class="versions-document-cell--actions">
+                            <span class="versions-document-actions">
+                                <a href="{{ PREFIX }}/versions/document/{{ document.id }}/version/{{ v.version_number }}/download"
+                                   class="versions-document-btn versions-document-btn--ghost versions-document-btn--icon"
+                                   aria-label="Download version {{ v.version_number }}">
+                                    <i class="fas fa-download" aria-hidden="true"></i>
+                                </a>
+                                {% if v.version_number != document.current_version %}
+                                <button type="button"
+                                        class="versions-document-btn versions-document-btn--warning versions-document-btn--icon"
+                                        data-action="restore"
+                                        data-version="{{ v.version_number }}"
+                                        aria-label="Restore version {{ v.version_number }}">
+                                    <i class="fas fa-undo" aria-hidden="true"></i>
+                                </button>
+                                {% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="versions-document-empty" role="status">
+            <i class="fas fa-history versions-document-empty-icon" aria-hidden="true"></i>
+            <h2 class="versions-document-empty-title">No versions tracked yet</h2>
+            <p class="versions-document-empty-text">Upload a new version to start tracking changes to this document.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <dialog id="versions-document-upload-dialog"
+            class="versions-document-dialog"
+            aria-labelledby="versions-document-dialog-title">
+        <form id="versions-document-upload-form"
+              class="versions-document-dialog-form"
+              enctype="multipart/form-data"
+              method="dialog">
+            <header class="versions-document-dialog-header">
+                <h2 id="versions-document-dialog-title" class="versions-document-dialog-title">Upload New Version</h2>
+                <button type="button"
+                        class="versions-document-dialog-close"
+                        data-action="close-upload"
+                        aria-label="Close dialog">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="versions-document-dialog-body">
+                <div class="versions-document-field">
+                    <label class="versions-document-label" for="versions-document-file">File</label>
+                    <input id="versions-document-file"
+                           class="versions-document-input"
+                           type="file"
+                           name="file"
+                           required>
+                </div>
+                <div class="versions-document-field">
+                    <label class="versions-document-label" for="versions-document-notes">Version Notes</label>
+                    <textarea id="versions-document-notes"
+                              class="versions-document-textarea"
+                              name="notes"
+                              rows="3"
+                              placeholder="What changed in this version?"></textarea>
+                </div>
+            </div>
+            <footer class="versions-document-dialog-footer">
+                <button type="button"
+                        class="versions-document-btn versions-document-btn--ghost"
+                        data-action="close-upload">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="versions-document-btn versions-document-btn--primary"
+                        data-role="submit">
+                    <i class="fas fa-upload" aria-hidden="true" data-role="icon"></i>
+                    <span data-role="label">Upload</span>
+                </button>
+            </footer>
+        </form>
+    </dialog>
+</main>
+
+<script>
+    (function () {
+        var UPLOAD_URL = '{{ PREFIX }}/versions/document/{{ document.id }}/upload';
+        var RESTORE_URL_BASE = '{{ PREFIX }}/versions/document/{{ document.id }}/restore/';
+
+        var dialog = document.getElementById('versions-document-upload-dialog');
+        var form = document.getElementById('versions-document-upload-form');
+
+        function openDialog() {
+            if (!dialog) return;
+            if (typeof dialog.showModal === 'function') {
+                dialog.showModal();
+            } else {
+                dialog.setAttribute('open', '');
+            }
+        }
+
+        function closeDialog() {
+            if (!dialog) return;
+            if (typeof dialog.close === 'function') {
+                dialog.close();
+            } else {
+                dialog.removeAttribute('open');
+            }
+            if (form) form.reset();
+        }
+
+        function setBusy(btn, busy) {
+            if (!btn) return;
+            var icon = btn.querySelector('[data-role="icon"]');
+            var label = btn.querySelector('[data-role="label"]');
+            if (busy) {
+                btn.dataset.originalIcon = icon ? icon.className : '';
+                btn.dataset.originalLabel = label ? label.textContent : '';
+                btn.disabled = true;
+                btn.setAttribute('aria-busy', 'true');
+                if (icon) icon.className = 'fas fa-spinner versions-document-spin';
+                if (label) label.textContent = 'Uploading…';
+            } else {
+                btn.disabled = false;
+                btn.removeAttribute('aria-busy');
+                if (icon && btn.dataset.originalIcon) icon.className = btn.dataset.originalIcon;
+                if (label && btn.dataset.originalLabel) label.textContent = btn.dataset.originalLabel;
+            }
+        }
+
+        function restoreVersion(version) {
+            if (!window.confirm('Restore to version ' + version + '? This will create a new version from the old one.')) {
+                return;
+            }
+            fetch(RESTORE_URL_BASE + encodeURIComponent(version), { method: 'POST' })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        window.alert('Restored to version ' + version + '. New version ' + data.version_number + ' created.');
+                        window.location.reload();
+                    } else {
+                        window.alert('Error: ' + ((data && data.error) || 'Unknown error'));
+                    }
+                })
+                .catch(function (err) {
+                    window.alert('Error: ' + (err && err.message ? err.message : 'Unknown error'));
+                });
+        }
+
+        document.addEventListener('click', function (event) {
+            var openBtn = event.target.closest('[data-action="open-upload"]');
+            if (openBtn) {
+                event.preventDefault();
+                openDialog();
+                return;
+            }
+            var closeBtn = event.target.closest('[data-action="close-upload"]');
+            if (closeBtn) {
+                event.preventDefault();
+                closeDialog();
+                return;
+            }
+            var restoreBtn = event.target.closest('[data-action="restore"]');
+            if (restoreBtn) {
+                event.preventDefault();
+                restoreVersion(restoreBtn.getAttribute('data-version'));
+                return;
+            }
+        });
+
+        if (form) {
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                var submitBtn = form.querySelector('[data-role="submit"]');
+                var formData = new FormData(form);
+                setBusy(submitBtn, true);
+                fetch(UPLOAD_URL, { method: 'POST', body: formData })
+                    .then(function (response) { return response.json(); })
+                    .then(function (data) {
+                        if (data && data.success) {
+                            window.alert('Version ' + data.version_number + ' uploaded successfully!');
+                            window.location.reload();
+                        } else {
+                            window.alert('Error: ' + ((data && data.error) || 'Unknown error'));
+                            setBusy(submitBtn, false);
+                        }
+                    })
+                    .catch(function (err) {
+                        window.alert('Error: ' + (err && err.message ? err.message : 'Unknown error'));
+                        setBusy(submitBtn, false);
+                    });
+            });
+        }
+
+        if (dialog) {
+            dialog.addEventListener('cancel', function () {
+                if (form) form.reset();
+            });
+        }
+    })();
+</script>
+{% endblock %}

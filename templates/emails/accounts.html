@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Contas de E-mail{% else %}Email Accounts{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/emails-accounts.css">
+{% endblock %}
+
+{% block content %}
+<main class="emails-accounts-main" aria-labelledby="emails-accounts-title">
+    <header class="emails-accounts-header">
+        <div class="emails-accounts-heading">
+            <a href="{{ PREFIX }}/emails" class="emails-accounts-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Voltar aos E-mails{% else %}Back to Emails{% endif %}</span>
+            </a>
+            <h1 id="emails-accounts-title" class="emails-accounts-title">
+                <i class="fas fa-at emails-accounts-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Contas de E-mail{% else %}Email Accounts{% endif %}</span>
+            </h1>
+        </div>
+        <a href="{{ PREFIX }}/emails/accounts/new" class="emails-accounts-btn emails-accounts-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Adicionar Conta{% else %}Add Account{% endif %}</span>
+        </a>
+    </header>
+
+    {% if accounts %}
+    <ul class="emails-accounts-grid" role="list">
+        {% for account in accounts %}
+        <li>
+            <article class="emails-accounts-card" aria-labelledby="emails-accounts-card-{{ account.id }}-name">
+                <header class="emails-accounts-card-header">
+                    <h2 id="emails-accounts-card-{{ account.id }}-name" class="emails-accounts-card-name">{{ account.name }}</h2>
+                    {% if account.enabled %}
+                    <span class="emails-accounts-badge emails-accounts-badge--enabled">{% if product == "lite" %}Ativo{% else %}Enabled{% endif %}</span>
+                    {% else %}
+                    <span class="emails-accounts-badge emails-accounts-badge--disabled">{% if product == "lite" %}Desativado{% else %}Disabled{% endif %}</span>
+                    {% endif %}
+                </header>
+
+                <div class="emails-accounts-card-body">
+                    <dl class="emails-accounts-dl">
+                        <dt>{% if product == "lite" %}E-mail{% else %}Email{% endif %}</dt>
+                        <dd>{{ account.email_address }}</dd>
+
+                        <dt>{% if product == "lite" %}Servidor IMAP{% else %}IMAP Server{% endif %}</dt>
+                        <dd>{{ account.imap_server }}:{{ account.imap_port }}</dd>
+
+                        <dt>{% if product == "lite" %}Última Sincronização{% else %}Last Sync{% endif %}</dt>
+                        {% if account.last_sync_at %}
+                        <dd>
+                            <time datetime="{{ account.last_sync_at.isoformat() }}">{{ account.last_sync_at.strftime('%Y-%m-%d %H:%M') }}</time>
+                        </dd>
+                        {% else %}
+                        <dd data-state="never">{% if product == "lite" %}Nunca{% else %}Never{% endif %}</dd>
+                        {% endif %}
+
+                        {% if account.last_error %}
+                        <dt>{% if product == "lite" %}Último Erro{% else %}Last Error{% endif %}</dt>
+                        <dd data-state="error" title="{{ account.last_error }}">{{ account.last_error[:50] }}{% if account.last_error|length > 50 %}…{% endif %}</dd>
+                        {% endif %}
+                    </dl>
+
+                    <div class="emails-accounts-actions">
+                        <button type="button"
+                                class="emails-accounts-btn emails-accounts-btn--ghost"
+                                data-action="sync"
+                                data-account-id="{{ account.id }}"
+                                data-account-name="{{ account.name }}">
+                            <i class="fas fa-sync" aria-hidden="true" data-role="icon"></i>
+                            <span data-role="label">{% if product == "lite" %}Sincronizar Agora{% else %}Sync Now{% endif %}</span>
+                        </button>
+                        <form method="post"
+                              action="{{ PREFIX }}/emails/accounts/{{ account.id }}/delete"
+                              data-confirm="{% if product == 'lite' %}Excluir esta conta?{% else %}Delete this account?{% endif %}">
+                            <button type="submit" class="emails-accounts-btn emails-accounts-btn--danger">
+                                <i class="fas fa-trash" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </article>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <section class="emails-accounts-empty" aria-labelledby="emails-accounts-empty-title">
+        <i class="fas fa-at emails-accounts-empty-icon" aria-hidden="true"></i>
+        <h2 id="emails-accounts-empty-title" class="emails-accounts-empty-title">
+            {% if product == "lite" %}Nenhuma conta de e-mail configurada{% else %}No email accounts configured{% endif %}
+        </h2>
+        <p class="emails-accounts-empty-text">
+            {% if product == "lite" %}Adicione uma conta de e-mail IMAP para começar a sincronizar e-mails.{% else %}Add an IMAP email account to start syncing emails.{% endif %}
+        </p>
+        <a href="{{ PREFIX }}/emails/accounts/new" class="emails-accounts-btn emails-accounts-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Adicionar Conta{% else %}Add Account{% endif %}</span>
+        </a>
+    </section>
+    {% endif %}
+</main>
+
+<script>
+    (function () {
+        var SYNC_URL = '{{ PREFIX }}/emails/accounts/';
+        var I18N = {
+            syncing: {% if product == "lite" %}'Sincronizando…'{% else %}'Syncing…'{% endif %},
+            started: {% if product == "lite" %}'Sincronização iniciada para '{% else %}'Sync started for '{% endif %},
+            errorPrefix: {% if product == "lite" %}'Erro: '{% else %}'Error: '{% endif %},
+            unknown: {% if product == "lite" %}'Erro desconhecido'{% else %}'Unknown error'{% endif %}
+        };
+
+        function syncAccount(btn) {
+            var id = btn.getAttribute('data-account-id');
+            var icon = btn.querySelector('[data-role="icon"]');
+            var label = btn.querySelector('[data-role="label"]');
+            var originalIcon = icon ? icon.className : '';
+            var originalLabel = label ? label.textContent : '';
+
+            btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+            if (icon) icon.className = 'fas fa-spinner emails-accounts-spin';
+            if (label) label.textContent = I18N.syncing;
+
+            fetch(SYNC_URL + encodeURIComponent(id) + '/sync', { method: 'POST' })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                    if (data && data.status) {
+                        window.alert(I18N.started + (data.account || ''));
+                    } else {
+                        window.alert(I18N.errorPrefix + ((data && data.error) || I18N.unknown));
+                    }
+                })
+                .catch(function (err) {
+                    window.alert(I18N.errorPrefix + (err && err.message ? err.message : I18N.unknown));
+                })
+                .then(function () {
+                    window.location.reload();
+                });
+        }
+
+        document.addEventListener('click', function (event) {
+            var btn = event.target.closest('[data-action="sync"]');
+            if (btn) {
+                event.preventDefault();
+                syncAccount(btn);
+            }
+        });
+
+        document.addEventListener('submit', function (event) {
+            var form = event.target.closest('form[data-confirm]');
+            if (form && !window.confirm(form.getAttribute('data-confirm'))) {
+                event.preventDefault();
+            }
+        });
+    })();
+</script>
+{% endblock %}

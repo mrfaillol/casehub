@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Faturas{% else %}Invoices{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center gap-3 mb-4 invoices-list-header">
+    <h2><i class="fas fa-file-invoice-dollar me-2"></i>{% if product == "lite" %}Faturas{% else %}Invoices{% endif %}</h2>
+    <a href="{{ PREFIX }}/invoices/new" class="btn btn-primary glass-btn glass-btn--primary">
+        <i class="fas fa-plus me-1"></i> {% if product == "lite" %}Nova Fatura{% else %}New Invoice{% endif %}
+    </a>
+</div>
+
+<!-- Stats -->
+<div class="row mb-4 invoices-stats-row">
+    <div class="col-md-3 col-6 mb-2">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body py-3">
+                <h6 class="mb-1">{% if product == "lite" %}Total Faturado{% else %}Total Invoiced{% endif %}</h6>
+                <h3 class="mb-0">{{ stats.total_invoiced|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body py-3">
+                <h6 class="mb-1">{% if product == "lite" %}Pago{% else %}Paid{% endif %}</h6>
+                <h3 class="mb-0">{{ stats.total_paid|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+        <div class="card bg-warning text-dark h-100">
+            <div class="card-body py-3">
+                <h6 class="mb-1">{% if product == "lite" %}Pendente{% else %}Outstanding{% endif %}</h6>
+                <h3 class="mb-0">{{ stats.total_pending|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body py-3">
+                <h6 class="mb-1">{% if product == "lite" %}Faturas{% else %}Invoices{% endif %}</h6>
+                <h3 class="mb-0">{{ stats.count }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invoices Table -->
+<div class="card glass-card">
+    <div class="card-header">
+        <i class="fas fa-list me-2"></i>{% if product == "lite" %}Todas as Faturas{% else %}All Invoices{% endif %}
+    </div>
+    <div class="card-body p-0">
+        {% if invoices %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>{% if product == "lite" %}Fatura #{% else %}Invoice #{% endif %}</th>
+                        <th>{% if product == "lite" %}Data{% else %}Date{% endif %}</th>
+                        <th>{% if product == "lite" %}Itens{% else %}Items{% endif %}</th>
+                        <th class="text-end">Total</th>
+                        <th>Status</th>
+                        <th>{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr>
+                        <td>
+                            <a href="{{ PREFIX }}/invoices/{{ inv.invoice_number }}">
+                                {{ inv.invoice_number }}
+                            </a>
+                        </td>
+                        <td>{% if product == "lite" %}{{ inv.created_at.strftime('%d/%m/%Y') if inv.created_at else '-' }}{% else %}{{ inv.created_at.strftime('%m/%d/%Y') if inv.created_at else '-' }}{% endif %}</td>
+                        <td>{{ inv.item_count }} {% if product == "lite" %}item(ns){% else %}item(s){% endif %}</td>
+                        <td class="text-end">{{ (inv.total or 0)|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</td>
+                        <td>
+                            {% if inv.status == 'paid' %}
+                            <span class="badge bg-success">{% if product == "lite" %}Pago{% else %}Paid{% endif %}</span>
+                            {% elif inv.status == 'invoiced' %}
+                            <span class="badge bg-warning text-dark">{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ inv.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ PREFIX }}/invoices/{{ inv.invoice_number }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{{ PREFIX }}/invoices/{{ inv.invoice_number }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">
+                                <i class="fas fa-print"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-file-invoice fa-3x text-muted mb-3"></i>
+            <p class="text-muted">{% if product == "lite" %}Nenhuma fatura ainda{% else %}No invoices yet{% endif %}</p>
+            <a href="{{ PREFIX }}/invoices/new" class="btn btn-primary glass-btn glass-btn--primary">{% if product == "lite" %}Criar Primeira Fatura{% else %}Create First Invoice{% endif %}</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media (max-width: 767.98px) {
+        .invoices-list-header {
+            align-items: stretch !important;
+            flex-direction: column;
+        }
+        .invoices-list-header .glass-btn {
+            min-height: 44px;
+            width: 100%;
+        }
+        .invoices-stats-row {
+            --bs-gutter-x: 0.75rem;
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .invoices-stats-row > [class*="col-"] {
+            padding-left: 0;
+            padding-right: 0;
+            min-width: 0;
+        }
+        .invoices-stats-row h3 {
+            font-size: 1.1rem;
+            overflow-wrap: anywhere;
+        }
+    }
+</style>
+{% endblock %}

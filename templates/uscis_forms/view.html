@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form.form_number }} - {{ form.name }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/uscis-forms-view.css">
+{% endblock %}
+
+{% block content %}
+<div class="uscis-form-main" aria-labelledby="uscis-form-title">
+    <header class="uscis-form-header">
+        <div class="uscis-form-header-info">
+            <a href="{{ PREFIX }}/uscis-forms" class="uscis-form-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Library</span>
+            </a>
+            <h1 id="uscis-form-title" class="uscis-form-title">
+                <i class="fas fa-file-alt" aria-hidden="true"></i>
+                <span>{{ form.form_number }}</span>
+            </h1>
+            <p class="uscis-form-subtitle">{{ form.name }}</p>
+        </div>
+        <div class="uscis-form-header-actions">
+            <a href="{{ PREFIX }}/uscis-forms/{{ form.form_number }}/fill"
+               class="uscis-form-btn uscis-form-btn--primary">
+                <i class="fas fa-pen" aria-hidden="true"></i>
+                <span>Fill Form</span>
+            </a>
+            <a href="https://www.uscis.gov/{{ form.form_number|lower }}" target="_blank" rel="noopener"
+               class="uscis-form-btn">
+                <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                <span>USCIS Page</span>
+            </a>
+        </div>
+    </header>
+
+    {% if request.query_params.get('saved') %}
+    <div class="uscis-form-alert uscis-form-alert--success" role="status">
+        <i class="fas fa-check-circle uscis-form-alert-icon" aria-hidden="true"></i>
+        <span class="uscis-form-alert-message">Form submission saved successfully!</span>
+        <button type="button" class="uscis-form-alert-close" data-bs-dismiss="alert" aria-label="Dismiss">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="uscis-form-grid">
+        <div class="uscis-form-column">
+            <section class="uscis-form-card" aria-labelledby="uscis-form-details-title">
+                <header class="uscis-form-card-header">
+                    <h2 id="uscis-form-details-title" class="uscis-form-card-title">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Form Details</span>
+                    </h2>
+                </header>
+                <div class="uscis-form-card-body">
+                    <p class="uscis-form-description">{{ form.description }}</p>
+
+                    <div class="uscis-form-meta-grid">
+                        <div class="uscis-form-meta-field">
+                            <span class="uscis-form-meta-label">Category</span>
+                            <span class="uscis-form-badge uscis-form-badge--neutral">{{ form.category }}</span>
+                        </div>
+                        <div class="uscis-form-meta-field">
+                            <span class="uscis-form-meta-label">Form Edition</span>
+                            <span class="uscis-form-meta-value">{{ form.edition }}</span>
+                        </div>
+                        <div class="uscis-form-meta-field">
+                            <span class="uscis-form-meta-label">Number of Pages</span>
+                            <span class="uscis-form-meta-value">{{ form.pages }} pages</span>
+                        </div>
+                        <div class="uscis-form-meta-field">
+                            <span class="uscis-form-meta-label">Processing Time</span>
+                            <span class="uscis-form-meta-value">{{ form.processing_time }}</span>
+                        </div>
+                    </div>
+
+                    <hr class="uscis-form-divider">
+
+                    <h3 class="uscis-form-section-title">Applicable Visa Types</h3>
+                    <div class="uscis-form-tag-group">
+                        {% for visa in form.visa_types %}
+                        <span class="uscis-form-badge uscis-form-badge--accent">{{ visa }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <section class="uscis-form-card" aria-labelledby="uscis-form-fees-title">
+                <header class="uscis-form-card-header">
+                    <h2 id="uscis-form-fees-title" class="uscis-form-card-title">
+                        <i class="fas fa-dollar-sign" aria-hidden="true"></i>
+                        <span>Filing Fees</span>
+                    </h2>
+                </header>
+                <div class="uscis-form-card-body">
+                    <div class="uscis-form-fee-grid">
+                        <div class="uscis-form-fee-item">
+                            <span class="uscis-form-fee-value uscis-form-fee-value--success">${{ form.fee }}</span>
+                            <span class="uscis-form-fee-label">Base Filing Fee</span>
+                        </div>
+                        <div class="uscis-form-fee-item">
+                            {% if form.premium_fee %}
+                            <span class="uscis-form-fee-value uscis-form-fee-value--warning">${{ form.premium_fee }}</span>
+                            {% else %}
+                            <span class="uscis-form-fee-value uscis-form-fee-value--muted">N/A</span>
+                            {% endif %}
+                            <span class="uscis-form-fee-label">Premium Processing</span>
+                        </div>
+                        <div class="uscis-form-fee-item">
+                            <span class="uscis-form-fee-value uscis-form-fee-value--accent">${{ form.fee + (form.premium_fee or 0) }}</span>
+                            <span class="uscis-form-fee-label">Total with Premium</span>
+                        </div>
+                    </div>
+
+                    <div class="uscis-form-alert uscis-form-alert--info uscis-form-note" role="note">
+                        <i class="fas fa-info-circle uscis-form-alert-icon" aria-hidden="true"></i>
+                        <span class="uscis-form-alert-message">
+                            Fees are subject to change. Always verify current fees on the official USCIS website.
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            {% if field_mappings %}
+            <section class="uscis-form-card" aria-labelledby="uscis-form-autofill-title">
+                <header class="uscis-form-card-header">
+                    <h2 id="uscis-form-autofill-title" class="uscis-form-card-title">
+                        <i class="fas fa-magic" aria-hidden="true"></i>
+                        <span>Auto-Fill Fields</span>
+                    </h2>
+                </header>
+                <div class="uscis-form-card-body">
+                    <p class="uscis-form-kv-intro">The following fields can be pre-populated from case data:</p>
+                    <ul class="uscis-form-kv-list">
+                        {% for field_key, field_name in field_mappings.items() %}
+                        <li class="uscis-form-kv-item">
+                            <span class="uscis-form-kv-name">{{ field_name }}</span>
+                            <span class="uscis-form-badge uscis-form-badge--key">{{ field_key }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <div class="uscis-form-column">
+            <section class="uscis-form-card" aria-labelledby="uscis-form-quickfill-title">
+                <header class="uscis-form-card-header">
+                    <h2 id="uscis-form-quickfill-title" class="uscis-form-card-title">
+                        <i class="fas fa-bolt" aria-hidden="true"></i>
+                        <span>Quick Fill</span>
+                    </h2>
+                </header>
+                <div class="uscis-form-card-body">
+                    <p class="uscis-form-kv-intro">Select a case to pre-populate form fields:</p>
+                    <form action="{{ PREFIX }}/uscis-forms/{{ form.form_number }}/fill" method="GET">
+                        <div class="uscis-form-field">
+                            <label class="uscis-form-label" for="uscis-form-case">Case</label>
+                            <select id="uscis-form-case" name="case_id" class="uscis-form-select" required>
+                                <option value="">-- Select Case --</option>
+                                {% for case in cases %}
+                                <option value="{{ case.id }}">
+                                    {{ case.case_number }} - {{ case.case_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="uscis-form-btn uscis-form-btn--primary uscis-form-btn--block">
+                            <i class="fas fa-pen" aria-hidden="true"></i>
+                            <span>Fill with Case Data</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            {% if related_forms %}
+            <section class="uscis-form-card" aria-labelledby="uscis-form-related-title">
+                <header class="uscis-form-card-header">
+                    <h2 id="uscis-form-related-title" class="uscis-form-card-title">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                        <span>Related Forms</span>
+                    </h2>
+                </header>
+                <div class="uscis-form-card-body uscis-form-card-body--flush">
+                    <div class="uscis-form-linked-list">
+                        {% for rf in related_forms %}
+                        <a href="{{ PREFIX }}/uscis-forms/{{ rf.form_number }}" class="uscis-form-linked-item">
+                            <span class="uscis-form-linked-info">
+                                <span class="uscis-form-linked-name">{{ rf.form_number }}</span>
+                                <span class="uscis-form-linked-desc">{{ rf.name[:40] }}...</span>
+                            </span>
+                            <span class="uscis-form-badge uscis-form-badge--success">${{ rf.fee }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+
+            <section class="uscis-form-card" aria-labelledby="uscis-form-resources-title">
+                <header class="uscis-form-card-header">
+                    <h2 id="uscis-form-resources-title" class="uscis-form-card-title">
+                        <i class="fas fa-book" aria-hidden="true"></i>
+                        <span>Resources</span>
+                    </h2>
+                </header>
+                <div class="uscis-form-card-body uscis-form-card-body--flush">
+                    <div class="uscis-form-resources">
+                        <a href="https://www.uscis.gov/{{ form.form_number|lower }}" target="_blank" rel="noopener"
+                           class="uscis-form-resource-item">
+                            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                            <span>Official USCIS Page</span>
+                        </a>
+                        <a href="https://www.uscis.gov/sites/default/files/document/forms/{{ form.form_number|lower }}.pdf"
+                           target="_blank" rel="noopener"
+                           class="uscis-form-resource-item">
+                            <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                            <span>Download Blank Form</span>
+                        </a>
+                        <a href="https://www.uscis.gov/sites/default/files/document/forms/{{ form.form_number|lower }}instr.pdf"
+                           target="_blank" rel="noopener"
+                           class="uscis-form-resource-item">
+                            <i class="fas fa-book-open" aria-hidden="true"></i>
+                            <span>Form Instructions</span>
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}

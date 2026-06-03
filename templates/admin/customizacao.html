@@ -1,0 +1,948 @@
+{% extends "base.html" %}
+{% block title %}Personalizar - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% set s = org_settings|default({}) %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/admin-customizacao.css">
+{% endblock %}
+
+{% block content %}
+<main class="admin-custom" role="main" aria-labelledby="admin-custom-title">
+    <nav aria-label="breadcrumb">
+        <ol class="admin-custom-breadcrumb">
+            <li class="admin-custom-breadcrumb__item"><a href="{{ PREFIX }}/admin">Admin</a></li>
+            <li class="admin-custom-breadcrumb__item" aria-current="page">Personalizar</li>
+        </ol>
+    </nav>
+
+    <header class="admin-custom__header">
+        <div>
+            <h1 id="admin-custom-title" class="admin-custom__title">
+                <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                <span>Painel de Personaliza&ccedil;&atilde;o</span>
+            </h1>
+            <p class="admin-custom__subtitle">Configure a apar&ecirc;ncia e comportamento do sistema</p>
+        </div>
+    </header>
+
+    {% if success %}
+    <div class="admin-custom-alert admin-custom-alert--success" role="status">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <span>{{ success }}</span>
+        <button type="button" class="admin-custom-alert__close" aria-label="Fechar" data-admin-custom-dismiss>&times;</button>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="admin-custom-alert admin-custom-alert--danger" role="alert">
+        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+        <button type="button" class="admin-custom-alert__close" aria-label="Fechar" data-admin-custom-dismiss>&times;</button>
+    </div>
+    {% endif %}
+
+    <div class="admin-custom__tabs" role="tablist" aria-label="Se&ccedil;&otilde;es de personaliza&ccedil;&atilde;o">
+        <button type="button" class="admin-custom__tab"
+                id="tabbtn-aparencia"
+                role="tab"
+                aria-selected="{{ 'true' if active_tab == 'aparencia' else 'false' }}"
+                aria-controls="tab-aparencia"
+                tabindex="{{ '0' if active_tab == 'aparencia' else '-1' }}"
+                data-tab-target="aparencia">
+            <i class="fas fa-palette" aria-hidden="true"></i>
+            <span>Apar&ecirc;ncia</span>
+        </button>
+        <button type="button" class="admin-custom__tab"
+                id="tabbtn-sidebar"
+                role="tab"
+                aria-selected="{{ 'true' if active_tab == 'sidebar' else 'false' }}"
+                aria-controls="tab-sidebar"
+                tabindex="{{ '0' if active_tab == 'sidebar' else '-1' }}"
+                data-tab-target="sidebar">
+            <i class="fas fa-bars" aria-hidden="true"></i>
+            <span>Sidebar</span>
+        </button>
+        <button type="button" class="admin-custom__tab"
+                id="tabbtn-widgets"
+                role="tab"
+                aria-selected="{{ 'true' if active_tab == 'widgets' else 'false' }}"
+                aria-controls="tab-widgets"
+                tabindex="{{ '0' if active_tab == 'widgets' else '-1' }}"
+                data-tab-target="widgets">
+            <i class="fas fa-th-large" aria-hidden="true"></i>
+            <span>Widgets Padr&atilde;o</span>
+        </button>
+        <button type="button" class="admin-custom__tab"
+                id="tabbtn-notificacoes"
+                role="tab"
+                aria-selected="{{ 'true' if active_tab == 'notificacoes' else 'false' }}"
+                aria-controls="tab-notificacoes"
+                tabindex="{{ '0' if active_tab == 'notificacoes' else '-1' }}"
+                data-tab-target="notificacoes">
+            <i class="fas fa-bell" aria-hidden="true"></i>
+            <span>Notifica&ccedil;&otilde;es</span>
+        </button>
+        <button type="button" class="admin-custom__tab"
+                id="tabbtn-integracoes"
+                role="tab"
+                aria-selected="{{ 'true' if active_tab == 'integracoes' else 'false' }}"
+                aria-controls="tab-integracoes"
+                tabindex="{{ '0' if active_tab == 'integracoes' else '-1' }}"
+                data-tab-target="integracoes">
+            <i class="fas fa-plug" aria-hidden="true"></i>
+            <span>Integra&ccedil;&otilde;es</span>
+        </button>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- TAB 1: Aparencia                                                   -->
+    <!-- ================================================================== -->
+    <section id="tab-aparencia"
+             class="admin-custom__panel{% if active_tab == 'aparencia' %} is-active{% endif %}"
+             role="tabpanel"
+             aria-labelledby="tabbtn-aparencia"
+             tabindex="0">
+        <div class="admin-custom-grid admin-custom-grid--preview">
+            <form method="POST" action="{{ PREFIX }}/admin/customizacao/aparencia" id="formAparencia" enctype="multipart/form-data">
+                <div class="admin-custom-card">
+                    <h2 class="admin-custom-card__title">
+                        <i class="fas fa-swatchbook" aria-hidden="true"></i>
+                        <span>Cores do Tema</span>
+                    </h2>
+                    <div class="admin-custom-field__row admin-custom-field__row--2">
+                        <div class="admin-custom-field">
+                            <label class="admin-custom-field__label" for="inputPrimaryColor">Cor prim&aacute;ria</label>
+                            <div class="admin-custom-color">
+                                <input type="color"
+                                       class="admin-custom-color__picker"
+                                       name="primary_color"
+                                       id="inputPrimaryColor"
+                                       value="{{ s.get('primary_color', '') }}"
+                                       data-default-token="--accent"
+                                       data-preview="livePreview">
+                                <input type="text"
+                                       class="admin-custom-color__hex"
+                                       id="inputPrimaryHex"
+                                       aria-label="C&oacute;digo hex da cor prim&aacute;ria"
+                                       value="{{ s.get('primary_color', '') }}">
+                            </div>
+                            <small class="admin-custom-field__hint">Bot&otilde;es, links, destaques</small>
+                        </div>
+                        <div class="admin-custom-field">
+                            <label class="admin-custom-field__label" for="inputSecondaryColor">Cor secund&aacute;ria</label>
+                            <div class="admin-custom-color">
+                                <input type="color"
+                                       class="admin-custom-color__picker"
+                                       name="secondary_color"
+                                       id="inputSecondaryColor"
+                                       value="{{ s.get('secondary_color', '') }}"
+                                       data-default-token="--accent-hover"
+                                       data-preview="livePreview">
+                                <input type="text"
+                                       class="admin-custom-color__hex"
+                                       id="inputSecondaryHex"
+                                       aria-label="C&oacute;digo hex da cor secund&aacute;ria"
+                                       value="{{ s.get('secondary_color', '') }}">
+                            </div>
+                            <small class="admin-custom-field__hint">Sidebar, cabe&ccedil;alhos</small>
+                        </div>
+                    </div>
+                    <button type="button" class="admin-custom-reset" id="resetCoresBtn">
+                        <i class="fas fa-undo" aria-hidden="true"></i>
+                        <span>Restaurar Padr&atilde;o</span>
+                    </button>
+                </div>
+
+                <div class="admin-custom-card">
+                    <h2 class="admin-custom-card__title">
+                        <i class="fas fa-building" aria-hidden="true"></i>
+                        <span>Identidade</span>
+                    </h2>
+
+                    <div class="admin-custom-field">
+                        <label class="admin-custom-field__label" for="inputOrgName">Nome do escrit&oacute;rio</label>
+                        <input type="text"
+                               class="admin-custom-field__input"
+                               name="org_display_name"
+                               id="inputOrgName"
+                               value="{{ s.get('org_display_name', org_name|default('CaseHub')) }}"
+                               placeholder="Meu Escrit&oacute;rio de Advocacia">
+                        <small class="admin-custom-field__hint">Exibido na sidebar, t&iacute;tulo e e-mails</small>
+                    </div>
+
+                    <div class="admin-custom-field">
+                        <label class="admin-custom-field__label" for="inputLogoUrl">URL do Logo</label>
+                        <input type="url"
+                               class="admin-custom-field__input"
+                               name="logo_url"
+                               id="inputLogoUrl"
+                               value="{{ s.get('logo_url', '') }}"
+                               placeholder="https://exemplo.com/logo.png">
+                        <small class="admin-custom-field__hint">URL da imagem do logo (PNG, SVG, JPG)</small>
+                        {% if s.get('logo_url') %}
+                        <div class="admin-custom-logo-url-preview">
+                            <img src="{{ s.get('logo_url') }}" alt="Pr&eacute;-visualiza&ccedil;&atilde;o do logo atual" id="logoPreviewImg" loading="lazy">
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="admin-custom-field">
+                        <label class="admin-custom-field__label" for="inputLogoFile">
+                            {% if product == "lite" %}Ou enviar arquivo da logo{% else %}Or upload logo file{% endif %}
+                        </label>
+                        <input type="file"
+                               class="admin-custom-field__input"
+                               id="inputLogoFile"
+                               name="logo_file"
+                               accept="image/*"
+                               data-logo-preview="logo-preview">
+                        <small class="admin-custom-field__hint">
+                            {% if product == "lite" %}A logo ser&aacute; exibida dentro do squircle preto{% else %}Logo will be displayed inside the black squircle{% endif %}
+                        </small>
+                    </div>
+
+                    {% if s.get('logo_file_path') %}
+                    <div class="admin-custom-logo-preview">
+                        <span class="admin-custom-logo-preview__squircle" aria-hidden="true">
+                            <img src="{{ s.get('logo_file_path') }}" alt="" loading="lazy">
+                        </span>
+                        <span class="admin-custom-logo-preview__name">{{ s.get('org_display_name', org_name|default('CaseHub')) }}</span>
+                        <span class="admin-custom-logo-preview__badge">{% if product == "lite" %}Salvo{% else %}Saved{% endif %}</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="admin-custom-logo-preview" id="logo-preview" hidden>
+                        <span class="admin-custom-logo-preview__squircle" aria-hidden="true">
+                            <img id="logo-preview-img" alt="">
+                        </span>
+                        <span class="admin-custom-logo-preview__name">{{ s.get('org_display_name', org_name|default('CaseHub')) }}</span>
+                    </div>
+
+                    <div class="admin-custom-field">
+                        <label class="admin-custom-field__label" for="inputFaviconUrl">URL do Favicon</label>
+                        <input type="url"
+                               class="admin-custom-field__input"
+                               name="favicon_url"
+                               id="inputFaviconUrl"
+                               value="{{ s.get('favicon_url', '') }}"
+                               placeholder="https://exemplo.com/favicon.ico">
+                        <small class="admin-custom-field__hint">&Iacute;cone da aba do navegador</small>
+                    </div>
+                </div>
+
+                <button type="submit" class="admin-custom-save">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>Salvar Apar&ecirc;ncia</span>
+                </button>
+            </form>
+
+            <aside aria-label="Pr&eacute;-visualiza&ccedil;&atilde;o em tempo real">
+                <div class="admin-custom-card admin-custom-card--sticky">
+                    <h2 class="admin-custom-card__title">
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                        <span>Pr&eacute;-visualiza&ccedil;&atilde;o</span>
+                    </h2>
+                    <div class="admin-custom-preview" id="livePreviewPanel">
+                        <div class="admin-custom-preview__layout">
+                            <div class="admin-custom-preview__sidebar" id="previewSidebar">
+                                <div class="admin-custom-preview__logo" id="previewLogo">
+                                    {{ s.get('org_display_name', org_name|default('CaseHub')) }}
+                                </div>
+                                <div class="admin-custom-preview__nav">Dashboard</div>
+                                <div class="admin-custom-preview__nav">Clientes</div>
+                                <div class="admin-custom-preview__nav">Casos</div>
+                                <div class="admin-custom-preview__nav">Documentos</div>
+                                <div class="admin-custom-preview__nav">Tarefas</div>
+                            </div>
+                            <div class="admin-custom-preview__main">
+                                <div class="admin-custom-preview__header" id="previewHeader">
+                                    <span id="previewOrgName">{{ s.get('org_display_name', org_name|default('CaseHub')) }}</span>
+                                </div>
+                                <div class="admin-custom-preview__content">
+                                    <div><strong>Casos Ativos:</strong> 12</div>
+                                    <div><strong>Tarefas:</strong> 5</div>
+                                    <div><strong>Documentos:</strong> 48</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TAB 2: Sidebar                                                     -->
+    <!-- ================================================================== -->
+    <section id="tab-sidebar"
+             class="admin-custom__panel{% if active_tab == 'sidebar' %} is-active{% endif %}"
+             role="tabpanel"
+             aria-labelledby="tabbtn-sidebar"
+             tabindex="0">
+        <form method="POST" action="{{ PREFIX }}/admin/customizacao/sidebar" id="formSidebar">
+            <input type="hidden" name="sidebar_order" id="sidebarOrderInput" value="">
+
+            <div class="admin-custom-grid admin-custom-grid--wide">
+                <div>
+                    <div class="admin-custom-card">
+                        <h2 class="admin-custom-card__title">
+                            <i class="fas fa-list" aria-hidden="true"></i>
+                            <span>Itens da Sidebar</span>
+                        </h2>
+                        <p class="admin-custom-card__hint">
+                            Arraste para reordenar. Use o toggle para mostrar ou esconder cada item.
+                        </p>
+
+                        <div class="admin-custom-sortable" id="sidebarSortable"
+                             role="list"
+                             aria-label="Itens da sidebar (arraste para reordenar)">
+                            {% set sidebar_items = [
+                                ("dashboard", "fas fa-tachometer-alt", "Dashboard"),
+                                ("clientes", "fas fa-users", "Clientes"),
+                                ("casos", "fas fa-folder-open", "Casos"),
+                                ("documentos", "fas fa-file-alt", "Documentos"),
+                                ("tarefas", "fas fa-tasks", "Tarefas"),
+                                ("calendario", "fas fa-calendar-alt", "Calend&aacute;rio"),
+                                ("financeiro", "fas fa-dollar-sign", "Financeiro"),
+                                ("prazos", "fas fa-clock", "Prazos"),
+                                ("relatorios", "fas fa-chart-bar", "Relat&oacute;rios"),
+                                ("tribunal", "fas fa-gavel", "Tribunal"),
+                                ("leads", "fas fa-funnel-dollar", "Leads"),
+                                ("tickets", "fas fa-ticket-alt", "Tickets"),
+                                ("controladoria", "fas fa-shield-alt", "Controladoria"),
+                                ("admin", "fas fa-cog", "Admin"),
+                            ] %}
+
+                            {% set vis = s.get('sidebar_visibility', {}) %}
+
+                            {% for key, icon, label in sidebar_items %}
+                            {# Accept legacy `relatórios` key (w/ accent) persisted in org_settings #}
+                            {% set legacy_key = 'relatórios' if key == 'relatorios' else key %}
+                            {% set is_visible = vis.get(key, vis.get(legacy_key, true)) is not false %}
+                            <div class="admin-custom-sortable-item" data-key="{{ key }}" role="listitem">
+                                <span class="admin-custom-sortable-item__handle" aria-hidden="true">
+                                    <i class="fas fa-grip-vertical"></i>
+                                </span>
+                                <span class="admin-custom-sortable-item__icon" aria-hidden="true">
+                                    <i class="{{ icon }}"></i>
+                                </span>
+                                <label class="admin-custom-sortable-item__label" for="visible_{{ key }}">{{ label }}</label>
+                                <span class="admin-custom-toggle">
+                                    <input type="checkbox"
+                                           class="admin-custom-toggle__input"
+                                           name="visible_{{ key }}"
+                                           id="visible_{{ key }}"
+                                           {% if is_visible %}checked{% endif %}>
+                                    <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <button type="submit" class="admin-custom-save" id="saveSidebarBtn">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Salvar Sidebar</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TAB 3: Widgets Padrao                                              -->
+    <!-- ================================================================== -->
+    <section id="tab-widgets"
+             class="admin-custom__panel{% if active_tab == 'widgets' %} is-active{% endif %}"
+             role="tabpanel"
+             aria-labelledby="tabbtn-widgets"
+             tabindex="0">
+        <form method="POST" action="{{ PREFIX }}/admin/customizacao/widgets">
+            <div class="admin-custom-grid admin-custom-grid--preview">
+                <div>
+                    <div class="admin-custom-card">
+                        <h2 class="admin-custom-card__title">
+                            <i class="fas fa-th-large" aria-hidden="true"></i>
+                            <span>Widgets do Dashboard</span>
+                        </h2>
+                        <p class="admin-custom-card__hint">
+                            Selecione quais widgets aparecem por padr&atilde;o para novos usu&aacute;rios.
+                        </p>
+
+                        {% set dw = s.get('default_widgets', {}) %}
+
+                        {% set widgets = [
+                            ("casos_ativos", "fas fa-folder-open", "Casos Ativos", "Mostra contagem e lista de casos em andamento", "accent"),
+                            ("tarefas_pendentes", "fas fa-tasks", "Tarefas Pendentes", "Tarefas aguardando conclus&atilde;o com prazos", "warning"),
+                            ("documentos_recentes", "fas fa-file-alt", "Documentos Recentes", "&Uacute;ltimos documentos adicionados ou atualizados", "info"),
+                            ("prazos_proximos", "fas fa-clock", "Pr&oacute;ximos Prazos", "Prazos processuais dos pr&oacute;ximos 30 dias", "danger"),
+                            ("receita_mensal", "fas fa-dollar-sign", "Receita Mensal", "Resumo financeiro do m&ecirc;s atual", "success"),
+                            ("grafico_casos", "fas fa-chart-line", "Gr&aacute;fico de Casos", "Evolu&ccedil;&atilde;o de casos nos &uacute;ltimos 6 meses", "accent"),
+                            ("calendario_mini", "fas fa-calendar-alt", "Mini Calend&aacute;rio", "Calend&aacute;rio compacto com eventos", "warning"),
+                            ("atividade_recente", "fas fa-history", "Atividade Recente", "&Uacute;ltimas a&ccedil;&otilde;es no sistema", "info"),
+                        ] %}
+
+                        {% for key, icon, label, desc, variant in widgets %}
+                        <div class="admin-custom-widget">
+                            <span class="admin-custom-widget__icon admin-custom-widget__icon--{{ variant }}" aria-hidden="true">
+                                <i class="{{ icon }}"></i>
+                            </span>
+                            <div class="admin-custom-widget__body">
+                                <label class="admin-custom-widget__label" for="widget_{{ key }}">{{ label }}</label>
+                                <small class="admin-custom-widget__desc">{{ desc }}</small>
+                            </div>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="widget_{{ key }}"
+                                       id="widget_{{ key }}"
+                                       {% if dw.get(key, true) is not false %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="submit" class="admin-custom-save">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Salvar Widgets</span>
+                    </button>
+                </div>
+
+                <aside aria-label="Layout padr&atilde;o">
+                    <div class="admin-custom-card admin-custom-card--sticky">
+                        <h2 class="admin-custom-card__title">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                            <span>Layout Padr&atilde;o</span>
+                        </h2>
+                        <div class="admin-custom-preview">
+                            <div class="admin-custom-widget-grid">
+                                {% for key, icon, label, desc, variant in widgets[:4] %}
+                                <div class="admin-custom-widget-mini admin-custom-widget-mini--{{ variant }}">
+                                    <i class="{{ icon }}" aria-hidden="true"></i>
+                                    <span class="admin-custom-widget-mini__label">{{ label }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </form>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TAB 4: Notificacoes                                                -->
+    <!-- ================================================================== -->
+    <section id="tab-notificacoes"
+             class="admin-custom__panel{% if active_tab == 'notificacoes' %} is-active{% endif %}"
+             role="tabpanel"
+             aria-labelledby="tabbtn-notificacoes"
+             tabindex="0">
+        <form method="POST" action="{{ PREFIX }}/admin/customizacao/notificacoes">
+            <div class="admin-custom-grid admin-custom-grid--preview">
+                <div>
+                    <div class="admin-custom-card">
+                        <h2 class="admin-custom-card__title">
+                            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                            <span>Canais de Notifica&ccedil;&atilde;o</span>
+                        </h2>
+
+                        <div class="admin-custom-notif">
+                            <div class="admin-custom-notif__body">
+                                <label class="admin-custom-notif__label" for="notif_email">Notifica&ccedil;&otilde;es por E-mail</label>
+                                <small class="admin-custom-notif__desc">Receber alertas e resumos por e-mail</small>
+                            </div>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="notif_email"
+                                       id="notif_email"
+                                       {% if s.get('notif_email', true) is not false %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+
+                        <div class="admin-custom-notif">
+                            <div class="admin-custom-notif__body">
+                                <label class="admin-custom-notif__label" for="notif_inapp">Notifica&ccedil;&otilde;es no App</label>
+                                <small class="admin-custom-notif__desc">Alertas dentro do CaseHub</small>
+                            </div>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="notif_inapp"
+                                       id="notif_inapp"
+                                       {% if s.get('notif_inapp', true) is not false %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="admin-custom-card">
+                        <h2 class="admin-custom-card__title">
+                            <i class="fas fa-clock" aria-hidden="true"></i>
+                            <span>Frequ&ecirc;ncia</span>
+                        </h2>
+                        <div class="admin-custom-field">
+                            <label class="admin-custom-field__label" for="notifFrequency">Resumo por e-mail</label>
+                            <select name="notif_frequency" id="notifFrequency" class="admin-custom-field__select">
+                                <option value="diario" {% if s.get('notif_frequency', 'diario') == 'diario' %}selected{% endif %}>Di&aacute;rio</option>
+                                <option value="semanal" {% if s.get('notif_frequency') == 'semanal' %}selected{% endif %}>Semanal</option>
+                                <option value="mensal" {% if s.get('notif_frequency') == 'mensal' %}selected{% endif %}>Mensal</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="admin-custom-card">
+                        <h2 class="admin-custom-card__title">
+                            <i class="fas fa-filter" aria-hidden="true"></i>
+                            <span>Tipos de Notifica&ccedil;&atilde;o</span>
+                        </h2>
+
+                        <div class="admin-custom-notif">
+                            <div class="admin-custom-notif__body">
+                                <label class="admin-custom-notif__label" for="notif_prazos">
+                                    <i class="fas fa-clock admin-custom-notif__icon admin-custom-notif__icon--danger" aria-hidden="true"></i>
+                                    <span>Prazos</span>
+                                </label>
+                                <small class="admin-custom-notif__desc">Alertas de prazos processuais pr&oacute;ximos</small>
+                            </div>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="notif_prazos"
+                                       id="notif_prazos"
+                                       {% if s.get('notif_prazos', true) is not false %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+
+                        <div class="admin-custom-notif">
+                            <div class="admin-custom-notif__body">
+                                <label class="admin-custom-notif__label" for="notif_tarefas">
+                                    <i class="fas fa-tasks admin-custom-notif__icon admin-custom-notif__icon--warning" aria-hidden="true"></i>
+                                    <span>Tarefas</span>
+                                </label>
+                                <small class="admin-custom-notif__desc">Novas tarefas atribu&iacute;das e vencidas</small>
+                            </div>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="notif_tarefas"
+                                       id="notif_tarefas"
+                                       {% if s.get('notif_tarefas', true) is not false %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+
+                        <div class="admin-custom-notif">
+                            <div class="admin-custom-notif__body">
+                                <label class="admin-custom-notif__label" for="notif_documentos">
+                                    <i class="fas fa-file-alt admin-custom-notif__icon admin-custom-notif__icon--info" aria-hidden="true"></i>
+                                    <span>Documentos</span>
+                                </label>
+                                <small class="admin-custom-notif__desc">Novos uploads e documentos pendentes</small>
+                            </div>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="notif_documentos"
+                                       id="notif_documentos"
+                                       {% if s.get('notif_documentos', true) is not false %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="admin-custom-save">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Salvar Notifica&ccedil;&otilde;es</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TAB 5: Integracoes                                                 -->
+    <!-- ================================================================== -->
+    <section id="tab-integracoes"
+             class="admin-custom__panel{% if active_tab == 'integracoes' %} is-active{% endif %}"
+             role="tabpanel"
+             aria-labelledby="tabbtn-integracoes"
+             tabindex="0">
+        <form method="POST" action="{{ PREFIX }}/admin/customizacao/integracoes">
+            <div class="admin-custom-grid admin-custom-grid--wide">
+                <div>
+                    <article class="admin-custom-int" aria-labelledby="int-gcal-title">
+                        <header class="admin-custom-int__header">
+                            <h2 class="admin-custom-int__title" id="int-gcal-title">
+                                <i class="fab fa-google" aria-hidden="true"></i>
+                                <span>Google Calendar</span>
+                            </h2>
+                            <span class="admin-custom-int__status">
+                                <span class="admin-custom-int__dot admin-custom-int__dot--{% if s.get('gcal_enabled') %}connected{% else %}disconnected{% endif %}" aria-hidden="true"></span>
+                                <span>{% if s.get('gcal_enabled') %}Conectado{% else %}Desconectado{% endif %}</span>
+                            </span>
+                        </header>
+                        <div class="admin-custom-int__row">
+                            <label for="gcal_enabled">Ativar sincroniza&ccedil;&atilde;o</label>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="gcal_enabled"
+                                       id="gcal_enabled"
+                                       aria-controls="gcalFields"
+                                       data-toggle-fields="gcalFields"
+                                       {% if s.get('gcal_enabled') %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+                        <div class="admin-custom-int__fields" id="gcalFields" {% if not s.get('gcal_enabled') %}hidden{% endif %}>
+                            <div class="admin-custom-field">
+                                <label class="admin-custom-field__label" for="gcal_client_id">Client ID</label>
+                                <input type="text"
+                                       class="admin-custom-field__input"
+                                       name="gcal_client_id"
+                                       id="gcal_client_id"
+                                       value="{{ s.get('gcal_client_id', '') }}"
+                                       placeholder="xxxx.apps.googleusercontent.com">
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="admin-custom-int" aria-labelledby="int-gdrive-title">
+                        <header class="admin-custom-int__header">
+                            <h2 class="admin-custom-int__title" id="int-gdrive-title">
+                                <i class="fab fa-google-drive" aria-hidden="true"></i>
+                                <span>Google Drive</span>
+                            </h2>
+                            <span class="admin-custom-int__status">
+                                <span class="admin-custom-int__dot admin-custom-int__dot--{% if s.get('gdrive_enabled') %}connected{% else %}disconnected{% endif %}" aria-hidden="true"></span>
+                                <span>{% if s.get('gdrive_enabled') %}Conectado{% else %}Desconectado{% endif %}</span>
+                            </span>
+                        </header>
+                        <div class="admin-custom-int__row">
+                            <label for="gdrive_enabled">Ativar sincroniza&ccedil;&atilde;o</label>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="gdrive_enabled"
+                                       id="gdrive_enabled"
+                                       aria-controls="gdriveFields"
+                                       data-toggle-fields="gdriveFields"
+                                       {% if s.get('gdrive_enabled') %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+                        <div class="admin-custom-int__fields" id="gdriveFields" {% if not s.get('gdrive_enabled') %}hidden{% endif %}>
+                            <div class="admin-custom-field">
+                                <label class="admin-custom-field__label" for="gdrive_folder_id">Folder ID</label>
+                                <input type="text"
+                                       class="admin-custom-field__input"
+                                       name="gdrive_folder_id"
+                                       id="gdrive_folder_id"
+                                       value="{{ s.get('gdrive_folder_id', '') }}"
+                                       placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="admin-custom-int" aria-labelledby="int-smtp-title">
+                        <header class="admin-custom-int__header">
+                            <h2 class="admin-custom-int__title" id="int-smtp-title">
+                                <i class="fas fa-envelope" aria-hidden="true"></i>
+                                <span>Email SMTP</span>
+                            </h2>
+                            <span class="admin-custom-int__status">
+                                <span class="admin-custom-int__dot admin-custom-int__dot--{% if s.get('smtp_enabled') %}connected{% else %}disconnected{% endif %}" aria-hidden="true"></span>
+                                <span>{% if s.get('smtp_enabled') %}Configurado{% else %}Desconectado{% endif %}</span>
+                            </span>
+                        </header>
+                        <div class="admin-custom-int__row">
+                            <label for="smtp_enabled">Ativar envio de e-mail</label>
+                            <span class="admin-custom-toggle">
+                                <input type="checkbox"
+                                       class="admin-custom-toggle__input"
+                                       name="smtp_enabled"
+                                       id="smtp_enabled"
+                                       aria-controls="smtpFields"
+                                       data-toggle-fields="smtpFields"
+                                       {% if s.get('smtp_enabled') %}checked{% endif %}>
+                                <span class="admin-custom-toggle__slider" aria-hidden="true"></span>
+                            </span>
+                        </div>
+                        <div class="admin-custom-int__fields" id="smtpFields" {% if not s.get('smtp_enabled') %}hidden{% endif %}>
+                            <div class="admin-custom-field__row admin-custom-field__row--host">
+                                <div class="admin-custom-field">
+                                    <label class="admin-custom-field__label" for="smtp_host">Host SMTP</label>
+                                    <input type="text"
+                                           class="admin-custom-field__input"
+                                           name="smtp_host"
+                                           id="smtp_host"
+                                           value="{{ s.get('smtp_host', '') }}"
+                                           placeholder="smtp.gmail.com">
+                                </div>
+                                <div class="admin-custom-field">
+                                    <label class="admin-custom-field__label" for="smtp_port">Porta</label>
+                                    <input type="text"
+                                           class="admin-custom-field__input"
+                                           name="smtp_port"
+                                           id="smtp_port"
+                                           value="{{ s.get('smtp_port', '587') }}"
+                                           placeholder="587">
+                                </div>
+                            </div>
+                            <div class="admin-custom-field__row admin-custom-field__row--2">
+                                <div class="admin-custom-field">
+                                    <label class="admin-custom-field__label" for="smtp_user">Usu&aacute;rio</label>
+                                    <input type="text"
+                                           class="admin-custom-field__input"
+                                           name="smtp_user"
+                                           id="smtp_user"
+                                           value="{{ s.get('smtp_user', '') }}"
+                                           placeholder="user@exemplo.com"
+                                           autocomplete="username">
+                                </div>
+                                <div class="admin-custom-field">
+                                    <label class="admin-custom-field__label" for="smtp_password">Senha</label>
+                                    <input type="password"
+                                           class="admin-custom-field__input"
+                                           name="smtp_password"
+                                           id="smtp_password"
+                                           value="{{ s.get('smtp_password', '') }}"
+                                           placeholder="********"
+                                           autocomplete="new-password">
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <button type="submit" class="admin-custom-save">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Salvar Integra&ccedil;&otilde;es</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </section>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    function rgbToHex(value) {
+        if (!value) return '';
+        value = value.trim();
+        if (value.charAt(0) === '#') return value;
+        var match = value.match(/\d+(\.\d+)?/g);
+        if (!match || match.length < 3) return '';
+        var hex = match.slice(0, 3).map(function (n) {
+            var i = parseInt(n, 10);
+            if (isNaN(i)) return '00';
+            return (i < 16 ? '0' : '') + i.toString(16);
+        }).join('');
+        return '#' + hex;
+    }
+
+    function resolveTokenHex(token) {
+        var raw = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+        return rgbToHex(raw) || raw;
+    }
+
+    function hydrateDefaultColors() {
+        document.querySelectorAll('[data-default-token]').forEach(function (el) {
+            if (el.value) return;
+            var fallback = resolveTokenHex(el.dataset.defaultToken);
+            if (fallback) {
+                el.value = fallback;
+                var hex = document.getElementById(el.id.replace('Color', 'Hex'));
+                if (hex && !hex.value) hex.value = fallback;
+            }
+        });
+    }
+
+    function activateTab(name) {
+        document.querySelectorAll('.admin-custom__tab').forEach(function (tab) {
+            var isActive = tab.dataset.tabTarget === name;
+            tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            tab.setAttribute('tabindex', isActive ? '0' : '-1');
+        });
+        document.querySelectorAll('.admin-custom__panel').forEach(function (panel) {
+            panel.classList.toggle('is-active', panel.id === 'tab-' + name);
+        });
+        var url = new URL(window.location);
+        url.searchParams.set('tab', name);
+        window.history.replaceState({}, '', url);
+    }
+
+    function setupTabs() {
+        var tabs = Array.prototype.slice.call(document.querySelectorAll('.admin-custom__tab'));
+        tabs.forEach(function (tab, idx) {
+            tab.addEventListener('click', function () {
+                activateTab(tab.dataset.tabTarget);
+                tab.focus();
+            });
+            tab.addEventListener('keydown', function (e) {
+                var next = null;
+                if (e.key === 'ArrowRight') next = tabs[(idx + 1) % tabs.length];
+                else if (e.key === 'ArrowLeft') next = tabs[(idx - 1 + tabs.length) % tabs.length];
+                else if (e.key === 'Home') next = tabs[0];
+                else if (e.key === 'End') next = tabs[tabs.length - 1];
+                if (next) {
+                    e.preventDefault();
+                    activateTab(next.dataset.tabTarget);
+                    next.focus();
+                }
+            });
+        });
+    }
+
+    function livePreview() {
+        var primaryInput = document.getElementById('inputPrimaryColor');
+        var secondaryInput = document.getElementById('inputSecondaryColor');
+        if (!primaryInput || !secondaryInput) return;
+
+        var primary = primaryInput.value;
+        var secondary = secondaryInput.value;
+        var orgNameInput = document.getElementById('inputOrgName');
+        var orgName = orgNameInput ? orgNameInput.value : 'CaseHub';
+
+        var primaryHex = document.getElementById('inputPrimaryHex');
+        var secondaryHex = document.getElementById('inputSecondaryHex');
+        if (primaryHex) primaryHex.value = primary;
+        if (secondaryHex) secondaryHex.value = secondary;
+
+        if (primary) {
+            document.documentElement.style.setProperty('--accent', primary);
+        }
+
+        var sidebar = document.getElementById('previewSidebar');
+        if (sidebar && secondary && primary) {
+            sidebar.style.background = 'linear-gradient(180deg, ' + secondary + ' 0%, var(--surface-inverse) 100%)';
+        }
+        var header = document.getElementById('previewHeader');
+        if (header && secondary && primary) {
+            header.style.background = 'linear-gradient(135deg, ' + secondary + ', ' + primary + ')';
+        }
+        var previewName = document.getElementById('previewOrgName');
+        if (previewName) previewName.textContent = orgName;
+        var previewLogo = document.getElementById('previewLogo');
+        if (previewLogo) previewLogo.textContent = orgName;
+    }
+
+    function setupColorInputs() {
+        ['Primary', 'Secondary'].forEach(function (key) {
+            var color = document.getElementById('input' + key + 'Color');
+            var hex = document.getElementById('input' + key + 'Hex');
+            if (color) color.addEventListener('input', livePreview);
+            if (hex && color) {
+                hex.addEventListener('change', function () {
+                    var match = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(hex.value);
+                    if (match) {
+                        var h = match[1];
+                        if (h.length === 3) {
+                            h = h.split('').map(function (c) { return c + c; }).join('');
+                        }
+                        color.value = '#' + h.toLowerCase();
+                        hex.value = color.value;
+                        livePreview();
+                    }
+                });
+            }
+        });
+
+        var reset = document.getElementById('resetCoresBtn');
+        if (reset) {
+            reset.addEventListener('click', function () {
+                var primary = document.getElementById('inputPrimaryColor');
+                var secondary = document.getElementById('inputSecondaryColor');
+                if (primary) primary.value = resolveTokenHex(primary.dataset.defaultToken || '--accent');
+                if (secondary) secondary.value = resolveTokenHex(secondary.dataset.defaultToken || '--accent-hover');
+                livePreview();
+            });
+        }
+
+        var orgName = document.getElementById('inputOrgName');
+        if (orgName) orgName.addEventListener('input', livePreview);
+    }
+
+    function setupLogoUpload() {
+        var input = document.querySelector('[data-logo-preview]');
+        if (!input) return;
+        input.addEventListener('change', function () {
+            if (!input.files || !input.files[0]) return;
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                var img = document.getElementById('logo-preview-img');
+                var wrap = document.getElementById('logo-preview');
+                if (img) img.src = e.target.result;
+                if (wrap) wrap.removeAttribute('hidden');
+            };
+            reader.readAsDataURL(input.files[0]);
+        });
+    }
+
+    function setupSortable() {
+        var el = document.getElementById('sidebarSortable');
+        if (el && window.Sortable) {
+            Sortable.create(el, {
+                handle: '.admin-custom-sortable-item__handle',
+                animation: 200,
+                ghostClass: 'sortable-ghost'
+            });
+        }
+        function updateSidebarOrderInput() {
+            var items = document.querySelectorAll('#sidebarSortable .admin-custom-sortable-item');
+            var order = Array.prototype.map.call(items, function (item) { return item.dataset.key; });
+            var input = document.getElementById('sidebarOrderInput');
+            if (input) input.value = order.join(',');
+        }
+        var form = document.getElementById('formSidebar');
+        if (form) {
+            form.addEventListener('submit', updateSidebarOrderInput);
+        }
+        var saveBtn = document.getElementById('saveSidebarBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', updateSidebarOrderInput);
+        }
+    }
+
+    function setupIntegrationToggles() {
+        document.querySelectorAll('[data-toggle-fields]').forEach(function (checkbox) {
+            checkbox.addEventListener('change', function () {
+                var fields = document.getElementById(checkbox.dataset.toggleFields);
+                if (!fields) return;
+                if (checkbox.checked) fields.removeAttribute('hidden');
+                else fields.setAttribute('hidden', '');
+            });
+        });
+    }
+
+    function setupAlertDismiss() {
+        document.querySelectorAll('[data-admin-custom-dismiss]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var alert = btn.closest('.admin-custom-alert');
+                if (alert) alert.remove();
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        hydrateDefaultColors();
+        setupTabs();
+        setupColorInputs();
+        setupLogoUpload();
+        setupSortable();
+        setupIntegrationToggles();
+        setupAlertDismiss();
+        livePreview();
+    });
+})();
+</script>
+{% endblock %}

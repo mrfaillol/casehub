@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp Notifications - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/whatsapp-dashboard.css">
+<!-- TODO(security-review): add SRI integrity hash; investigate replacing svgMap with lightweight CSS/SVG (Tier C). -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/svgmap@2.10.1/dist/svgMap.min.css" crossorigin="anonymous">
+{% endblock %}
+
+{% block content %}
+<main class="whatsapp-dashboard-main" aria-labelledby="whatsapp-dashboard-title">
+    <header class="whatsapp-dashboard-header">
+        <h1 id="whatsapp-dashboard-title" class="whatsapp-dashboard-title">
+            <i class="fab fa-whatsapp whatsapp-dashboard-title-icon" aria-hidden="true"></i>
+            <span>WhatsApp Notifications</span>
+        </h1>
+        <a href="{{ PREFIX }}/whatsapp/send" class="whatsapp-dashboard-btn whatsapp-dashboard-btn--primary">
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+            <span>Send Message</span>
+        </a>
+    </header>
+
+    <div class="whatsapp-dashboard-stack">
+        <!-- Bot Control -->
+        <section class="whatsapp-dashboard-card whatsapp-dashboard-bot" aria-labelledby="whatsapp-dashboard-bot-title">
+            <header class="whatsapp-dashboard-card-header">
+                <h2 id="whatsapp-dashboard-bot-title" class="whatsapp-dashboard-card-title">
+                    <i class="fas fa-robot whatsapp-dashboard-card-title-icon" aria-hidden="true"></i>
+                    <span>Bot Control</span>
+                </h2>
+                <span id="bot-status-badge"
+                      class="whatsapp-dashboard-badge whatsapp-dashboard-badge--neutral"
+                      role="status"
+                      aria-live="polite">Carregando…</span>
+            </header>
+            <div class="whatsapp-dashboard-card-body">
+                <div class="whatsapp-dashboard-bot-grid">
+                    <div class="whatsapp-dashboard-bot-info">
+                        <p class="whatsapp-dashboard-bot-status">
+                            <strong>Status:</strong>
+                            <span id="bot-status-text">--</span>
+                        </p>
+                        <p id="bot-status-time" class="whatsapp-dashboard-bot-meta">--</p>
+                        <p class="whatsapp-dashboard-bot-hint">Seg-Sex 8h-18h BRT + Sab/Dom 24h</p>
+                    </div>
+                    <div class="whatsapp-dashboard-bot-actions">
+                        <button id="btn-bot-toggle"
+                                type="button"
+                                class="whatsapp-dashboard-btn whatsapp-dashboard-btn--warning"
+                                onclick="toggleBot()">
+                            <i class="fas fa-power-off" aria-hidden="true"></i>
+                            <span id="toggle-text">Toggle</span>
+                        </button>
+                        <a href="/whatsapp-api/qr"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="whatsapp-dashboard-btn whatsapp-dashboard-btn--success">
+                            <i class="fas fa-qrcode" aria-hidden="true"></i>
+                            <span>QR Code</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- World Clock -->
+        <section class="whatsapp-dashboard-card whatsapp-dashboard-map" aria-labelledby="whatsapp-dashboard-map-title">
+            <header class="whatsapp-dashboard-card-header">
+                <h2 id="whatsapp-dashboard-map-title" class="whatsapp-dashboard-card-title">
+                    <i class="fas fa-globe-americas whatsapp-dashboard-card-title-icon" aria-hidden="true"></i>
+                    <span>World Clock</span>
+                </h2>
+            </header>
+            <div class="whatsapp-dashboard-card-body whatsapp-dashboard-card-body--flush">
+                <div id="world-clock-map" class="whatsapp-dashboard-map-canvas" role="img" aria-label="Mapa-múndi com fusos horários globais"></div>
+                <table class="whatsapp-dashboard-sr-only" aria-label="Horários globais por cidade">
+                    <thead>
+                        <tr><th>Cidade</th><th>Fuso</th><th>Horário</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>New York</td><td>ET</td><td><span id="clock-ny-sr">--</span></td></tr>
+                        <tr><td>São Paulo</td><td>BRT</td><td><span id="clock-sp-sr">--</span></td></tr>
+                        <tr><td>London</td><td>GMT</td><td><span id="clock-ldn-sr">--</span></td></tr>
+                        <tr><td>Tokyo</td><td>JST</td><td><span id="clock-tky-sr">--</span></td></tr>
+                    </tbody>
+                </table>
+                <ul class="whatsapp-dashboard-map-clocks" aria-hidden="true">
+                    <li class="whatsapp-dashboard-clock">
+                        <span class="whatsapp-dashboard-clock-label">New York (ET)</span>
+                        <span id="clock-ny" class="whatsapp-dashboard-clock-time">--:--</span>
+                    </li>
+                    <li class="whatsapp-dashboard-clock">
+                        <span class="whatsapp-dashboard-clock-label">São Paulo (BRT)</span>
+                        <span id="clock-sp" class="whatsapp-dashboard-clock-time">--:--</span>
+                    </li>
+                    <li class="whatsapp-dashboard-clock">
+                        <span class="whatsapp-dashboard-clock-label">London (GMT)</span>
+                        <span id="clock-ldn" class="whatsapp-dashboard-clock-time">--:--</span>
+                    </li>
+                    <li class="whatsapp-dashboard-clock">
+                        <span class="whatsapp-dashboard-clock-label">Tokyo (JST)</span>
+                        <span id="clock-tky" class="whatsapp-dashboard-clock-time">--:--</span>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Stats -->
+        <section class="whatsapp-dashboard-stats" aria-label="Estatísticas dos últimos 30 dias">
+            <article class="whatsapp-dashboard-stat whatsapp-dashboard-stat--info">
+                <p class="whatsapp-dashboard-stat-label">Total Sent (30d)</p>
+                <p class="whatsapp-dashboard-stat-value">{{ stats.total or 0 }}</p>
+            </article>
+            <article class="whatsapp-dashboard-stat whatsapp-dashboard-stat--success">
+                <p class="whatsapp-dashboard-stat-label">Delivered</p>
+                <p class="whatsapp-dashboard-stat-value">{{ stats.successful or 0 }}</p>
+            </article>
+            <article class="whatsapp-dashboard-stat whatsapp-dashboard-stat--danger">
+                <p class="whatsapp-dashboard-stat-label">Failed</p>
+                <p class="whatsapp-dashboard-stat-value">{{ stats.failed or 0 }}</p>
+            </article>
+            <article class="whatsapp-dashboard-stat whatsapp-dashboard-stat--warning">
+                <p class="whatsapp-dashboard-stat-label">Queued</p>
+                <p class="whatsapp-dashboard-stat-value">{{ stats.queued or 0 }}</p>
+            </article>
+        </section>
+
+        <div class="whatsapp-dashboard-grid">
+            <div class="whatsapp-dashboard-column">
+                <!-- Recent Messages -->
+                <section class="whatsapp-dashboard-card" aria-labelledby="whatsapp-dashboard-recent-title">
+                    <header class="whatsapp-dashboard-card-header">
+                        <h2 id="whatsapp-dashboard-recent-title" class="whatsapp-dashboard-card-title">
+                            <i class="fas fa-history whatsapp-dashboard-card-title-icon" aria-hidden="true"></i>
+                            <span>Recent Messages</span>
+                        </h2>
+                    </header>
+                    <div class="whatsapp-dashboard-card-body whatsapp-dashboard-card-body--flush">
+                        {% if recent %}
+                        <div class="whatsapp-dashboard-table-wrap">
+                            <table class="whatsapp-dashboard-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Time</th>
+                                        <th scope="col">Phone</th>
+                                        <th scope="col">Template</th>
+                                        <th scope="col">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for msg in recent %}
+                                    <tr>
+                                        <td class="whatsapp-dashboard-table-time">
+                                            {% if msg.sent_at %}
+                                            <time datetime="{{ msg.sent_at.isoformat() }}">{{ msg.sent_at.strftime('%m/%d %H:%M') }}</time>
+                                            {% else %}—{% endif %}
+                                        </td>
+                                        <td class="whatsapp-dashboard-table-phone">{{ msg.phone }}</td>
+                                        <td class="whatsapp-dashboard-table-template">{{ msg.template or '—' }}</td>
+                                        <td>
+                                            {% if msg.success %}
+                                            <span class="whatsapp-dashboard-badge whatsapp-dashboard-badge--success">Sent</span>
+                                            {% else %}
+                                            <span class="whatsapp-dashboard-badge whatsapp-dashboard-badge--danger" title="{{ msg.error }}">Failed</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="whatsapp-dashboard-empty">
+                            <i class="fab fa-whatsapp whatsapp-dashboard-empty-icon" aria-hidden="true"></i>
+                            <p class="whatsapp-dashboard-empty-text">No messages sent yet</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+
+            <div class="whatsapp-dashboard-column">
+                <!-- Quick Actions -->
+                <section class="whatsapp-dashboard-card" aria-labelledby="whatsapp-dashboard-actions-title">
+                    <header class="whatsapp-dashboard-card-header">
+                        <h2 id="whatsapp-dashboard-actions-title" class="whatsapp-dashboard-card-title">
+                            <i class="fas fa-bolt whatsapp-dashboard-card-title-icon" aria-hidden="true"></i>
+                            <span>Quick Actions</span>
+                        </h2>
+                    </header>
+                    <div class="whatsapp-dashboard-card-body whatsapp-dashboard-card-body--flush">
+                        <ul class="whatsapp-dashboard-actions-list" role="list">
+                            <li>
+                                <a href="{{ PREFIX }}/whatsapp/send" class="whatsapp-dashboard-action">
+                                    <i class="fas fa-paper-plane whatsapp-dashboard-action-icon" aria-hidden="true"></i>
+                                    <span>Send Custom Message</span>
+                                </a>
+                            </li>
+                            <li>
+                                <button type="button" class="whatsapp-dashboard-action" onclick="processQueue()">
+                                    <i class="fas fa-sync whatsapp-dashboard-action-icon" aria-hidden="true"></i>
+                                    <span>Process Queued Messages</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </section>
+
+                {% if queued %}
+                <!-- Queued Messages -->
+                <section class="whatsapp-dashboard-card" aria-labelledby="whatsapp-dashboard-queued-title">
+                    <header class="whatsapp-dashboard-card-header">
+                        <h2 id="whatsapp-dashboard-queued-title" class="whatsapp-dashboard-card-title">
+                            <i class="fas fa-clock whatsapp-dashboard-card-title-icon" aria-hidden="true"></i>
+                            <span>Queued ({{ queued|length }})</span>
+                        </h2>
+                        <span class="whatsapp-dashboard-badge whatsapp-dashboard-badge--warning">{{ queued|length }}</span>
+                    </header>
+                    <div class="whatsapp-dashboard-card-body whatsapp-dashboard-card-body--flush">
+                        <ul class="whatsapp-dashboard-queued-list" role="list">
+                            {% for msg in queued[:5] %}
+                            <li>
+                                <div class="whatsapp-dashboard-queued-item">
+                                    <span class="whatsapp-dashboard-queued-phone">{{ msg.phone }}</span>
+                                    <span>{{ msg.message[:50] }}…</span>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- svgMap dependencies — TODO(security-review): add SRI integrity hashes; investigate replacement (brief Tier C). -->
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/svgmap@2.10.1/dist/svgMap.min.js" crossorigin="anonymous"></script>
+
+<script>
+function processQueue() {
+    fetch('{{ PREFIX }}/whatsapp/process-queue', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Processed ' + data.processed + ' messages');
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+}
+
+async function checkBotStatus() {
+    try {
+        const res = await fetch("/whatsapp-api/api/bot-status");
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        const badge = document.getElementById("bot-status-badge");
+        const statusText = document.getElementById("bot-status-text");
+        const statusTime = document.getElementById("bot-status-time");
+        const toggleBtn = document.getElementById("btn-bot-toggle");
+        const toggleText = document.getElementById("toggle-text");
+
+        if (data.botIsActive) {
+            badge.textContent = "ATIVO";
+            badge.className = "whatsapp-dashboard-badge whatsapp-dashboard-badge--success";
+            statusText.textContent = "Bot respondendo automaticamente";
+            toggleBtn.className = "whatsapp-dashboard-btn whatsapp-dashboard-btn--warning";
+            toggleText.textContent = "Desativar";
+        } else {
+            badge.textContent = "INATIVO";
+            badge.className = "whatsapp-dashboard-badge whatsapp-dashboard-badge--danger";
+            statusText.textContent = data.reason || "Bot desativado";
+            toggleBtn.className = "whatsapp-dashboard-btn whatsapp-dashboard-btn--success";
+            toggleText.textContent = "Ativar";
+        }
+        statusTime.textContent = data.currentTime + " (" + data.dayOfWeek + ")";
+    } catch (e) {
+        console.error("Erro ao verificar status:", e);
+        const badge = document.getElementById("bot-status-badge");
+        badge.textContent = "ERRO";
+        badge.className = "whatsapp-dashboard-badge whatsapp-dashboard-badge--neutral";
+        document.getElementById("bot-status-text").textContent = "Falha ao conectar";
+    }
+}
+
+async function toggleBot() {
+    try {
+        const res = await fetch("/whatsapp-api/api/bot-toggle", { method: "POST" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (data.success !== false) {
+            checkBotStatus();
+        } else {
+            alert("Erro: " + data.error);
+        }
+    } catch (e) {
+        alert("Erro ao alterar status do bot: " + e.message);
+    }
+}
+
+function updateClocks() {
+    const fmt = (locale, tz) => new Date().toLocaleTimeString(locale, { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+    const cities = [
+        { id: "ny", locale: "en-US", tz: "America/New_York" },
+        { id: "sp", locale: "pt-BR", tz: "America/Sao_Paulo" },
+        { id: "ldn", locale: "en-GB", tz: "Europe/London" },
+        { id: "tky", locale: "ja-JP", tz: "Asia/Tokyo" }
+    ];
+    cities.forEach(c => {
+        const t = fmt(c.locale, c.tz);
+        const visual = document.getElementById("clock-" + c.id);
+        const sr = document.getElementById("clock-" + c.id + "-sr");
+        if (visual) visual.textContent = t;
+        if (sr) sr.textContent = t;
+    });
+}
+
+function getTimeForCountry(tz) {
+    try {
+        return new Date().toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
+    } catch (e) {
+        return "--:--";
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const timezones = {
+        US: "America/New_York", BR: "America/Sao_Paulo", GB: "Europe/London",
+        JP: "Asia/Tokyo", AU: "Australia/Sydney", DE: "Europe/Berlin",
+        FR: "Europe/Paris", IN: "Asia/Kolkata", CN: "Asia/Shanghai",
+        RU: "Europe/Moscow", MX: "America/Mexico_City", CA: "America/Toronto",
+        AR: "America/Buenos_Aires", CL: "America/Santiago", CO: "America/Bogota",
+        PE: "America/Lima", VE: "America/Caracas", ES: "Europe/Madrid",
+        IT: "Europe/Rome", PT: "Europe/Lisbon", NL: "Europe/Amsterdam",
+        BE: "Europe/Brussels", CH: "Europe/Zurich", AT: "Europe/Vienna",
+        PL: "Europe/Warsaw", CZ: "Europe/Prague", SE: "Europe/Stockholm",
+        NO: "Europe/Oslo", DK: "Europe/Copenhagen", FI: "Europe/Helsinki",
+        IE: "Europe/Dublin", GR: "Europe/Athens", TR: "Europe/Istanbul",
+        IL: "Asia/Jerusalem", AE: "Asia/Dubai", SA: "Asia/Riyadh",
+        EG: "Africa/Cairo", ZA: "Africa/Johannesburg", NG: "Africa/Lagos",
+        KE: "Africa/Nairobi", TH: "Asia/Bangkok", VN: "Asia/Ho_Chi_Minh",
+        SG: "Asia/Singapore", MY: "Asia/Kuala_Lumpur", ID: "Asia/Jakarta",
+        PH: "Asia/Manila", KR: "Asia/Seoul", TW: "Asia/Taipei",
+        HK: "Asia/Hong_Kong", NZ: "Pacific/Auckland"
+    };
+
+    const values = {};
+    for (const [code, tz] of Object.entries(timezones)) {
+        values[code] = { time: getTimeForCountry(tz), tz: tz };
+    }
+
+    // Theme-agnostic: read map fill colors from CSS custom properties on the host card
+    const mapHost = document.querySelector(".whatsapp-dashboard-map");
+    const cs = mapHost ? getComputedStyle(mapHost) : null;
+    const colorMin = (cs && cs.getPropertyValue("--map-fill-min").trim()) || (cs && cs.getPropertyValue("--surface-sunken").trim()) || "";
+    const colorMax = (cs && cs.getPropertyValue("--map-fill-max").trim()) || (cs && cs.getPropertyValue("--accent").trim()) || "";
+
+    if (window.svgMap) {
+        new svgMap({
+            targetElementID: "world-clock-map",
+            colorMin: colorMin,
+            colorMax: colorMax,
+            flagType: "emoji",
+            data: {
+                data: { time: { name: "Local Time", format: "{0}" } },
+                applyData: "time",
+                values: values
+            }
+        });
+    }
+
+    checkBotStatus();
+    updateClocks();
+    setInterval(updateClocks, 1000);
+    setInterval(checkBotStatus, 30000);
+});
+</script>
+{% endblock %}

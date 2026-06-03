@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Add Shipment - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/shipments-create.css">
+{% endblock %}
+
+{% block content %}
+<section class="shipments-create-main" aria-labelledby="shipments-create-title">
+    <div class="shipments-create-container">
+        <header class="shipments-create-header">
+            <a href="{{ PREFIX }}/shipments" class="shipments-create-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Shipments</span>
+            </a>
+            <h1 id="shipments-create-title" class="shipments-create-title">
+                <i class="fas fa-shipping-fast shipments-create-title-icon" aria-hidden="true"></i>
+                <span>Add Shipment</span>
+            </h1>
+        </header>
+
+        <div class="shipments-create-grid">
+            <form method="POST" action="{{ PREFIX }}/shipments/create" class="shipments-create-card" aria-labelledby="shipments-create-form-heading">
+                <h2 id="shipments-create-form-heading" class="shipments-create-card-header">
+                    <i class="fas fa-box" aria-hidden="true"></i>
+                    <span>Shipment Details</span>
+                </h2>
+                <div class="shipments-create-card-body">
+                    <div class="shipments-create-field">
+                        <label for="shipments-create-case" class="shipments-create-label">
+                            Case <span class="shipments-create-required" aria-hidden="true">*</span>
+                        </label>
+                        <select id="shipments-create-case" name="case_id" class="shipments-create-select" required aria-required="true">
+                            <option value="">-- Select Case --</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}" {% if selected_case and selected_case.id == case.id %}selected{% endif %}>
+                                {{ case.case_number }} - {{ case.case_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="shipments-create-field">
+                        <label for="shipments-create-tracking" class="shipments-create-label">
+                            Tracking Number <span class="shipments-create-required" aria-hidden="true">*</span>
+                        </label>
+                        <input id="shipments-create-tracking" type="text" name="tracking_number"
+                               class="shipments-create-input shipments-create-input--mono"
+                               required aria-required="true"
+                               placeholder="Enter tracking number"
+                               oninput="detectCarrier()">
+                    </div>
+
+                    <div class="shipments-create-row">
+                        <div>
+                            <label for="shipments-create-carrier" class="shipments-create-label">Carrier</label>
+                            <select id="shipments-create-carrier" name="carrier" class="shipments-create-select"
+                                    aria-describedby="shipments-create-carrier-hint">
+                                <option value="">Auto-detect</option>
+                                {% for c in carriers %}
+                                <option value="{{ c.value }}">{{ c.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <small id="shipments-create-carrier-hint" class="shipments-create-hint">
+                                Enter tracking # to auto-detect
+                            </small>
+                        </div>
+                        <div>
+                            <label for="shipments-create-direction" class="shipments-create-label">Direction</label>
+                            <select id="shipments-create-direction" name="direction" class="shipments-create-select">
+                                <option value="outbound">Outbound (To USCIS/Client)</option>
+                                <option value="inbound">Inbound (From USCIS/Client)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="shipments-create-field">
+                        <label for="shipments-create-recipient" class="shipments-create-label">Recipient</label>
+                        <input id="shipments-create-recipient" type="text" name="recipient"
+                               class="shipments-create-input"
+                               placeholder="e.g., USCIS Texas Service Center">
+                    </div>
+
+                    <div class="shipments-create-field">
+                        <label for="shipments-create-description" class="shipments-create-label">Description</label>
+                        <textarea id="shipments-create-description" name="description"
+                                  class="shipments-create-textarea" rows="2"
+                                  placeholder="e.g., I-140 petition package"></textarea>
+                    </div>
+
+                    <div class="shipments-create-actions">
+                        <a href="{{ PREFIX }}/shipments" class="shipments-create-btn shipments-create-btn--ghost">
+                            Cancel
+                        </a>
+                        <button type="submit" class="shipments-create-btn shipments-create-btn--primary">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Add Shipment</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <aside class="shipments-create-card" aria-labelledby="shipments-create-formats-heading">
+                <h2 id="shipments-create-formats-heading" class="shipments-create-card-header">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span>Tracking Number Formats</span>
+                </h2>
+                <div class="shipments-create-card-body">
+                    <table class="shipments-create-formats">
+                        <caption class="visually-hidden">Supported carriers and tracking number formats</caption>
+                        <thead class="visually-hidden">
+                            <tr>
+                                <th scope="col">Carrier</th>
+                                <th scope="col">Format</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="shipments-create-badge shipments-create-badge--neutral">USPS</span></td>
+                                <td>20-22 digits</td>
+                            </tr>
+                            <tr>
+                                <td><span class="shipments-create-badge shipments-create-badge--info">FedEx</span></td>
+                                <td>12, 15, 20, or 22 digits</td>
+                            </tr>
+                            <tr>
+                                <td><span class="shipments-create-badge shipments-create-badge--warning">UPS</span></td>
+                                <td>Starts with 1Z</td>
+                            </tr>
+                            <tr>
+                                <td><span class="shipments-create-badge shipments-create-badge--danger">DHL</span></td>
+                                <td>10 digits</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </aside>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    const PREFIX = '{{ PREFIX }}';
+    const trackingInput = document.getElementById('shipments-create-tracking');
+    const carrierSelect = document.getElementById('shipments-create-carrier');
+    const carrierHint = document.getElementById('shipments-create-carrier-hint');
+
+    window.detectCarrier = async function detectCarrier() {
+        const tracking = trackingInput.value.trim();
+        if (tracking.length < 10) return;
+        try {
+            const response = await fetch(`${PREFIX}/shipments/api/detect-carrier/${encodeURIComponent(tracking)}`);
+            const data = await response.json();
+            if (data.carrier) {
+                carrierSelect.value = data.carrier;
+                carrierHint.textContent = `Detected: ${data.carrier.toUpperCase()}`;
+            }
+        } catch (e) {
+            /* noop — carrier stays as-is if detection fails */
+        }
+    };
+})();
+</script>
+{% endblock %}

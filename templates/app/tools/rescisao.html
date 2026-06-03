@@ -1,0 +1,184 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Calculadora de Rescisão · CaseHub{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Ferramentas · Trabalhista</span>
+    <h1>Calculadora de <em>Rescisão</em>.</h1>
+    <p class="ch-page-head__sub">
+      CLT — sem demissão, com demissão, justa causa, acordo. Verbas, FGTS, multa rescisória.
+      Resultado detalhado por parcela. Use apenas para estimativa.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tools">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Ferramentas
+    </a>
+  </div>
+</section>
+
+{% if alert %}
+<div class="ch-card ch-card--compact" style="margin-bottom: var(--space-4); border-left: 4px solid var(--c-warn); background: rgba(217,119,6,0.06);">
+  <p style="margin: 0; font-size: var(--fs-sm);">{{ alert }}</p>
+</div>
+{% endif %}
+
+<form method="POST" action="{{ PREFIX }}/tools/rescisao/calcular" id="rescisaoForm" novalidate>
+
+  <article class="ch-card" style="margin-bottom: var(--space-5);">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Identificação</span>
+        <h2 class="ch-card__title">Trabalhador</h2>
+      </div>
+      <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="nome">Nome completo</label>
+      <input class="ch-input" id="nome" name="nome" type="text"
+             value="{{ form_data.nome if form_data else '' }}"
+             placeholder="João Silva" required />
+    </div>
+  </article>
+
+  <article class="ch-card" style="margin-bottom: var(--space-5);">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Contrato</span>
+        <h2 class="ch-card__title">Datas e remuneração</h2>
+      </div>
+      <span data-icon="calendar" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="data_admissao">Data de admissão <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input" id="data_admissao" name="data_admissao" type="date"
+               value="{{ form_data.data_admissao if form_data else '' }}" required />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="data_demissao">Data de demissão <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input" id="data_demissao" name="data_demissao" type="date"
+               value="{{ form_data.data_demissao if form_data else '' }}" required />
+      </div>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="salario">Salário base (R$) <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input ch-mono" id="salario" name="salario" type="number"
+               step="0.01" min="0" inputmode="decimal"
+               value="{{ form_data.salario if form_data else '' }}"
+               placeholder="0,00" required />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="tipo_rescisao">Modalidade <span style="color: var(--c-danger);">*</span></label>
+        <select class="ch-select" id="tipo_rescisao" name="tipo_rescisao" required>
+          <option value="">— Selecione —</option>
+          <option value="sem_justa_causa" {% if form_data and form_data.tipo_rescisao == 'sem_justa_causa' %}selected{% endif %}>Demissão sem justa causa (pelo empregador)</option>
+          <option value="pedido_demissao" {% if form_data and form_data.tipo_rescisao == 'pedido_demissao' %}selected{% endif %}>Pedido de demissão</option>
+          <option value="justa_causa" {% if form_data and form_data.tipo_rescisao == 'justa_causa' %}selected{% endif %}>Justa causa</option>
+          <option value="acordo_mutuo" {% if form_data and form_data.tipo_rescisao == 'acordo_mutuo' %}selected{% endif %}>Acordo mútuo (Art. 484-A)</option>
+          <option value="termino_contrato" {% if form_data and form_data.tipo_rescisao == 'termino_contrato' %}selected{% endif %}>Término de contrato prazo determinado</option>
+        </select>
+      </div>
+    </div>
+    <label class="ch-checkbox" style="margin-top: var(--space-3);">
+      <input type="checkbox" id="aviso_previo_trabalhado" name="aviso_previo_trabalhado" value="true"
+             {% if form_data and form_data.aviso_previo_trabalhado %}checked{% endif %} />
+      Aviso prévio foi trabalhado (não indenizado)
+    </label>
+  </article>
+
+  <article class="ch-card" style="margin-bottom: var(--space-5);">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Adicionais</span>
+        <h2 class="ch-card__title">Verbas variáveis (opcional)</h2>
+      </div>
+      <span data-icon="billing" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="horas_extras">Horas extras (R$)</label>
+        <input class="ch-input ch-mono" id="horas_extras" name="horas_extras" type="number" step="0.01" min="0"
+               value="{{ form_data.horas_extras if form_data else '' }}" placeholder="0,00" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="adicional_noturno">Adicional noturno (R$)</label>
+        <input class="ch-input ch-mono" id="adicional_noturno" name="adicional_noturno" type="number" step="0.01" min="0"
+               value="{{ form_data.adicional_noturno if form_data else '' }}" placeholder="0,00" />
+      </div>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="comissoes">Comissões (R$)</label>
+        <input class="ch-input ch-mono" id="comissoes" name="comissoes" type="number" step="0.01" min="0"
+               value="{{ form_data.comissoes if form_data else '' }}" placeholder="0,00" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="insalubridade">Insalubridade (R$)</label>
+        <input class="ch-input ch-mono" id="insalubridade" name="insalubridade" type="number" step="0.01" min="0"
+               value="{{ form_data.insalubridade if form_data else '' }}" placeholder="0,00" />
+      </div>
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="periculosidade">Periculosidade (R$)</label>
+      <input class="ch-input ch-mono" id="periculosidade" name="periculosidade" type="number" step="0.01" min="0"
+             value="{{ form_data.periculosidade if form_data else '' }}" placeholder="0,00" />
+    </div>
+  </article>
+
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: var(--space-5);">
+    <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint); letter-spacing: 0.10em; text-transform: uppercase;">
+      Cálculo baseado na CLT — verifique com sentença
+    </span>
+    <div style="display: flex; gap: var(--space-2);">
+      <button type="reset" class="ch-btn ch-btn--ghost">Limpar</button>
+      <button type="submit" class="ch-btn ch-btn--primary">
+        <span data-icon="check"></span> Calcular rescisão
+      </button>
+    </div>
+  </div>
+</form>
+
+{% if resultado %}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Resultado</span>
+      <h2 class="ch-card__title">Verbas rescisórias detalhadas</h2>
+      <p class="ch-card__subtitle">Estimativa — confira com sentença antes de pagar/cobrar.</p>
+    </div>
+    <a class="ch-card__action" href="#" onclick="window.print();return false;">
+      <span data-icon="docs"></span> Imprimir
+    </a>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Parcela</th>
+          <th style="text-align: right;">Valor (R$)</th>
+          <th>Base legal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for parcela in resultado.parcelas %}
+        <tr>
+          <td data-label="Parcela"><strong>{{ parcela.descricao }}</strong></td>
+          <td data-label="Valor" style="text-align: right;" class="ch-mono">{{ "R$ %.2f"|format(parcela.valor|float) }}</td>
+          <td data-label="Base legal" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">{{ parcela.base_legal or '—' }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="background: var(--surface-card-2); font-weight: 700;">
+          <td>TOTAL LÍQUIDO</td>
+          <td style="text-align: right;" class="ch-mono">{{ "R$ %.2f"|format(resultado.total|float) }}</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

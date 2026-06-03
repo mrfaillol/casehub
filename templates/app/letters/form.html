@@ -1,0 +1,175 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Letters · Form · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/letters-form.css">
+{% endblock %}
+{% block content %}
+<section class="letters-form" aria-labelledby="letters-form-title">
+    <header class="letters-form__header">
+        <h1 id="letters-form-title" class="letters-form__title">
+            <i class="fas fa-file-alt letters-form__title-icon" aria-hidden="true"></i>
+            <span>{% if template %}Edit{% else %}New{% endif %} Letter Template</span>
+        </h1>
+        <a href="{{ PREFIX }}/letters" class="letters-form__back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Templates</span>
+        </a>
+    </header>
+
+    <div class="letters-form__layout">
+        <section class="letters-form__card" aria-label="Letter template details">
+            <div class="letters-form__card-body">
+                <form class="letters-form__form"
+                      method="POST"
+                      action="{{ PREFIX }}/letters{% if template %}/{{ template.id }}/edit{% else %}/new{% endif %}">
+                    <div class="letters-form__row">
+                        <div class="letters-form__field">
+                            <label for="letters-form-name" class="letters-form__label">
+                                Template Name<span class="letters-form__required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="text"
+                                   id="letters-form-name"
+                                   name="name"
+                                   class="letters-form__input"
+                                   value="{{ template.name if template else '' }}"
+                                   autocomplete="off"
+                                   required>
+                        </div>
+                        <div class="letters-form__field">
+                            <label for="letters-form-category" class="letters-form__label">
+                                Category
+                            </label>
+                            <select id="letters-form-category"
+                                    name="category"
+                                    class="letters-form__select">
+                                <option value="">Select...</option>
+                                {% for cat in ['cover_letter', 'rfe_response', 'client_communication', 'uscis_correspondence', 'internal', 'other'] %}
+                                <option value="{{ cat }}" {% if template and template.category == cat %}selected{% endif %}>{{ cat|replace('_', ' ')|title }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="letters-form__field">
+                        <label for="letters-form-description" class="letters-form__label">Description</label>
+                        <input type="text"
+                               id="letters-form-description"
+                               name="description"
+                               class="letters-form__input"
+                               value="{{ template.description if template else '' }}">
+                    </div>
+
+                    <div class="letters-form__field">
+                        <label for="letters-form-subject" class="letters-form__label">Subject Line</label>
+                        <input type="text"
+                               id="letters-form-subject"
+                               name="subject"
+                               class="letters-form__input"
+                               value="{{ template.subject if template else '' }}"
+                               placeholder="Use {{ '{{variable_name}}' }} for dynamic content">
+                    </div>
+
+                    <div class="letters-form__field">
+                        <label for="letters-form-body" class="letters-form__label">
+                            Letter Body<span class="letters-form__required" aria-hidden="true">*</span>
+                        </label>
+                        <textarea id="letters-form-body"
+                                  name="body"
+                                  class="letters-form__textarea"
+                                  rows="15"
+                                  spellcheck="false"
+                                  aria-describedby="letters-form-body-help"
+                                  required>{{ template.body if template else '' }}</textarea>
+                        <small id="letters-form-body-help" class="letters-form__help">
+                            Use <code>{{ '{{variable_name}}' }}</code> to insert dynamic content (e.g.,
+                            <code>{{ '{{client_name}}' }}</code>, <code>{{ '{{case_number}}' }}</code>)
+                        </small>
+                    </div>
+
+                    {% if template %}
+                    <div class="letters-form__field">
+                        <label class="letters-form__check" for="letters-form-active">
+                            <input type="checkbox"
+                                   id="letters-form-active"
+                                   name="is_active"
+                                   value="true"
+                                   class="letters-form__checkbox"
+                                   {% if template.is_active %}checked{% endif %}>
+                            <span class="letters-form__check-label">Template is active</span>
+                        </label>
+                    </div>
+                    {% endif %}
+
+                    <hr class="letters-form__divider">
+
+                    <div class="letters-form__actions">
+                        <button type="submit" class="letters-form__btn letters-form__btn--primary">
+                            <i class="fas fa-save" aria-hidden="true"></i>
+                            <span>{% if template %}Update{% else %}Create{% endif %} Template</span>
+                        </button>
+                        <a href="{{ PREFIX }}/letters" class="letters-form__btn letters-form__btn--ghost">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <aside class="letters-form__sidebar" aria-labelledby="letters-form-vars-title">
+            <div class="letters-form__sidebar-card">
+                <header id="letters-form-vars-title" class="letters-form__sidebar-header">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span>Available Variables</span>
+                </header>
+                <div class="letters-form__sidebar-body">
+                    <p class="letters-form__sidebar-intro">
+                        Use these variables in your template. They will be replaced with actual values when generating letters.
+                    </p>
+
+                    <div class="letters-form__sidebar-group">
+                        <h2 class="letters-form__sidebar-group-title">Client Variables</h2>
+                        <ul class="letters-form__var-list">
+                            <li class="letters-form__var-item"><code>{{ '{{client_name}}' }}</code><span>Full client name</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{beneficiary_name}}' }}</code><span>Beneficiary name</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{client_email}}' }}</code><span>Client email</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{client_phone}}' }}</code><span>Client phone</span></li>
+                        </ul>
+                    </div>
+
+                    <div class="letters-form__sidebar-group">
+                        <h2 class="letters-form__sidebar-group-title">Case Variables</h2>
+                        <ul class="letters-form__var-list">
+                            <li class="letters-form__var-item"><code>{{ '{{case_number}}' }}</code><span>Case number</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{receipt_number}}' }}</code><span>USCIS receipt number</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{visa_type}}' }}</code><span>Visa type</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{case_name}}' }}</code><span>Case name</span></li>
+                        </ul>
+                    </div>
+
+                    <div class="letters-form__sidebar-group">
+                        <h2 class="letters-form__sidebar-group-title">Firm Variables</h2>
+                        <ul class="letters-form__var-list">
+                            <li class="letters-form__var-item"><code>{{ '{{firm_name}}' }}</code><span>Firm name</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{attorney_name}}' }}</code><span>Attorney name</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{firm_phone}}' }}</code><span>Firm phone</span></li>
+                            <li class="letters-form__var-item"><code>{{ '{{firm_email}}' }}</code><span>Firm email</span></li>
+                        </ul>
+                    </div>
+
+                    <div class="letters-form__sidebar-group">
+                        <h2 class="letters-form__sidebar-group-title">Custom Variables</h2>
+                        <p class="letters-form__sidebar-note">
+                            You can use any variable name you want. Just type it between double curly braces:
+                            <code>{{ '{{your_variable}}' }}</code>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

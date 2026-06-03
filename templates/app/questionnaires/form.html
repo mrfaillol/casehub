@@ -1,0 +1,197 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Questionnaires · Form · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/questionnaires" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="fas fa-arrow-left me-1"></i> Back to Questionnaires
+    </a>
+    <h2><i class="fas fa-clipboard-list me-2"></i>{% if questionnaire %}Edit{% else %}New{% endif %} Questionnaire</h2>
+</div>
+
+<div class="row">
+    <div class="col-md-{% if questionnaire %}5{% else %}8{% endif %}">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>Questionnaire Details
+            </div>
+            <div class="card-body">
+                <form action="{{ PREFIX }}/questionnaires{% if questionnaire %}/{{ questionnaire.id }}/edit{% else %}/new{% endif %}" method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Name *</label>
+                        <input type="text" name="name" class="form-control glass-input" value="{{ questionnaire.name if questionnaire else '' }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea name="description" class="form-control glass-input" rows="2">{{ questionnaire.description if questionnaire else '' }}</textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Category</label>
+                            <select name="category" class="form-select glass-input">
+                                <option value="">Select...</option>
+                                {% for cat in ['intake', 'visa_application', 'employment', 'family', 'travel', 'background', 'financial', 'other'] %}
+                                <option value="{{ cat }}" {% if questionnaire and questionnaire.category == cat %}selected{% endif %}>{{ cat|replace('_', ' ')|title }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Target Type</label>
+                            <select name="target_type" class="form-select glass-input">
+                                <option value="client" {% if not questionnaire or questionnaire.target_type == 'client' %}selected{% endif %}>Client</option>
+                                <option value="case" {% if questionnaire and questionnaire.target_type == 'case' %}selected{% endif %}>Case</option>
+                                <option value="general" {% if questionnaire and questionnaire.target_type == 'general' %}selected{% endif %}>General</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="is_required" value="true" class="form-check-input" id="is_required" {% if questionnaire and questionnaire.is_required %}checked{% endif %}>
+                                <label class="form-check-label" for="is_required">Required questionnaire</label>
+                            </div>
+                        </div>
+                        {% if questionnaire %}
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="is_active" value="true" class="form-check-input" id="is_active" {% if questionnaire.is_active %}checked{% endif %}>
+                                <label class="form-check-label" for="is_active">Active</label>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
+                            <i class="fas fa-save me-1"></i> {% if questionnaire %}Update{% else %}Create{% endif %}
+                        </button>
+                        <a href="{{ PREFIX }}/questionnaires" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if questionnaire %}
+    <div class="col-md-7">
+        <div class="card glass-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-list me-2"></i>Fields ({{ questionnaire.fields|length }})</span>
+            </div>
+            <div class="card-body">
+                {% if questionnaire.fields %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Field</th>
+                            <th>Type</th>
+                            <th>Required</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for field in questionnaire.fields %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>
+                                <strong>{{ field.label }}</strong>
+                                <br><small class="text-muted">{{ field.field_name }}</small>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ field.field_type }}</span></td>
+                            <td>
+                                {% if field.is_required %}
+                                <i class="fas fa-check text-success"></i>
+                                {% else %}
+                                <i class="fas fa-minus text-muted"></i>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form action="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}/fields/{{ field.id }}/delete" method="POST" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this field?')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">No fields added yet.</p>
+                {% endif %}
+
+                <hr>
+
+                <h6><i class="fas fa-plus me-2"></i>Add New Field</h6>
+                <form action="{{ PREFIX }}/questionnaires/{{ questionnaire.id }}/fields/add" method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label small">Field Name (internal) *</label>
+                            <input type="text" name="field_name" class="form-control form-control-sm" placeholder="e.g., full_name" required pattern="[a-z_]+" title="Use lowercase and underscores only">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label small">Label (display) *</label>
+                            <input type="text" name="label" class="form-control form-control-sm" placeholder="e.g., Full Name" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label small">Type *</label>
+                            <select name="field_type" class="form-select form-select-sm" id="field_type" onchange="toggleOptions(this)">
+                                <option value="text">Text</option>
+                                <option value="textarea">Text Area</option>
+                                <option value="number">Number</option>
+                                <option value="date">Date</option>
+                                <option value="email">Email</option>
+                                <option value="phone">Phone</option>
+                                <option value="select">Select (Dropdown)</option>
+                                <option value="multiselect">Multi-Select</option>
+                                <option value="radio">Radio Buttons</option>
+                                <option value="checkbox">Checkbox</option>
+                                <option value="file">File Upload</option>
+                                <option value="section">Section Header</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="form-label small">Section</label>
+                            <input type="text" name="section" class="form-control form-control-sm" placeholder="e.g., Personal Info">
+                        </div>
+                        <div class="col-md-4 mb-2 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" name="is_required" value="true" class="form-check-input" id="field_required">
+                                <label class="form-check-label small" for="field_required">Required</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-2" id="options_div" style="display:none;">
+                        <label class="form-label small">Options (comma-separated)</label>
+                        <input type="text" name="options" class="form-control form-control-sm" placeholder="Option 1, Option 2, Option 3">
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-success">
+                        <i class="fas fa-plus me-1"></i> Add Field
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function toggleOptions(select) {
+    const optionsDiv = document.getElementById('options_div');
+    const needsOptions = ['select', 'multiselect', 'radio', 'checkbox'].includes(select.value);
+    optionsDiv.style.display = needsOptions ? 'block' : 'none';
+}
+</script>
+{% endblock %}

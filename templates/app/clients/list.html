@@ -1,0 +1,128 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% block title %}Clientes · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Clientes · {{ total|default(0) }} cadastrados</span>
+    <h1>Sua base de <em>clientes</em>.</h1>
+    <p class="ch-page-head__sub">Pesquise, filtre, abra o detalhe — toda a relação com o escritório em um lugar.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/clients/new">
+      <span data-icon="plus"></span> Novo cliente
+    </a>
+  </div>
+</section>
+
+<form class="ch-card ch-card--compact" method="get" action="{{ PREFIX }}/clients" style="display:flex; gap: var(--space-3); align-items:flex-end; flex-wrap: wrap; margin-bottom: var(--space-5);">
+  <div class="ch-field" style="flex: 1 1 240px; margin-bottom: 0;">
+    <label class="ch-field__label" for="search">Buscar</label>
+    <input class="ch-input" id="search" name="search" value="{{ search|default('') }}" placeholder="Nome, e-mail ou número do cliente…" />
+  </div>
+  <div class="ch-field" style="flex: 0 0 200px; margin-bottom: 0;">
+    <label class="ch-field__label" for="status">Status</label>
+    <select class="ch-select" id="status" name="status">
+      <option value="">Todos</option>
+      <option value="active" {% if status == 'active' %}selected{% endif %}>Ativo</option>
+      <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inativo</option>
+      <option value="prospect" {% if status == 'prospect' %}selected{% endif %}>Prospect</option>
+    </select>
+  </div>
+  <button type="submit" class="ch-btn">
+    <span data-icon="search"></span> Filtrar
+  </button>
+</form>
+
+{% if clients and clients|length > 0 %}
+<section class="ch-card ch-card--bleed">
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Contato</th>
+          <th>Status</th>
+          <th>Cadastrado em</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clients %}
+        <tr>
+          <td data-label="Cliente">
+            <strong style="display:block; color: var(--fg-default);">{{ c.full_name }}</strong>
+            {% if c.client_number %}<span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">{{ c.client_number }}</span>{% endif %}
+          </td>
+          <td data-label="Contato">
+            <div style="font-size: var(--fs-sm);">
+              {% if c.email %}<div>{{ c.email }}</div>{% endif %}
+              {% if c.phone %}<div style="color: var(--fg-muted); font-size: var(--fs-xs);">{{ c.phone }}</div>{% endif %}
+              {% if not c.email and not c.phone %}<span style="color: var(--fg-faint);">—</span>{% endif %}
+            </div>
+          </td>
+          <td data-label="Status">
+            {% if c.status == 'active' %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>Ativo</span>
+            {% elif c.status == 'inactive' %}
+              <span class="ch-pill"><span class="dot"></span>Inativo</span>
+            {% elif c.status == 'prospect' %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>Prospect</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>{{ c.status }}</span>
+            {% endif %}
+          </td>
+          <td data-label="Cadastrado em" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
+            {{ c.created_at.strftime('%d/%m/%Y') if c.created_at else '—' }}
+          </td>
+          <td data-label="" style="text-align: right;">
+            <a class="ch-chip" href="{{ PREFIX }}/clients/{{ c.id }}" aria-label="Abrir cliente {{ c.full_name }}">
+              <span data-icon="chevron_right" data-icon-size="14"></span>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% set total_pages = ((total or 0) // (per_page or 20)) + (1 if (total or 0) % (per_page or 20) else 0) %}
+  {% if total_pages and total_pages > 1 %}
+  <div style="padding: var(--space-4); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); border-top: 1px solid var(--line);">
+    <span style="color: var(--fg-muted); font-size: var(--fs-xs); font-family: var(--mono); letter-spacing: 0.12em; text-transform: uppercase;">
+      Página {{ page }} de {{ total_pages }} · {{ total }} clientes
+    </span>
+    <div style="display:flex; gap: var(--space-2);">
+      {% if page > 1 %}
+        <a class="ch-btn ch-btn--ghost ch-btn--sm" href="{{ PREFIX }}/clients?page={{ page-1 }}{% if search %}&search={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}">
+          <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Anterior
+        </a>
+      {% endif %}
+      {% if page < total_pages %}
+        <a class="ch-btn ch-btn--ghost ch-btn--sm" href="{{ PREFIX }}/clients?page={{ page+1 }}{% if search %}&search={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}">
+          Próxima <span data-icon="chevron_right" data-icon-size="14"></span>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% else %}
+<div class="ch-card">
+  <div class="ch-empty">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="clients"></span></span>
+    <h3>{% if search or status %}Sem resultados{% else %}Sem clientes ainda{% endif %}</h3>
+    <p>
+      {% if search or status %}
+        Tente outros termos ou limpe os filtros para ver toda a base.
+      {% else %}
+        Comece cadastrando o primeiro cliente. Você poderá vincular processos, tarefas e documentos a ele.
+      {% endif %}
+    </p>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/clients/new" style="margin-top: var(--space-3);">
+      <span data-icon="plus"></span> Cadastrar cliente
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

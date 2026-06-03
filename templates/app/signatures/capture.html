@@ -1,0 +1,310 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Signatures · Capture · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/signatures-capture.css">
+{% endblock %}
+{% block content %}
+<section class="signatures-capture-main" aria-labelledby="signatures-capture-title">
+    <header class="signatures-capture-header">
+        <a href="{{ PREFIX }}/signatures" class="signatures-capture-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back</span>
+        </a>
+        <h1 id="signatures-capture-title" class="signatures-capture-title">
+            <i class="fas fa-signature signatures-capture-title-icon" aria-hidden="true"></i>
+            <span>Create Signature</span>
+        </h1>
+    </header>
+
+    <div class="signatures-capture-card">
+        <div class="signatures-capture-tabs" role="tablist" aria-label="Signature input methods">
+            <button type="button" id="draw-tab" class="signatures-capture-tab signatures-capture-tab--active" role="tab" aria-selected="true" aria-controls="draw" tabindex="0" data-tab-target="draw">
+                <i class="fas fa-pen-fancy" aria-hidden="true"></i>
+                <span>Draw</span>
+            </button>
+            <button type="button" id="type-tab" class="signatures-capture-tab" role="tab" aria-selected="false" aria-controls="type" tabindex="-1" data-tab-target="type">
+                <i class="fas fa-keyboard" aria-hidden="true"></i>
+                <span>Type</span>
+            </button>
+            <button type="button" id="upload-tab" class="signatures-capture-tab" role="tab" aria-selected="false" aria-controls="upload" tabindex="-1" data-tab-target="upload">
+                <i class="fas fa-upload" aria-hidden="true"></i>
+                <span>Upload</span>
+            </button>
+        </div>
+
+        <div class="signatures-capture-tabpanels">
+            <!-- Draw -->
+            <div id="draw" class="signatures-capture-panel signatures-capture-panel--active" role="tabpanel" aria-labelledby="draw-tab">
+                <form method="POST" action="{{ PREFIX }}/signatures/save-drawn" id="drawForm" class="signatures-capture-form">
+                    <div class="signatures-capture-field">
+                        <label for="signatureCanvas" class="signatures-capture-label">Draw your signature below:</label>
+                        <div class="signatures-capture-canvas-frame">
+                            <canvas id="signatureCanvas" class="signatures-capture-canvas" width="600" height="200" aria-label="Signature drawing area" tabindex="0"></canvas>
+                        </div>
+                        <div class="signatures-capture-canvas-actions">
+                            <button type="button" id="clearCanvasBtn" class="signatures-capture-btn signatures-capture-btn--ghost">
+                                <i class="fas fa-eraser" aria-hidden="true"></i>
+                                <span>Clear</span>
+                            </button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="signature_data" id="signatureData">
+                    <div class="signatures-capture-row">
+                        <div class="signatures-capture-field">
+                            <label for="drawName" class="signatures-capture-label">Signature Name (optional)</label>
+                            <input id="drawName" type="text" name="name" class="signatures-capture-input" placeholder="e.g., My Main Signature">
+                        </div>
+                        <div class="signatures-capture-field signatures-capture-field--align-end">
+                            <label class="signatures-capture-check" for="drawDefault">
+                                <input id="drawDefault" type="checkbox" name="set_default" value="true" class="signatures-capture-check-input">
+                                <span>Set as default signature</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="signatures-capture-actions">
+                        <button type="submit" class="signatures-capture-btn signatures-capture-btn--primary">
+                            <i class="fas fa-save" aria-hidden="true"></i>
+                            <span>Save Signature</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Type -->
+            <div id="type" class="signatures-capture-panel" role="tabpanel" aria-labelledby="type-tab" hidden>
+                <form method="POST" action="{{ PREFIX }}/signatures/save-typed" class="signatures-capture-form">
+                    <div class="signatures-capture-field">
+                        <label for="typedText" class="signatures-capture-label">Type your name:</label>
+                        <input id="typedText" type="text" name="text" class="signatures-capture-input signatures-capture-input--lg" placeholder="Your Full Name" required aria-required="true" aria-describedby="typedPreviewLabel">
+                    </div>
+                    <div class="signatures-capture-field">
+                        <span id="typedPreviewLabel" class="signatures-capture-label">Preview:</span>
+                        <div class="signatures-capture-preview-frame" aria-live="polite">
+                            <span id="typedPreview" class="signatures-capture-preview signatures-capture-preview--cursive">
+                                Your signature will appear here
+                            </span>
+                        </div>
+                    </div>
+                    <div class="signatures-capture-field">
+                        <label for="fontStyle" class="signatures-capture-label">Font Style:</label>
+                        <select id="fontStyle" name="font_style" class="signatures-capture-select">
+                            <option value="cursive">Cursive</option>
+                            <option value="formal">Formal</option>
+                            <option value="casual">Casual</option>
+                        </select>
+                    </div>
+                    <div class="signatures-capture-row">
+                        <div class="signatures-capture-field">
+                            <label for="typeName" class="signatures-capture-label">Signature Name (optional)</label>
+                            <input id="typeName" type="text" name="name" class="signatures-capture-input" placeholder="e.g., Typed Signature">
+                        </div>
+                        <div class="signatures-capture-field signatures-capture-field--align-end">
+                            <label class="signatures-capture-check" for="typeDefault">
+                                <input id="typeDefault" type="checkbox" name="set_default" value="true" class="signatures-capture-check-input">
+                                <span>Set as default signature</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="signatures-capture-actions">
+                        <button type="submit" class="signatures-capture-btn signatures-capture-btn--primary">
+                            <i class="fas fa-save" aria-hidden="true"></i>
+                            <span>Save Signature</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Upload -->
+            <div id="upload" class="signatures-capture-panel" role="tabpanel" aria-labelledby="upload-tab" hidden>
+                <form method="POST" action="{{ PREFIX }}/signatures/save-upload" enctype="multipart/form-data" class="signatures-capture-form">
+                    <div class="signatures-capture-field">
+                        <label for="uploadFile" class="signatures-capture-label">Upload signature image:</label>
+                        <input id="uploadFile" type="file" name="file" class="signatures-capture-file" accept="image/png,image/jpeg,image/gif" required aria-required="true" aria-describedby="uploadHelp">
+                        <small id="uploadHelp" class="signatures-capture-help">Accepted formats: PNG, JPG, GIF. Recommended: transparent background PNG.</small>
+                    </div>
+                    <div class="signatures-capture-field" id="uploadPreview" hidden>
+                        <span class="signatures-capture-label">Preview:</span>
+                        <div class="signatures-capture-preview-frame">
+                            <img id="uploadPreviewImg" class="signatures-capture-preview-image" src="" alt="Uploaded signature preview">
+                        </div>
+                    </div>
+                    <div class="signatures-capture-row">
+                        <div class="signatures-capture-field">
+                            <label for="uploadName" class="signatures-capture-label">Signature Name (optional)</label>
+                            <input id="uploadName" type="text" name="name" class="signatures-capture-input" placeholder="e.g., Scanned Signature">
+                        </div>
+                        <div class="signatures-capture-field signatures-capture-field--align-end">
+                            <label class="signatures-capture-check" for="uploadDefault">
+                                <input id="uploadDefault" type="checkbox" name="set_default" value="true" class="signatures-capture-check-input">
+                                <span>Set as default signature</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="signatures-capture-actions">
+                        <button type="submit" class="signatures-capture-btn signatures-capture-btn--primary">
+                            <i class="fas fa-save" aria-hidden="true"></i>
+                            <span>Save Signature</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+(function() {
+    'use strict';
+
+    // Tabs (ARIA pattern: roving tabindex, arrow-key navigation)
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.signatures-capture-tab'));
+    var panels = Array.prototype.slice.call(document.querySelectorAll('.signatures-capture-panel'));
+
+    function activateTab(targetId, focusTab) {
+        tabs.forEach(function(t) {
+            var isActive = t.dataset.tabTarget === targetId;
+            t.classList.toggle('signatures-capture-tab--active', isActive);
+            t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            t.setAttribute('tabindex', isActive ? '0' : '-1');
+            if (isActive && focusTab) {
+                t.focus();
+            }
+        });
+        panels.forEach(function(p) {
+            var isActive = p.id === targetId;
+            p.classList.toggle('signatures-capture-panel--active', isActive);
+            if (isActive) {
+                p.removeAttribute('hidden');
+            } else {
+                p.setAttribute('hidden', '');
+            }
+        });
+    }
+
+    tabs.forEach(function(t, i) {
+        t.addEventListener('click', function() { activateTab(t.dataset.tabTarget, false); });
+        t.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                var dir = e.key === 'ArrowRight' ? 1 : -1;
+                var next = (i + dir + tabs.length) % tabs.length;
+                activateTab(tabs[next].dataset.tabTarget, true);
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                activateTab(tabs[0].dataset.tabTarget, true);
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                activateTab(tabs[tabs.length - 1].dataset.tabTarget, true);
+            }
+        });
+    });
+
+    // Canvas signature drawing
+    var canvas = document.getElementById('signatureCanvas');
+    var ctx = canvas.getContext('2d');
+    var inkColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || 'currentColor';
+    var isDrawing = false;
+    var lastX = 0;
+    var lastY = 0;
+
+    ctx.strokeStyle = inkColor;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    function getMousePos(e) {
+        var rect = canvas.getBoundingClientRect();
+        var scaleX = canvas.width / rect.width;
+        var scaleY = canvas.height / rect.height;
+        if (e.touches) {
+            return {
+                x: (e.touches[0].clientX - rect.left) * scaleX,
+                y: (e.touches[0].clientY - rect.top) * scaleY
+            };
+        }
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    function startDrawing(e) {
+        isDrawing = true;
+        var pos = getMousePos(e);
+        lastX = pos.x;
+        lastY = pos.y;
+        e.preventDefault();
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        e.preventDefault();
+        var pos = getMousePos(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        lastX = pos.x;
+        lastY = pos.y;
+    }
+
+    function stopDrawing() {
+        isDrawing = false;
+    }
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDrawing);
+
+    document.getElementById('clearCanvasBtn').addEventListener('click', function() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    document.getElementById('drawForm').addEventListener('submit', function() {
+        document.getElementById('signatureData').value = canvas.toDataURL('image/png');
+    });
+
+    // Typed signature preview
+    var typedText = document.getElementById('typedText');
+    var typedPreview = document.getElementById('typedPreview');
+    typedText.addEventListener('input', function() {
+        typedPreview.textContent = this.value || 'Your signature will appear here';
+    });
+
+    // Font style change — swap modifier classes (no inline color/style overrides)
+    var fontStyle = document.getElementById('fontStyle');
+    var fontModifiers = [
+        'signatures-capture-preview--cursive',
+        'signatures-capture-preview--formal',
+        'signatures-capture-preview--casual'
+    ];
+    fontStyle.addEventListener('change', function() {
+        fontModifiers.forEach(function(m) { typedPreview.classList.remove(m); });
+        typedPreview.classList.add('signatures-capture-preview--' + this.value);
+    });
+
+    // Upload preview
+    var uploadFile = document.getElementById('uploadFile');
+    var uploadPreview = document.getElementById('uploadPreview');
+    var uploadPreviewImg = document.getElementById('uploadPreviewImg');
+    uploadFile.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                uploadPreviewImg.src = ev.target.result;
+                uploadPreview.removeAttribute('hidden');
+            };
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+})();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

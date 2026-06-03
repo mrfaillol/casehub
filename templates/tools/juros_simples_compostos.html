@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Juros Simples vs Compostos - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/tools-shared.css">
+<style>
+    .anatocismo-alert { border-left: 4px solid var(--bs-danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <h2><i class="fas fa-percentage me-2"></i>Juros Simples vs Compostos</h2>
+            <p class="text-muted mb-0">Comparativo e análise de anatocismo (Súmula 121 STF)</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-{% if resultado %}5{% else %}8 mx-auto{% endif %} mb-4">
+            <form method="POST" action="{{ PREFIX }}/tools/juros-simples-compostos/calcular">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="form-section-title">Dados do Cálculo</div>
+                        <div class="mb-3">
+                            <label class="form-label">Capital Inicial (R$)</label>
+                            <input type="number" class="form-control glass-input" name="capital"
+                                   value="{{ form.capital if form else '' }}" step="0.01" min="0" required
+                                   placeholder="Ex: 10000.00">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Taxa de Juros (% ao mes)</label>
+                                <input type="number" class="form-control glass-input" name="taxa_mensal"
+                                       value="{{ form.taxa_mensal if form else '' }}" step="0.01" min="0" required
+                                       placeholder="Ex: 2.00">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Período (meses)</label>
+                                <input type="number" class="form-control glass-input" name="periodo_meses"
+                                       value="{{ form.periodo_meses if form else '' }}" min="1" max="600" required
+                                       placeholder="Ex: 12">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary glass-btn glass-btn--primary w-100">
+                    <i class="fas fa-calculator me-2"></i>Calcular Comparativo
+                </button>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <div class="col-lg-7 mb-4">
+            <div class="card border-0 shadow-sm mb-4 anatocismo-alert">
+                <div class="card-body">
+                    <h5 class="card-title text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Anatocismo (Juros sobre Juros)</h5>
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="fs-3 fw-bold text-danger">R$ {{ "%.2f"|format(resultado.diferenca) }}</div>
+                            <small class="text-muted">Valor do anatocismo</small>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="fs-3 fw-bold text-warning">{{ resultado.percentual_a_mais }}%</div>
+                            <small class="text-muted">A mais que juros simples</small>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="fs-3 fw-bold text-info">{{ resultado.taxa_anual_composta }}% a.a.</div>
+                            <small class="text-muted">Taxa efetiva anual</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-table me-2"></i>Resumo Comparativo</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr><th></th><th class="text-success">Juros Simples</th><th class="text-danger">Juros Compostos</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Montante final</td>
+                                    <td class="text-success">R$ {{ "%.2f"|format(resultado.montante_simples) }}</td>
+                                    <td class="text-danger">R$ {{ "%.2f"|format(resultado.montante_composto) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Total de juros</td>
+                                    <td class="text-success">R$ {{ "%.2f"|format(resultado.juros_simples) }}</td>
+                                    <td class="text-danger">R$ {{ "%.2f"|format(resultado.juros_composto) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Taxa anual equivalente</td>
+                                    <td class="text-success">{{ resultado.taxa_anual_simples }}%</td>
+                                    <td class="text-danger">{{ resultado.taxa_anual_composta }}%</td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="result-total">
+                                    <td>Diferenca (anatocismo)</td>
+                                    <td colspan="2" class="text-danger fs-5">R$ {{ "%.2f"|format(resultado.diferenca) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {% if resultado.tabela|length <= 60 %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-chart-bar me-2"></i>Evolucao Mensal</h5>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-sm table-striped">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th>Mes</th>
+                                    <th>Saldo Simples</th>
+                                    <th>Saldo Composto</th>
+                                    <th>Diferenca Acumulada</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in resultado.tabela %}
+                                <tr>
+                                    <td>{{ row.mes }}</td>
+                                    <td>R$ {{ "%.2f"|format(row.saldo_simples) }}</td>
+                                    <td>R$ {{ "%.2f"|format(row.saldo_composto) }}</td>
+                                    <td class="text-danger">R$ {{ "%.2f"|format(row.diferenca_acumulada) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="fas fa-balance-scale me-2"></i>Fundamentação Legal</h5>
+                    <ul class="legal-ref mb-0">
+                        {% for ref in resultado.fundamentacao %}
+                        <li><i class="fas fa-paragraph text-primary me-1"></i>{{ ref }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="no-print">
+                <button onclick="window.print()" class="btn btn-outline-secondary">
+                    <i class="fas fa-print me-1"></i>Imprimir
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

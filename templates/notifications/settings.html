@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Configurações de Notificação{% else %}Notification Settings{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-bell me-2"></i>{% if product == "lite" %}Configurações de Notificação{% else %}Notification Settings{% endif %}</h2>
+    <a href="{{ PREFIX }}/notifications/upcoming" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+        <i class="fas fa-calendar me-1"></i> {% if product == "lite" %}Ver Próximos{% else %}View Upcoming{% endif %}
+    </a>
+</div>
+
+{% if request.query_params.get('saved') %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle me-2"></i>Settings saved successfully!
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if not email_configured %}
+<div class="alert alert-warning" role="alert">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    <strong>Email not configured.</strong> Please configure SMTP settings in the environment to enable email notifications.
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-cog me-2"></i>{% if product == "lite" %}Preferências de Notificação por Email{% else %}Email Notification Preferences{% endif %}
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ PREFIX }}/notifications/save">
+                    <div class="mb-4">
+                        {% if product == "lite" %}
+                        <div class="d-flex align-items-start justify-content-between mb-3">
+                            <div>
+                                <strong>Lembretes de Prazo</strong>
+                                <br><small class="text-muted">Receba lembretes antes dos prazos das tarefas (7, 3, 1 dia e no dia)</small>
+                            </div>
+                            <label class="pill-toggle ms-3">
+                                <input type="checkbox" name="deadline_reminders" {% if prefs.deadline_reminders %}checked{% endif %}>
+                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                            </label>
+                        </div>
+                        <div class="d-flex align-items-start justify-content-between mb-3">
+                            <div>
+                                <strong>Atribuições de Tarefas</strong>
+                                <br><small class="text-muted">Receba notificação quando uma tarefa for atribuída a você</small>
+                            </div>
+                            <label class="pill-toggle ms-3">
+                                <input type="checkbox" name="task_assignments" {% if prefs.task_assignments %}checked{% endif %}>
+                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                            </label>
+                        </div>
+                        <div class="d-flex align-items-start justify-content-between mb-3">
+                            <div>
+                                <strong>Mudanças de Status do Processo</strong>
+                                <br><small class="text-muted">Receba notificação quando o status de um processo for atualizado</small>
+                            </div>
+                            <label class="pill-toggle ms-3">
+                                <input type="checkbox" name="case_status_changes" {% if prefs.case_status_changes %}checked{% endif %}>
+                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                            </label>
+                        </div>
+                        <div class="d-flex align-items-start justify-content-between mb-3">
+                            <div>
+                                <strong>Resumo Semanal</strong>
+                                <br><small class="text-muted">Receba um resumo semanal dos seus processos e tarefas</small>
+                            </div>
+                            <label class="pill-toggle ms-3">
+                                <input type="checkbox" name="weekly_summary" {% if prefs.weekly_summary %}checked{% endif %}>
+                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                            </label>
+                        </div>
+                        {% else %}
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="deadline_reminders"
+                                   name="deadline_reminders" {% if prefs.deadline_reminders %}checked{% endif %}>
+                            <label class="form-check-label" for="deadline_reminders">
+                                <strong>Deadline Reminders</strong>
+                                <br><small class="text-muted">Receive reminders before task deadlines (7, 3, 1 day, and same day)</small>
+                            </label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="task_assignments"
+                                   name="task_assignments" {% if prefs.task_assignments %}checked{% endif %}>
+                            <label class="form-check-label" for="task_assignments">
+                                <strong>Task Assignments</strong>
+                                <br><small class="text-muted">Receive notification when a task is assigned to you</small>
+                            </label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="case_status_changes"
+                                   name="case_status_changes" {% if prefs.case_status_changes %}checked{% endif %}>
+                            <label class="form-check-label" for="case_status_changes">
+                                <strong>Case Status Changes</strong>
+                                <br><small class="text-muted">Receive notification when a case status is updated</small>
+                            </label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="rfe_alerts"
+                                   name="rfe_alerts" {% if prefs.rfe_alerts %}checked{% endif %}>
+                            <label class="form-check-label" for="rfe_alerts">
+                                <strong>RFE Alerts</strong>
+                                <br><small class="text-muted">Receive immediate alert when a case receives an RFE</small>
+                            </label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="weekly_summary"
+                                   name="weekly_summary" {% if prefs.weekly_summary %}checked{% endif %}>
+                            <label class="form-check-label" for="weekly_summary">
+                                <strong>Weekly Summary</strong>
+                                <br><small class="text-muted">Receive a weekly summary of your cases and tasks</small>
+                            </label>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
+                            <i class="fas fa-save me-1"></i> {% if product == "lite" %}Salvar Configurações{% else %}Save Settings{% endif %}
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="testEmailBtn"
+                                {% if not email_configured %}disabled{% endif %}>
+                            <i class="fas fa-paper-plane me-1"></i> {% if product == "lite" %}Enviar Email Teste{% else %}Send Test Email{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>{% if product == "lite" %}Sobre Notificações{% else %}About Notifications{% endif %}
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    {% if product == "lite" %}
+                    Notificações por email ajudam você a acompanhar seus processos e tarefas.
+                    {% else %}
+                    Email notifications help you stay on top of your immigration cases and tasks.
+                    {% endif %}
+                </p>
+                <hr>
+                <h6>{% if product == "lite" %}Cronograma de Lembretes{% else %}Reminder Schedule{% endif %}</h6>
+                <ul class="list-unstyled text-muted small">
+                    <li><i class="fas fa-clock me-1"></i> {% if product == "lite" %}7 dias antes do prazo{% else %}7 days before deadline{% endif %}</li>
+                    <li><i class="fas fa-clock me-1"></i> {% if product == "lite" %}3 dias antes do prazo{% else %}3 days before deadline{% endif %}</li>
+                    <li><i class="fas fa-clock me-1"></i> {% if product == "lite" %}1 dia antes do prazo{% else %}1 day before deadline{% endif %}</li>
+                    <li><i class="fas fa-clock me-1 text-danger"></i> {% if product == "lite" %}No dia do prazo{% else %}Day of deadline{% endif %}</li>
+                </ul>
+                <hr>
+                <h6>{% if product == "lite" %}Resumo Semanal{% else %}Weekly Summary{% endif %}</h6>
+                <p class="text-muted small mb-0">
+                    {% if product == "lite" %}
+                    Enviado toda segunda-feira pela manhã com um resumo das suas tarefas pendentes, prazos próximos e atualizações de processos.
+                    {% else %}
+                    Sent every Monday morning with a summary of your pending tasks, upcoming deadlines, and case updates.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="fas fa-server me-2"></i>SMTP Configuration
+            </div>
+            <div class="card-body">
+                {% if email_configured %}
+                <p class="text-success mb-0">
+                    <i class="fas fa-check-circle me-1"></i> Email is configured
+                </p>
+                {% else %}
+                <p class="text-warning mb-2">
+                    <i class="fas fa-exclamation-triangle me-1"></i> Not configured
+                </p>
+                <small class="text-muted">
+                    Add these to your .env file:
+                    <ul class="mt-2 mb-0 ps-3">
+                        <li>SMTP_HOST</li>
+                        <li>SMTP_PORT</li>
+                        <li>SMTP_USER</li>
+                        <li>SMTP_PASSWORD</li>
+                    </ul>
+                </small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('testEmailBtn')?.addEventListener('click', async function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
+
+    try {
+        const response = await fetch('{{ PREFIX }}/notifications/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+            alert('Test email sent! Please check your inbox.');
+        } else {
+            const data = await response.json();
+            alert('Failed to send test email: ' + (data.detail || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error sending test email: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Send Test Email';
+    }
+});
+</script>
+{% endblock %}

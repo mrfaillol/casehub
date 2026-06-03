@@ -1,0 +1,1109 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Emails · List · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/emails-list.css">
+{% endblock %}
+{% block content %}
+<main class="el-list-main" aria-labelledby="el-list-title">
+    <header class="el-list-header">
+        <div class="el-list-heading">
+            <h1 id="el-list-title" class="el-list-title">
+                <i class="fas fa-envelope el-list-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}E-mails{% else %}Emails{% endif %}</span>
+            </h1>
+            <p class="el-list-subtitle">
+                <span>{% if product == "lite" %}Comunicações de e-mail sincronizadas via IMAP{% else %}Email communications synced from IMAP{% endif %}</span>
+                <span id="lastSync" class="el-list-sync-status" aria-live="polite"></span>
+            </p>
+        </div>
+        <div class="el-list-toolbar" role="toolbar" aria-label="{% if product == 'lite' %}Ações de e-mails{% else %}Email actions{% endif %}">
+            <button type="button" class="el-list-btn el-list-btn--warning" id="autoLinkBtn" onclick="runAutoLink()">
+                <i class="fas fa-robot" id="autoLinkIcon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Auto-Vincular{% else %}Auto-Link{% endif %}</span>
+            </button>
+            <div class="dropdown">
+                <button class="el-list-btn el-list-btn--ghost dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{% if product == 'lite' %}Sincronizar pasta{% else %}Sync folder{% endif %}">
+                    <i class="fas fa-sync-alt" id="syncIcon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Sincronizar{% else %}Sync{% endif %}</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header">{% if product == "lite" %}Sincronizar Pasta{% else %}Sync Folder{% endif %}</h6></li>
+                    <li><a class="dropdown-item" href="#" onclick="syncFolder('INBOX'); return false;"><i class="fas fa-inbox me-2" aria-hidden="true"></i>{% if product == "lite" %}Caixa de Entrada{% else %}INBOX{% endif %}</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="syncFolder('[Gmail]/Sent Mail'); return false;"><i class="fas fa-paper-plane me-2" aria-hidden="true"></i>{% if product == "lite" %}Enviados{% else %}Sent Mail{% endif %}</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="syncFolder('[Gmail]/All Mail'); return false;"><i class="fas fa-envelope-open me-2" aria-hidden="true"></i>{% if product == "lite" %}Todos os E-mails{% else %}All Mail{% endif %}</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="syncFolder('[Gmail]/Drafts'); return false;"><i class="fas fa-edit me-2" aria-hidden="true"></i>{% if product == "lite" %}Rascunhos{% else %}Drafts{% endif %}</a></li>
+                    <li><a class="dropdown-item" href="#" onclick="syncFolder('[Gmail]/Trash'); return false;"><i class="fas fa-trash me-2" aria-hidden="true"></i>{% if product == "lite" %}Lixeira{% else %}Trash{% endif %}</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" onclick="showFolderPicker(); return false;"><i class="fas fa-folder-open me-2" aria-hidden="true"></i>{% if product == "lite" %}Outra pasta...{% else %}Other folder...{% endif %}</a></li>
+                </ul>
+            </div>
+            <a href="{{ PREFIX }}/emails/compose-v2" class="el-list-btn el-list-btn--primary">
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Compor{% else %}Compose{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/emails/accounts" class="el-list-btn el-list-btn--ghost">
+                <i class="fas fa-cog" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Contas{% else %}Accounts{% endif %}</span>
+            </a>
+        </div>
+    </header>
+
+    <nav class="el-list-folders" aria-label="{% if product == 'lite' %}Navegação de pastas{% else %}Folder navigation{% endif %}">
+        <div class="el-list-tabs" role="tablist">
+            <a href="{{ PREFIX }}/emails" class="el-list-tab" role="tab" {% if not folder and not show_archived and not show_autoreplies %}aria-current="page"{% endif %}>
+                <i class="fas fa-inbox" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Ativos{% else %}Active{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/emails?show_archived=true" class="el-list-tab el-list-tab--archived" role="tab" {% if show_archived %}aria-current="page"{% endif %}>
+                <i class="fas fa-archive" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Arquivados{% else %}Archived{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/emails?show_autoreplies=true" class="el-list-tab el-list-tab--auto" role="tab" {% if show_autoreplies %}aria-current="page"{% endif %}>
+                <i class="fas fa-robot" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Respostas Automáticas{% else %}Auto-replies{% endif %}</span>
+            </a>
+            {% for f in synced_folders %}
+            <a href="{{ PREFIX }}/emails?folder={{ f|urlencode }}" class="el-list-tab" role="tab" {% if folder == f %}aria-current="page"{% endif %}>
+                {% if 'Sent' in f %}<i class="fas fa-paper-plane" aria-hidden="true"></i>
+                {% elif 'Draft' in f %}<i class="fas fa-edit" aria-hidden="true"></i>
+                {% elif 'Trash' in f %}<i class="fas fa-trash" aria-hidden="true"></i>
+                {% elif 'All Mail' in f %}<i class="fas fa-envelope-open" aria-hidden="true"></i>
+                {% elif 'Spam' in f %}<i class="fas fa-ban" aria-hidden="true"></i>
+                {% else %}<i class="fas fa-folder" aria-hidden="true"></i>{% endif %}
+                <span>{{ f.replace('[Gmail]/', '') }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        <div class="dropdown">
+            <button class="el-list-btn el-list-btn--ghost el-list-btn--sm dropdown-toggle" type="button" id="folderPickerBtn" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-folder-open" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Mais Pastas{% else %}More Folders{% endif %}</span>
+            </button>
+            <ul class="dropdown-menu" id="folderDropdown" role="menu">
+                <li><span class="dropdown-item-text">{% if product == "lite" %}Carregando pastas...{% else %}Loading folders...{% endif %}</span></li>
+            </ul>
+        </div>
+    </nav>
+
+    {% if product != "lite" %}
+    <div class="el-list-legend" aria-label="{% if product == 'lite' %}Legenda{% else %}Legend{% endif %}">
+        <span class="el-list-legend-label">{% if product == "lite" %}Legenda{% else %}Legend{% endif %}</span>
+        <span class="el-list-legend-item"><span class="el-list-swatch el-list-swatch--juliana" aria-hidden="true"></span> Juliana</span>
+        <span class="el-list-legend-item"><span class="el-list-swatch el-list-swatch--ana" aria-hidden="true"></span> Ana Clara</span>
+        <span class="el-list-legend-item"><span class="el-list-swatch el-list-swatch--danielle" aria-hidden="true"></span> Danielle</span>
+        <span class="el-list-legend-item"><span class="el-list-swatch el-list-swatch--daniel" aria-hidden="true"></span> Daniel</span>
+        <span class="el-list-legend-divider" aria-hidden="true"></span>
+        <span class="el-list-legend-item"><i class="fas fa-check-circle el-list-notion el-list-notion--created" aria-hidden="true"></i>Notion task criada</span>
+        <span class="el-list-legend-item"><i class="fas fa-clock el-list-notion el-list-notion--pending" aria-hidden="true"></i>Aguardando processamento</span>
+        <span class="el-list-legend-item"><i class="fas fa-minus el-list-notion el-list-notion--none" aria-hidden="true"></i>Sem cliente vinculado</span>
+    </div>
+    {% else %}
+    <div class="el-list-legend" aria-label="Legenda">
+        <span class="el-list-legend-label">Legenda</span>
+        <span class="el-list-legend-item"><i class="fas fa-minus el-list-notion el-list-notion--none" aria-hidden="true"></i>Sem cliente vinculado</span>
+    </div>
+    {% endif %}
+
+    <div class="el-list-filters">
+        <div class="el-list-search">
+            <i class="fas fa-search el-list-search-icon" aria-hidden="true"></i>
+            <label for="emailSearch" class="visually-hidden">{% if product == "lite" %}Buscar e-mails{% else %}Search emails{% endif %}</label>
+            <input type="search" class="el-list-input" id="emailSearch" placeholder="{% if product == 'lite' %}Buscar e-mails... (Enter = busca completa){% else %}Search emails... (Enter = full search){% endif %}" value="{{ search }}" onkeyup="if(event.key==='Enter'){window.location.href='{{ PREFIX }}/emails?search='+encodeURIComponent(this.value)}else{filterEmails()}">
+        </div>
+        <div>
+            <label for="filterLinked" class="visually-hidden">{% if product == "lite" %}Filtrar e-mails{% else %}Filter emails{% endif %}</label>
+            <select class="el-list-select" id="filterLinked" onchange="filterEmails()">
+                <option value="">{% if product == "lite" %}Todos os e-mails{% else %}All emails{% endif %}</option>
+                <option value="linked">{% if product == "lite" %}Vinculado a cliente/caso{% else %}Linked to client/case{% endif %}</option>
+                <option value="unlinked">{% if product == "lite" %}Não vinculado{% else %}Not linked{% endif %}</option>
+            </select>
+        </div>
+        <div class="el-list-meta">
+            <label class="el-list-toggle" for="autoSyncToggle">
+                <input type="checkbox" id="autoSyncToggle" checked>
+                <span>{% if product == "lite" %}Sincronização automática 30s{% else %}Auto-sync 30s{% endif %}</span>
+            </label>
+            <span class="el-list-count" id="emailCount" aria-live="polite">{{ emails|length }} {% if product == "lite" %}e-mails{% else %}emails{% endif %}</span>
+        </div>
+    </div>
+
+    {% if request.query_params.get('sent') %}
+    <div class="el-list-alert" role="status">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <span>{% if product == "lite" %}E-mail enviado com sucesso!{% else %}Email sent successfully!{% endif %}</span>
+        <button type="button" class="el-list-alert-close" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}" onclick="this.closest('.el-list-alert').remove()">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    {% if request.query_params.get('bulk_success') %}
+    <div class="el-list-alert" role="status">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <span>{{ request.query_params.get('bulk_success') }} {% if product == "lite" %}e-mails processados!{% else %}emails processed!{% endif %}</span>
+        <button type="button" class="el-list-alert-close" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}" onclick="this.closest('.el-list-alert').remove()">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <section id="bulkActionBar" class="el-list-bulk" hidden aria-label="{% if product == 'lite' %}Ações em lote{% else %}Bulk actions{% endif %}">
+        <form method="POST" action="{{ PREFIX }}/emails/bulk" id="bulkForm" class="el-list-modal-form" style="flex-direction: row; flex-wrap: wrap; align-items: center;">
+            <input type="hidden" name="email_ids" id="bulkEmailIds" value="[]">
+            <span class="el-list-bulk-count">
+                <i class="fas fa-check-square" aria-hidden="true"></i>
+                <strong id="selectedCount">0</strong>
+                <span>{% if product == "lite" %}selecionados{% else %}selected{% endif %}</span>
+            </span>
+            <label for="bulkOperation" class="visually-hidden">{% if product == "lite" %}Ação em lote{% else %}Bulk action{% endif %}</label>
+            <select name="operation" class="el-list-select" id="bulkOperation" onchange="toggleBulkFields()" style="width: auto;">
+                <option value="">-- {% if product == "lite" %}Ação{% else %}Action{% endif %} --</option>
+                <option value="mark_read">{% if product == "lite" %}Marcar como Lido{% else %}Mark as Read{% endif %}</option>
+                <option value="mark_unread">{% if product == "lite" %}Marcar como Não Lido{% else %}Mark as Unread{% endif %}</option>
+                <option value="link_client">{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</option>
+                <option value="archive">{% if product == "lite" %}Arquivar{% else %}Archive{% endif %}</option>
+                <option value="unarchive">{% if product == "lite" %}Desarquivar{% else %}Unarchive{% endif %}</option>
+                <option value="delete">{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</option>
+            </select>
+            <label for="bulkClientSelect" class="visually-hidden">{% if product == "lite" %}Cliente para vincular{% else %}Client to link{% endif %}</label>
+            <select name="bulk_client_id" class="el-list-select" id="bulkClientSelect" hidden style="width: auto;">
+                <option value="">-- {% if product == "lite" %}Cliente{% else %}Client{% endif %} --</option>
+                {% for client in clients %}
+                <option value="{{ client.id }}">{{ client.first_name }} {{ client.last_name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="el-list-btn el-list-btn--primary el-list-btn--sm" id="bulkExecuteBtn" disabled>
+                <i class="fas fa-play" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Executar{% else %}Execute{% endif %}</span>
+            </button>
+            <button type="button" class="el-list-btn el-list-btn--ghost el-list-btn--sm" onclick="clearSelection()">
+                <i class="fas fa-times" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</span>
+            </button>
+        </form>
+    </section>
+
+    {% if emails %}
+    <div class="el-list-card">
+        <div class="el-list-table-wrap">
+            <table class="el-list-table" id="emailsTable">
+                <thead>
+                    <tr>
+                        <th scope="col" style="width:34px"><span class="visually-hidden">{% if product == "lite" %}Arquivar{% else %}Archive{% endif %}</span></th>
+                        <th scope="col" style="width:32px">
+                            <label for="checkAll" class="visually-hidden">{% if product == "lite" %}Selecionar todos{% else %}Select all{% endif %}</label>
+                            <input type="checkbox" class="el-list-checkbox" id="checkAll" onchange="toggleAll()">
+                        </th>
+                        <th scope="col" style="width:22px"><span class="visually-hidden">{% if product == "lite" %}Status de leitura{% else %}Read status{% endif %}</span></th>
+                        <th scope="col" style="width:18%">{% if product == "lite" %}De{% else %}From{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Assunto{% else %}Subject{% endif %}</th>
+                        <th scope="col" style="width:90px">{% if product == "lite" %}Data{% else %}Date{% endif %}</th>
+                        <th scope="col" style="width:160px">{% if product == "lite" %}Vinculado a{% else %}Linked To{% endif %}</th>
+                        <th scope="col" style="width:46px">Notion</th>
+                        <th scope="col" style="width:110px">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody id="emailsBody">
+                    {% for email in emails %}
+                    {% set pl = (email.client_paralegal or '')|lower %}
+                    {% set dtag = get_domain_tag(email.sender) %}
+                    <tr class="el-list-row{% if not email.is_read %} el-list-row--unread{% endif %}{% if 'juliana' in pl %} el-list-row--paralegal-juliana{% elif 'ana' in pl %} el-list-row--paralegal-ana{% elif 'danielle' in pl %} el-list-row--paralegal-danielle{% elif 'daniel' in pl %} el-list-row--paralegal-daniel{% endif %}{% if dtag %} el-list-row--domain-{{ dtag }}{% endif %}"
+                        tabindex="0"
+                        role="link"
+                        aria-label="{{ email.subject or '(No subject)' }} — {{ email.sender }}"
+                        data-id="{{ email.id }}"
+                        data-sender="{{ email.sender|lower }}"
+                        data-subject="{{ email.subject|lower if email.subject else '' }}"
+                        data-linked="{{ 'yes' if email.client_id or email.case_id else 'no' }}"
+                        data-paralegal="{{ email.client_paralegal or '' }}"
+                        data-client-id="{{ email.client_id or '' }}"
+                        data-view-href="{{ PREFIX }}/emails/{{ email.id }}"
+                        data-reply-sender="{{ email.sender|e }}"
+                        data-reply-subject="{{ (email.subject or '')|e }}"
+                        onclick="viewEmail({{ email.id }})"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();viewEmail({{ email.id }});}">
+                        <td class="el-list-cell--center" onclick="event.stopPropagation()">
+                            <button type="button" class="el-list-action el-list-action--archive" onclick="archiveSingle({{ email.id }}); event.stopPropagation();" aria-label="{% if show_archived %}{% if product == 'lite' %}Desarquivar{% else %}Unarchive{% endif %}{% else %}{% if product == 'lite' %}Arquivar{% else %}Archive{% endif %}{% endif %}">
+                                <i class="fas fa-{% if show_archived %}undo{% else %}archive{% endif %}" aria-hidden="true"></i>
+                            </button>
+                        </td>
+                        <td class="el-list-cell--center" onclick="event.stopPropagation()">
+                            <label class="visually-hidden" for="check-email-{{ email.id }}">{% if product == "lite" %}Selecionar e-mail{% else %}Select email{% endif %}</label>
+                            <input type="checkbox" class="el-list-checkbox email-checkbox" id="check-email-{{ email.id }}" value="{{ email.id }}" onchange="updateSelection()">
+                        </td>
+                        <td class="el-list-cell--center">
+                            {% if not email.is_read %}
+                            <span class="el-list-unread-dot" aria-label="{% if product == 'lite' %}Não lido{% else %}Unread{% endif %}"></span>
+                            {% endif %}
+                        </td>
+                        <td class="el-list-cell-sender">
+                            <span>{{ email.sender[:35] }}{% if email.sender|length > 35 %}…{% endif %}</span>
+                        </td>
+                        <td class="el-list-cell-subject">
+                            {{ email.subject or '(No subject)' }}
+                        </td>
+                        <td class="el-list-cell-date">
+                            {{ email.received_at.strftime('%m/%d %H:%M') if email.received_at else '—' }}
+                        </td>
+                        <td onclick="event.stopPropagation()">
+                            {% if dtag == "ias" %}<span class="el-list-badge el-list-badge--domain">IAS</span>{% elif dtag == "ashoori" %}<span class="el-list-badge el-list-badge--domain">Ashoori</span>{% endif %}
+                            {% if email.client_id %}
+                            <a href="{{ PREFIX }}/clients/{{ email.client_id }}" class="el-list-badge el-list-badge--client" title="{% if product == 'lite' %}Ver cliente{% else %}View client{% endif %}">
+                                <i class="fas fa-user" aria-hidden="true"></i>
+                                <span>{{ email.client_first_name }} {{ email.client_last_name }}</span>
+                            </a>
+                            {% endif %}
+                            {% if email.case_id %}
+                            <a href="{{ PREFIX }}/cases/{{ email.case_id }}" class="el-list-badge el-list-badge--case" title="{% if product == 'lite' %}Ver caso{% else %}View case{% endif %}">
+                                <i class="fas fa-folder" aria-hidden="true"></i>
+                                <span>#{{ email.case_number or email.case_id }}</span>
+                            </a>
+                            {% endif %}
+                            {% if not email.client_id and not email.case_id %}
+                            <span aria-hidden="true">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="el-list-cell--center">
+                            {% if email.notion_task_id and email.notion_task_id != 'NO_PARALEGAL' %}
+                            <i class="fas fa-check-circle el-list-notion el-list-notion--created" title="{% if product == 'lite' %}Task criada no Notion{% else %}Notion task created{% endif %}" aria-label="{% if product == 'lite' %}Task criada no Notion{% else %}Notion task created{% endif %}"></i>
+                            {% elif email.client_id %}
+                            <i class="fas fa-clock el-list-notion el-list-notion--pending" title="{% if product == 'lite' %}Aguardando processamento{% else %}Awaiting processing{% endif %}" aria-label="{% if product == 'lite' %}Aguardando processamento{% else %}Awaiting processing{% endif %}"></i>
+                            {% else %}
+                            <i class="fas fa-minus el-list-notion el-list-notion--none" title="{% if product == 'lite' %}Sem cliente vinculado{% else %}No linked client{% endif %}" aria-label="{% if product == 'lite' %}Sem cliente vinculado{% else %}No linked client{% endif %}"></i>
+                            {% endif %}
+                        </td>
+                        <td class="el-list-cell--actions" onclick="event.stopPropagation()">
+                            <div class="el-list-actions" role="group" aria-label="{% if product == 'lite' %}Ações da linha{% else %}Row actions{% endif %}">
+                                <button type="button" class="el-list-action el-list-action--reply" data-action="reply" aria-label="{% if product == 'lite' %}Responder{% else %}Reply{% endif %}">
+                                    <i class="fas fa-reply" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" class="el-list-action el-list-action--forward" data-action="forward" aria-label="{% if product == 'lite' %}Encaminhar{% else %}Forward{% endif %}">
+                                    <i class="fas fa-share" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" class="el-list-action el-list-action--link" data-action="link" aria-label="{% if product == 'lite' %}Vincular{% else %}Link{% endif %}">
+                                    <i class="fas fa-link" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if has_more %}
+    <button type="button" class="el-list-btn el-list-btn--ghost el-list-load-more" onclick="loadMore()">
+        <i class="fas fa-arrow-down" aria-hidden="true"></i>
+        <span>{% if product == "lite" %}Carregar Mais E-mails{% else %}Load More Emails{% endif %}</span>
+    </button>
+    {% endif %}
+
+    <div class="el-list-footer">
+        <span><i class="fas fa-info-circle" aria-hidden="true"></i> {% if product == "lite" %}Exibindo{% else %}Showing{% endif %} <span id="visibleCount">{{ emails|length }}</span> {% if product == "lite" %}e-mails{% else %}emails{% endif %}</span>
+        <span>{% if product == "lite" %}Clique para ver, use os botões para ações{% else %}Click to view, use buttons for actions{% endif %}</span>
+    </div>
+
+    {% else %}
+    <div class="el-list-empty" role="status">
+        <i class="fas fa-inbox el-list-empty-icon" aria-hidden="true"></i>
+        <h2 class="el-list-empty-title">{% if product == "lite" %}Nenhum e-mail sincronizado{% else %}No emails synced yet{% endif %}</h2>
+        <p class="el-list-empty-text">{% if product == "lite" %}Configure uma conta de e-mail e sincronize para ver os e-mails aqui{% else %}Configure an email account and sync to see emails here{% endif %}</p>
+        <a href="{{ PREFIX }}/emails/accounts" class="el-list-btn el-list-btn--primary">
+            <i class="fas fa-cog" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Configurar Conta de E-mail{% else %}Configure Email Account{% endif %}</span>
+        </a>
+    </div>
+    {% endif %}
+</main>
+
+<div class="modal fade" id="linkModal" tabindex="-1" aria-labelledby="linkModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="linkModalTitle"><i class="fas fa-user-plus me-2" aria-hidden="true"></i>{% if product == "lite" %}Vincular E-mail ao Perfil do Cliente{% else %}Link Email to Client Profile{% endif %}</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="el-list-modal-meta">{% if product == "lite" %}E-mail de{% else %}Email from{% endif %}: <strong id="linkEmailSender"></strong></p>
+                <input type="hidden" id="linkEmailId">
+
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="existing-tab" data-bs-toggle="tab" data-bs-target="#existing-client" type="button" role="tab" aria-selected="true" aria-controls="existing-client">
+                            <i class="fas fa-search me-1" aria-hidden="true"></i>{% if product == "lite" %}Selecionar Cliente Existente{% else %}Select Existing Client{% endif %}
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="new-tab" data-bs-toggle="tab" data-bs-target="#new-client" type="button" role="tab" aria-selected="false" aria-controls="new-client">
+                            <i class="fas fa-plus me-1" aria-hidden="true"></i>{% if product == "lite" %}Criar Novo Cliente{% else %}Create New Client{% endif %}
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="existing-client" role="tabpanel" aria-labelledby="existing-tab">
+                        <div class="el-list-form-field">
+                            <label class="el-list-form-label" for="clientSearchInput">{% if product == "lite" %}Buscar e Selecionar Cliente{% else %}Search and Select Client{% endif %}</label>
+                            <input type="search" class="el-list-input" id="clientSearchInput" placeholder="{% if product == 'lite' %}Digite para buscar clientes...{% else %}Type to search clients...{% endif %}" onkeyup="filterClientOptions()">
+                            <select class="el-list-modal-select" id="linkClientSelect" size="6" aria-label="{% if product == 'lite' %}Lista de clientes{% else %}Client list{% endif %}">
+                                <option value="">-- {% if product == "lite" %}Selecione um Cliente{% else %}Select a Client{% endif %} --</option>
+                                {% for client in clients %}
+                                <option value="{{ client.id }}" data-search="{{ client.first_name|lower }} {{ client.last_name|lower }} {{ client.email|lower if client.email else '' }}">
+                                    {{ client.first_name }} {{ client.last_name }} {% if client.email %}({{ client.email }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="new-client" role="tabpanel" aria-labelledby="new-tab">
+                        <div class="el-list-form-row">
+                            <div class="el-list-form-field">
+                                <label class="el-list-form-label" for="newClientFirstName">{% if product == "lite" %}Nome{% else %}First Name{% endif %} <span class="el-list-form-required" aria-hidden="true">*</span></label>
+                                <input type="text" class="el-list-input" id="newClientFirstName" required>
+                            </div>
+                            <div class="el-list-form-field">
+                                <label class="el-list-form-label" for="newClientLastName">{% if product == "lite" %}Sobrenome{% else %}Last Name{% endif %} <span class="el-list-form-required" aria-hidden="true">*</span></label>
+                                <input type="text" class="el-list-input" id="newClientLastName" required>
+                            </div>
+                        </div>
+                        <div class="el-list-form-row">
+                            <div class="el-list-form-field">
+                                <label class="el-list-form-label" for="newClientEmail">{% if product == "lite" %}E-mail{% else %}Email{% endif %}</label>
+                                <input type="email" class="el-list-input" id="newClientEmail">
+                            </div>
+                            <div class="el-list-form-field">
+                                <label class="el-list-form-label" for="newClientPhone">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</label>
+                                <input type="text" class="el-list-input" id="newClientPhone">
+                            </div>
+                        </div>
+                        <div class="el-list-form-field">
+                            <label class="el-list-form-label" for="newClientCountry">{% if product == "lite" %}País de Origem{% else %}Country of Origin{% endif %}</label>
+                            <input type="text" class="el-list-input" id="newClientCountry">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="el-list-btn el-list-btn--ghost" data-bs-dismiss="modal">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</button>
+                <button type="button" class="el-list-btn el-list-btn--primary" id="linkSaveBtn" onclick="saveEmailLink()">
+                    <i class="fas fa-link" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const PREFIX = '{{ PREFIX }}';
+let autoSyncInterval = null;
+let accountIds = {{ account_ids|default([])|tojson }};
+let currentPage = {{ page|default(1) }};
+let currentFolder = '{{ folder|default("", true)|e }}';
+let currentSearch = '{{ search|default("", true)|e }}';
+
+// Folder sync
+function syncFolder(folder) {
+    const syncIcon = document.getElementById('syncIcon');
+    syncIcon.classList.add('el-list-spin');
+
+    Promise.all(accountIds.map(id =>
+        fetch(`${PREFIX}/emails/accounts/${id}/sync?folder=${encodeURIComponent(folder)}`, { method: 'POST' })
+    )).then(() => {
+        updateLastSync();
+        setTimeout(() => {
+            window.location.href = `${PREFIX}/emails?folder=${encodeURIComponent(folder)}`;
+        }, 1500);
+    }).catch(err => {
+        console.error('Sync error:', err);
+        if (window.toast) toast.error('Error syncing: ' + err);
+    }).finally(() => {
+        syncIcon.classList.remove('el-list-spin');
+    });
+}
+
+function showFolderPicker() {
+    loadFolderDropdown();
+}
+
+let foldersLoaded = false;
+function loadFolderDropdown() {
+    if (foldersLoaded || accountIds.length === 0) return;
+
+    fetch(`${PREFIX}/emails/api/folders/${accountIds[0]}`)
+        .then(r => r.json())
+        .then(data => {
+            const dropdown = document.getElementById('folderDropdown');
+            if (data.error) {
+                dropdown.innerHTML = '<li><span class="dropdown-item-text">Erro: ' + data.error + '</span></li>';
+                return;
+            }
+            const folders = data.folders || [];
+            if (folders.length === 0) {
+                dropdown.innerHTML = '<li><span class="dropdown-item-text">Nenhuma pasta encontrada</span></li>';
+                return;
+            }
+
+            let html = '<li><h6 class="dropdown-header">' + folders.length + ' pastas disponíveis</h6></li>';
+
+            const gmailFolders = folders.filter(f => f.startsWith('[Gmail]'));
+            const clientFolders = folders.filter(f => f.includes('CLIENT') || f.includes('Client'));
+            const otherFolders = folders.filter(f => !f.startsWith('[Gmail]') && !f.includes('CLIENT') && !f.includes('Client'));
+
+            const safe = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+            if (gmailFolders.length > 0) {
+                html += '<li><h6 class="dropdown-header">Gmail</h6></li>';
+                gmailFolders.forEach(f => {
+                    html += '<li><a class="dropdown-item" href="#" data-folder="' + safe(f) + '">' +
+                        '<i class="fas fa-folder me-2" aria-hidden="true"></i>' + safe(f.replace('[Gmail]/', '')) + '</a></li>';
+                });
+            }
+
+            if (clientFolders.length > 0) {
+                html += '<li><hr class="dropdown-divider"></li>';
+                html += '<li><h6 class="dropdown-header">Clients</h6></li>';
+                clientFolders.forEach(f => {
+                    html += '<li><a class="dropdown-item" href="#" data-folder="' + safe(f) + '">' +
+                        '<i class="fas fa-user me-2" aria-hidden="true"></i>' + safe(f) + '</a></li>';
+                });
+            }
+
+            if (otherFolders.length > 0) {
+                html += '<li><hr class="dropdown-divider"></li>';
+                html += '<li><h6 class="dropdown-header">Outras</h6></li>';
+                otherFolders.forEach(f => {
+                    html += '<li><a class="dropdown-item" href="#" data-folder="' + safe(f) + '">' +
+                        '<i class="fas fa-folder me-2" aria-hidden="true"></i>' + safe(f) + '</a></li>';
+                });
+            }
+
+            dropdown.innerHTML = html;
+            dropdown.querySelectorAll('a[data-folder]').forEach(a => {
+                a.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    syncFolder(a.dataset.folder);
+                });
+            });
+            foldersLoaded = true;
+        })
+        .catch(err => {
+            document.getElementById('folderDropdown').innerHTML = '<li><span class="dropdown-item-text">Erro: ' + err + '</span></li>';
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const folderBtn = document.getElementById('folderPickerBtn');
+    if (folderBtn) folderBtn.addEventListener('click', loadFolderDropdown);
+
+    if (currentSearch) {
+        const search = document.getElementById('emailSearch');
+        if (search) search.value = currentSearch;
+        filterEmails();
+    }
+
+    // Row actions: reply / forward / link via event delegation (no inline onclick).
+    document.querySelectorAll('.el-list-actions [data-action]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const row = btn.closest('tr');
+            if (!row) return;
+            const id = parseInt(row.dataset.id, 10);
+            const sender = row.dataset.replySender || '';
+            const subject = row.dataset.replySubject || '';
+            const action = btn.dataset.action;
+            if (action === 'reply') replyEmail(id, sender, subject);
+            else if (action === 'forward') forwardEmail(id, subject);
+            else if (action === 'link') openLinkModal(id, sender);
+        });
+    });
+});
+
+// Navigation
+function viewEmail(id) {
+    window.location.href = `${PREFIX}/emails/${id}`;
+}
+
+function replyEmail(id, sender, subject) {
+    const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
+    window.location.href = `${PREFIX}/emails/compose-v2?to_email=${encodeURIComponent(sender)}&subject=${encodeURIComponent(replySubject)}&reply_to=${id}`;
+}
+
+function forwardEmail(id, subject) {
+    const fwdSubject = subject.startsWith('Fwd:') ? subject : `Fwd: ${subject}`;
+    window.location.href = `${PREFIX}/emails/compose-v2?subject=${encodeURIComponent(fwdSubject)}&forward_from=${id}`;
+}
+
+// Search/Filter
+function filterEmails() {
+    const search = (document.getElementById('emailSearch')?.value || '').toLowerCase();
+    const filterLinked = document.getElementById('filterLinked')?.value || '';
+    const rows = document.querySelectorAll('#emailsBody tr');
+    let visible = 0;
+
+    rows.forEach(row => {
+        const sender = row.dataset.sender || '';
+        const subject = row.dataset.subject || '';
+        const linked = row.dataset.linked;
+
+        let show = true;
+        if (search && !sender.includes(search) && !subject.includes(search)) show = false;
+        if (filterLinked === 'linked' && linked !== 'yes') show = false;
+        if (filterLinked === 'unlinked' && linked !== 'no') show = false;
+
+        if (show && row.classList.contains('el-list-row--thread-child')) {
+            const parentId = row.dataset.threadParent;
+            if (parentId) {
+                const parentRow = document.querySelector(`tr[data-id="${parentId}"]`);
+                if (parentRow && !parentRow.classList.contains('is-thread-open')) show = false;
+            }
+        }
+
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    const visibleCount = document.getElementById('visibleCount');
+    if (visibleCount) visibleCount.textContent = visible;
+}
+
+// Auto-sync (30 seconds)
+let syncInProgress = false;
+
+function startAutoSync() {
+    if (autoSyncInterval) clearInterval(autoSyncInterval);
+    autoSyncInterval = setInterval(() => {
+        if (document.getElementById('autoSyncToggle')?.checked && !document.hidden && !syncInProgress) {
+            syncAllAccounts(true);
+        }
+    }, 30000);
+}
+
+function syncAllAccounts(silent = false) {
+    if (syncInProgress) return;
+    syncInProgress = true;
+    const syncIcon = document.getElementById('syncIcon');
+    const lastSyncEl = document.getElementById('lastSync');
+
+    syncIcon?.classList.add('el-list-spin');
+    if (silent && lastSyncEl) {
+        lastSyncEl.dataset.state = 'syncing';
+        lastSyncEl.textContent = 'Syncing…';
+    }
+
+    const folderToSync = currentFolder || 'INBOX';
+
+    Promise.all(accountIds.map(id =>
+        fetch(`${PREFIX}/emails/accounts/${id}/sync?folder=${encodeURIComponent(folderToSync)}`, { method: 'POST' })
+    )).then(() => {
+        if (!silent) {
+            if (lastSyncEl) { lastSyncEl.dataset.state = 'syncing'; lastSyncEl.textContent = 'Processing…'; }
+            setTimeout(() => location.reload(), 3000);
+        } else {
+            if (lastSyncEl) { lastSyncEl.dataset.state = 'syncing'; lastSyncEl.textContent = 'Checking for new emails…'; }
+            checkForNewEmailsWithRetry(3, 2000);
+        }
+    }).catch(err => {
+        console.error('Sync error:', err);
+        if (lastSyncEl) { lastSyncEl.dataset.state = 'error'; lastSyncEl.textContent = 'Sync error'; }
+        syncInProgress = false;
+    }).finally(() => {
+        syncIcon?.classList.remove('el-list-spin');
+    });
+}
+
+function checkForNewEmailsWithRetry(retries, delay) {
+    setTimeout(() => {
+        fetch(`${PREFIX}/emails/api/count`)
+            .then(r => r.json())
+            .then(data => {
+                const countEl = document.getElementById('emailCount');
+                const currentCount = parseInt((countEl?.textContent || '0').match(/\d+/)?.[0] || '0', 10);
+                if (data.count > currentCount) {
+                    showNewEmailNotification(data.count - currentCount);
+                    location.reload();
+                } else if (retries > 0) {
+                    checkForNewEmailsWithRetry(retries - 1, delay);
+                } else {
+                    updateLastSync();
+                    syncInProgress = false;
+                }
+            })
+            .catch(() => {
+                updateLastSync();
+                syncInProgress = false;
+            });
+    }, delay);
+}
+
+function showNewEmailNotification(count) {
+    const notification = document.createElement('div');
+    notification.className = 'el-list-alert';
+    notification.style.position = 'fixed';
+    notification.style.top = '80px';
+    notification.style.right = '20px';
+    notification.style.zIndex = '9999';
+    notification.style.minWidth = '300px';
+    notification.innerHTML = `
+        <i class="fas fa-envelope" aria-hidden="true"></i>
+        <span><strong>${count} novo${count > 1 ? 's' : ''} email${count > 1 ? 's' : ''}</strong> recebido${count > 1 ? 's' : ''}!</span>
+        <button type="button" class="el-list-alert-close" aria-label="Close"><i class="fas fa-times" aria-hidden="true"></i></button>
+    `;
+    notification.querySelector('.el-list-alert-close').addEventListener('click', () => notification.remove());
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 5000);
+}
+
+function updateLastSync() {
+    const now = new Date();
+    const lastSyncEl = document.getElementById('lastSync');
+    if (lastSyncEl) {
+        lastSyncEl.dataset.state = 'success';
+        lastSyncEl.textContent = `{% if product == "lite" %}Último{% else %}Last{% endif %}: ${now.toLocaleTimeString()}`;
+    }
+    syncInProgress = false;
+}
+
+// Load more
+function loadMore() {
+    let url = `${PREFIX}/emails?page=${currentPage + 1}`;
+    if (currentFolder) url += `&folder=${encodeURIComponent(currentFolder)}`;
+    const searchValue = document.getElementById("emailSearch")?.value.trim() || '';
+    if (searchValue) url += `&search=${encodeURIComponent(searchValue)}`;
+    const isArchived = {{ 'true' if show_archived else 'false' }};
+    if (isArchived) url += `&show_archived=true`;
+    window.location.href = url;
+}
+
+// Link modal
+function openLinkModal(emailId, sender) {
+    document.getElementById('linkEmailId').value = emailId;
+    document.getElementById('linkEmailSender').textContent = sender;
+    document.getElementById('linkClientSelect').value = '';
+    document.getElementById('clientSearchInput').value = '';
+    document.getElementById('newClientFirstName').value = '';
+    document.getElementById('newClientLastName').value = '';
+    document.getElementById('newClientEmail').value = '';
+    document.getElementById('newClientPhone').value = '';
+    document.getElementById('newClientCountry').value = '';
+
+    const emailMatch = sender.match(/<([^>]+)>/) || sender.match(/([^\s<>]+@[^\s<>]+)/);
+    if (emailMatch) document.getElementById('newClientEmail').value = emailMatch[1];
+
+    const nameMatch = sender.match(/^([^<]+)</);
+    if (nameMatch) {
+        const names = nameMatch[1].trim().split(' ');
+        if (names.length >= 2) {
+            document.getElementById('newClientFirstName').value = names[0];
+            document.getElementById('newClientLastName').value = names.slice(1).join(' ');
+        } else if (names.length === 1) {
+            document.getElementById('newClientFirstName').value = names[0];
+        }
+    }
+    filterClientOptions();
+
+    const existingTab = document.querySelector('#existing-tab');
+    if (existingTab) bootstrap.Tab.getOrCreateInstance(existingTab).show();
+    // Guard against missing element / bundle — see #207.
+    const linkModalEl = document.getElementById('linkModal');
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !linkModalEl) return;
+    bootstrap.Modal.getOrCreateInstance(linkModalEl).show();
+}
+
+function filterClientOptions() {
+    const search = document.getElementById('clientSearchInput').value.toLowerCase();
+    const select = document.getElementById('linkClientSelect');
+    const options = select.querySelectorAll('option');
+    options.forEach(opt => {
+        if (!opt.value) { opt.style.display = ''; return; }
+        const searchData = opt.dataset.search || '';
+        opt.style.display = searchData.includes(search) ? '' : 'none';
+    });
+}
+
+async function saveEmailLink() {
+    const emailId = document.getElementById('linkEmailId').value;
+    const btn = document.getElementById('linkSaveBtn');
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner el-list-spin" aria-hidden="true"></i> <span>Saving…</span>';
+
+    const newClientTab = document.querySelector('#new-client.active');
+    let clientId = null;
+
+    try {
+        if (newClientTab) {
+            const firstName = document.getElementById('newClientFirstName').value.trim();
+            const lastName = document.getElementById('newClientLastName').value.trim();
+
+            if (!firstName || !lastName) {
+                if (window.toast) toast.warning('First Name and Last Name are required');
+                return;
+            }
+
+            const clientData = new FormData();
+            clientData.append('first_name', firstName);
+            clientData.append('last_name', lastName);
+            clientData.append('email', document.getElementById('newClientEmail').value.trim());
+            clientData.append('phone', document.getElementById('newClientPhone').value.trim());
+            clientData.append('country_of_origin', document.getElementById('newClientCountry').value.trim());
+            clientData.append('status', 'lead');
+
+            const createResp = await fetch(`${PREFIX}/emails/quick-create-client`, { method: 'POST', body: clientData });
+            const createData = await createResp.json();
+
+            if (!createData.success) {
+                if (window.toast) toast.error('Error creating client: ' + (createData.error || 'Unknown error'));
+                return;
+            }
+            clientId = createData.client_id;
+        } else {
+            clientId = document.getElementById('linkClientSelect').value;
+            if (!clientId) {
+                if (window.toast) toast.warning('Please select a client or create a new one');
+                return;
+            }
+        }
+
+        const linkData = new FormData();
+        linkData.append('client_id', clientId);
+
+        const linkResp = await fetch(`${PREFIX}/emails/${emailId}/link`, { method: 'POST', body: linkData });
+        const result = await linkResp.json();
+
+        if (result.success) {
+            const linkModalEl = document.getElementById('linkModal');
+            const linkModalInst = (typeof bootstrap !== 'undefined' && bootstrap.Modal && linkModalEl) ? bootstrap.Modal.getInstance(linkModalEl) : null;
+            if (linkModalInst) linkModalInst.hide();
+            window.location.href = `${PREFIX}/clients/${clientId}`;
+        } else {
+            if (window.toast) toast.error('Error linking email: ' + (result.error || 'Unknown error'));
+        }
+    } catch (err) {
+        if (window.toast) toast.error('Link failed: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        btn.innerHTML = originalHtml;
+    }
+}
+
+// Auto-Link
+async function runAutoLink() {
+    const btn = document.getElementById('autoLinkBtn');
+    const icon = document.getElementById('autoLinkIcon');
+
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    icon.classList.remove('fa-robot');
+    icon.classList.add('fa-spinner', 'el-list-spin');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner el-list-spin" aria-hidden="true"></i> <span>Linking…</span>';
+
+    try {
+        const response = await fetch(`${PREFIX}/emails/auto-link`, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            showAutoLinkResults(data);
+            if (data.linked_count > 0) setTimeout(() => location.reload(), 3000);
+        } else {
+            if (window.toast) toast.error('Erro: ' + (data.error || 'Falha no auto-link'));
+        }
+    } catch (err) {
+        if (window.toast) toast.error('Auto-link failed: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        btn.innerHTML = originalHtml;
+        icon?.classList.remove('fa-spinner', 'el-list-spin');
+        icon?.classList.add('fa-robot');
+    }
+}
+
+document.getElementById('autoSyncToggle')?.addEventListener('change', function() {
+    if (this.checked) startAutoSync();
+    else if (autoSyncInterval) clearInterval(autoSyncInterval);
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    startAutoSync();
+    updateLastSync();
+});
+
+// Bulk selection
+function updateSelection() {
+    const checkboxes = document.querySelectorAll('.email-checkbox:checked');
+    const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    document.getElementById('bulkEmailIds').value = JSON.stringify(ids);
+    document.getElementById('selectedCount').textContent = ids.length;
+    document.getElementById('bulkExecuteBtn').disabled = ids.length === 0 || !document.getElementById('bulkOperation').value;
+    const bar = document.getElementById('bulkActionBar');
+    if (ids.length > 0) bar.removeAttribute('hidden');
+    else bar.setAttribute('hidden', '');
+    document.getElementById('checkAll').checked = checkboxes.length === document.querySelectorAll('.email-checkbox').length && checkboxes.length > 0;
+}
+
+function toggleAll() {
+    const checked = document.getElementById('checkAll').checked;
+    document.querySelectorAll('.email-checkbox').forEach(cb => {
+        if (cb.closest('tr').style.display !== 'none') cb.checked = checked;
+    });
+    updateSelection();
+}
+
+function clearSelection() {
+    document.querySelectorAll('.email-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('checkAll').checked = false;
+    document.getElementById('bulkOperation').value = '';
+    document.getElementById('bulkClientSelect').setAttribute('hidden', '');
+    updateSelection();
+}
+
+function toggleBulkFields() {
+    const op = document.getElementById('bulkOperation').value;
+    const sel = document.getElementById('bulkClientSelect');
+    if (op === 'link_client') sel.removeAttribute('hidden');
+    else sel.setAttribute('hidden', '');
+    document.getElementById('bulkExecuteBtn').disabled = !op || document.querySelectorAll('.email-checkbox:checked').length === 0;
+}
+
+document.getElementById('bulkForm')?.addEventListener('submit', function(e) {
+    const op = document.getElementById('bulkOperation').value;
+    const count = document.getElementById('selectedCount').textContent;
+    if (op === 'delete') {
+        if (!confirm(`Deletar ${count} emails? Esta acao não pode ser desfeita.`)) e.preventDefault();
+    }
+});
+
+// Archive single email
+async function archiveSingle(emailId) {
+    const isArchived = {{ 'true' if show_archived else 'false' }};
+    const operation = isArchived ? 'unarchive' : 'archive';
+    const actionText = isArchived ? 'Unarchive' : 'Archive';
+
+    const form = new FormData();
+    form.append('operation', operation);
+    form.append('email_ids', JSON.stringify([emailId]));
+
+    try {
+        const response = await fetch('{{ PREFIX }}/emails/bulk', { method: 'POST', body: form });
+        if (response.ok) {
+            const row = document.querySelector(`tr[data-id="${emailId}"]`);
+            if (row) {
+                row.style.transition = 'opacity var(--motion-base) var(--motion-curve-organic), transform var(--motion-base) var(--motion-curve-organic)';
+                row.style.opacity = '0';
+                row.style.transform = 'translateX(-20px)';
+                setTimeout(() => {
+                    row.remove();
+                    const countBadge = document.getElementById('emailCount');
+                    if (countBadge) {
+                        const currentCount = parseInt((countBadge.textContent.match(/\d+/) || ['0'])[0], 10);
+                        countBadge.textContent = (currentCount - 1) + ' {% if product == "lite" %}e-mails{% else %}emails{% endif %}';
+                    }
+                }, 300);
+            }
+        } else {
+            if (window.toast) toast.error('Error: ' + actionText + ' failed');
+        }
+    } catch (e) {
+        if (window.toast) toast.error('Error: ' + e.message);
+    }
+}
+
+// ===== CONVERSATION GROUPING =====
+function normalizeSubject(subj) {
+    if (!subj) return '';
+    return subj.replace(/^(re:\s*|fwd?:\s*|re\[\d+\]:\s*|fw:\s*)+/gi, '').trim().toLowerCase();
+}
+
+function groupConversations() {
+    const rows = Array.from(document.querySelectorAll('#emailsBody tr.el-list-row'));
+    if (rows.length === 0) return;
+
+    const threads = {};
+    const threadOrder = [];
+    rows.forEach(row => {
+        const subj = normalizeSubject(row.dataset.subject);
+        if (!subj) {
+            const key = '_single_' + row.dataset.id;
+            threads[key] = [row];
+            threadOrder.push(key);
+            return;
+        }
+        const clientId = row.dataset.clientId;
+        let key;
+        if (clientId) {
+            key = subj + '_c' + clientId;
+        } else {
+            const sender = row.dataset.sender || '';
+            const senderEmail = sender.includes('<') ? sender.split('<')[1].split('>')[0] : sender;
+            key = subj + '_s' + senderEmail.trim();
+        }
+        if (!threads[key]) {
+            threads[key] = [];
+            threadOrder.push(key);
+        }
+        threads[key].push(row);
+    });
+
+    threadOrder.forEach(key => {
+        const group = threads[key];
+        if (group.length <= 1) return;
+
+        const header = group[0];
+        const subjectCell = header.querySelector('.el-list-cell-subject');
+        if (!subjectCell) return;
+
+        const origText = subjectCell.textContent.trim();
+        subjectCell.innerHTML = '<span class="el-list-thread-toggle" aria-hidden="true">▶</span>' +
+            origText +
+            '<span class="el-list-thread-count">' + group.length + '</span>';
+
+        header.classList.add('el-list-row--thread-header');
+
+        for (let i = 1; i < group.length; i++) {
+            group[i].classList.add('el-list-row--thread-child');
+            group[i].dataset.threadParent = header.dataset.id;
+            const insertAfter = group[i - 1];
+            insertAfter.parentNode.insertBefore(group[i], insertAfter.nextSibling);
+        }
+
+        let threadLoaded = false;
+        subjectCell.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const expanded = header.classList.toggle('is-thread-open');
+            const icon = header.querySelector('.el-list-thread-toggle');
+            if (icon) icon.classList.toggle('is-expanded', expanded);
+
+            if (expanded && !threadLoaded) {
+                threadLoaded = true;
+                const subj = header.dataset.subject || '';
+                const cid = header.dataset.clientId || '';
+                const cidParam = cid ? `&client_id=${cid}` : '';
+                fetch(`${PREFIX}/emails/api/thread-siblings?subject=${encodeURIComponent(subj)}${cidParam}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.emails) return;
+                        const loadedIds = new Set(group.map(r => r.dataset.id));
+                        let insertAfterEl = group[group.length - 1];
+                        const safe = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                        data.emails.forEach(em => {
+                            if (loadedIds.has(String(em.id))) return;
+                            const tr = document.createElement('tr');
+                            tr.className = 'el-list-row el-list-row--thread-child';
+                            tr.dataset.id = em.id;
+                            tr.dataset.sender = (em.sender || '').toLowerCase();
+                            tr.dataset.subject = (em.subject || '').toLowerCase();
+                            tr.dataset.threadParent = header.dataset.id;
+                            tr.style.display = 'table-row';
+                            tr.tabIndex = 0;
+                            tr.addEventListener('click', () => viewEmail(em.id));
+                            const archived = em.archived ? '<span class="el-list-badge el-list-badge--archived">archived</span>' : '';
+                            const clientBadge = em.client_name ? `<a href="${PREFIX}/clients/${em.client_id}" class="el-list-badge el-list-badge--client"><i class="fas fa-user" aria-hidden="true"></i> ${safe(em.client_name)}</a>` : '';
+                            const sentBadge = em.folder && em.folder.includes('Sent') ? '<span class="el-list-badge el-list-badge--sent">Sent</span>' : '';
+                            tr.innerHTML = `
+                                <td></td><td></td>
+                                <td class="el-list-cell--center">${em.is_read ? '' : '<span class="el-list-unread-dot" aria-hidden="true"></span>'}</td>
+                                <td class="el-list-cell-sender"><span>${safe((em.sender || '').substring(0,35))}${archived}</span></td>
+                                <td class="el-list-cell-subject">${safe(em.subject || '(No subject)')}</td>
+                                <td class="el-list-cell-date">${safe(em.received_at)}</td>
+                                <td>${clientBadge}${sentBadge}</td>
+                                <td></td><td></td>`;
+                            insertAfterEl.parentNode.insertBefore(tr, insertAfterEl.nextSibling);
+                            insertAfterEl = tr;
+                            group.push(tr);
+                        });
+                        const badge = header.querySelector('.el-list-thread-count');
+                        if (badge) badge.textContent = group.length;
+                    })
+                    .catch(() => {});
+            } else {
+                for (let i = 1; i < group.length; i++) {
+                    group[i].style.display = expanded ? 'table-row' : 'none';
+                }
+            }
+        });
+
+        subjectCell.removeAttribute('onclick');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', groupConversations);
+
+// Auto-Link Results Modal
+function showAutoLinkResults(data) {
+    const safe = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const linkedItems = (data.linked || []).slice(0, 10).map(e => {
+        const matchIcon = {
+            'email_match': 'fa-envelope',
+            'name_match': 'fa-user',
+            'phone_match': 'fa-phone',
+            'ai_match': 'fa-robot'
+        }[e.match_type] || 'fa-link';
+        return `<li class="list-group-item">
+            <i class="fas ${matchIcon}" aria-hidden="true"></i>
+            <small>${safe(e.sender.substring(0, 35))}</small>
+            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+            <small>${safe(e.client_name)}</small>
+        </li>`;
+    }).join('');
+
+    const moreCount = (data.linked?.length || 0) > 10 ? `<li class="list-group-item">… e mais ${data.linked.length - 10}</li>` : '';
+    const errorSection = (data.errors && data.errors.length > 0) ?
+        `<div class="el-list-alert" style="margin-top: var(--space-3);"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><span>Erros: ${data.errors.length}</span></div>` : '';
+
+    const modalBody = `
+        <div class="el-list-modal-form">
+            <div class="el-list-form-row">
+                <div class="el-list-form-field">
+                    <span class="el-list-form-label">Total não linkados</span>
+                    <strong style="font-family: var(--font-family-mono); font-size: var(--font-size-2xl); color: var(--status-info);">${data.total_unlinked}</strong>
+                </div>
+                <div class="el-list-form-field">
+                    <span class="el-list-form-label">Linkados agora</span>
+                    <strong style="font-family: var(--font-family-mono); font-size: var(--font-size-2xl); color: var(--status-success);">${data.linked_count}</strong>
+                </div>
+            </div>
+            ${linkedItems ? `<div><h6 class="el-list-form-label">Emails linkados:</h6><ul class="list-group">${linkedItems}${moreCount}</ul></div>` : ''}
+            ${errorSection}
+        </div>
+    `;
+
+    const modalId = 'autoLinkResultsModal';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'modal fade';
+        modalEl.setAttribute('tabindex', '-1');
+        modalEl.setAttribute('aria-labelledby', 'autoLinkResultsTitle');
+        modalEl.innerHTML = `
+            <div class="modal-dialog modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="autoLinkResultsTitle"><i class="fas fa-robot me-2" aria-hidden="true"></i>Auto-Link Concluído</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="autoLinkModalBody"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="el-list-btn el-list-btn--ghost" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+    }
+
+    document.getElementById('autoLinkModalBody').innerHTML = modalBody;
+    // Guard against missing bundle — see #207.
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !modalEl) return;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+</script>
+{% endblock %}

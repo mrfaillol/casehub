@@ -1,0 +1,242 @@
+{% set product = product|default("lite") %}
+{% set is_lite = product == "lite" %}
+<!DOCTYPE html>
+<html lang="{% if is_lite %}pt-BR{% else %}{{ lang|default('en') }}{% endif %}"
+      data-theme="{{ ui_theme|default('glass') }}"
+      data-product="{{ product }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/brand-kit/favicon/casehub-favicon-degrade-4.svg">
+    <title>{% if is_lite %}Solicitar Acesso{% else %}Sign Up{% endif %} - {{ org_name|default('CaseHub') }}</title>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    {% if self_service %}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    {% endif %}
+
+    {% if is_lite %}
+    <link rel="stylesheet" href="{{ asset_url('css/casehub-login-basic.css') }}">
+    {% else %}
+    <link rel="stylesheet" href="/static/css/themes/_tokens.css?v=f4">
+    {% if ui_theme in ['glass', 'desktop', 'neuromorphic', 'white-label'] %}
+    <link rel="stylesheet" href="/static/css/themes/{{ ui_theme }}.css?v=f4">
+    {% endif %}
+    <link rel="stylesheet" href="/static/css/templates/onboarding-signup.css">
+    {% endif %}
+</head>
+<body class="signup-body">
+    <main class="signup-main" role="main" aria-labelledby="signup-title">
+        <section class="signup-card">
+            <header class="signup-header">
+                {% if is_lite %}
+                <span class="signup-logo" aria-hidden="true">
+                    <img class="signup-logo-img" src="/static/brand-kit/logo/casehub-logo-full-green-blue.svg" alt="">
+                </span>
+                {% else %}
+                <span class="signup-logo" aria-hidden="true">
+                    <i class="fas fa-balance-scale"></i>
+                </span>
+                {% endif %}
+                <h1 id="signup-title" class="signup-title" data-editable-block="signup-h1">
+                    {% if self_service %}{% if is_lite %}Criar Escritório{% else %}Create your firm{% endif %}{% else %}{% if is_lite %}Solicitar Acesso{% else %}Create your account{% endif %}{% endif %}
+                </h1>
+                <p class="signup-subtitle" data-editable-block="signup-subtitle">
+                    {% if self_service %}
+                        {% if is_lite %}Em ~2min você está usando o sistema com seu próprio endereço.{% else %}You'll be live with your own workspace URL in ~2 minutes.{% endif %}
+                    {% else %}
+                        {% if is_lite %}Preencha seus dados e entraremos em contato{% else %}Start managing your cases in minutes{% endif %}
+                    {% endif %}
+                </p>
+            </header>
+
+            {% if is_lite and success %}
+            <div class="signup-alert signup-alert--success" role="status" aria-live="polite">
+                <i class="fas fa-check-circle signup-alert-icon" aria-hidden="true"></i>
+                <span>{{ success }}</span>
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="signup-alert signup-alert--error" role="alert">
+                <i class="fas fa-exclamation-circle signup-alert-icon" aria-hidden="true"></i>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            {% if not (is_lite and success) %}
+            <form class="signup-form" method="POST" action="{{ PREFIX }}/signup" id="signupForm" novalidate>
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-firm">
+                        {% if is_lite %}Nome do Escritório{% else %}Firm Name{% endif %}
+                    </label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fas fa-building"></i></span>
+                        <input type="text" id="signup-firm" class="signup-input" name="firm_name"
+                               placeholder="{% if is_lite %}Ex: Silva & Associados{% else %}Acme Law Group{% endif %}"
+                               autocomplete="organization" required autofocus>
+                    </div>
+                </div>
+
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-name">
+                        {% if is_lite %}Seu Nome{% else %}Your Name{% endif %}
+                    </label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fas fa-user"></i></span>
+                        <input type="text" id="signup-name" class="signup-input" name="admin_name"
+                               placeholder="{% if is_lite %}João da Silva{% else %}Jane Smith{% endif %}"
+                               autocomplete="name">
+                    </div>
+                </div>
+
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-email">
+                        {% if is_lite %}E-mail{% else %}Email Address{% endif %}
+                    </label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fas fa-envelope"></i></span>
+                        <input type="email" id="signup-email" class="signup-input" name="admin_email"
+                               placeholder="{% if is_lite %}joao@escritorio.com.br{% else %}jane@acmelaw.com{% endif %}"
+                               autocomplete="email" required>
+                    </div>
+                </div>
+
+                {% if self_service %}
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-slug">
+                        {% if is_lite %}Endereço do escritório{% else %}Workspace URL{% endif %}
+                    </label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fas fa-link"></i></span>
+                        <input type="text" id="signup-slug" class="signup-input" name="slug"
+                               value="{{ suggested_slug or '' }}"
+                               placeholder="seu-escritorio" autocomplete="off"
+                               autocapitalize="off" spellcheck="false"
+                               minlength="3" maxlength="63" required>
+                    </div>
+                    <p style="margin-top:.3rem;font-size:.82rem;opacity:.7;font-family:'JetBrains Mono', ui-monospace, monospace;">
+                        <span id="slug-preview-text">{{ suggested_slug or 'seu-escritorio' }}</span>.casehub.legal
+                    </p>
+                </div>
+
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-password">
+                        {% if is_lite %}Senha{% else %}Password{% endif %}
+                    </label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                        <input type="password" id="signup-password" class="signup-input" name="password"
+                               placeholder="{% if is_lite %}Mín 8 chars, 1 maiúscula, 1 número{% else %}Min 8 chars, 1 uppercase, 1 digit{% endif %}"
+                               autocomplete="new-password" required minlength="8">
+                    </div>
+                </div>
+
+                {% if is_lite %}
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-phone">Telefone / WhatsApp (opcional)</label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fab fa-whatsapp"></i></span>
+                        <input type="tel" id="signup-phone" class="signup-input" name="phone"
+                               placeholder="(32) 99999-9999" autocomplete="tel">
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if turnstile_site_key %}
+                <div class="signup-field" style="display:flex;justify-content:center;margin:1rem 0;">
+                    <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="auto"></div>
+                </div>
+                {% endif %}
+                {% elif is_lite %}
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-phone">Telefone / WhatsApp</label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fab fa-whatsapp"></i></span>
+                        <input type="tel" id="signup-phone" class="signup-input" name="phone"
+                               placeholder="(32) 99999-9999" autocomplete="tel">
+                    </div>
+                </div>
+                {% else %}
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-password">Password</label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                        <input type="password" id="signup-password" class="signup-input" name="password"
+                               placeholder="Min. 8 characters" autocomplete="new-password"
+                               required minlength="8" oninput="checkStrength(this.value)">
+                    </div>
+                    <div class="signup-strength" aria-hidden="true">
+                        <div class="signup-strength-bar" id="strengthBar"></div>
+                    </div>
+                    <div id="strengthMeter" class="visually-hidden"
+                         role="progressbar" aria-label="Password strength"
+                         aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"></div>
+                </div>
+
+                <div class="signup-field">
+                    <label class="signup-label" for="signup-password-confirm">Confirm Password</label>
+                    <div class="signup-input-group">
+                        <span class="signup-input-icon" aria-hidden="true"><i class="fas fa-lock"></i></span>
+                        <input type="password" id="signup-password-confirm" class="signup-input" name="password_confirm"
+                               placeholder="Repeat password" autocomplete="new-password"
+                               required minlength="8">
+                    </div>
+                </div>
+                {% endif %}
+
+                <button type="submit" class="signup-submit">
+                    <i class="fas {% if self_service %}fa-rocket{% elif is_lite %}fa-paper-plane{% else %}fa-rocket{% endif %}" aria-hidden="true"></i>
+                    <span>{% if self_service %}{% if is_lite %}Criar escritório{% else %}Create firm{% endif %}{% elif is_lite %}Solicitar Acesso{% else %}Create Account{% endif %}</span>
+                </button>
+            </form>
+            {% if self_service %}
+            <script>
+                // Live slug preview as user types in self-service mode.
+                (function () {
+                    var slugInput = document.getElementById('signup-slug');
+                    var preview = document.getElementById('slug-preview-text');
+                    if (!slugInput || !preview) return;
+                    function update() {
+                        var v = (slugInput.value || '').trim().toLowerCase();
+                        preview.textContent = v || 'seu-escritorio';
+                    }
+                    slugInput.addEventListener('input', update);
+                    update();
+                })();
+            </script>
+            {% endif %}
+            {% endif %}
+
+            <p class="signup-footer">
+                {% if is_lite %}Já tem uma conta?{% else %}Already have an account?{% endif %}
+                <a class="signup-footer-link" href="{{ PREFIX }}/login">{% if is_lite %}Entrar{% else %}Sign in{% endif %}</a>
+            </p>
+        </section>
+    </main>
+
+    {% if not is_lite %}
+    <script>
+    (function () {
+        var bar = document.getElementById('strengthBar');
+        var meter = document.getElementById('strengthMeter');
+        if (!bar || !meter) return;
+        window.checkStrength = function (pw) {
+            var score = 0;
+            if (pw.length >= 8) score++;
+            if (pw.length >= 12) score++;
+            if (/[A-Z]/.test(pw)) score++;
+            if (/[0-9]/.test(pw)) score++;
+            if (/[^A-Za-z0-9]/.test(pw)) score++;
+            if (score > 0) {
+                bar.setAttribute('data-level', String(score));
+            } else {
+                bar.removeAttribute('data-level');
+            }
+            meter.setAttribute('aria-valuenow', String(score));
+        };
+    })();
+    </script>
+    {% endif %}
+</body>
+</html>

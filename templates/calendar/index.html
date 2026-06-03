@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Agenda{% else %}Calendar{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/calendar-index.css">
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="calendar-main" aria-labelledby="calendar-title">
+    <header class="calendar-header">
+        <div class="calendar-heading">
+            <h1 id="calendar-title" class="calendar-title">
+                <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Agenda{% else %}Calendar{% endif %}</span>
+            </h1>
+        </div>
+
+        <nav class="calendar-toolbar" aria-label="{% if product == 'lite' %}Ações do calendário{% else %}Calendar actions{% endif %}">
+            <a href="{{ PREFIX }}/calendar/agenda" class="calendar-action calendar-action--ghost">
+                <i class="fas fa-list" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Lista{% else %}List{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/google-calendar/settings" class="calendar-action calendar-action--ghost">
+                <i class="fab fa-google" aria-hidden="true"></i>
+                <span>Google Calendar</span>
+            </a>
+            <button type="button" class="calendar-action calendar-action--primary"
+                    data-bs-toggle="modal" data-bs-target="#quickTaskModal">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Nova Tarefa{% else %}Quick Task{% endif %}</span>
+            </button>
+
+            <div class="calendar-filter" data-calendar-filter>
+                <button type="button"
+                        class="calendar-action calendar-action--ghost calendar-filter-toggle"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                        data-calendar-filter-toggle>
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Filtro{% else %}Filter{% endif %}</span>
+                </button>
+                <ul class="calendar-filter-menu" aria-label="{% if product == 'lite' %}Filtro de eventos{% else %}Event filter{% endif %}">
+                    <li class="calendar-filter-item">
+                        <button type="button" class="calendar-filter-link" data-calendar-filter-type="all">
+                            <i class="fas fa-asterisk" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Todos os Eventos{% else %}All Events{% endif %}</span>
+                        </button>
+                    </li>
+                    <li class="calendar-filter-item">
+                        <button type="button" class="calendar-filter-link" data-calendar-filter-type="tasks">
+                            <i class="fas fa-tasks" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Somente Tarefas{% else %}Tasks Only{% endif %}</span>
+                        </button>
+                    </li>
+                    <li class="calendar-filter-item">
+                        <button type="button" class="calendar-filter-link" data-calendar-filter-type="cases">
+                            <i class="fas fa-folder" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Somente Processos{% else %}Cases Only{% endif %}</span>
+                        </button>
+                    </li>
+                    <li class="calendar-filter-item">
+                        <button type="button" class="calendar-filter-link" data-calendar-filter-type="google">
+                            <i class="fab fa-google" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Somente Google Calendar{% else %}Google Calendar Only{% endif %}</span>
+                        </button>
+                    </li>
+                    <li><hr class="calendar-filter-divider"></li>
+                    <li class="calendar-filter-header">
+                        {% if product == "lite" %}Por Usuário{% else %}By User{% endif %}
+                    </li>
+                    {% for u in users %}
+                    <li class="calendar-filter-item">
+                        <button type="button" class="calendar-filter-link" data-calendar-filter-user="{{ u.id }}">
+                            <span>{{ u.name or u.email }}</span>
+                        </button>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <section class="calendar-stats" aria-label="{% if product == 'lite' %}Resumo do calendário{% else %}Calendar summary{% endif %}">
+        <article class="calendar-stat calendar-stat--today">
+            <div class="calendar-stat-content">
+                <span class="calendar-stat-label">{% if product == "lite" %}Hoje{% else %}Today{% endif %}</span>
+                <span class="calendar-stat-value" id="tasksDueToday" aria-live="polite">-</span>
+                <span class="calendar-stat-hint">{% if product == "lite" %}tarefas pendentes{% else %}tasks due{% endif %}</span>
+            </div>
+            <span class="calendar-stat-icon" aria-hidden="true">
+                <i class="fas fa-calendar-day"></i>
+            </span>
+        </article>
+
+        <article class="calendar-stat calendar-stat--week">
+            <div class="calendar-stat-content">
+                <span class="calendar-stat-label">{% if product == "lite" %}Esta Semana{% else %}This Week{% endif %}</span>
+                <span class="calendar-stat-value" id="tasksThisWeek" aria-live="polite">-</span>
+                <span class="calendar-stat-hint">{% if product == "lite" %}próximas{% else %}upcoming{% endif %}</span>
+            </div>
+            <span class="calendar-stat-icon" aria-hidden="true">
+                <i class="fas fa-calendar-week"></i>
+            </span>
+        </article>
+
+        <article class="calendar-stat calendar-stat--overdue">
+            <div class="calendar-stat-content">
+                <span class="calendar-stat-label">{% if product == "lite" %}Atrasado{% else %}Overdue{% endif %}</span>
+                <span class="calendar-stat-value" id="overdueCount" aria-live="polite">-</span>
+                <span class="calendar-stat-hint">{% if product == "lite" %}tarefas{% else %}tasks{% endif %}</span>
+            </div>
+            <span class="calendar-stat-icon" aria-hidden="true">
+                <i class="fas fa-exclamation-triangle"></i>
+            </span>
+        </article>
+
+        <article class="calendar-stat calendar-stat--expiring">
+            <div class="calendar-stat-content">
+                <span class="calendar-stat-label">{% if product == "lite" %}Expirando{% else %}Expiring{% endif %}</span>
+                <span class="calendar-stat-value" id="expiringCount" aria-live="polite">-</span>
+                <span class="calendar-stat-hint">{% if product == "lite" %}este mês{% else %}this month{% endif %}</span>
+            </div>
+            <span class="calendar-stat-icon" aria-hidden="true">
+                <i class="fas fa-clock"></i>
+            </span>
+        </article>
+    </section>
+
+    <section class="calendar-surface" aria-label="{% if product == 'lite' %}Calendário{% else %}Calendar{% endif %}">
+        <div id="calendar" aria-live="polite"></div>
+    </section>
+
+    <section class="calendar-legend" aria-label="{% if product == 'lite' %}Legenda{% else %}Legend{% endif %}">
+        {% if product == "lite" %}
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--info" aria-hidden="true"></span>
+            <span>Tarefa</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--muted" aria-hidden="true"></span>
+            <span>Concluída</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--warning" aria-hidden="true"></span>
+            <span>Alta Prioridade</span>
+        </span>
+        {% else %}
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--accent" aria-hidden="true"></span>
+            <span>Filed</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--success" aria-hidden="true"></span>
+            <span>Priority Date</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--danger" aria-hidden="true"></span>
+            <span>Expiration / Urgent</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--warning" aria-hidden="true"></span>
+            <span>High Priority</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--info" aria-hidden="true"></span>
+            <span>Task</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--muted" aria-hidden="true"></span>
+            <span>Completed</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--google-info" aria-hidden="true"></span>
+            <span>info@</span>
+        </span>
+        <span class="calendar-legend-item">
+            <span class="calendar-legend-dot calendar-legend-dot--google-center" aria-hidden="true"></span>
+            <span>center@</span>
+        </span>
+        {% endif %}
+    </section>
+</div>
+
+<!-- Quick Task Modal -->
+<div class="modal fade" id="quickTaskModal" tabindex="-1" aria-labelledby="quickTaskModalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content calendar-modal">
+            <div class="calendar-modal-header">
+                <h2 class="calendar-modal-title" id="quickTaskModalTitle">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Nova Tarefa{% else %}Quick Add Task{% endif %}</span>
+                </h2>
+                <button type="button" class="calendar-modal-close" data-bs-dismiss="modal"
+                        aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <form id="quickTaskForm">
+                <div class="calendar-modal-body">
+                    <div class="calendar-field">
+                        <label class="calendar-field-label" for="quickTaskTitle">
+                            {% if product == "lite" %}Título{% else %}Title{% endif %}
+                        </label>
+                        <input type="text" id="quickTaskTitle" name="title" class="calendar-input" required>
+                    </div>
+                    <div class="calendar-field-row">
+                        <div class="calendar-field">
+                            <label class="calendar-field-label" for="quickTaskDueDate">
+                                {% if product == "lite" %}Data de Vencimento{% else %}Due Date{% endif %}
+                            </label>
+                            <input type="date" id="quickTaskDueDate" name="due_date" class="calendar-input" required>
+                        </div>
+                        <div class="calendar-field">
+                            <label class="calendar-field-label" for="quickTaskPriority">
+                                {% if product == "lite" %}Prioridade{% else %}Priority{% endif %}
+                            </label>
+                            <select id="quickTaskPriority" name="priority" class="calendar-select">
+                                <option value="low">{% if product == "lite" %}Baixa{% else %}Low{% endif %}</option>
+                                <option value="medium" selected>{% if product == "lite" %}Média{% else %}Medium{% endif %}</option>
+                                <option value="high">{% if product == "lite" %}Alta{% else %}High{% endif %}</option>
+                                <option value="urgent">{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="calendar-modal-footer">
+                    <button type="button" class="calendar-action calendar-action--ghost" data-bs-dismiss="modal">
+                        {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+                    </button>
+                    <button type="submit" class="calendar-action calendar-action--primary">
+                        {% if product == "lite" %}Criar Tarefa{% else %}Create Task{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+{% if product == "lite" %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales/pt-br.global.min.js"></script>
+{% endif %}
+<script>
+let calendar;
+let currentFilter = 'all';
+let calFilterUserId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        {% if product == "lite" %}
+        locale: 'pt-br',
+        buttonText: {
+            today: 'Hoje',
+            month: 'Mês',
+            week: 'Semana',
+            list: 'Lista'
+        },
+        {% endif %}
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek'
+        },
+        events: async function(info, successCallback, failureCallback) {
+            try {
+                let allEvents = [];
+
+                // Fetch CaseHub events (unless filtering to google only)
+                if (currentFilter !== 'google') {
+                    let url = '{{ PREFIX }}/calendar/events?start=' + info.startStr + '&end=' + info.endStr;
+                    if (currentFilter && currentFilter !== 'all') {
+                        url += '&filter_type=' + currentFilter;
+                    }
+                    if (calFilterUserId) {
+                        url += '&user_id=' + calFilterUserId;
+                    }
+                    const casehubEvents = await fetch(url).then(r => r.json());
+                    allEvents = allEvents.concat(casehubEvents);
+                }
+
+                // Fetch Google Calendar events (unless filtering to tasks/cases only)
+                if (currentFilter === 'all' || currentFilter === 'google') {
+                    const googleUrl = '{{ PREFIX }}/google-calendar/events?start=' + info.startStr + '&end=' + info.endStr;
+                    try {
+                        const response = await fetch(googleUrl);
+                        const googleEvents = await response.json();
+                        if (Array.isArray(googleEvents)) {
+                            console.log('Google Calendar events loaded:', googleEvents.length);
+                            allEvents = allEvents.concat(googleEvents);
+                        } else if (googleEvents.error) {
+                            console.error('Google Calendar API error:', googleEvents.error);
+                        }
+                    } catch (e) {
+                        console.error('Failed to fetch Google Calendar events:', e);
+                    }
+                }
+
+                successCallback(allEvents);
+            } catch (err) {
+                failureCallback(err);
+            }
+        },
+        eventClick: function(info) {
+            if (info.event.url) {
+                window.location.href = info.event.url;
+                info.jsEvent.preventDefault();
+            }
+        },
+        dateClick: function(info) {
+            document.querySelector('#quickTaskModal input[name="due_date"]').value = info.dateStr;
+            // Guard against missing element / bundle — see #207.
+            var quickTaskEl = document.getElementById('quickTaskModal');
+            if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !quickTaskEl) return;
+            bootstrap.Modal.getOrCreateInstance(quickTaskEl).show();
+        },
+        height: 'auto',
+        eventDisplay: 'block',
+        dayMaxEvents: 3
+    });
+    calendar.render();
+
+    loadSummary();
+
+    // Filter dropdown (click-outside aware)
+    var filterEl = document.querySelector('[data-calendar-filter]');
+    var filterToggle = document.querySelector('[data-calendar-filter-toggle]');
+    if (filterEl && filterToggle) {
+        filterToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var isOpen = filterEl.getAttribute('data-open') === 'true';
+            filterEl.setAttribute('data-open', String(!isOpen));
+            filterToggle.setAttribute('aria-expanded', String(!isOpen));
+        });
+        document.addEventListener('click', function(e) {
+            if (!filterEl.contains(e.target)) {
+                filterEl.setAttribute('data-open', 'false');
+                filterToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+
+    // Filter menu bindings
+    document.querySelectorAll('[data-calendar-filter-type]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            filterEvents(btn.getAttribute('data-calendar-filter-type'));
+            if (filterEl) {
+                filterEl.setAttribute('data-open', 'false');
+                filterToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+    document.querySelectorAll('[data-calendar-filter-user]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            filterByUser(parseInt(btn.getAttribute('data-calendar-filter-user'), 10));
+            if (filterEl) {
+                filterEl.setAttribute('data-open', 'false');
+                filterToggle.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+});
+
+async function loadSummary() {
+    try {
+        const [today, upcoming] = await Promise.all([
+            fetch('{{ PREFIX }}/calendar/today').then(r => r.json()),
+            fetch('{{ PREFIX }}/calendar/upcoming?days=7').then(r => r.json())
+        ]);
+
+        document.getElementById('tasksDueToday').textContent = today.tasks_due || 0;
+        document.getElementById('overdueCount').textContent = today.overdue_tasks || 0;
+        document.getElementById('tasksThisWeek').textContent = upcoming.tasks?.length || 0;
+        document.getElementById('expiringCount').textContent = upcoming.expiring_cases?.length || 0;
+    } catch (e) {
+        console.error('Error loading summary:', e);
+    }
+}
+
+function filterEvents(type) {
+    currentFilter = type;
+    calFilterUserId = null;
+    calendar.refetchEvents();
+}
+
+function filterByUser(userId) {
+    calFilterUserId = userId;
+    currentFilter = 'tasks';
+    calendar.refetchEvents();
+}
+
+// Quick task form
+var quickForm = document.getElementById('quickTaskForm');
+if (quickForm) quickForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+
+    try {
+        const response = await fetch('{{ PREFIX }}/calendar/quick-task', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            var quickTaskEl = document.getElementById('quickTaskModal');
+            var quickTaskInst = (typeof bootstrap !== 'undefined' && bootstrap.Modal && quickTaskEl) ? bootstrap.Modal.getInstance(quickTaskEl) : null;
+            if (quickTaskInst) quickTaskInst.hide();
+            calendar.refetchEvents();
+            loadSummary();
+            this.reset();
+        } else {
+            const data = await response.json();
+            alert({% if product == "lite" %}'Erro: ' + (data.detail || 'Falha ao criar tarefa'){% else %}'Error: ' + (data.detail || 'Failed to create task'){% endif %});
+        }
+    } catch (error) {
+        alert({% if product == "lite" %}'Erro ao criar tarefa: ' + error.message{% else %}'Error creating task: ' + error.message{% endif %});
+    }
+});
+</script>
+{% endblock %}

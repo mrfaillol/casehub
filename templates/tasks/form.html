@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}{% if action == "Create" %}Criar{% elif action == "Update" %}Editar{% else %}{{ action }}{% endif %} Tarefa{% else %}{{ action }} Task{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/tasks" class="text-muted text-decoration-none"><i class="fas fa-arrow-left me-1"></i> {% if product == "lite" %}Voltar às Tarefas{% else %}Back to Tasks{% endif %}</a>
+    <h2 class="mt-2"><i class="fas fa-tasks me-2"></i>{% if product == "lite" %}{% if action == "Create" %}Criar{% elif action == "Update" %}Editar{% else %}{{ action }}{% endif %} Tarefa{% else %}{{ action }} Task{% endif %}</h2>
+</div>
+
+<form method="post" action="{% if task %}{{ PREFIX }}/tasks/{{ task.id }}/edit{% else %}{{ PREFIX }}/tasks/new{% endif %}">
+    <div class="row">
+        <div class="col-md-8 mb-4">
+            <div class="card glass-card">
+                <div class="card-header"><i class="fas fa-info-circle me-1"></i> {% if product == "lite" %}Detalhes da Tarefa{% else %}Task Details{% endif %}</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Título *{% else %}Title *{% endif %}</label>
+                        <input type="text" class="form-control glass-input" name="title" value="{{ task.title if task else '' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Descrição{% else %}Description{% endif %}</label>
+                        <textarea class="form-control glass-input" name="description" rows="3">{{ task.description if task else '' }}</textarea>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">{% if product == "lite" %}Tipo de Tarefa{% else %}Task Type{% endif %}</label>
+                            <select class="form-select glass-input" name="task_type">
+                                <option value="">{% if product == "lite" %}Selecione o Tipo{% else %}Select Type{% endif %}</option>
+                                <option value="document_collection" {% if task and task.task_type == 'document_collection' %}selected{% endif %}>{% if product == "lite" %}Coleta de Documentos{% else %}Document Collection{% endif %}</option>
+                                <option value="form_preparation" {% if task and task.task_type == 'form_preparation' %}selected{% endif %}>{% if product == "lite" %}Preparação de Peça{% else %}Form Preparation{% endif %}</option>
+                                <option value="review" {% if task and task.task_type == 'review' %}selected{% endif %}>{% if product == "lite" %}Revisão{% else %}Review{% endif %}</option>
+                                <option value="filing" {% if task and task.task_type == 'filing' %}selected{% endif %}>{% if product == "lite" %}Protocolo{% else %}Filing{% endif %}</option>
+                                <option value="follow_up" {% if task and task.task_type == 'follow_up' %}selected{% endif %}>{% if product == "lite" %}Acompanhamento{% else %}Follow-up{% endif %}</option>
+                                <option value="communication" {% if task and task.task_type == 'communication' %}selected{% endif %}>{% if product == "lite" %}Comunicação{% else %}Communication{% endif %}</option>
+                                <option value="meeting" {% if task and task.task_type == 'meeting' %}selected{% endif %}>{% if product == "lite" %}Reunião{% else %}Meeting{% endif %}</option>
+                                <option value="reminder" {% if task and task.task_type == 'reminder' %}selected{% endif %}>{% if product == "lite" %}Lembrete{% else %}Reminder{% endif %}</option>
+                                <option value="other" {% if task and task.task_type == 'other' %}selected{% endif %}>{% if product == "lite" %}Outro{% else %}Other{% endif %}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{% if product == "lite" %}Responsável{% else %}Assigned To{% endif %}</label>
+                            <select class="form-select glass-input" name="assigned_to">
+                                <option value="">{% if product == "lite" %}Não atribuído{% else %}Unassigned{% endif %}</option>
+                                {% for u in users %}
+                                <option value="{{ u.id }}" {% if task and task.assigned_to == u.id %}selected{% endif %}>{{ u.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <label class="form-label">Tags <small class="text-muted">({% if product == "lite" %}separadas por virgula{% else %}comma-separated{% endif %})</small></label>
+                            <input type="text" class="form-control glass-input" name="tags" value="{{ task.tags if task and task.tags else '' }}" placeholder="{% if product == 'lite' %}ex: urgente, documentos, prazo{% else %}e.g. urgent, docs, deadline{% endif %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">{% if product == "lite" %}Horas Estimadas{% else %}Estimated Hours{% endif %}</label>
+                            <input type="number" step="0.5" min="0" class="form-control glass-input" name="estimated_hours" value="{{ task.estimated_hours if task and task.estimated_hours else '' }}" placeholder="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card mb-4">
+                <div class="card-header"><i class="fas fa-cog me-1"></i> {% if product == "lite" %}Status e Prioridade{% else %}Status & Priority{% endif %}</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select glass-input" name="status">
+                            <option value="pending" {% if not task or task.status == 'pending' %}selected{% endif %}>{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</option>
+                            <option value="in_progress" {% if task and task.status == 'in_progress' %}selected{% endif %}>{% if product == "lite" %}Em Andamento{% else %}In Progress{% endif %}</option>
+                            <option value="completed" {% if task and task.status == 'completed' %}selected{% endif %}>{% if product == "lite" %}Concluída{% else %}Completed{% endif %}</option>
+                            <option value="blocked" {% if task and task.status == 'blocked' %}selected{% endif %}>{% if product == "lite" %}Bloqueada{% else %}Blocked{% endif %}</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Prioridade{% else %}Priority{% endif %}</label>
+                        <select class="form-select glass-input" name="priority">
+                            <option value="low" {% if task and task.priority == 'low' %}selected{% endif %}>{% if product == "lite" %}Baixa{% else %}Low{% endif %}</option>
+                            <option value="medium" {% if not task or task.priority == 'medium' %}selected{% endif %}>{% if product == "lite" %}Média{% else %}Medium{% endif %}</option>
+                            <option value="high" {% if task and task.priority == 'high' %}selected{% endif %}>{% if product == "lite" %}Alta{% else %}High{% endif %}</option>
+                            <option value="urgent" {% if task and task.priority == 'urgent' %}selected{% endif %}>{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card mb-4">
+                <div class="card-header"><i class="fas fa-calendar me-1"></i> {% if product == "lite" %}Datas{% else %}Dates{% endif %}</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Data de Vencimento{% else %}Due Date{% endif %}</label>
+                        <input type="date" class="form-control glass-input" name="due_date" value="{{ task.due_date.strftime('%Y-%m-%d') if task and task.due_date else '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Data do Lembrete{% else %}Reminder Date{% endif %}</label>
+                        <input type="date" class="form-control glass-input" name="reminder_date" value="{{ task.reminder_date.strftime('%Y-%m-%d') if task and task.reminder_date else '' }}">
+                    </div>
+                </div>
+            </div>
+            <div class="card glass-card">
+                <div class="card-header"><i class="fas fa-link me-1"></i> {% if product == "lite" %}Vincular a Cliente/Processo{% else %}Link to Client/Case{% endif %}</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</label>
+                        <select class="form-select glass-input" name="client_id">
+                            <option value="">{% if product == "lite" %}Nenhum Cliente{% else %}No Client{% endif %}</option>
+                            {% for c in clients %}
+                            <option value="{{ c.id }}" {% if (task and task.client_id == c.id) or selected_client_id == c.id %}selected{% endif %}>{{ c.first_name }} {{ c.last_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Processo{% else %}Case{% endif %}</label>
+                        <select class="form-select glass-input" name="case_id">
+                            <option value="">{% if product == "lite" %}Nenhum Processo{% else %}No Case{% endif %}</option>
+                            {% for cs in cases %}
+                            <option value="{{ cs.id }}" {% if (task and task.case_id == cs.id) or selected_case_id == cs.id %}selected{% endif %}>{{ cs.case_number or cs.case_name or (('Processo #' if product == "lite" else 'Case #') + cs.id|string) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Subtasks Section -->
+    <div class="row">
+        <div class="col-md-8 mb-4">
+            <div class="card glass-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-sitemap me-1"></i> {% if product == "lite" %}Subtarefas{% else %}Subtasks{% endif %}</span>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-add-subtask">
+                        <i class="fas fa-plus me-1"></i> {% if product == "lite" %}Adicionar Subtarefa{% else %}Add Subtask{% endif %}
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="subtasks-container">
+                        {% if subtasks is defined and subtasks %}
+                            {% for sub in subtasks %}
+                            <div class="subtask-row d-flex align-items-center gap-2 mb-2" data-index="{{ loop.index0 }}">
+                                <input type="hidden" name="subtask_id[]" value="{{ sub.id }}">
+                                <input type="checkbox" class="form-check-input" name="subtask_done[]" value="{{ loop.index0 }}" {% if sub.status == 'completed' %}checked{% endif %} style="min-width: 20px;">
+                                <input type="text" class="form-control form-control-sm glass-input" name="subtask_title[]" value="{{ sub.title }}" placeholder="{% if product == 'lite' %}Título da subtarefa{% else %}Subtask title{% endif %}">
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-subtask" title="{% if product == 'lite' %}Remover{% else %}Remove{% endif %}">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    <div id="subtasks-empty" class="text-muted text-center py-3" {% if subtasks is defined and subtasks %}style="display:none"{% endif %}>
+                        <i class="fas fa-sitemap d-block mb-1" style="font-size: 1.2rem; opacity: 0.5;"></i>
+                        <small>{% if product == "lite" %}Nenhuma subtarefa adicionada{% else %}No subtasks added{% endif %}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary"><i class="fas fa-save me-1"></i> {% if product == "lite" %}{% if action == "Create" %}Criar{% elif action == "Update" %}Salvar{% else %}{{ action }}{% endif %} Tarefa{% else %}{{ action }} Task{% endif %}</button>
+        <a href="{{ PREFIX }}/tasks" class="btn btn-outline-secondary">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</a>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const IS_LITE = {{ 'true' if product == "lite" else 'false' }};
+    const container = document.getElementById('subtasks-container');
+    const emptyState = document.getElementById('subtasks-empty');
+    let subtaskIndex = container.querySelectorAll('.subtask-row').length;
+
+    function updateEmptyState() {
+        const rows = container.querySelectorAll('.subtask-row');
+        emptyState.style.display = rows.length > 0 ? 'none' : 'block';
+    }
+
+    document.getElementById('btn-add-subtask').addEventListener('click', function() {
+        const idx = subtaskIndex++;
+        const row = document.createElement('div');
+        row.className = 'subtask-row d-flex align-items-center gap-2 mb-2';
+        row.dataset.index = idx;
+        row.innerHTML = `
+            <input type="hidden" name="subtask_id[]" value="">
+            <input type="checkbox" class="form-check-input" name="subtask_done[]" value="${idx}" style="min-width: 20px;">
+            <input type="text" class="form-control form-control-sm glass-input" name="subtask_title[]" value="" placeholder="${IS_LITE ? 'Título da subtarefa' : 'Subtask title'}" autofocus>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-subtask" title="${IS_LITE ? 'Remover' : 'Remove'}">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        container.appendChild(row);
+        row.querySelector('input[type="text"]').focus();
+        updateEmptyState();
+    });
+
+    container.addEventListener('click', function(e) {
+        const btn = e.target.closest('.remove-subtask');
+        if (btn) {
+            btn.closest('.subtask-row').remove();
+            updateEmptyState();
+        }
+    });
+
+    // Allow Enter key in subtask input to add another
+    container.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target.name === 'subtask_title[]') {
+            e.preventDefault();
+            document.getElementById('btn-add-subtask').click();
+        }
+    });
+})();
+</script>
+{% endblock %}

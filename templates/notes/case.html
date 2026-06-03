@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Case Notes - {{ case.case_number }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/notes-case.css">
+{% endblock %}
+
+{% block content %}
+<main class="notes-case-main" aria-labelledby="notes-case-title">
+    <header class="notes-case-header">
+        <div class="notes-case-heading">
+            <h1 id="notes-case-title" class="notes-case-title">
+                <i class="fas fa-comments notes-case-title-icon" aria-hidden="true"></i>
+                <span>Case Notes</span>
+            </h1>
+            <p class="notes-case-subtitle">{{ case.case_name or case.case_number }}</p>
+        </div>
+        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="notes-case-btn notes-case-btn--ghost">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Case</span>
+        </a>
+    </header>
+
+    <section class="notes-case-card" aria-labelledby="notes-case-add-title">
+        <header class="notes-case-card-header">
+            <i class="fas fa-plus notes-case-card-header-icon" aria-hidden="true"></i>
+            <h2 id="notes-case-add-title" class="notes-case-sr-only">Add Note</h2>
+            <span aria-hidden="true">Add Note</span>
+        </header>
+        <div class="notes-case-card-body">
+            <form id="newNoteForm" class="notes-case-form">
+                <label for="noteContent" class="notes-case-sr-only">Note content</label>
+                <textarea id="noteContent"
+                          class="notes-case-textarea"
+                          rows="3"
+                          placeholder="Type your note... Use @name to mention someone"
+                          required></textarea>
+                <div class="notes-case-form-row">
+                    <label class="notes-case-checkbox" for="isInternal">
+                        <input type="checkbox" id="isInternal" class="notes-case-checkbox-input" checked>
+                        <i class="fas fa-lock notes-case-checkbox-icon" aria-hidden="true"></i>
+                        <span>Internal only (staff only)</span>
+                    </label>
+                    <button type="submit" class="notes-case-btn notes-case-btn--primary">
+                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                        <span>Post Note</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="notes-case-card" aria-labelledby="notes-case-list-title">
+        <header class="notes-case-card-header">
+            <i class="fas fa-list notes-case-card-header-icon" aria-hidden="true"></i>
+            <h2 id="notes-case-list-title">Notes ({{ notes|length }})</h2>
+        </header>
+        <div class="notes-case-card-body" id="notesList">
+            {% if notes %}
+            <ul class="notes-case-list" role="list">
+                {% for note in notes %}
+                <li class="notes-case-note" id="note-{{ note.id }}">
+                    <div class="notes-case-note-head">
+                        <span class="notes-case-note-author">
+                            <strong>{{ note.author.name or note.author.email }}</strong>
+                            {% if note.is_internal %}
+                            <span class="notes-case-badge notes-case-badge--internal">
+                                <i class="fas fa-lock" aria-hidden="true"></i>
+                                <span>Internal</span>
+                            </span>
+                            {% endif %}
+                        </span>
+                        <time class="notes-case-note-time">{{ note.created_at[:16] if note.created_at else '-' }}</time>
+                    </div>
+                    <p class="notes-case-note-body">{{ note.content | e | replace('@', '<span class="notes-case-mention">@') | replace(' ', '</span> ') | safe }}</p>
+                    {% if note.mentions %}
+                    <div class="notes-case-note-mentions">
+                        <span>Mentioned:</span>
+                        {% for m in note.mentions %}
+                        <span class="notes-case-badge notes-case-badge--mention">{{ m }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <div class="notes-case-note-actions">
+                        <button type="button"
+                                class="notes-case-btn notes-case-btn--ghost"
+                                data-action="reply"
+                                data-note-id="{{ note.id }}">
+                            <i class="fas fa-reply" aria-hidden="true"></i>
+                            <span>Reply</span>
+                        </button>
+                        <button type="button"
+                                class="notes-case-btn notes-case-btn--danger notes-case-btn--icon"
+                                data-action="delete"
+                                data-note-id="{{ note.id }}"
+                                aria-label="Delete note">
+                            <i class="fas fa-trash" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="notes-case-empty">
+                <i class="fas fa-comments notes-case-empty-icon" aria-hidden="true"></i>
+                <p class="notes-case-empty-text">No notes yet. Add the first note above.</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+</main>
+
+<script>
+(function () {
+    var users = [
+        {% for u in users %}
+        {name: "{{ u.name or u.email }}", value: "{{ u.name.split()[0] if u.name else u.email.split('@')[0] }}"}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    var POST_URL = '{{ PREFIX }}/notes/case/{{ case.id }}';
+    var DELETE_URL = '{{ PREFIX }}/notes/';
+
+    var form = document.getElementById('newNoteForm');
+    var noteContent = document.getElementById('noteContent');
+    var isInternal = document.getElementById('isInternal');
+
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var formData = new FormData();
+            formData.append('content', noteContent.value);
+            formData.append('is_internal', isInternal.checked);
+
+            fetch(POST_URL, { method: 'POST', body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        window.location.reload();
+                    } else {
+                        window.alert('Error: ' + ((data && data.error) || 'Unknown error'));
+                    }
+                })
+                .catch(function (err) {
+                    window.alert('Error: ' + (err && err.message ? err.message : 'Unknown error'));
+                });
+        });
+    }
+
+    function replyTo(noteId) {
+        if (!noteContent) return;
+        noteContent.focus();
+        noteContent.placeholder = 'Reply to note #' + noteId + '...';
+    }
+
+    function deleteNote(noteId) {
+        if (!window.confirm('Delete this note?')) return;
+        fetch(DELETE_URL + encodeURIComponent(noteId), { method: 'DELETE' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.success) {
+                    var el = document.getElementById('note-' + noteId);
+                    if (el) el.remove();
+                } else {
+                    window.alert('Error: ' + ((data && data.error) || 'Unknown error'));
+                }
+            })
+            .catch(function (err) {
+                window.alert('Error: ' + (err && err.message ? err.message : 'Unknown error'));
+            });
+    }
+
+    document.addEventListener('click', function (event) {
+        var btn = event.target.closest('[data-action]');
+        if (!btn) return;
+        var action = btn.getAttribute('data-action');
+        var id = btn.getAttribute('data-note-id');
+        if (action === 'reply') replyTo(id);
+        else if (action === 'delete') deleteNote(id);
+    });
+})();
+</script>
+{% endblock %}

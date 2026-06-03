@@ -1,0 +1,317 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Emails · Compose · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/emails-compose.css">
+{% endblock %}
+{% block content %}
+<main class="emails-compose-main" aria-labelledby="emails-compose-title">
+    <header class="emails-compose-header">
+        <div class="emails-compose-heading">
+            <h1 id="emails-compose-title" class="emails-compose-title">
+                <i class="fas fa-paper-plane emails-compose-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Compor E-mail{% else %}Compose Email{% endif %}</span>
+            </h1>
+            <p class="emails-compose-subtitle">{% if product == "lite" %}Enviar um e-mail pelo CaseHub{% else %}Send an email from CaseHub{% endif %}</p>
+        </div>
+        <a href="{{ PREFIX }}/emails" class="emails-compose-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar aos E-mails{% else %}Back to Emails{% endif %}</span>
+        </a>
+    </header>
+
+    {% if not is_configured %}
+    <section class="emails-compose-alert" role="alert" aria-labelledby="emails-compose-alert-title">
+        <h2 id="emails-compose-alert-title" class="emails-compose-alert-title">
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}SMTP Não Configurado{% else %}SMTP Not Configured{% endif %}</span>
+        </h2>
+        <p class="emails-compose-alert-text">{% if product == "lite" %}O envio de e-mail requer configuração SMTP. Adicione ao seu arquivo .env:{% else %}Email sending requires SMTP configuration. Add these to your .env file:{% endif %}</p>
+        <ul class="emails-compose-alert-list">
+            <li><code>SMTP_HOST</code> — SMTP server (e.g., smtp.gmail.com)</li>
+            <li><code>SMTP_PORT</code> — SMTP port (e.g., 587)</li>
+            <li><code>SMTP_USER</code> — Email address/username</li>
+            <li><code>SMTP_PASSWORD</code> — App password</li>
+            <li><code>SMTP_FROM</code> — Sender email</li>
+            <li><code>SMTP_FROM_NAME</code> — Sender name</li>
+        </ul>
+    </section>
+    {% endif %}
+
+    <div class="emails-compose-grid">
+        <section aria-labelledby="emails-compose-form-title">
+            <h2 id="emails-compose-form-title" class="emails-compose-sr-only">{% if product == "lite" %}Formulário de E-mail{% else %}Email Form{% endif %}</h2>
+            <form id="composeForm" method="POST" action="{{ PREFIX }}/emails/send" class="emails-compose-card">
+                <div class="emails-compose-card-body">
+                    {% if client_id %}
+                    <input type="hidden" name="client_id" value="{{ client_id }}">
+                    {% endif %}
+                    {% if case_id %}
+                    <input type="hidden" name="case_id" value="{{ case_id }}">
+                    {% endif %}
+
+                    <div class="emails-compose-field">
+                        <label for="emails-compose-to" class="emails-compose-label">
+                            {% if product == "lite" %}Para{% else %}To{% endif %}
+                            <span class="emails-compose-label-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="email" id="emails-compose-to" class="emails-compose-input" name="to_email"
+                               value="{{ to_email or '' }}" required aria-required="true"
+                               placeholder="email@example.com{% if product == 'lite' %} (separar múltiplos com vírgula){% else %} (separate multiple with commas){% endif %}">
+                    </div>
+
+                    <div class="emails-compose-field">
+                        <label for="emails-compose-cc" class="emails-compose-label">
+                            CC <span class="emails-compose-label-hint">({% if product == "lite" %}opcional{% else %}optional{% endif %})</span>
+                        </label>
+                        <input type="email" id="emails-compose-cc" class="emails-compose-input" name="cc_email"
+                               value="{{ cc_email or org_email|default('') }}"
+                               placeholder="cc@example.com">
+                    </div>
+
+                    <div class="emails-compose-field">
+                        <label for="emails-compose-subject" class="emails-compose-label">
+                            {% if product == "lite" %}Assunto{% else %}Subject{% endif %}
+                            <span class="emails-compose-label-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="emails-compose-subject" class="emails-compose-input" name="subject"
+                               value="{{ subject or '' }}" required aria-required="true"
+                               placeholder="{% if product == 'lite' %}Assunto do e-mail{% else %}Email subject{% endif %}">
+                    </div>
+
+                    <section class="emails-compose-templates" aria-labelledby="emails-compose-templates-title">
+                        <header class="emails-compose-templates-header">
+                            <i class="fas fa-magic" aria-hidden="true"></i>
+                            <span id="emails-compose-templates-title">{% if product == "lite" %}Modelos Rápidos{% else %}Quick Templates{% endif %}</span>
+                        </header>
+                        <div class="emails-compose-templates-body">
+                            <div class="emails-compose-templates-grid">
+                                <div class="emails-compose-templates-field">
+                                    <label for="langSelect" class="emails-compose-templates-label">{% if product == "lite" %}Idioma{% else %}Language{% endif %}</label>
+                                    <select class="emails-compose-templates-select" id="langSelect" onchange="loadTemplates()">
+                                        <option value="en">English</option>
+                                        <option value="pt">Português</option>
+                                        <option value="es">Español</option>
+                                    </select>
+                                </div>
+                                <div class="emails-compose-templates-field">
+                                    <label for="templateSelect" class="emails-compose-templates-label">{% if product == "lite" %}Modelo{% else %}Template{% endif %}</label>
+                                    <select class="emails-compose-templates-select" id="templateSelect" onchange="applyTemplate()">
+                                        <option value="">— {% if product == "lite" %}Selecione um modelo{% else %}Select a template{% endif %} —</option>
+                                    </select>
+                                </div>
+                                <div class="emails-compose-templates-field">
+                                    <label class="emails-compose-templates-label" aria-hidden="true">&nbsp;</label>
+                                    <button type="button" class="emails-compose-btn emails-compose-btn--icon" onclick="loadTemplates()"
+                                            aria-label="{% if product == 'lite' %}Recarregar modelos{% else %}Refresh templates{% endif %}">
+                                        <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="emails-compose-field">
+                        <label for="emails-compose-body" class="emails-compose-label">
+                            {% if product == "lite" %}Mensagem{% else %}Message{% endif %}
+                            <span class="emails-compose-label-required" aria-hidden="true">*</span>
+                        </label>
+                        <textarea id="emails-compose-body" class="emails-compose-textarea" name="body" rows="14"
+                                  required aria-required="true"
+                                  placeholder="{% if product == 'lite' %}Digite sua mensagem aqui...{% else %}Type your message here...{% endif %}">{{ body or '' }}</textarea>
+                    </div>
+
+                    <div class="emails-compose-actions">
+                        <button type="button" class="emails-compose-btn emails-compose-btn--ghost" onclick="saveDraft()">
+                            <i class="fas fa-save" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Salvar Rascunho{% else %}Save Draft{% endif %}</span>
+                        </button>
+                        <button type="submit" class="emails-compose-btn emails-compose-btn--primary"
+                                {% if not is_configured %}disabled aria-disabled="true"{% endif %}>
+                            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Enviar E-mail{% else %}Send Email{% endif %}</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <aside class="emails-compose-sidebar" aria-label="{% if product == 'lite' %}Contexto e dicas{% else %}Context and tips{% endif %}">
+            {% if client %}
+            <section class="emails-compose-card" aria-labelledby="emails-compose-client-title">
+                <header class="emails-compose-card-header">
+                    <i class="fas fa-user" aria-hidden="true"></i>
+                    <span id="emails-compose-client-title">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</span>
+                </header>
+                <div class="emails-compose-card-body emails-compose-card-body--compact">
+                    <strong class="emails-compose-context-name">{{ client.first_name }} {{ client.last_name }}</strong>
+                    <span class="emails-compose-context-meta">{{ client.email }}</span>
+                </div>
+            </section>
+            {% endif %}
+
+            {% if case %}
+            <section class="emails-compose-card" aria-labelledby="emails-compose-case-title">
+                <header class="emails-compose-card-header">
+                    <i class="fas fa-folder" aria-hidden="true"></i>
+                    <span id="emails-compose-case-title">{% if product == "lite" %}Caso{% else %}Case{% endif %}</span>
+                </header>
+                <div class="emails-compose-card-body emails-compose-card-body--compact">
+                    <strong class="emails-compose-context-name">{{ case.case_name }}</strong>
+                    <span class="emails-compose-context-meta">{{ case.visa_type }} — {{ case.status }}</span>
+                </div>
+            </section>
+            {% endif %}
+
+            <section class="emails-compose-card" aria-labelledby="emails-compose-tips-title">
+                <header class="emails-compose-card-header">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span id="emails-compose-tips-title">{% if product == "lite" %}Dicas de E-mail{% else %}Email Tips{% endif %}</span>
+                </header>
+                <div class="emails-compose-card-body emails-compose-card-body--compact">
+                    <ul class="emails-compose-tips">
+                        <li class="emails-compose-tips-item">
+                            <i class="fas fa-check emails-compose-tips-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Mantenha assuntos claros e específicos{% else %}Keep subject lines clear and specific{% endif %}</span>
+                        </li>
+                        <li class="emails-compose-tips-item">
+                            <i class="fas fa-check emails-compose-tips-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Inclua o número do caso para referência{% else %}Include case number for reference{% endif %}</span>
+                        </li>
+                        <li class="emails-compose-tips-item">
+                            <i class="fas fa-check emails-compose-tips-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Seja específico sobre prazos{% else %}Be specific about deadlines{% endif %}</span>
+                        </li>
+                        <li class="emails-compose-tips-item">
+                            <i class="fas fa-check emails-compose-tips-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Use modelos para consistência{% else %}Use templates for consistency{% endif %}</span>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+
+            <section class="emails-compose-card" aria-labelledby="emails-compose-recent-title">
+                <header class="emails-compose-card-header">
+                    <i class="fas fa-history" aria-hidden="true"></i>
+                    <span id="emails-compose-recent-title">{% if product == "lite" %}Enviados Recentes{% else %}Recent Sent{% endif %}</span>
+                </header>
+                <div class="emails-compose-card-body emails-compose-card-body--flush">
+                    <div id="recentSent" class="emails-compose-recent" aria-live="polite">
+                        <div class="emails-compose-recent-loading">{% if product == "lite" %}Carregando…{% else %}Loading…{% endif %}</div>
+                    </div>
+                </div>
+            </section>
+        </aside>
+    </div>
+</main>
+{% endblock %}
+{% block extra_js %}
+<script>
+const PREFIX = '{{ PREFIX }}';
+let templatesCache = {};
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+async function loadTemplates() {
+    const lang = document.getElementById('langSelect').value || 'en';
+    const select = document.getElementById('templateSelect');
+
+    try {
+        const response = await fetch(`${PREFIX}${PREFIX}/api/email-templates?lang=${lang}`);
+        const data = await response.json();
+
+        if (data.success && data.templates) {
+            templatesCache = data.templates;
+
+            select.innerHTML = '<option value="">— {% if product == "lite" %}Selecione um modelo{% else %}Select a template{% endif %} —</option>';
+            for (const [key, template] of Object.entries(data.templates)) {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = template.name;
+                select.appendChild(option);
+            }
+        }
+    } catch (err) {
+        console.error('Error loading templates:', err);
+        select.innerHTML = '<option value="">— {% if product == "lite" %}Erro ao carregar modelos{% else %}Error loading templates{% endif %} —</option>';
+    }
+}
+
+function applyTemplate() {
+    const select = document.getElementById('templateSelect');
+    const key = select.value;
+
+    if (!key || !templatesCache[key]) return;
+
+    const template = templatesCache[key];
+    const bodyField = document.getElementById('emails-compose-body');
+
+    if (bodyField.value.trim()) {
+        if (!confirm('{% if product == "lite" %}Isso substituirá a mensagem atual. Continuar?{% else %}This will replace the current message. Continue?{% endif %}')) {
+            select.value = '';
+            return;
+        }
+    }
+
+    bodyField.value = template.content;
+}
+
+function saveDraft() {
+    const formData = {
+        to_email: document.getElementById('emails-compose-to').value,
+        subject: document.getElementById('emails-compose-subject').value,
+        body: document.getElementById('emails-compose-body').value
+    };
+    localStorage.setItem('emailDraft', JSON.stringify(formData));
+    alert('{% if product == "lite" %}Rascunho salvo localmente!{% else %}Draft saved locally!{% endif %}');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadTemplates();
+
+    const draft = localStorage.getItem('emailDraft');
+    const toField = document.getElementById('emails-compose-to');
+    if (draft && !toField.value) {
+        const data = JSON.parse(draft);
+        if (confirm('{% if product == "lite" %}Carregar rascunho salvo?{% else %}Load saved draft?{% endif %}')) {
+            toField.value = data.to_email || '';
+            document.getElementById('emails-compose-subject').value = data.subject || '';
+            document.getElementById('emails-compose-body').value = data.body || '';
+        }
+    }
+
+    const recentContainer = document.getElementById('recentSent');
+    const emptyMsg = '<div class="emails-compose-recent-empty">{% if product == "lite" %}Nenhum e-mail recente{% else %}No recent emails{% endif %}</div>';
+
+    fetch(`${PREFIX}/emails/api/sent?limit=5`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.emails && data.emails.length > 0) {
+                recentContainer.innerHTML = data.emails.map(e => `
+                    <div class="emails-compose-recent-item">
+                        <div class="emails-compose-recent-to">${escapeHtml(e.to_email)}</div>
+                        <div class="emails-compose-recent-subject">${escapeHtml(e.subject)}</div>
+                        <div class="emails-compose-recent-time">${escapeHtml(e.sent_at)}</div>
+                    </div>
+                `).join('');
+            } else {
+                recentContainer.innerHTML = emptyMsg;
+            }
+        })
+        .catch(() => {
+            recentContainer.innerHTML = emptyMsg;
+        });
+});
+
+document.getElementById('composeForm').addEventListener('submit', function() {
+    localStorage.removeItem('emailDraft');
+});
+</script>
+{% endblock %}

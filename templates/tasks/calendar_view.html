@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Calendário de Tarefas{% else %}Task Calendar{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/templates/tasks-calendar.css">
+{% endblock %}
+
+{% block content %}
+<main class="task-calendar" aria-labelledby="task-calendar-title">
+    <header class="task-calendar__header">
+        <div class="task-calendar__heading">
+            <h2 id="task-calendar-title" class="task-calendar__title">
+                <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                {% if product == "lite" %}Calendário de Tarefas{% else %}Task Calendar{% endif %}
+            </h2>
+            <p class="task-calendar__subtitle">
+                {% if product == "lite" %}
+                    Prazos internos e tarefas organizados pela data de vencimento.
+                {% else %}
+                    Internal tasks organized by due date.
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="task-calendar__actions">
+            <nav class="task-calendar__view-toggle" aria-label="{% if product == 'lite' %}Visualizações de tarefas{% else %}Task views{% endif %}">
+                <a href="{{ PREFIX }}/tasks/local" class="task-calendar__action task-calendar__action--ghost">
+                    <i class="fas fa-list" aria-hidden="true"></i>
+                    {% if product == "lite" %}Lista{% else %}List{% endif %}
+                </a>
+                <a href="{{ PREFIX }}/tasks/kanban" class="task-calendar__action task-calendar__action--ghost">
+                    <i class="fas fa-columns" aria-hidden="true"></i>
+                    Kanban
+                </a>
+                <a href="{{ PREFIX }}/tasks/calendar"
+                   class="task-calendar__action task-calendar__action--active"
+                   aria-current="page">
+                    <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                    {% if product == "lite" %}Calendário{% else %}Calendar{% endif %}
+                </a>
+            </nav>
+            <a href="{{ PREFIX }}/tasks/new" class="task-calendar__action task-calendar__action--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                {% if product == "lite" %}Nova tarefa{% else %}New task{% endif %}
+            </a>
+        </div>
+    </header>
+
+    <section class="task-calendar__legend" aria-label="{% if product == 'lite' %}Legenda de prioridade{% else %}Priority legend{% endif %}">
+        <span class="task-calendar__legend-item">
+            <span class="task-calendar__legend-dot task-calendar__legend-dot--urgent" aria-hidden="true"></span>
+            {% if product == "lite" %}Urgente{% else %}Urgent{% endif %}
+        </span>
+        <span class="task-calendar__legend-item">
+            <span class="task-calendar__legend-dot task-calendar__legend-dot--high" aria-hidden="true"></span>
+            {% if product == "lite" %}Alta{% else %}High{% endif %}
+        </span>
+        <span class="task-calendar__legend-item">
+            <span class="task-calendar__legend-dot task-calendar__legend-dot--medium" aria-hidden="true"></span>
+            {% if product == "lite" %}Média{% else %}Medium{% endif %}
+        </span>
+        <span class="task-calendar__legend-item">
+            <span class="task-calendar__legend-dot task-calendar__legend-dot--low" aria-hidden="true"></span>
+            {% if product == "lite" %}Baixa{% else %}Low{% endif %}
+        </span>
+    </section>
+
+    <div class="task-calendar__surface">
+        <div id="task-calendar" aria-live="polite"></div>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+{% if product == "lite" %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales/pt-br.global.min.js"></script>
+{% endif %}
+<script>
+(function() {
+    const PREFIX = '{{ PREFIX }}';
+    const IS_LITE = {{ 'true' if product == "lite" else 'false' }};
+    const events = {{ events_json|safe }};
+    const compactQuery = window.matchMedia('(max-width: 767px)');
+
+    function getCalendarOptions(isCompact) {
+        return {
+            initialView: isCompact ? 'listWeek' : 'dayGridMonth',
+            headerToolbar: isCompact ? {
+                left: 'prev,next today',
+                center: 'title',
+                right: ''
+            } : {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,dayGridWeek,listWeek'
+            }
+        };
+    }
+
+    const calendarEl = document.getElementById('task-calendar');
+    const responsiveOptions = getCalendarOptions(compactQuery.matches);
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: responsiveOptions.initialView,
+        locale: IS_LITE ? 'pt-br' : 'en',
+        headerToolbar: responsiveOptions.headerToolbar,
+        buttonText: IS_LITE ? {
+            today: 'Hoje',
+            month: 'Mês',
+            week: 'Semana',
+            list: 'Lista'
+        } : {},
+        allDayText: IS_LITE ? 'dia inteiro' : 'all-day',
+        events: events,
+        eventClick: function(info) {
+            info.jsEvent.preventDefault();
+            if (info.event.url) {
+                window.location.href = info.event.url;
+            }
+        },
+        height: 'auto',
+        dayMaxEvents: 4,
+        navLinks: true,
+        editable: false,
+        selectable: false,
+        eventDisplay: 'block',
+        eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }
+    });
+
+    calendar.render();
+
+    compactQuery.addEventListener('change', function(event) {
+        const nextOptions = getCalendarOptions(event.matches);
+        calendar.setOption('headerToolbar', nextOptions.headerToolbar);
+        calendar.changeView(nextOptions.initialView);
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Financeiro · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Financeiro · Faturamento</span>
+    <h1>Receitas em <em>movimento</em>.</h1>
+    <p class="ch-page-head__sub">Pendentes, pagas, horas registradas e total faturado — tudo num lugar.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing/time/new">
+      <span data-icon="check"></span> Registrar tempo
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/billing/items/new">
+      <span data-icon="plus"></span> Novo item
+    </a>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--4" style="margin-bottom: var(--space-6);">
+  <article class="ch-kpi ch-kpi--hero">
+    <span class="ch-kpi__label">Faturado (mês)</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.0f"|format(total_billed|default(0)|float) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Soma dos itens (qualquer status)</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Pendente</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.0f"|format(total_pending|default(0)|float) }}</span>
+    </div>
+    <span class="ch-kpi__hint">A receber</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Pago</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.0f"|format(total_paid|default(0)|float) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Recebido no mês</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Pagamentos</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.0f"|format(total_payments|default(0)|float) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Registrados</span>
+  </article>
+</section>
+
+{% if billing_items and billing_items|length > 0 %}
+<section class="ch-card ch-card--bleed">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Itens recentes</span>
+      <h2 class="ch-card__title">Últimos 50 lançamentos</h2>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/invoices">
+      Faturas <span data-icon="chevron_right" data-icon-size="14"></span>
+    </a>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Descrição</th>
+          <th>Tipo</th>
+          <th>Cliente / Caso</th>
+          <th>Valor</th>
+          <th>Status</th>
+          <th>Data</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in billing_items %}
+        <tr>
+          <td data-label="Descrição">
+            <strong>{{ item.description or '—' }}</strong>
+          </td>
+          <td data-label="Tipo">
+            <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ item.item_type or 'item' }}</span>
+          </td>
+          <td data-label="Cliente">
+            {% if item.case and item.case.client %}
+              {{ item.case.client.full_name }}
+            {% else %}—{% endif %}
+          </td>
+          <td data-label="Valor" class="ch-mono" style="font-weight: 700;">
+            R$ {{ "%.2f"|format(item.amount|float) }}
+          </td>
+          <td data-label="Status">
+            {% if item.status == 'paid' %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>Pago</span>
+            {% elif item.status == 'pending' %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>Pendente</span>
+            {% elif item.status == 'invoiced' %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>Faturado</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>{{ item.status or '—' }}</span>
+            {% endif %}
+          </td>
+          <td data-label="Data" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
+            {{ item.created_at.strftime('%d/%m/%Y') if item.created_at else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<div class="ch-card">
+  <div class="ch-empty ch-empty--hero">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="billing"></span></span>
+    <h3>Sem lançamentos ainda</h3>
+    <p>Cadastre o primeiro item de faturamento ou registre horas trabalhadas.</p>
+    <div style="display: flex; gap: var(--space-2); justify-content: center; margin-top: var(--space-4);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing/time/new">
+        <span data-icon="check"></span> Registrar tempo
+      </a>
+      <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/billing/items/new">
+        <span data-icon="plus"></span> Novo item
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

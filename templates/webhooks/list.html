@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Webhooks - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="fas fa-link me-2"></i>Webhooks</h2>
+        <p class="text-muted mb-0">Configure automated notifications for entity events</p>
+    </div>
+    <a href="{{ PREFIX }}/webhooks/new" class="btn btn-primary glass-btn glass-btn--primary">
+        <i class="fas fa-plus me-1"></i> New Webhook
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <select class="form-select glass-input" name="entity_type" onchange="this.form.submit()">
+                    <option value="">All Entity Types</option>
+                    {% for et in entity_types %}
+                    <option value="{{ et }}" {% if entity_type == et %}selected{% endif %}>{{ et|capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if webhooks %}
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Event</th>
+                <th>URL</th>
+                <th>Status</th>
+                <th>Last Triggered</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for webhook in webhooks %}
+            <tr>
+                <td>
+                    <strong>{{ webhook.event_type }}</strong><br>
+                    <small class="text-muted">{{ webhook.entity_type }}</small>
+                </td>
+                <td><code>{{ webhook.webhook_url[:50] }}{% if webhook.webhook_url|length > 50 %}...{% endif %}</code></td>
+                <td>
+                    {% if webhook.enabled %}
+                    <span class="badge bg-success">Enabled</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Disabled</span>
+                    {% endif %}
+                    {% if webhook.failure_count > 0 %}
+                    <span class="badge bg-warning">{{ webhook.failure_count }} failures</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if webhook.last_triggered_at %}
+                    {{ webhook.last_triggered_at.strftime('%Y-%m-%d %H:%M') }}
+                    <small class="text-muted">({{ webhook.last_response_code }})</small>
+                    {% else %}
+                    <span class="text-muted">Never</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ PREFIX }}/webhooks/{{ webhook.id }}/logs" class="btn btn-sm btn-outline-info me-1" title="View Logs">
+                        <i class="fas fa-history"></i>
+                    </a>
+                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="testWebhook({{ webhook.id }})" title="Test">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <a href="{{ PREFIX }}/webhooks/{{ webhook.id }}/edit" class="btn btn-sm btn-outline-primary me-1">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    <form method="post" action="{{ PREFIX }}/webhooks/{{ webhook.id }}/delete" class="d-inline" onsubmit="return confirm('Delete this webhook?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-link fa-3x text-muted mb-3"></i>
+    <h5>No webhooks configured</h5>
+    <p class="text-muted">Create your first webhook to receive automated notifications</p>
+    <a href="{{ PREFIX }}/webhooks/new" class="btn btn-primary glass-btn glass-btn--primary">
+        <i class="fas fa-plus me-1"></i> Create Webhook
+    </a>
+</div>
+{% endif %}
+
+<script>
+async function testWebhook(id) {
+    try {
+        const response = await fetch('{{ PREFIX }}/webhooks/' + id + '/test', {method: 'POST'});
+        const data = await response.json();
+        if (data.status) {
+            alert('Webhook test triggered!');
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Error testing webhook: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

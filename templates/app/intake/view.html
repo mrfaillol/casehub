@@ -1,0 +1,559 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% block title %}Intake · View · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  {% if is_overdue %}
+  <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
+    <i class="fas fa-exclamation-triangle me-3 fa-lg"></i>
+    <div>
+      <strong>OVERDUE</strong> &mdash; This questionnaire was sent {{ days_since_sent }} days ago and has not been completed.
+      Consider following up with the client.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-0">
+        {{ package.name }}
+        {% if is_overdue %}
+        <span class="badge bg-danger ms-2" style="font-size: 0.5em; vertical-align: middle;">OVERDUE ({{ days_since_sent }}d)</span>
+        {% endif %}
+      </h1>
+      <p class="text-muted mb-0">
+        Case:
+        <a
+          href="{{ PREFIX }}/cases/{{ package.case_id }}"
+          class="text-decoration-none"
+          >{{ package.case_name }} ({{ package.visa_type }})</a
+        >
+        <span class="mx-2">•</span>
+        Client:
+        <a
+          href="{{ PREFIX }}/clients/{{ package.client_id }}"
+          class="text-decoration-none"
+          >{{ package.first_name }} {{ package.last_name }}</a
+        >
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      {% if package.status == 'draft' %}
+      <form
+        method="POST"
+        action="{{ PREFIX }}/intake/{{ package.package_id }}/send"
+      >
+        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary shadow-sm">
+          <i class="fas fa-paper-plane me-2"></i>Send to Client
+        </button>
+      </form>
+      {% else %}
+      <button class="btn btn-outline-primary glass-btn glass-btn--ghost shadow-sm" onclick="resendEmail()">
+        <i class="fas fa-envelope me-2"></i>Resend
+      </button>
+      {% endif %}
+
+      <div class="dropdown">
+        <button
+          class="btn btn-light border shadow-sm dropdown-toggle"
+          type="button"
+          id="actionMenu"
+          data-bs-toggle="dropdown"
+        >
+          <i class="fas fa-cog me-2"></i>Actions
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li>
+            <a class="dropdown-item" href="#" onclick="editPackage()"
+              ><i class="fas fa-edit me-2"></i>Edit Details</a
+            >
+          </li>
+          <li>
+            <a class="dropdown-item" href="#" onclick="duplicatePackage()"
+              ><i class="fas fa-copy me-2"></i>Duplicate</a
+            >
+          </li>
+          <li><hr class="dropdown-divider" /></li>
+          <li>
+            <form
+              method="POST"
+              action="{{ PREFIX }}/intake/{{ package.package_id }}/delete"
+              onsubmit="
+                return confirm('Are you sure you want to delete this package?');
+              "
+            >
+              <button type="submit" class="dropdown-item text-danger">
+                <i class="fas fa-trash-alt me-2"></i>Delete
+              </button>
+            </form>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Left Column: Items -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-4">
+        <div
+          class="card-header py-3 d-flex justify-content-between align-items-center"
+        >
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-list me-2"></i>Package Items
+          </h6>
+          <button class="btn btn-sm btn-outline-secondary" onclick="addItem()">
+            <i class="fas fa-plus me-1"></i>Add Item
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush" id="itemsList">
+            {% for item in items %}
+            <div class="list-group-item p-3 item-row" data-id="{{ item.id }}">
+              <div class="d-flex align-items-center">
+                <div class="me-3 text-muted drag-handle" style="cursor: grab">
+                  <i class="fas fa-grip-vertical"></i>
+                </div>
+                <div class="flex-grow-1">
+                  <div
+                    class="d-flex align-items-center justify-content-between"
+                  >
+                    <h6 class="mb-0">
+                      {% if item.item_type == 'questionnaire' %}
+                      <i class="fas fa-clipboard-list text-primary me-2"></i>
+                      {% elif item.item_type == 'document_request' %}
+                      <i class="fas fa-file-upload text-warning me-2"></i>
+                      {% elif item.item_type == 'signature' %}
+                      <i class="fas fa-file-signature text-danger me-2"></i>
+                      {% endif %} {{ item.name }} {% if item.required %}
+                      <span
+                        class="badge bg-danger ms-2"
+                        style="font-size: 0.6em"
+                        >REQUIRED</span
+                      >
+                      {% endif %}
+                    </h6>
+                    <div>
+                      <span
+                        class="badge rounded-pill bg-{{ item.status }}"
+                        style="min-width: 80px"
+                      >
+                        {{ item.status|replace('_', ' ')|upper }}
+                      </span>
+                      <div class="btn-group ms-2">
+                        {% if item.status in ['submitted', 'approved', 'rejected'] %}
+                        <a
+                          href="{{ PREFIX }}/intake/{{ package.package_id }}/item/{{ item.id }}/responses"
+                          class="btn btn-sm btn-outline-primary"
+                        >
+                          <i class="fas fa-eye"></i> Review
+                        </a>
+                        {% elif item.status in ['in_progress', 'pending'] %}
+                        <a
+                          href="{{ PREFIX }}/intake/{{ package.package_id }}/item/{{ item.id }}/responses"
+                          class="btn btn-sm btn-outline-secondary"
+                          title="Preview current form data"
+                        >
+                          <i class="fas fa-eye"></i> Preview
+                        </a>
+                        {% endif %}
+                        <button
+                          class="btn btn-sm btn-link text-muted"
+                          data-bs-toggle="dropdown"
+                        >
+                          <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                          <li>
+                            <a class="dropdown-item" href="#"
+                              ><i class="fas fa-edit me-2"></i>Edit</a
+                            >
+                          </li>
+                          <li>
+                            <a class="dropdown-item text-danger" href="#"
+                              ><i class="fas fa-trash me-2"></i>Remove</a
+                            >
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                  {% if item.description %}
+                  <small class="text-muted d-block mt-1 ms-4"
+                    >{{ item.description }}</small
+                  >
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-tasks me-2"></i>Progress
+          </h6>
+        </div>
+        <div class="card-body">
+          <h4 class="small font-weight-bold">
+            Completion <span class="float-end">{{ completion.percentage }}%</span>
+          </h4>
+          <div class="progress mb-4">
+            <div
+              class="progress-bar bg-{{ 'success' if completion.percentage == 100 else 'primary' }}"
+              role="progressbar"
+              style="width: {{ completion.percentage }}%"
+            ></div>
+          </div>
+          <div class="row text-center">
+            <div class="col">
+              <div class="h5 font-weight-bold text-primary">
+                {{ completion.total_items }}
+              </div>
+              <div class="text-xs text-uppercase text-muted">Total Items</div>
+            </div>
+            <div class="col">
+              <div class="h5 font-weight-bold text-success">
+                {{ completion.completed_items }}
+              </div>
+              <div class="text-xs text-uppercase text-muted">Completed</div>
+            </div>
+            <div class="col">
+              <div class="h5 font-weight-bold text-warning">
+                {{ completion.total_items - completion.completed_items }}
+              </div>
+              <div class="text-xs text-uppercase text-muted">Pending</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-info-circle me-2"></i>Package Details
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="text-xs text-uppercase text-muted font-weight-bold"
+              >Status</label
+            >
+            <div class="h5">
+              <span class="badge bg-{{ package.status }}"
+                >{{ package.status|upper }}</span
+              >
+              {% if is_overdue %}
+              <span class="badge bg-danger">OVERDUE</span>
+              {% endif %}
+            </div>
+          </div>
+          {% if package.sent_at %}
+          <div class="mb-3">
+            <label class="text-xs text-uppercase text-muted font-weight-bold"
+              >Sent to Client</label
+            >
+            <div class="h6{% if is_overdue %} text-danger fw-bold{% endif %}">
+              {{ package.sent_at.strftime('%b %d, %Y') }}
+              {% if days_since_sent > 0 %}
+              <small class="{% if is_overdue %}text-danger{% else %}text-muted{% endif %}">({{ days_since_sent }} days ago)</small>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+          <div class="mb-3">
+            <label class="text-xs text-uppercase text-muted font-weight-bold"
+              >Created By</label
+            >
+            <div class="h6">{{ package.creator_name or 'System' }}</div>
+            <div class="small text-muted">
+              {{ package.created_at.strftime('%b %d, %Y') }}
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="text-xs text-uppercase text-muted font-weight-bold"
+              >Expires</label
+            >
+            <div class="h6">
+              {{ package.expires_at.strftime('%b %d, %Y') if package.expires_at
+              else 'Never' }}
+            </div>
+          </div>
+
+          <hr />
+
+          <div class="mb-3">
+            <label class="text-xs text-uppercase text-muted font-weight-bold"
+              >Access Link</label
+            >
+            <div class="input-group">
+              <input
+                type="text"
+                class="form-control glass-input"
+                id="clientLink"
+                value="{{ client_link }}"
+                readonly
+              />
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                onclick="copyLink()"
+              >
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
+            {% if package.passphrase %}
+            <div class="mt-2">
+              <small class="text-muted">Passphrase:</small>
+              <code>{{ package.passphrase }}</code>
+            </div>
+            {% endif %}
+          </div>
+          <div class="mt-2">
+            <a
+              href="{{ client_link }}"
+              target="_blank"
+              class="btn btn-sm btn-outline-primary w-100"
+            >
+              <i class="fas fa-external-link-alt me-1"></i>Open as Client
+            </a>
+          </div>
+          <div class="mt-2">
+            <button
+              class="btn btn-sm btn-outline-success w-100"
+              onclick="testLink()"
+            >
+              <i class="fas fa-check-circle me-1"></i>Test Link (Verify 200 OK)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header py-3">
+          <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-comment me-2"></i>Message to Client
+          </h6>
+        </div>
+        <div class="card-body">
+          {% if package.message %}
+          <div class="p-3 rounded font-italic mb-3" style="background: rgba(255,255,255,0.1);">
+            "{{ package.message }}"
+          </div>
+          <hr>
+          {% endif %}
+          <form method="POST" action="{{ PREFIX }}/intake/{{ package.package_id }}/send-message">
+            <div class="mb-3">
+              <textarea class="form-control glass-input" name="message" rows="3"
+                        placeholder="Type a message to send to the client..."></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small">Send via:</label>
+              <div class="d-flex gap-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="send_email" id="sendEmail" checked>
+                  <label class="form-check-label" for="sendEmail">
+                    <i class="fas fa-envelope me-1"></i>Email
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="send_whatsapp" id="sendWhatsapp">
+                  <label class="form-check-label" for="sendWhatsapp">
+                    <i class="fab fa-whatsapp me-1"></i>WhatsApp
+                  </label>
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary glass-btn glass-btn--primary btn-sm w-100">
+              <i class="fas fa-paper-plane me-1"></i>Send Message
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+  function copyLink() {
+    const input = document.getElementById("clientLink");
+    input.select();
+    document.execCommand("copy");
+    alert("Link copied to clipboard!");
+  }
+
+  async function testLink() {
+    const link = document.getElementById("clientLink").value;
+    const button = event.target.closest("button");
+    const originalHtml = button.innerHTML;
+
+    try {
+      // Update button to show loading
+      button.disabled = true;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Testing...';
+
+      // Make GET request to test link (HEAD not supported by Client-Intake)
+      const response = await fetch(link, { method: 'GET', redirect: 'manual' });
+
+      if (response.ok) {
+        // Success - link is valid
+        button.innerHTML = '<i class="fas fa-check-circle me-1"></i>✅ Link is Valid!';
+        button.classList.remove('btn-outline-success');
+        button.classList.add('btn-success');
+
+        setTimeout(() => {
+          button.innerHTML = originalHtml;
+          button.classList.remove('btn-success');
+          button.classList.add('btn-outline-success');
+          button.disabled = false;
+        }, 3000);
+      } else {
+        // Failed - link returned non-200 status
+        button.innerHTML = '<i class="fas fa-times-circle me-1"></i>❌ HTTP ' + response.status;
+        button.classList.remove('btn-outline-success');
+        button.classList.add('btn-danger');
+        alert(`❌ Link test failed!\n\nLink returned HTTP ${response.status}\n\nThis link may not work for clients. Please check the package configuration.`);
+
+        setTimeout(() => {
+          button.innerHTML = originalHtml;
+          button.classList.remove('btn-danger');
+          button.classList.add('btn-outline-success');
+          button.disabled = false;
+        }, 3000);
+      }
+    } catch (e) {
+      // Error - network issue or link not accessible
+      button.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>❌ Error';
+      button.classList.remove('btn-outline-success');
+      button.classList.add('btn-danger');
+      alert(`❌ Link test failed!\n\nError: ${e.message}\n\nThe link may be inaccessible or there is a network issue.`);
+
+      setTimeout(() => {
+        button.innerHTML = originalHtml;
+        button.classList.remove('btn-danger');
+        button.classList.add('btn-outline-success');
+        button.disabled = false;
+      }, 3000);
+    }
+  }
+
+  async function resendEmail() {
+    const button = event.target.closest("button");
+    const originalHtml = button.innerHTML;
+
+    if (!confirm("Resend intake package email to client?")) {
+      return;
+    }
+
+    try {
+      button.disabled = true;
+      button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+
+      const response = await fetch(window.location.pathname + '/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }
+      });
+
+      if (response.ok) {
+        button.innerHTML = '<i class="fas fa-check-circle me-2"></i>✅ Email Sent!';
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-success');
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        const errorText = await response.text();
+        button.innerHTML = '<i class="fas fa-times-circle me-2"></i>❌ Send Failed';
+        button.classList.remove('btn-outline-primary');
+        button.classList.add('btn-danger');
+        alert(`❌ Failed to send email!\n\nError: ${errorText}\n\nPlease check the server logs for details.`);
+
+        setTimeout(() => {
+          button.innerHTML = originalHtml;
+          button.classList.remove('btn-danger');
+          button.classList.add('btn-outline-primary');
+          button.disabled = false;
+        }, 3000);
+      }
+    } catch (e) {
+      button.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>❌ Error';
+      button.classList.remove('btn-outline-primary');
+      button.classList.add('btn-danger');
+      alert(`❌ Failed to send email!\n\nError: ${e.message}\n\nPlease check your network connection.`);
+
+      setTimeout(() => {
+        button.innerHTML = originalHtml;
+        button.classList.remove('btn-danger');
+        button.classList.add('btn-outline-primary');
+        button.disabled = false;
+      }, 3000);
+    }
+  }
+
+  new Sortable(document.getElementById("itemsList"), {
+    handle: ".drag-handle",
+    animation: 150,
+    ghostClass: "bg-light",
+    onEnd: function (evt) {
+      // Placeholder for reorder persistence
+    },
+  });
+</script>
+
+<style>
+  .badge.bg-draft,
+  .badge.bg-pending {
+    background-color: #6c757d;
+    color: white;
+  }
+  .badge.bg-sent {
+    background-color: #1C2447;
+    color: white;
+  }
+  .badge.bg-in_progress {
+    background-color: #fd7e14;
+    color: white;
+  }
+  .badge.bg-submitted {
+    background-color: #22c55e;
+    color: white;
+  }
+  .badge.bg-completed {
+    background-color: #22c55e;
+    color: white;
+  }
+  .badge.bg-approved {
+    background-color: #22c55e;
+    color: white;
+  }
+  .badge.bg-rejected {
+    background-color: #ef4444;
+    color: white;
+  }
+  .badge.bg-deleted {
+    background-color: #ef4444;
+    color: white;
+    text-decoration: line-through;
+    opacity: 0.7;
+  }
+  .drag-handle:hover {
+    color: #1C2447 !important;
+  }
+</style>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

@@ -1,0 +1,933 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Emails · Compose_V2 · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/emails-compose-v2.css">
+{% endblock %}
+{% block content %}
+<main class="emails-compose-v2-main" aria-labelledby="emails-compose-v2-title">
+    <header class="emails-compose-v2-header">
+        <div class="emails-compose-v2-heading">
+            <h1 id="emails-compose-v2-title" class="emails-compose-v2-title">
+                <i class="fas fa-paper-plane emails-compose-v2-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Compor E-mail{% else %}Compose Email{% endif %}</span>
+            </h1>
+            <p class="emails-compose-v2-subtitle">{% if product == "lite" %}Enviar um e-mail profissional com modelos{% else %}Send a professional email with templates{% endif %}</p>
+        </div>
+        <a href="{{ PREFIX }}/emails" class="emails-compose-v2-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar aos E-mails{% else %}Back to Emails{% endif %}</span>
+        </a>
+    </header>
+
+    {% if not is_configured %}
+    <section class="emails-compose-v2-alert" role="alert" aria-labelledby="emails-compose-v2-alert-title">
+        <h2 id="emails-compose-v2-alert-title" class="emails-compose-v2-alert-title">
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}SMTP Não Configurado{% else %}SMTP Not Configured{% endif %}</span>
+        </h2>
+        <p class="emails-compose-v2-alert-text">{% if product == "lite" %}O envio de e-mail requer configuração SMTP no arquivo .env.{% else %}Email sending requires SMTP configuration in .env file.{% endif %}</p>
+    </section>
+    {% endif %}
+
+    <div class="emails-compose-v2-grid">
+        <!-- Left column: templates + context -->
+        <aside class="emails-compose-v2-column emails-compose-v2-left" aria-label="{% if product == 'lite' %}Modelos e contexto{% else %}Templates and context{% endif %}">
+            <section class="emails-compose-v2-templates" aria-labelledby="emails-compose-v2-templates-title">
+                <header class="emails-compose-v2-templates-header">
+                    <div class="emails-compose-v2-templates-header-row">
+                        <span id="emails-compose-v2-templates-title" class="emails-compose-v2-templates-title">
+                            <i class="fas fa-magic" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Modelos{% else %}Templates{% endif %}</span>
+                        </span>
+                        <label for="langSelect" class="emails-compose-v2-sr-only">{% if product == "lite" %}Idioma{% else %}Language{% endif %}</label>
+                        <select class="emails-compose-v2-templates-lang" id="langSelect">
+                            <option value="en">EN</option>
+                            <option value="pt">PT</option>
+                            <option value="es">ES</option>
+                        </select>
+                    </div>
+                    <label for="templateSearch" class="emails-compose-v2-sr-only">{% if product == "lite" %}Buscar modelos{% else %}Search templates{% endif %}</label>
+                    <input type="search" class="emails-compose-v2-templates-search" id="templateSearch"
+                           placeholder="{% if product == 'lite' %}Buscar modelos...{% else %}Search templates...{% endif %}">
+                </header>
+                <div class="emails-compose-v2-templates-list" id="templateCategories" role="region" aria-live="polite" aria-busy="true">
+                    <div class="emails-compose-v2-templates-status">
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Carregando...{% else %}Loading...{% endif %}</span>
+                    </div>
+                </div>
+            </section>
+
+            {% if client or case %}
+            <section class="emails-compose-v2-card" aria-labelledby="emails-compose-v2-context-title">
+                <header class="emails-compose-v2-card-header">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span id="emails-compose-v2-context-title">{% if product == "lite" %}Contexto{% else %}Context{% endif %}</span>
+                </header>
+                <div class="emails-compose-v2-card-body emails-compose-v2-card-body--compact">
+                    <ul class="emails-compose-v2-context-list">
+                        {% if client %}
+                        <li class="emails-compose-v2-context-item">
+                            <span class="emails-compose-v2-context-label">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</span>
+                            <span class="emails-compose-v2-context-value">{{ client.first_name }} {{ client.last_name }}</span>
+                        </li>
+                        {% endif %}
+                        {% if case %}
+                        <li class="emails-compose-v2-context-item">
+                            <span class="emails-compose-v2-context-label">{% if product == "lite" %}Caso{% else %}Case{% endif %}</span>
+                            <span class="emails-compose-v2-context-value">{{ case.case_number or case.case_name }}</span>
+                        </li>
+                        <li class="emails-compose-v2-context-item">
+                            <span class="emails-compose-v2-context-label">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</span>
+                            <span class="emails-compose-v2-context-value">{{ case.visa_type }}</span>
+                        </li>
+                        <li class="emails-compose-v2-context-item">
+                            <span class="emails-compose-v2-context-label">{% if product == "lite" %}Situação{% else %}Status{% endif %}</span>
+                            <span class="emails-compose-v2-context-value"><span class="emails-compose-v2-context-badge">{{ case.status }}</span></span>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </section>
+            {% endif %}
+        </aside>
+
+        <!-- Center column: compose form -->
+        <section aria-labelledby="emails-compose-v2-form-title">
+            <h2 id="emails-compose-v2-form-title" class="emails-compose-v2-sr-only">{% if product == "lite" %}Formulário de E-mail{% else %}Email Form{% endif %}</h2>
+            <form id="composeForm" class="emails-compose-v2-card emails-compose-v2-form" method="POST"
+                  action="{{ PREFIX }}/emails/send-with-attachments" enctype="multipart/form-data">
+                <div class="emails-compose-v2-card-body">
+                    {% if client_id %}
+                    <input type="hidden" name="client_id" value="{{ client_id }}">
+                    {% endif %}
+                    {% if case_id %}
+                    <input type="hidden" name="case_id" value="{{ case_id }}">
+                    {% endif %}
+
+                    <div class="emails-compose-v2-field">
+                        <label for="toEmail" class="emails-compose-v2-label">
+                            <span>{% if product == "lite" %}Para{% else %}To{% endif %}</span>
+                            <span class="emails-compose-v2-label-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="email" id="toEmail" class="emails-compose-v2-input" name="to_email"
+                               value="{{ to_email or '' }}" required aria-required="true"
+                               placeholder="recipient@example.com">
+                    </div>
+
+                    <div class="emails-compose-v2-field">
+                        <label for="ccEmail" class="emails-compose-v2-label">
+                            <span>CC</span>
+                            <span class="emails-compose-v2-label-hint">({% if product == "lite" %}separar com vírgula{% else %}comma-separated{% endif %})</span>
+                        </label>
+                        <input type="text" id="ccEmail" class="emails-compose-v2-input" name="cc_email"
+                               value="{{ cc_email or '' }}" placeholder="email1@example.com, email2@example.com">
+                    </div>
+
+                    <div class="emails-compose-v2-field">
+                        <label for="bccEmail" class="emails-compose-v2-label">
+                            <span>BCC</span>
+                            <span class="emails-compose-v2-label-hint">({% if product == "lite" %}cópia oculta{% else %}blind copy{% endif %})</span>
+                        </label>
+                        <input type="text" id="bccEmail" class="emails-compose-v2-input" name="bcc_email"
+                               value="{{ bcc_email or '' }}" placeholder="email1@example.com, email2@example.com">
+                    </div>
+
+                    <div class="emails-compose-v2-field">
+                        <label for="subjectInput" class="emails-compose-v2-label">
+                            <span>{% if product == "lite" %}Assunto{% else %}Subject{% endif %}</span>
+                            <span class="emails-compose-v2-label-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="subjectInput" class="emails-compose-v2-input" name="subject"
+                               value="{{ subject or '' }}" required aria-required="true"
+                               placeholder="{% if product == 'lite' %}Assunto do e-mail{% else %}Email subject{% endif %}">
+                    </div>
+
+                    <div class="emails-compose-v2-field">
+                        <div class="emails-compose-v2-label-row">
+                            <label for="bodyInput" class="emails-compose-v2-label">
+                                <span>{% if product == "lite" %}Mensagem{% else %}Message{% endif %}</span>
+                                <span class="emails-compose-v2-label-required" aria-hidden="true">*</span>
+                            </label>
+                            <button type="button" class="emails-compose-v2-btn emails-compose-v2-btn--ghost emails-compose-v2-btn--sm"
+                                    id="previewToggle" onclick="togglePreview()" aria-controls="previewPanel">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Pré-visualizar{% else %}Preview{% endif %}</span>
+                            </button>
+                        </div>
+
+                        <div class="emails-compose-v2-toolbar" id="mdToolbar" role="toolbar"
+                             aria-label="{% if product == 'lite' %}Formatação de texto{% else %}Text formatting{% endif %}">
+                            <button type="button" class="emails-compose-v2-toolbar-btn" onclick="mdInsert('bold')"
+                                    title="Bold (Ctrl+B)" aria-label="Bold">
+                                <i class="fas fa-bold" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="emails-compose-v2-toolbar-btn" onclick="mdInsert('italic')"
+                                    title="Italic (Ctrl+I)" aria-label="Italic">
+                                <i class="fas fa-italic" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="emails-compose-v2-toolbar-btn" onclick="mdInsert('underline')"
+                                    title="Underline (Ctrl+U)" aria-label="Underline">
+                                <i class="fas fa-underline" aria-hidden="true"></i>
+                            </button>
+                            <span class="emails-compose-v2-toolbar-separator" aria-hidden="true"></span>
+                            <button type="button" class="emails-compose-v2-toolbar-btn" onclick="mdInsert('heading')"
+                                    title="Heading" aria-label="Heading">
+                                <i class="fas fa-heading" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="emails-compose-v2-toolbar-btn" onclick="mdInsert('ul')"
+                                    title="Bullet list" aria-label="Bullet list">
+                                <i class="fas fa-list-ul" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="emails-compose-v2-toolbar-btn" onclick="mdInsert('ol')"
+                                    title="Numbered list" aria-label="Numbered list">
+                                <i class="fas fa-list-ol" aria-hidden="true"></i>
+                            </button>
+                            <span class="emails-compose-v2-toolbar-separator" aria-hidden="true"></span>
+                            <button type="button" class="emails-compose-v2-toolbar-btn" onclick="mdInsert('link')"
+                                    title="Insert link (Ctrl+K)" aria-label="Insert link">
+                                <i class="fas fa-link" aria-hidden="true"></i>
+                            </button>
+                            <button type="button" class="emails-compose-v2-toolbar-btn" onclick="mdInsert('hr')"
+                                    title="Horizontal rule" aria-label="Horizontal rule">
+                                <i class="fas fa-minus" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        <textarea id="bodyInput" class="emails-compose-v2-textarea emails-compose-v2-textarea--has-toolbar"
+                                  name="body" rows="12" required aria-required="true"
+                                  placeholder="{% if product == 'lite' %}Digite sua mensagem aqui... Use **negrito**, *itálico*, - listas{% else %}Type your message here... Use **bold**, *italic*, - lists{% endif %}"
+                                  oninput="updatePreview()">{{ body or '' }}</textarea>
+                    </div>
+
+                    <div class="emails-compose-v2-field">
+                        <label for="signatureSelect" class="emails-compose-v2-label">
+                            <i class="fas fa-signature" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Assinatura{% else %}Signature{% endif %}</span>
+                        </label>
+                        <select id="signatureSelect" class="emails-compose-v2-select" name="signature_id"
+                                onchange="previewSignature()">
+                            <option value="">{% if product == "lite" %}Sem assinatura{% else %}No signature{% endif %}</option>
+                        </select>
+                        <div id="signaturePreview" class="emails-compose-v2-signature-preview" hidden></div>
+                    </div>
+
+                    <div class="emails-compose-v2-field">
+                        <label for="fileInput" class="emails-compose-v2-label">
+                            <i class="fas fa-paperclip" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Anexos{% else %}Attachments{% endif %}</span>
+                        </label>
+                        <button type="button" class="emails-compose-v2-attachment-zone" id="attachmentZone"
+                                onclick="document.getElementById('fileInput').click()"
+                                aria-label="{% if product == 'lite' %}Selecionar ou arrastar arquivos{% else %}Select or drag files{% endif %}">
+                            <i class="fas fa-cloud-upload-alt emails-compose-v2-attachment-icon" aria-hidden="true"></i>
+                            <p class="emails-compose-v2-attachment-text">{% if product == "lite" %}Clique ou arraste arquivos aqui{% else %}Click or drag files here{% endif %}</p>
+                            <small class="emails-compose-v2-attachment-hint">{% if product == "lite" %}Máx. 10MB por arquivo{% else %}Max 10MB per file{% endif %}</small>
+                        </button>
+                        <input type="file" id="fileInput" name="attachments" multiple class="emails-compose-v2-sr-only">
+                        <div id="attachmentList" class="emails-compose-v2-attachment-list" aria-live="polite"></div>
+                    </div>
+
+                    <div class="emails-compose-v2-actions">
+                        <button type="button" class="emails-compose-v2-btn emails-compose-v2-btn--ghost" onclick="saveDraft()">
+                            <i class="fas fa-save" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Salvar Rascunho{% else %}Save Draft{% endif %}</span>
+                        </button>
+                        <button type="submit" class="emails-compose-v2-btn emails-compose-v2-btn--primary"
+                                {% if not is_configured %}disabled aria-disabled="true"{% endif %}>
+                            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Enviar E-mail{% else %}Send Email{% endif %}</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Right column: preview + tips -->
+        <aside class="emails-compose-v2-column emails-compose-v2-right" aria-label="{% if product == 'lite' %}Pré-visualização e dicas{% else %}Preview and tips{% endif %}">
+            <section class="emails-compose-v2-preview" id="previewPanel" aria-labelledby="emails-compose-v2-preview-title">
+                <header class="emails-compose-v2-preview-header">
+                    <span id="emails-compose-v2-preview-title" class="emails-compose-v2-preview-title">
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Pré-visualização{% else %}Live Preview{% endif %}</span>
+                    </span>
+                    <button type="button" class="emails-compose-v2-btn emails-compose-v2-btn--icon" onclick="copyPreview()"
+                            aria-label="{% if product == 'lite' %}Copiar pré-visualização{% else %}Copy preview{% endif %}">
+                        <i class="fas fa-copy" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div id="previewBody" class="emails-compose-v2-preview-body" role="region"
+                     aria-label="{% if product == 'lite' %}Conteúdo da pré-visualização{% else %}Preview content{% endif %}" aria-live="polite">
+                    <p class="emails-compose-v2-preview-empty">{% if product == "lite" %}Selecione um modelo ou comece a digitar para ver a pré-visualização...{% else %}Select a template or start typing to see preview...{% endif %}</p>
+                </div>
+            </section>
+
+            <section class="emails-compose-v2-card" id="placeholdersCard" hidden aria-labelledby="emails-compose-v2-placeholders-title">
+                <header class="emails-compose-v2-card-header">
+                    <i class="fas fa-tags" aria-hidden="true"></i>
+                    <span id="emails-compose-v2-placeholders-title">{% if product == "lite" %}Variáveis{% else %}Placeholders{% endif %}</span>
+                </header>
+                <div class="emails-compose-v2-card-body emails-compose-v2-card-body--compact">
+                    <div id="placeholdersList"></div>
+                </div>
+            </section>
+
+            <section class="emails-compose-v2-card" aria-labelledby="emails-compose-v2-tips-title">
+                <header class="emails-compose-v2-card-header">
+                    <i class="fas fa-lightbulb" aria-hidden="true"></i>
+                    <span id="emails-compose-v2-tips-title">{% if product == "lite" %}Dicas{% else %}Tips{% endif %}</span>
+                </header>
+                <div class="emails-compose-v2-card-body emails-compose-v2-card-body--compact">
+                    <ul class="emails-compose-v2-tips">
+                        <li class="emails-compose-v2-tips-item">
+                            <i class="fas fa-check emails-compose-v2-tips-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Use modelos para consistência{% else %}Use templates for consistency{% endif %}</span>
+                        </li>
+                        <li class="emails-compose-v2-tips-item">
+                            <i class="fas fa-check emails-compose-v2-tips-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Inclua números de caso{% else %}Include case numbers{% endif %}</span>
+                        </li>
+                        <li class="emails-compose-v2-tips-item">
+                            <i class="fas fa-check emails-compose-v2-tips-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Seja específico sobre prazos{% else %}Be specific about deadlines{% endif %}</span>
+                        </li>
+                        <li class="emails-compose-v2-tips-item">
+                            <i class="fas fa-check emails-compose-v2-tips-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Anexe documentos relevantes{% else %}Attach relevant documents{% endif %}</span>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+        </aside>
+    </div>
+</main>
+{% endblock %}
+{% block extra_js %}
+<script>
+const PREFIX = '{{ PREFIX }}';
+const clientId = {{ client_id|tojson }};
+const caseId = {{ case_id|tojson }};
+let templatesData = {};
+let categoriesData = [];
+let attachments = [];
+
+let signaturesData = {};
+
+// Sanitize signature HTML to prevent XSS - strip scripts, event handlers, dangerous tags
+function _sanitizeSigHtml(html) {
+    if (!html) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    tmp.querySelectorAll('script').forEach(el => el.remove());
+    tmp.querySelectorAll('*').forEach(el => {
+        for (const attr of [...el.attributes]) {
+            if (attr.name.startsWith('on') || attr.value.trim().toLowerCase().startsWith('javascript:')) {
+                el.removeAttribute(attr.name);
+            }
+        }
+    });
+    return tmp.innerHTML;
+}
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// ========== MARKDOWN TOOLBAR ==========
+
+function mdInsert(type) {
+    const ta = document.getElementById('bodyInput');
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = ta.value.substring(start, end);
+    const before = ta.value.substring(0, start);
+    const after = ta.value.substring(end);
+
+    let insertion = '';
+    let selStart, selEnd;
+
+    switch (type) {
+        case 'bold':
+            insertion = `**${selected || 'bold text'}**`;
+            selStart = start + 2;
+            selEnd = start + insertion.length - 2;
+            break;
+        case 'italic':
+            insertion = `*${selected || 'italic text'}*`;
+            selStart = start + 1;
+            selEnd = start + insertion.length - 1;
+            break;
+        case 'underline':
+            insertion = `__${selected || 'underlined text'}__`;
+            selStart = start + 2;
+            selEnd = start + insertion.length - 2;
+            break;
+        case 'heading':
+            const lineStart = before.lastIndexOf('\n') + 1;
+            const prefix = (lineStart < start && before.substring(lineStart).length > 0) ? '\n' : '';
+            insertion = `${prefix}### ${selected || 'Heading'}`;
+            selStart = start + prefix.length + 4;
+            selEnd = start + insertion.length;
+            break;
+        case 'ul':
+            if (selected) {
+                insertion = selected.split('\n').map(l => l.trim() ? `- ${l.trim()}` : '').join('\n');
+                selStart = start; selEnd = start + insertion.length;
+            } else {
+                const ulPre = (before.length > 0 && !before.endsWith('\n')) ? '\n' : '';
+                insertion = `${ulPre}- `;
+                selStart = selEnd = start + insertion.length;
+            }
+            break;
+        case 'ol':
+            if (selected) {
+                insertion = selected.split('\n').map((l, i) => l.trim() ? `${i+1}. ${l.trim()}` : '').join('\n');
+                selStart = start; selEnd = start + insertion.length;
+            } else {
+                const olPre = (before.length > 0 && !before.endsWith('\n')) ? '\n' : '';
+                insertion = `${olPre}1. `;
+                selStart = selEnd = start + insertion.length;
+            }
+            break;
+        case 'link':
+            if (selected && selected.match(/^https?:\/\//)) {
+                insertion = `[link text](${selected})`;
+                selStart = start + 1;
+                selEnd = start + 10;
+            } else if (selected) {
+                insertion = `[${selected}](https://)`;
+                selStart = start + insertion.length - 1;
+                selEnd = selStart;
+            } else {
+                insertion = '[link text](https://)';
+                selStart = start + 1;
+                selEnd = start + 10;
+            }
+            break;
+        case 'hr':
+            const hrPre = (before.length > 0 && !before.endsWith('\n')) ? '\n' : '';
+            insertion = `${hrPre}---\n`;
+            selStart = selEnd = start + insertion.length;
+            break;
+        default:
+            return;
+    }
+
+    ta.value = before + insertion + after;
+    if (selected) {
+        selStart = start;
+        selEnd = start + insertion.length;
+    }
+    ta.selectionStart = selStart;
+    ta.selectionEnd = selEnd;
+    ta.focus();
+    updatePreview();
+}
+
+document.addEventListener('keydown', function(e) {
+    if (!e.target || e.target.id !== 'bodyInput') return;
+    if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+            case 'b': e.preventDefault(); mdInsert('bold'); break;
+            case 'i': e.preventDefault(); mdInsert('italic'); break;
+            case 'u': e.preventDefault(); mdInsert('underline'); break;
+            case 'k': e.preventDefault(); mdInsert('link'); break;
+        }
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadTemplates();
+    loadSignatures();
+    setupDragDrop();
+    setupTemplateSearch();
+    setupLanguageSelect();
+    loadDraft();
+});
+
+function setupTemplateSearch() {
+    const search = document.getElementById('templateSearch');
+    if (search) search.addEventListener('input', renderTemplates);
+}
+
+function setupLanguageSelect() {
+    const lang = document.getElementById('langSelect');
+    if (lang) lang.addEventListener('change', loadTemplates);
+}
+
+async function loadTemplates() {
+    const lang = document.getElementById('langSelect').value;
+    const container = document.getElementById('templateCategories');
+    container.setAttribute('aria-busy', 'true');
+
+    try {
+        const response = await fetch(`${PREFIX}/api/v2/email-templates?lang=${lang}`);
+        if (!response.ok) {
+            console.error('Template API returned', response.status);
+            container.innerHTML = '';
+            const status = document.createElement('div');
+            status.className = 'emails-compose-v2-templates-status emails-compose-v2-templates-status--warning';
+            status.innerHTML = '<i class="fas fa-exclamation-triangle" aria-hidden="true"></i> ' +
+                escapeHtml('{% if product == "lite" %}Modelos indisponíveis{% else %}Templates unavailable{% endif %}') +
+                ' (' + response.status + ')';
+            container.appendChild(status);
+            return;
+        }
+        const data = await response.json();
+
+        if (data.success) {
+            templatesData = data.templates || {};
+            categoriesData = data.categories || [];
+            renderTemplates();
+        } else {
+            container.innerHTML = '';
+            const status = document.createElement('div');
+            status.className = 'emails-compose-v2-templates-status emails-compose-v2-templates-status--warning';
+            status.innerHTML = '<i class="fas fa-exclamation-triangle" aria-hidden="true"></i> ' +
+                escapeHtml(data.error || '{% if product == "lite" %}Nenhum modelo disponível{% else %}No templates available{% endif %}');
+            container.appendChild(status);
+        }
+    } catch (err) {
+        console.error('Error loading templates:', err);
+        container.innerHTML = '';
+        const status = document.createElement('div');
+        status.className = 'emails-compose-v2-templates-status emails-compose-v2-templates-status--error';
+        status.innerHTML = '<i class="fas fa-times-circle" aria-hidden="true"></i> ' +
+            escapeHtml('{% if product == "lite" %}Erro ao carregar modelos{% else %}Error loading templates{% endif %}');
+        container.appendChild(status);
+    } finally {
+        container.setAttribute('aria-busy', 'false');
+    }
+}
+
+async function loadSignatures() {
+    try {
+        const response = await fetch(`${PREFIX}/api/v2/email-signatures`);
+        const data = await response.json();
+        if (data.success) {
+            const select = document.getElementById('signatureSelect');
+            data.signatures.forEach(sig => {
+                const opt = document.createElement('option');
+                opt.value = sig.id;
+                opt.textContent = sig.name;
+                select.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error('Error loading signatures:', err);
+    }
+}
+
+async function previewSignature() {
+    const sigId = document.getElementById('signatureSelect').value;
+    const preview = document.getElementById('signaturePreview');
+
+    if (!sigId) {
+        preview.hidden = true;
+        signaturesData.selected = null;
+        updatePreview();
+        return;
+    }
+
+    if (signaturesData[sigId]) {
+        preview.textContent = '';
+        preview.insertAdjacentHTML('beforeend', _sanitizeSigHtml(signaturesData[sigId].html));
+        preview.hidden = false;
+        signaturesData.selected = signaturesData[sigId];
+        updatePreview();
+        return;
+    }
+
+    try {
+        const response = await fetch(`${PREFIX}/api/v2/email-signatures/${sigId}`);
+        const data = await response.json();
+        if (data.success) {
+            signaturesData[sigId] = data.signature;
+            preview.textContent = '';
+            preview.insertAdjacentHTML('beforeend', _sanitizeSigHtml(data.signature.html));
+            preview.hidden = false;
+            signaturesData.selected = data.signature;
+            updatePreview();
+        }
+    } catch (err) {
+        console.error('Error loading signature:', err);
+    }
+}
+
+function renderTemplates() {
+    const container = document.getElementById('templateCategories');
+    const search = document.getElementById('templateSearch').value.toLowerCase();
+
+    container.innerHTML = '';
+    let rendered = 0;
+
+    for (const category of categoriesData) {
+        const categoryTemplates = Object.values(templatesData).filter(t =>
+            t.category === category.id &&
+            (search === '' || t.name.toLowerCase().includes(search))
+        );
+
+        if (categoryTemplates.length === 0) continue;
+        rendered += categoryTemplates.length;
+
+        const cat = document.createElement('div');
+        cat.className = 'emails-compose-v2-templates-category';
+        cat.dataset.category = category.id;
+
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'emails-compose-v2-templates-category-header';
+        header.setAttribute('aria-expanded', 'true');
+        header.setAttribute('aria-controls', `items-${category.id}`);
+        header.onclick = () => toggleCategory(category.id);
+        header.innerHTML = `
+            <span class="emails-compose-v2-templates-category-label">
+                <i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i>
+                <span>${escapeHtml(category.name)}</span>
+            </span>
+            <i class="fas fa-chevron-down" id="chevron-${escapeHtml(category.id)}" aria-hidden="true"></i>
+        `;
+        cat.appendChild(header);
+
+        const items = document.createElement('div');
+        items.className = 'emails-compose-v2-templates-items';
+        items.id = `items-${category.id}`;
+        items.setAttribute('role', 'list');
+
+        for (const template of categoryTemplates) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'emails-compose-v2-templates-item';
+            btn.id = `template-${template.id}`;
+            btn.setAttribute('role', 'listitem');
+            btn.onclick = () => selectTemplate(template.id);
+            btn.textContent = template.name;
+            items.appendChild(btn);
+        }
+
+        cat.appendChild(items);
+        container.appendChild(cat);
+    }
+
+    if (rendered === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'emails-compose-v2-templates-status';
+        empty.textContent = '{% if product == "lite" %}Nenhum modelo encontrado{% else %}No templates found{% endif %}';
+        container.appendChild(empty);
+    }
+}
+
+function toggleCategory(categoryId) {
+    const items = document.getElementById(`items-${categoryId}`);
+    const chevron = document.getElementById(`chevron-${categoryId}`);
+    const header = chevron ? chevron.closest('.emails-compose-v2-templates-category-header') : null;
+
+    const isHidden = items.style.display === 'none';
+    if (isHidden) {
+        items.style.display = '';
+        chevron.classList.remove('fa-chevron-right');
+        chevron.classList.add('fa-chevron-down');
+        if (header) header.setAttribute('aria-expanded', 'true');
+    } else {
+        items.style.display = 'none';
+        chevron.classList.remove('fa-chevron-down');
+        chevron.classList.add('fa-chevron-right');
+        if (header) header.setAttribute('aria-expanded', 'false');
+    }
+}
+
+async function selectTemplate(templateId) {
+    const template = templatesData[templateId];
+    if (!template) return;
+
+    document.querySelectorAll('.emails-compose-v2-templates-item').forEach(el => el.classList.remove('is-active'));
+    const active = document.getElementById(`template-${templateId}`);
+    if (active) {
+        active.classList.add('is-active');
+        active.setAttribute('aria-current', 'true');
+    }
+
+    document.getElementById('subjectInput').value = template.subject;
+    document.getElementById('bodyInput').value = template.body;
+
+    showPlaceholders(template.placeholders);
+    updatePreview();
+
+    if (clientId || caseId) {
+        try {
+            let url = `${PREFIX}/api/v2/email-templates/preview/${templateId}?lang=${document.getElementById('langSelect').value}`;
+            if (clientId) url += `&client_id=${clientId}`;
+            if (caseId) url += `&case_id=${caseId}`;
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.success && data.preview) {
+                document.getElementById('subjectInput').value = data.preview.subject;
+                document.getElementById('bodyInput').value = data.preview.body;
+                updatePreview();
+            }
+        } catch (err) {
+            console.error('Preview error:', err);
+        }
+    }
+}
+
+function showPlaceholders(placeholders) {
+    const card = document.getElementById('placeholdersCard');
+    const list = document.getElementById('placeholdersList');
+
+    if (!placeholders || placeholders.length === 0) {
+        card.hidden = true;
+        return;
+    }
+
+    card.hidden = false;
+    list.innerHTML = '';
+    placeholders.forEach(p => {
+        const tag = document.createElement('span');
+        tag.className = 'emails-compose-v2-placeholder-tag';
+        tag.textContent = `{${p}}`;
+        list.appendChild(tag);
+    });
+}
+
+function updatePreview() {
+    const body = document.getElementById('bodyInput').value;
+    const previewBody = document.getElementById('previewBody');
+
+    if (!body) {
+        previewBody.innerHTML = '<p class="emails-compose-v2-preview-empty">{% if product == "lite" %}Selecione um modelo ou comece a digitar...{% else %}Select a template or start typing...{% endif %}</p>';
+        return;
+    }
+
+    let html = markdownToHtml(body);
+
+    if (signaturesData.selected) {
+        html += signaturesData.selected.html;
+    }
+
+    previewBody.innerHTML = html;
+}
+
+function markdownToHtml(text) {
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    html = html.replace(/^---$/gm, '<hr>');
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__([^_]+)__/g, '<u>$1</u>');
+    html = html.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    html = html.replace(/^(\d+\.\s.+(?:\n\d+\.\s.+)*)$/gm, function(match) {
+        const items = match.split('\n').map(line =>
+            '<li>' + line.replace(/^\d+\.\s/, '') + '</li>'
+        ).join('');
+        return '<ol>' + items + '</ol>';
+    });
+
+    html = html.replace(/^(-\s.+(?:\n-\s.+)*)$/gm, function(match) {
+        const items = match.split('\n').map(line =>
+            '<li>' + line.replace(/^-\s/, '') + '</li>'
+        ).join('');
+        return '<ul>' + items + '</ul>';
+    });
+
+    html = html.replace(/\{([^}]+)\}/g, '<span class="emails-compose-v2-placeholder-tag">{$1}</span>');
+
+    html = html.replace(/\n/g, '<br>');
+    html = html.replace(/(<\/(?:h3|ul|ol|li|hr)>)<br>/g, '$1');
+    html = html.replace(/<br>(<(?:h3|ul|ol|hr))/g, '$1');
+
+    return html;
+}
+
+function togglePreview() {
+    const panel = document.getElementById('previewPanel');
+    const btn = document.getElementById('previewToggle');
+    const isHidden = panel.hidden;
+
+    if (isHidden) {
+        panel.hidden = false;
+        btn.innerHTML = '<i class="fas fa-eye-slash" aria-hidden="true"></i> <span>{% if product == "lite" %}Ocultar{% else %}Hide Preview{% endif %}</span>';
+        btn.setAttribute('aria-expanded', 'true');
+    } else {
+        panel.hidden = true;
+        btn.innerHTML = '<i class="fas fa-eye" aria-hidden="true"></i> <span>{% if product == "lite" %}Pré-visualizar{% else %}Preview{% endif %}</span>';
+        btn.setAttribute('aria-expanded', 'false');
+    }
+}
+
+function copyPreview() {
+    const preview = document.getElementById('previewBody').innerText;
+    navigator.clipboard.writeText(preview).then(() => {
+        if (window.toast) toast.success('{% if product == "lite" %}Pré-visualização copiada!{% else %}Preview copied to clipboard!{% endif %}');
+    });
+}
+
+function setupDragDrop() {
+    const zone = document.getElementById('attachmentZone');
+    const fileInput = document.getElementById('fileInput');
+
+    fileInput.addEventListener('change', function() {
+        if (this.files && this.files.length > 0) {
+            handleFiles(this.files);
+            this.value = '';
+        }
+    });
+
+    zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('is-dragover');
+    });
+
+    zone.addEventListener('dragleave', () => {
+        zone.classList.remove('is-dragover');
+    });
+
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('is-dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+}
+
+function handleFiles(files) {
+    for (const file of files) {
+        if (file.size > 10 * 1024 * 1024) {
+            if (window.toast) toast.warning(`{% if product == "lite" %}Arquivo ${file.name} é muito grande (máx. 10MB){% else %}File ${file.name} is too large (max 10MB){% endif %}`);
+            continue;
+        }
+        attachments.push(file);
+    }
+    rebuildAttachmentList();
+}
+
+function removeAttachment(index) {
+    attachments.splice(index, 1);
+    rebuildAttachmentList();
+}
+
+function rebuildAttachmentList() {
+    const list = document.getElementById('attachmentList');
+    list.innerHTML = '';
+
+    attachments.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'emails-compose-v2-attachment-item';
+
+        const name = document.createElement('div');
+        name.className = 'emails-compose-v2-attachment-name';
+        name.innerHTML = '<i class="fas fa-file" aria-hidden="true"></i>';
+        const span = document.createElement('span');
+        span.textContent = file.name;
+        name.appendChild(span);
+        const size = document.createElement('span');
+        size.className = 'emails-compose-v2-attachment-size';
+        size.textContent = formatFileSize(file.size);
+        name.appendChild(size);
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'emails-compose-v2-attachment-remove';
+        remove.setAttribute('aria-label', `Remove ${file.name}`);
+        remove.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
+        remove.onclick = () => removeAttachment(index);
+
+        item.appendChild(name);
+        item.appendChild(remove);
+        list.appendChild(item);
+    });
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function saveDraft() {
+    const draft = {
+        to_email: document.getElementById('toEmail').value,
+        cc_email: document.getElementById('ccEmail').value,
+        bcc_email: document.getElementById('bccEmail').value,
+        subject: document.getElementById('subjectInput').value,
+        body: document.getElementById('bodyInput').value,
+        saved_at: new Date().toISOString()
+    };
+    localStorage.setItem('emailDraftV2', JSON.stringify(draft));
+    if (window.toast) toast.success('{% if product == "lite" %}Rascunho salvo!{% else %}Draft saved!{% endif %}');
+}
+
+function loadDraft() {
+    const draft = localStorage.getItem('emailDraftV2');
+    if (!draft) return;
+
+    const toField = document.getElementById('toEmail');
+    if (toField.value) return;
+
+    try {
+        const data = JSON.parse(draft);
+        if (confirm('{% if product == "lite" %}Carregar rascunho salvo de {% else %}Load saved draft from {% endif %}' + new Date(data.saved_at).toLocaleString() + '?')) {
+            toField.value = data.to_email || '';
+            document.getElementById('ccEmail').value = data.cc_email || '';
+            document.getElementById('bccEmail').value = data.bcc_email || '';
+            document.getElementById('subjectInput').value = data.subject || '';
+            document.getElementById('bodyInput').value = data.body || '';
+            updatePreview();
+        }
+    } catch (e) {
+        console.error('Error loading draft:', e);
+    }
+}
+
+document.getElementById('composeForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> <span>{% if product == "lite" %}Enviando...{% else %}Sending...{% endif %}</span>';
+
+    try {
+        const formData = new FormData(this);
+
+        formData.delete('attachments');
+        attachments.forEach(file => {
+            formData.append('attachments', file);
+        });
+
+        const response = await fetch(this.action, {
+            method: 'POST',
+            body: formData,
+            redirect: 'follow'
+        });
+
+        if (response.redirected) {
+            localStorage.removeItem('emailDraftV2');
+            window.location.href = response.url;
+        } else if (response.ok) {
+            localStorage.removeItem('emailDraftV2');
+            window.location.href = '{{ PREFIX }}/emails?sent=1';
+        } else {
+            const text = await response.text();
+            throw new Error(text || '{% if product == "lite" %}Falha ao enviar e-mail{% else %}Failed to send email{% endif %}');
+        }
+    } catch (err) {
+        console.error('Send error:', err);
+        if (window.toast) toast.error('{% if product == "lite" %}Falha ao enviar e-mail: {% else %}Failed to send email: {% endif %}' + err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
+});
+</script>
+{% endblock %}

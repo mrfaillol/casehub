@@ -1,0 +1,108 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Billing · Item_Form · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/billing-item-form.css">
+{% endblock %}
+{% block content %}
+<section class="billing-item-form-main" aria-labelledby="billing-item-form-title">
+    <header class="billing-item-form-header">
+        <a href="{{ PREFIX }}/billing" class="billing-item-form-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar ao Financeiro{% else %}Back to Billing{% endif %}</span>
+        </a>
+        <h1 id="billing-item-form-title" class="billing-item-form-title">
+            <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+            <span>{{ action }} {% if product == "lite" %}Item de Cobrança{% else %}Billing Item{% endif %}</span>
+        </h1>
+    </header>
+
+    <form method="post" action="{% if item %}{{ PREFIX }}/billing/items/{{ item.id }}/edit{% else %}{{ PREFIX }}/billing/items/new{% endif %}">
+        <div class="billing-item-form-card">
+            <div class="billing-item-form-grid">
+                <div class="billing-item-form-field">
+                    <label for="billing-item-form-case" class="billing-item-form-label">
+                        {% if product == "lite" %}Processo{% else %}Case{% endif %}
+                        <span class="billing-item-form-required" aria-hidden="true">*</span>
+                    </label>
+                    <select id="billing-item-form-case" class="billing-item-form-select" name="case_id" required aria-required="true">
+                        <option value="">{% if product == "lite" %}Selecione o Processo{% else %}Select Case{% endif %}</option>
+                        {% for c in cases %}
+                        <option value="{{ c.id }}" {% if (item and item.case_id == c.id) or selected_case_id == c.id %}selected{% endif %}>
+                            {{ c.case_number or c.case_name or 'Case #' + c.id|string }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="billing-item-form-field">
+                    <label for="billing-item-form-description" class="billing-item-form-label">
+                        {% if product == "lite" %}Descrição{% else %}Description{% endif %}
+                        <span class="billing-item-form-required" aria-hidden="true">*</span>
+                    </label>
+                    <input type="text" id="billing-item-form-description" class="billing-item-form-input" name="description" value="{{ item.description if item else '' }}" required aria-required="true">
+                </div>
+
+                <div class="billing-item-form-row">
+                    <div class="billing-item-form-field">
+                        <label for="billing-item-form-amount" class="billing-item-form-label">
+                            {% if product == "lite" %}Valor (R$){% else %}Amount ($){% endif %}
+                            <span class="billing-item-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="number" id="billing-item-form-amount" class="billing-item-form-input billing-item-form-input--currency" name="amount" step="0.01" inputmode="decimal" value="{{ item.amount if item else '' }}" required aria-required="true" aria-describedby="billing-item-form-amount-help">
+                        <span id="billing-item-form-amount-help" class="billing-item-form-sr-only">{% if product == "lite" %}Valor em Reais{% else %}Value in dollars{% endif %}</span>
+                    </div>
+                    <div class="billing-item-form-field">
+                        <label for="billing-item-form-type" class="billing-item-form-label">
+                            {% if product == "lite" %}Tipo{% else %}Type{% endif %}
+                        </label>
+                        <select id="billing-item-form-type" class="billing-item-form-select" name="item_type">
+                            <option value="fee" {% if not item or item.item_type == 'fee' %}selected{% endif %}>{% if product == "lite" %}Honorário{% else %}Fee{% endif %}</option>
+                            <option value="filing_fee" {% if item and item.item_type == 'filing_fee' %}selected{% endif %}>{% if product == "lite" %}Taxa{% else %}Filing Fee{% endif %}</option>
+                            <option value="expense" {% if item and item.item_type == 'expense' %}selected{% endif %}>{% if product == "lite" %}Despesa{% else %}Expense{% endif %}</option>
+                            <option value="payment" {% if item and item.item_type == 'payment' %}selected{% endif %}>{% if product == "lite" %}Pagamento Recebido{% else %}Payment Received{% endif %}</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="billing-item-form-row">
+                    <div class="billing-item-form-field">
+                        <label for="billing-item-form-status" class="billing-item-form-label">Status</label>
+                        <select id="billing-item-form-status" class="billing-item-form-select" name="status">
+                            <option value="pending" {% if not item or item.status == 'pending' %}selected{% endif %}>{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</option>
+                            <option value="invoiced" {% if item and item.status == 'invoiced' %}selected{% endif %}>{% if product == "lite" %}Faturado{% else %}Invoiced{% endif %}</option>
+                            <option value="paid" {% if item and item.status == 'paid' %}selected{% endif %}>{% if product == "lite" %}Pago{% else %}Paid{% endif %}</option>
+                        </select>
+                    </div>
+                    <div class="billing-item-form-field">
+                        <label for="billing-item-form-due-date" class="billing-item-form-label">
+                            {% if product == "lite" %}Data de Vencimento{% else %}Due Date{% endif %}
+                        </label>
+                        <input type="date" id="billing-item-form-due-date" class="billing-item-form-input billing-item-form-input--date" name="due_date" value="{{ item.due_date.strftime('%Y-%m-%d') if item and item.due_date else '' }}">
+                    </div>
+                </div>
+
+                <div class="billing-item-form-field">
+                    <label for="billing-item-form-notes" class="billing-item-form-label">
+                        {% if product == "lite" %}Observações{% else %}Notes{% endif %}
+                    </label>
+                    <textarea id="billing-item-form-notes" class="billing-item-form-textarea" name="notes" rows="3">{{ item.notes if item else '' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="billing-item-form-actions">
+            <button type="submit" class="billing-item-form-submit">
+                <i class="fas fa-save" aria-hidden="true"></i>
+                <span>{{ action }} {% if product == "lite" %}Item{% else %}Item{% endif %}</span>
+            </button>
+            <a href="{{ PREFIX }}/billing" class="billing-item-form-cancel">
+                {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+            </a>
+        </div>
+    </form>
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

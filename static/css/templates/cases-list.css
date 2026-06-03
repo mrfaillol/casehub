@@ -1,0 +1,753 @@
+/* ============================================================
+   cases-list.css — Theme-agnostic template do índice de processos.
+   Consome APENAS tokens semânticos de themes/_tokens.css.
+   ============================================================ */
+
+/* Box-sizing reset escopado ao subtree do cases-list.
+   base.html NÃO carrega reset.css → box-sizing cai pro default
+   content-box → `width: 100%` + padding/border escapam o pai e
+   causam overflow horizontal. H3 corrigiu o equivalente em
+   base_minimal; aqui escopamos só ao cases-list pra não tocar
+   shell global. H_shell terá o reset universal.
+   Fix H1 PR #554 audit (cases mobile 534→≤393). */
+.cases-list-main,
+.cases-list-main *,
+.cases-list-main *::before,
+.cases-list-main *::after {
+  box-sizing: border-box;
+}
+
+.cases-list-main {
+  padding: var(--space-6) var(--space-4);
+}
+
+.cases-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.cases-list-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--text-primary);
+  letter-spacing: 0;
+}
+
+.cases-list-title i {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xl);
+}
+
+/* --- Buttons --------------------------------------------------- */
+.cases-list-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target-min);
+  padding: var(--space-3) var(--space-5);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-base) var(--motion-curve-organic),
+    border-color var(--motion-base) var(--motion-curve-organic),
+    color var(--motion-base) var(--motion-curve-organic),
+    transform var(--motion-fast) var(--motion-curve-organic);
+}
+
+.cases-list-btn--primary {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+.cases-list-btn--primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.cases-list-btn--primary:active {
+  background: var(--accent-active);
+  border-color: var(--accent-active);
+  transform: translateY(1px);
+}
+
+.cases-list-btn--ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+.cases-list-btn--ghost:hover {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+}
+.cases-list-btn--ghost:active {
+  transform: translateY(1px);
+}
+
+.cases-list-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+/* --- Filters card --------------------------------------------- */
+.cases-list-filters {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.cases-list-filters-form {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1.5fr auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.cases-list-filters-form--no-visa {
+  grid-template-columns: 2fr 1.5fr auto;
+}
+
+@media (max-width: 768px) {
+  .cases-list-filters-form,
+  .cases-list-filters-form--no-visa {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cases-list-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.cases-list-field-label {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.cases-list-input,
+.cases-list-select {
+  width: 100%;
+  min-height: var(--tap-target-min);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-tight);
+  color: var(--text-primary);
+  background: var(--surface-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--motion-base) var(--motion-curve-organic),
+    background-color var(--motion-base) var(--motion-curve-organic);
+}
+
+.cases-list-input::placeholder {
+  color: var(--text-muted);
+}
+
+.cases-list-input:hover,
+.cases-list-select:hover {
+  border-color: var(--border-strong);
+}
+
+.cases-list-input:focus-visible,
+.cases-list-select:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+.cases-list-search {
+  position: relative;
+}
+
+.cases-list-search-icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  pointer-events: none;
+}
+
+.cases-list-search .cases-list-input {
+  padding-left: var(--space-8);
+}
+
+/* --- Table card ----------------------------------------------- */
+.cases-list-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  overflow: hidden;
+}
+
+.cases-list-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-base);
+}
+
+.cases-list-count {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.cases-list-count strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.cases-list-table-wrapper {
+  overflow-x: auto;
+}
+
+.cases-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.cases-list-table thead th {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border-default);
+  white-space: nowrap;
+}
+
+.cases-list-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--motion-base) var(--motion-curve-organic);
+}
+.cases-list-sortable:hover {
+  color: var(--accent);
+}
+
+.cases-list-sortable:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.cases-list-sort-icon {
+  display: inline-block;
+  margin-left: var(--space-1);
+  font-size: 0.7em;
+  opacity: 0.4;
+  transition: opacity var(--motion-base) var(--motion-curve-organic);
+}
+
+.cases-list-sortable[aria-sort="ascending"] .cases-list-sort-icon,
+.cases-list-sortable[aria-sort="descending"] .cases-list-sort-icon {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.cases-list-row {
+  cursor: pointer;
+  transition: background-color var(--motion-base) var(--motion-curve-organic);
+}
+
+.cases-list-row:hover {
+  background: var(--accent-muted);
+}
+
+.cases-list-row:focus-visible {
+  outline: none;
+  background: var(--accent-muted);
+  box-shadow: inset 0 0 0 2px var(--border-focus);
+}
+
+.cases-list-row td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.cases-list-row:last-child td {
+  border-bottom: 0;
+}
+
+.cases-list-case-number {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: 0;
+}
+
+.cases-list-created {
+  font-family: var(--font-family-mono);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* --- Badges (status + priority) -------------------------------- */
+.cases-list-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* Status — mapeado para tokens semânticos dos 4 themes */
+.cases-list-badge--cadastro {
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border-color: var(--border-default);
+}
+.cases-list-badge--protocolado {
+  color: var(--status-info);
+  background: var(--status-info-bg);
+}
+.cases-list-badge--em-andamento {
+  color: var(--status-info);
+  background: var(--status-info-bg);
+}
+.cases-list-badge--deferido {
+  color: var(--status-success);
+  background: var(--status-success-bg);
+}
+.cases-list-badge--indeferido {
+  color: var(--status-danger);
+  background: var(--status-danger-bg);
+}
+.cases-list-badge--rfe {
+  color: var(--status-warning);
+  background: var(--status-warning-bg);
+}
+.cases-list-badge--arquivado {
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-color: var(--border-default);
+}
+
+/* Priority */
+.cases-list-badge--urgent {
+  color: var(--status-danger);
+  background: var(--status-danger-bg);
+}
+.cases-list-badge--high {
+  color: var(--status-warning);
+  background: var(--status-warning-bg);
+}
+.cases-list-badge--normal {
+  color: var(--status-info);
+  background: var(--status-info-bg);
+}
+.cases-list-badge--low {
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-color: var(--border-default);
+}
+
+/* --- Prazo indicator (deadline counter) ------------------------ */
+.cases-list-prazo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-warning);
+  background: var(--status-warning-bg);
+  border-radius: var(--radius-full);
+}
+
+.cases-list-prazo i {
+  font-size: 0.75em;
+}
+
+/* --- Quick actions -------------------------------------------- */
+.cases-list-actions-cell {
+  width: 96px;
+  text-align: right;
+}
+
+.cases-list-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  opacity: 0;
+  transition: opacity var(--motion-base) var(--motion-curve-organic);
+}
+
+.cases-list-row:hover .cases-list-actions,
+.cases-list-row:focus-within .cases-list-actions,
+.cases-list-actions:focus-within {
+  opacity: 1;
+}
+
+.cases-list-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-base) var(--motion-curve-organic),
+    border-color var(--motion-base) var(--motion-curve-organic),
+    color var(--motion-base) var(--motion-curve-organic);
+}
+.cases-list-icon-btn:hover {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.cases-list-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  opacity: 1;
+}
+
+/* --- Empty state ---------------------------------------------- */
+.cases-list-empty {
+  text-align: center;
+  padding: var(--space-10) var(--space-4);
+  color: var(--text-muted);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+}
+
+.cases-list-empty-icon {
+  /* Icon era `display: block` → ocupava 100% do <td colspan=6> (~568px no
+     fixture mobile) e forçava o table-cell pra fora do viewport. Inline-block
+     mantém centralização via text-align: center do .cases-list-empty pai,
+     mas sai com largura intrínseca do glyph (~1em). Fix H1 PR #554 audit. */
+  display: inline-block;
+  margin: 0 auto var(--space-3);
+  font-size: var(--font-size-3xl);
+  color: var(--text-muted);
+}
+
+/* --- Pagination ----------------------------------------------- */
+.cases-list-pagination-nav {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-base);
+}
+
+.cases-list-pagination {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cases-list-page-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition:
+    background-color var(--motion-base) var(--motion-curve-organic),
+    border-color var(--motion-base) var(--motion-curve-organic);
+}
+
+.cases-list-page-link:hover {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+}
+
+.cases-list-page-link:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.cases-list-page-link[aria-current="page"] {
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  cursor: default;
+  pointer-events: none;
+}
+
+/* --- Skeleton loader ------------------------------------------ */
+.cases-list-skeleton {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.cases-list-skeleton-heading,
+.cases-list-skeleton-line {
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunken) 25%,
+    var(--border-subtle) 50%,
+    var(--surface-sunken) 75%
+  );
+  background-size: 200% 100%;
+  animation: cases-list-shimmer 1.8s linear infinite;
+  border-radius: var(--radius-sm);
+  height: 16px;
+  margin-bottom: var(--space-3);
+}
+.cases-list-skeleton-heading {
+  height: 22px;
+  width: 180px;
+  margin-bottom: var(--space-5);
+}
+.cases-list-skeleton-line--90 { width: 90%; }
+.cases-list-skeleton-line--70 { width: 70%; }
+
+@keyframes cases-list-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cases-list-skeleton-heading,
+  .cases-list-skeleton-line {
+    animation: none;
+  }
+}
+
+/* --- Visually hidden helper ----------------------------------- */
+.cases-list-visually-hidden {
+  /* Pattern legado tinha `position: absolute` sem `left/right` — span
+     ancorava na posição inline natural do <th>, que em viewport mobile
+     com a tabela em 600px caía além de 393 e empurrava o body scroll.
+     `left: 0` ancora no leftmost edge do containing block. `clip-path`
+     adicionado pra compat moderna (clip está deprecated).
+     Fix H1 PR #554 audit. */
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Responsive ----------------------------------------------- */
+@media (max-width: 480px) {
+  .cases-list-main {
+    padding: var(--space-4) var(--space-3);
+  }
+  .cases-list-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .cases-list-btn {
+    width: 100%;
+  }
+  .cases-list-table thead th,
+  .cases-list-row td {
+    padding: var(--space-2) var(--space-3);
+  }
+}
+
+@media (max-width: 768px) {
+  .cases-list-table-wrapper {
+    overflow-x: visible;
+  }
+
+  .cases-list-table,
+  .cases-list-table tbody,
+  .cases-list-table tr,
+  .cases-list-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .cases-list-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .cases-list-table tbody {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--surface-base);
+  }
+
+  .cases-list-row {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-1);
+    overflow: hidden;
+  }
+
+  .cases-list-row:hover {
+    background: var(--surface-raised);
+  }
+
+  .cases-list-row:focus-visible {
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-focus);
+  }
+
+  .cases-list-row td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--border-subtle);
+    overflow-wrap: anywhere;
+  }
+
+  .cases-list-row td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    max-width: 12rem;
+    color: var(--text-muted);
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-tight);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .cases-list-row .cases-list-case-number,
+  .cases-list-row .cases-list-client {
+    display: block;
+  }
+
+  .cases-list-row .cases-list-case-number::before,
+  .cases-list-row .cases-list-client::before {
+    display: block;
+    max-width: none;
+    margin-bottom: var(--space-1);
+  }
+
+  .cases-list-row .cases-list-case-number {
+    order: 1;
+    font-size: var(--font-size-base);
+  }
+
+  .cases-list-row .cases-list-client {
+    order: 2;
+    color: var(--text-primary);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .cases-list-row .cases-list-priority { order: 3; }
+  .cases-list-row .cases-list-status { order: 4; }
+  .cases-list-row .cases-list-type { order: 5; }
+  .cases-list-row .cases-list-receipt { order: 6; }
+  .cases-list-row .cases-list-created { order: 7; }
+  .cases-list-row .cases-list-actions-cell {
+    order: 8;
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .cases-list-row .cases-list-actions-cell::before {
+    display: none;
+  }
+
+  .cases-list-actions {
+    opacity: 1;
+  }
+
+  .cases-list-icon-btn {
+    width: var(--tap-target-min);
+    height: var(--tap-target-min);
+  }
+
+  .cases-list-prazo {
+    margin-left: var(--space-1);
+  }
+}
+
+@media (max-width: 480px) {
+  .cases-list-table tbody {
+    padding: var(--space-2);
+  }
+
+  .cases-list-row td {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .cases-list-row td::before {
+    flex-basis: 34%;
+  }
+}

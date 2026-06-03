@@ -1,0 +1,175 @@
+{% extends "app/base.html" %}
+{% set active_module = 'kanban' %}
+{% block title %}Calendário de tarefas · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<style>
+  /* FullCalendar overrides — tokens semânticos do design system */
+  #task-calendar {
+    --fc-border-color: var(--line);
+    --fc-page-bg-color: transparent;
+    --fc-neutral-bg-color: var(--surface-1);
+    --fc-today-bg-color: color-mix(in srgb, var(--c-pollen) 8%, transparent);
+    --fc-event-text-color: #fff;
+    font-family: var(--sans);
+    font-size: var(--fs-sm);
+  }
+  #task-calendar .fc-toolbar-title {
+    font-family: var(--display, var(--sans));
+    font-size: var(--fs-xl);
+    color: var(--fg-default);
+    font-weight: 600;
+  }
+  #task-calendar .fc-button {
+    background: var(--surface-1);
+    border: 1px solid var(--line);
+    color: var(--fg-default);
+    font-family: var(--mono);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    box-shadow: none;
+    transition: background 150ms ease, border-color 150ms ease;
+  }
+  #task-calendar .fc-button:hover {
+    background: var(--surface-2);
+    border-color: var(--c-green-d);
+  }
+  #task-calendar .fc-button-primary:not(:disabled).fc-button-active,
+  #task-calendar .fc-button-primary:not(:disabled):active {
+    background: var(--c-navy);
+    border-color: var(--c-navy);
+    color: var(--c-pollen);
+  }
+  #task-calendar .fc-col-header-cell {
+    background: var(--surface-1);
+    color: var(--fg-muted);
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: var(--fs-xs);
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    padding: var(--space-2) 0;
+  }
+  #task-calendar .fc-daygrid-day-number {
+    color: var(--fg-default);
+    font-size: var(--fs-sm);
+    padding: var(--space-2);
+  }
+  #task-calendar .fc-day-today .fc-daygrid-day-number {
+    color: var(--c-pollen);
+    font-weight: 700;
+  }
+  #task-calendar .fc-event {
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    font-size: var(--fs-xs);
+    cursor: pointer;
+    border: none;
+    margin-bottom: 2px;
+  }
+  #task-calendar .fc-event:hover { filter: brightness(1.1); }
+  #task-calendar .fc-daygrid-more-link {
+    color: var(--c-green-d);
+    font-weight: 600;
+    font-family: var(--mono);
+    font-size: var(--fs-xs);
+  }
+  #task-calendar .fc-popover {
+    background: var(--surface-0);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-2);
+  }
+  #task-calendar .fc-popover-header {
+    background: var(--surface-1);
+    color: var(--fg-default);
+    padding: var(--space-2) var(--space-3);
+    font-weight: 600;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Tarefas · Visão calendário</span>
+    <h1>Seu <em>cronograma</em> de execução.</h1>
+    <p class="ch-page-head__sub">Veja prazos por dia. Clique em qualquer tarefa para abrir o detalhe.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks">
+      <span data-icon="tasks" data-icon-size="14"></span> Lista
+    </a>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks/kanban">
+      <span data-icon="kanban" data-icon-size="14"></span> Kanban
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/tasks/new">
+      <span data-icon="plus"></span> Nova tarefa
+    </a>
+  </div>
+</section>
+
+<section class="ch-card ch-card--compact" style="margin-bottom: var(--space-4); display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: center;">
+  <span style="font-family: var(--mono); font-size: var(--fs-xs); color: var(--fg-muted); letter-spacing: 0.10em; text-transform: uppercase;">Prioridade</span>
+  <span class="ch-pill ch-pill--danger"><span class="dot"></span>Urgente</span>
+  <span class="ch-pill ch-pill--warn"><span class="dot"></span>Alta</span>
+  <span class="ch-pill ch-pill--info"><span class="dot"></span>Média</span>
+  <span class="ch-pill"><span class="dot"></span>Baixa</span>
+</section>
+
+<section class="ch-card">
+  <div id="task-calendar" style="min-height: 600px;"></div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/locales/pt-br.global.min.js"></script>
+<script>
+(function() {
+    const events = {{ events_json|safe }};
+    const calendarEl = document.getElementById('task-calendar');
+    if (!calendarEl) return;
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'pt-br',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,dayGridWeek,listWeek'
+        },
+        buttonText: {
+            today: 'Hoje',
+            month: 'Mês',
+            week: 'Semana',
+            list: 'Lista'
+        },
+        events: events,
+        eventClick: function(info) {
+            info.jsEvent.preventDefault();
+            if (info.event.url) {
+                window.location.href = info.event.url;
+            }
+        },
+        height: 'auto',
+        dayMaxEvents: 4,
+        navLinks: true,
+        editable: false,
+        selectable: false,
+        eventDisplay: 'block',
+        eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }
+    });
+
+    calendar.render();
+})();
+</script>
+{% endblock %}

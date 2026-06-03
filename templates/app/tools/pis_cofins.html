@@ -1,0 +1,176 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Pis_Cofins · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tools-pis-cofins.css">
+{% endblock %}
+{% block content %}
+<section class="tools-piscofins-main" aria-labelledby="tools-piscofins-title">
+    <div class="tools-piscofins-container">
+        <header class="tools-piscofins-header tools-piscofins-no-print">
+            <div class="tools-piscofins-heading">
+                <h1 id="tools-piscofins-title" class="tools-piscofins-title">
+                    <i class="fas fa-hand-holding-usd tools-piscofins-title-icon" aria-hidden="true"></i>
+                    <span>PIS/COFINS</span>
+                </h1>
+                <p class="tools-piscofins-subtitle">Lei 10.637/02 (PIS), Lei 10.833/03 (COFINS)</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="tools-piscofins-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        <div class="tools-piscofins-grid {% if resultado %}tools-piscofins-grid--split{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/pis-cofins/calcular"
+                  class="tools-piscofins-form" aria-labelledby="tools-piscofins-form-title">
+                <div class="tools-piscofins-card">
+                    <h2 id="tools-piscofins-form-title" class="tools-piscofins-section-title">Dados da Empresa</h2>
+
+                    <div class="tools-piscofins-field">
+                        <label for="receita_bruta" class="tools-piscofins-label">Receita Bruta Mensal (R$)</label>
+                        <div class="tools-piscofins-input-group">
+                            <span class="tools-piscofins-input-affix" aria-hidden="true">R$</span>
+                            <input type="number" class="tools-piscofins-input" id="receita_bruta" name="receita_bruta"
+                                   step="0.01" min="0" inputmode="decimal"
+                                   value="{{ form.receita_bruta if form else '' }}"
+                                   required aria-required="true">
+                        </div>
+                    </div>
+
+                    <div class="tools-piscofins-field">
+                        <label for="regime" class="tools-piscofins-label">Regime</label>
+                        <select class="tools-piscofins-select"
+                                id="regime"
+                                name="regime"
+                                required
+                                data-toggle-target="creditos_group"
+                                data-toggle-when="nao_cumulativo"
+                                aria-controls="creditos_group"
+                                aria-expanded="{% if form and form.regime == 'nao_cumulativo' %}true{% else %}false{% endif %}">
+                            <option value="cumulativo" {% if form and form.regime == 'cumulativo' %}selected{% endif %}>Cumulativo (Lucro Presumido)</option>
+                            <option value="nao_cumulativo" {% if form and form.regime == 'nao_cumulativo' %}selected{% endif %}>Não-Cumulativo (Lucro Real)</option>
+                        </select>
+                    </div>
+
+                    <div class="tools-piscofins-field" id="creditos_group"
+                         aria-live="polite"
+                         {% if not (form and form.regime == 'nao_cumulativo') %}hidden{% endif %}>
+                        <label for="creditos" class="tools-piscofins-label">Créditos de PIS/COFINS (R$)</label>
+                        <div class="tools-piscofins-input-group">
+                            <span class="tools-piscofins-input-affix" aria-hidden="true">R$</span>
+                            <input type="number" class="tools-piscofins-input" id="creditos" name="creditos"
+                                   step="0.01" min="0" inputmode="decimal"
+                                   value="{{ form.creditos if form else '0' }}"
+                                   aria-describedby="creditos_help">
+                        </div>
+                        <small id="creditos_help" class="tools-piscofins-help">
+                            Total de créditos sobre insumos, bens e serviços.
+                        </small>
+                    </div>
+
+                    <button type="submit" class="tools-piscofins-submit">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular PIS/COFINS</span>
+                    </button>
+                </div>
+            </form>
+
+            {% if resultado %}
+            <div class="tools-piscofins-card" aria-labelledby="tools-piscofins-result-title">
+                <div class="tools-piscofins-result-header">
+                    <h2 id="tools-piscofins-result-title" class="tools-piscofins-result-title">
+                        <i class="fas fa-receipt" aria-hidden="true"></i>
+                        <span>Resultado do Cálculo</span>
+                    </h2>
+                </div>
+
+                <table class="tools-piscofins-table">
+                    <caption class="visually-hidden">Detalhamento do cálculo de PIS/COFINS</caption>
+                    <tbody>
+                        <tr>
+                            <th scope="row">Receita Bruta</th>
+                            <td>R$ {{ resultado.receita_bruta_fmt }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Regime</th>
+                            <td>{{ 'Cumulativo' if resultado.regime == 'cumulativo' else 'Não-Cumulativo' }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">PIS ({{ resultado.pis_aliquota }}%)</th>
+                            <td>R$ {{ resultado.pis_fmt }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">COFINS ({{ resultado.cofins_aliquota }}%)</th>
+                            <td>R$ {{ resultado.cofins_fmt }}</td>
+                        </tr>
+                        {% if resultado.regime == 'nao_cumulativo' and resultado.creditos > 0 %}
+                        <tr class="tools-piscofins-row--credit">
+                            <th scope="row">Crédito PIS</th>
+                            <td>&minus; R$ {{ resultado.pis_credito_fmt }}</td>
+                        </tr>
+                        <tr class="tools-piscofins-row--credit">
+                            <th scope="row">Crédito COFINS</th>
+                            <td>&minus; R$ {{ resultado.cofins_credito_fmt }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr class="tools-piscofins-row--total">
+                            <th scope="row">Total PIS + COFINS</th>
+                            <td>R$ {{ resultado.total_fmt }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Carga Efetiva</th>
+                            <td>{{ resultado.carga_efetiva }}%</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <section class="tools-piscofins-legal" aria-labelledby="tools-piscofins-legal-title">
+                    <h3 id="tools-piscofins-legal-title" class="tools-piscofins-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-piscofins-legal-list">
+                        {% for ref in resultado.fundamentacao %}
+                        <li>{{ ref }}</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <div class="tools-piscofins-actions tools-piscofins-no-print">
+                    <button type="button" class="tools-piscofins-btn-ghost" data-action="print">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    var toggles = document.querySelectorAll('[data-toggle-target]');
+    toggles.forEach(function (select) {
+        var targetId = select.getAttribute('data-toggle-target');
+        var trigger = select.getAttribute('data-toggle-when') || 'sim';
+        var target = document.getElementById(targetId);
+        if (!target) return;
+        select.addEventListener('change', function () {
+            var show = select.value === trigger;
+            target.hidden = !show;
+            select.setAttribute('aria-expanded', show ? 'true' : 'false');
+        });
+    });
+
+    var printBtn = document.querySelector('[data-action="print"]');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () { window.print(); });
+    }
+})();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

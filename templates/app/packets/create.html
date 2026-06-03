@@ -1,0 +1,333 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Packets · Create · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/packets-create.css">
+{% endblock %}
+{% block content %}
+<main class="packets-create-main" aria-labelledby="packets-create-title">
+    <header class="packets-create-header">
+        <a href="{{ PREFIX }}/packets" class="packets-create-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Packets</span>
+        </a>
+        <h1 id="packets-create-title" class="packets-create-title">
+            <i class="fas fa-file-archive packets-create-title-icon" aria-hidden="true"></i>
+            <span>Create Document Packet</span>
+        </h1>
+    </header>
+
+    <form method="POST" action="{{ PREFIX }}/packets/create" id="packetForm" class="packets-create-form">
+        <div class="packets-create-grid">
+            <div class="packets-create-col">
+                <section class="packets-create-card" aria-labelledby="packets-create-info-title">
+                    <header class="packets-create-card-header">
+                        <h2 id="packets-create-info-title" class="packets-create-card-heading">
+                            <i class="fas fa-info-circle packets-create-card-icon" aria-hidden="true"></i>
+                            <span>Packet Information</span>
+                        </h2>
+                    </header>
+                    <div class="packets-create-card-body">
+                        <div class="packets-create-fields">
+                            <div class="packets-create-field">
+                                <label for="packets-create-title-input" class="packets-create-label">
+                                    Packet Title
+                                    <span class="packets-create-label-required" aria-hidden="true">*</span>
+                                </label>
+                                <input type="text" id="packets-create-title-input" name="title"
+                                       class="packets-create-input" required aria-required="true"
+                                       placeholder="e.g., I-140 Evidence Package">
+                            </div>
+                            <div class="packets-create-field">
+                                <label for="caseSelect" class="packets-create-label">Case (Optional)</label>
+                                <select name="case_id" id="caseSelect" class="packets-create-select">
+                                    <option value="">— Select Case —</option>
+                                    {% for case in cases %}
+                                    <option value="{{ case.id }}" {% if selected_case and selected_case.id == case.id %}selected{% endif %}>
+                                        {{ case.case_number }} — {{ case.case_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="packets-create-fields">
+                            <div class="packets-create-field">
+                                <label class="packets-create-check" for="includeCover">
+                                    <input class="packets-create-check-input" type="checkbox"
+                                           name="include_cover" id="includeCover" value="true" checked>
+                                    <i class="fas fa-file-alt packets-create-check-icon" aria-hidden="true"></i>
+                                    <span>Include Cover Page</span>
+                                </label>
+                            </div>
+                            <div class="packets-create-field">
+                                <label class="packets-create-check" for="includeToc">
+                                    <input class="packets-create-check-input" type="checkbox"
+                                           name="include_toc" id="includeToc" value="true" checked>
+                                    <i class="fas fa-list-ol packets-create-check-icon" aria-hidden="true"></i>
+                                    <span>Include Table of Contents</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="packets-create-card" aria-labelledby="packets-create-docs-title">
+                    <header class="packets-create-card-header">
+                        <h2 id="packets-create-docs-title" class="packets-create-card-heading">
+                            <i class="fas fa-file-pdf packets-create-card-icon" aria-hidden="true"></i>
+                            <span>Select Documents</span>
+                        </h2>
+                        <span class="packets-create-badge" id="docCount" data-state="active" aria-live="polite">0 selected</span>
+                    </header>
+                    <div class="packets-create-card-body">
+                        {% if selected_case %}
+                        <div class="packets-create-alert" role="status">
+                            <i class="fas fa-info-circle packets-create-alert-icon" aria-hidden="true"></i>
+                            <span>Showing documents for case: <strong>{{ selected_case.case_number }}</strong></span>
+                        </div>
+                        {% endif %}
+
+                        <div id="documentsContainer">
+                            {% if documents %}
+                            <ul class="packets-create-doclist" id="documentList">
+                                {% for doc in documents %}
+                                <li>
+                                    <label class="packets-create-doc" for="packets-create-doc-{{ doc.id }}">
+                                        <input type="checkbox" id="packets-create-doc-{{ doc.id }}"
+                                               class="packets-create-check-input doc-checkbox"
+                                               value="{{ doc.id }}" data-name="{{ doc.name }}">
+                                        <div class="packets-create-doc-meta">
+                                            <span class="packets-create-doc-name">{{ doc.name }}</span>
+                                            <span class="packets-create-doc-info">
+                                                {{ doc.type or 'Document' }} · {{ doc.created_at.strftime('%Y-%m-%d') if doc.created_at else 'No date' }}
+                                            </span>
+                                        </div>
+                                        <i class="fas fa-file-pdf packets-create-doc-icon" aria-hidden="true"></i>
+                                    </label>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <div class="packets-create-empty" id="noDocsMessage">
+                                <i class="fas fa-folder-open packets-create-empty-icon" aria-hidden="true"></i>
+                                <p class="packets-create-empty-text">{% if selected_case %}No documents found for this case{% else %}Select a case to see documents{% endif %}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <aside class="packets-create-col" aria-label="Packet order and actions">
+                <section class="packets-create-card" aria-labelledby="packets-create-order-title">
+                    <header class="packets-create-card-header">
+                        <h2 id="packets-create-order-title" class="packets-create-card-heading">
+                            <i class="fas fa-sort-amount-down packets-create-card-icon" aria-hidden="true"></i>
+                            <span>Document Order</span>
+                        </h2>
+                    </header>
+                    <div class="packets-create-card-body">
+                        <p class="packets-create-helper">Drag to reorder documents in the packet</p>
+                        <ul class="packets-create-orderlist" id="selectedDocsList" aria-live="polite">
+                            <li class="packets-create-order-empty" id="emptyOrderMessage">
+                                <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+                                <span>Select documents from the left</span>
+                            </li>
+                        </ul>
+                        <input type="hidden" name="document_ids" id="documentIds" value="[]">
+                    </div>
+                </section>
+
+                <section class="packets-create-card" aria-label="Form actions">
+                    <div class="packets-create-card-body">
+                        <div class="packets-create-actions">
+                            <button type="submit" class="packets-create-btn packets-create-btn--primary"
+                                    id="createBtn" disabled aria-disabled="true">
+                                <i class="fas fa-file-archive" aria-hidden="true"></i>
+                                <span>Create Packet</span>
+                            </button>
+                            <a href="{{ PREFIX }}/packets" class="packets-create-btn packets-create-btn--ghost">
+                                <i class="fas fa-times" aria-hidden="true"></i>
+                                <span>Cancel</span>
+                            </a>
+                        </div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </form>
+</main>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+const PREFIX = '{{ PREFIX }}';
+let selectedDocs = [];
+
+function escapeHtml(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const orderList = document.getElementById('selectedDocsList');
+    new Sortable(orderList, {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        filter: '.packets-create-order-empty',
+        onEnd: updateDocumentIds
+    });
+
+    document.getElementById('caseSelect').addEventListener('change', function() {
+        const caseId = this.value;
+        if (caseId) {
+            fetchCaseDocuments(caseId);
+        } else {
+            renderEmptyDocs('Select a case to see documents');
+            clearSelection();
+        }
+    });
+
+    bindCheckboxes();
+
+    orderList.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-action="remove"]');
+        if (!btn) return;
+        const id = btn.dataset.id;
+        const checkbox = document.querySelector('.doc-checkbox[value="' + id + '"]');
+        if (checkbox) checkbox.checked = false;
+        removeDocument(id);
+        updateDocumentIds();
+    });
+});
+
+function bindCheckboxes() {
+    document.querySelectorAll('.doc-checkbox').forEach(cb => {
+        cb.addEventListener('change', handleCheckboxChange);
+    });
+}
+
+function renderEmptyDocs(message) {
+    document.getElementById('documentsContainer').innerHTML = `
+        <div class="packets-create-empty">
+            <i class="fas fa-folder-open packets-create-empty-icon" aria-hidden="true"></i>
+            <p class="packets-create-empty-text">${escapeHtml(message)}</p>
+        </div>
+    `;
+}
+
+function fetchCaseDocuments(caseId) {
+    fetch(`${PREFIX}/packets/case/${caseId}/documents`)
+        .then(response => response.json())
+        .then(documents => {
+            if (documents.length === 0) {
+                renderEmptyDocs('No documents found for this case');
+            } else {
+                let html = '<ul class="packets-create-doclist" id="documentList">';
+                documents.forEach(doc => {
+                    const id = escapeHtml(doc.id);
+                    const name = escapeHtml(doc.name);
+                    const type = escapeHtml(doc.type || 'Document');
+                    const date = escapeHtml(doc.created_at ? doc.created_at.split('T')[0] : 'No date');
+                    html += `
+                        <li>
+                            <label class="packets-create-doc" for="packets-create-doc-${id}">
+                                <input type="checkbox" id="packets-create-doc-${id}"
+                                       class="packets-create-check-input doc-checkbox"
+                                       value="${id}" data-name="${name}">
+                                <div class="packets-create-doc-meta">
+                                    <span class="packets-create-doc-name">${name}</span>
+                                    <span class="packets-create-doc-info">${type} · ${date}</span>
+                                </div>
+                                <i class="fas fa-file-pdf packets-create-doc-icon" aria-hidden="true"></i>
+                            </label>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                document.getElementById('documentsContainer').innerHTML = html;
+                bindCheckboxes();
+            }
+            clearSelection();
+        })
+        .catch(error => {
+            console.error('Error fetching documents:', error);
+        });
+}
+
+function handleCheckboxChange(e) {
+    const docId = e.target.value;
+    const docName = e.target.dataset.name;
+
+    if (e.target.checked) {
+        addDocument(docId, docName);
+    } else {
+        removeDocument(docId);
+    }
+    updateDocumentIds();
+}
+
+function addDocument(id, name) {
+    const emptyMsg = document.getElementById('emptyOrderMessage');
+    if (emptyMsg) emptyMsg.remove();
+
+    const li = document.createElement('li');
+    li.className = 'packets-create-order-item';
+    li.dataset.id = id;
+    li.innerHTML = `
+        <i class="fas fa-grip-vertical packets-create-order-grip" aria-hidden="true"></i>
+        <span class="packets-create-order-name">${escapeHtml(name)}</span>
+        <button type="button" class="packets-create-btn packets-create-btn--icon"
+                data-action="remove" data-id="${escapeHtml(id)}"
+                aria-label="Remove ${escapeHtml(name)} from packet">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    `;
+    document.getElementById('selectedDocsList').appendChild(li);
+    selectedDocs.push({id, name});
+}
+
+function removeDocument(id) {
+    const item = document.querySelector(`#selectedDocsList li[data-id="${id}"]`);
+    if (item) item.remove();
+    selectedDocs = selectedDocs.filter(d => String(d.id) !== String(id));
+
+    if (selectedDocs.length === 0) {
+        document.getElementById('selectedDocsList').innerHTML = `
+            <li class="packets-create-order-empty" id="emptyOrderMessage">
+                <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+                <span>Select documents from the left</span>
+            </li>
+        `;
+    }
+}
+
+function clearSelection() {
+    selectedDocs = [];
+    document.getElementById('selectedDocsList').innerHTML = `
+        <li class="packets-create-order-empty" id="emptyOrderMessage">
+            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+            <span>Select documents from the left</span>
+        </li>
+    `;
+    updateDocumentIds();
+}
+
+function updateDocumentIds() {
+    const items = document.querySelectorAll('#selectedDocsList li[data-id]');
+    const ids = Array.from(items).map(item => parseInt(item.dataset.id));
+    document.getElementById('documentIds').value = JSON.stringify(ids);
+
+    const badge = document.getElementById('docCount');
+    badge.textContent = ids.length + ' selected';
+
+    const btn = document.getElementById('createBtn');
+    btn.disabled = ids.length === 0;
+    btn.setAttribute('aria-disabled', ids.length === 0 ? 'true' : 'false');
+}
+</script>
+{% endblock %}

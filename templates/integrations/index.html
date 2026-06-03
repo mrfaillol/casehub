@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Integrações - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/integrations-index.css?v=20260504-office-critical">
+{% endblock %}
+
+{% block content %}
+<main class="integrations-main" aria-labelledby="integrations-title">
+    <header class="integrations-header">
+        <div>
+            <h1 id="integrations-title"><i class="fas fa-plug" aria-hidden="true"></i>Integrações</h1>
+            <p>Estado real dos serviços externos que alimentam Agenda, Controladoria, documentos e comunicação.</p>
+        </div>
+        <a href="{{ PREFIX }}/settings" class="integrations-action">
+            <i class="fas fa-gear" aria-hidden="true"></i>
+            <span>Configurações</span>
+        </a>
+    </header>
+
+    <section class="integrations-alert" aria-label="Resumo operacional">
+        <span class="integrations-dot integrations-dot--down" aria-hidden="true"></span>
+        <div>
+            <strong>Controladoria depende de autorização oficial PDPJ/CNJ.</strong>
+            <p>Fontes subsidiárias ajudam na conferência, mas a importação oficial automática de prazos por OAB só deve ser considerada concluída quando o PDPJ estiver autenticado e validado.</p>
+        </div>
+    </section>
+
+    <section class="integrations-grid" aria-label="Serviços integrados">
+        {% for item in integrations %}
+        <article class="integrations-card integrations-card--{{ item.state }}">
+            <header>
+                <span class="integrations-icon integrations-icon--{{ item.state }}" aria-hidden="true">
+                    <i class="fas fa-{{ item.icon }}"></i>
+                </span>
+                <div>
+                    <h2>{{ item.name }}</h2>
+                    <span class="integrations-state">
+                        <span class="integrations-dot integrations-dot--{{ item.state }}" aria-hidden="true"></span>
+                        {{ item.state_label }}
+                    </span>
+                </div>
+            </header>
+            <strong>{{ item.summary }}</strong>
+            <p>{{ item.detail }}</p>
+            {% if item.diagnostic %}
+            <small class="integrations-diagnostic">{{ item.diagnostic }}</small>
+            {% endif %}
+            <div class="integrations-card__actions">
+                <a href="{{ item.action_url }}" class="integrations-card__action">{{ item.action_label }}</a>
+                {% if item.setup_url and item.setup_url != "#" %}
+                <a href="{{ item.setup_url }}" class="integrations-card__action integrations-card__action--quiet" target="_blank" rel="noopener">{{ item.setup_label }}</a>
+                {% endif %}
+            </div>
+            {% if item.steps %}
+            <details class="integrations-setup">
+                <summary>Como deixar funcionando</summary>
+                <ol>
+                    {% for step in item.steps %}
+                    <li>{{ step }}</li>
+                    {% endfor %}
+                </ol>
+            </details>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </section>
+</main>
+{% endblock %}

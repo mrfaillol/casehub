@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Enviar Documento{% else %}Upload Document{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/documents-upload.css">
+{% endblock %}
+{% block content %}
+<div class="documents-upload-main" aria-labelledby="documents-upload-title">
+<div class="documents-upload-header">
+    <a href="{{ PREFIX }}/documents" class="documents-upload-back"><i class="fas fa-arrow-left" aria-hidden="true"></i> <span>{% if product == "lite" %}Voltar{% else %}Back{% endif %}</span></a>
+    <h1 id="documents-upload-title" class="documents-upload-title"><i class="fas fa-upload" aria-hidden="true"></i><span>{% if product == "lite" %}Enviar Documento{% else %}Upload Document{% endif %}</span></h1>
+</div>
+<form method="post" action="{{ PREFIX }}/documents/upload" enctype="multipart/form-data" class="documents-upload-form">
+    <div class="row documents-upload-grid">
+        <div class="col-md-6 mb-4">
+            <div class="card glass-card">
+                <div class="card-header"><i class="fas fa-file me-1" aria-hidden="true"></i> {% if product == "lite" %}Arquivo{% else %}File{% endif %}</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="documentsUploadFile">{% if product == "lite" %}Selecionar arquivo{% else %}Select File{% endif %} *</label>
+                        <input type="file" class="documents-upload-file-input" id="documentsUploadFile" name="file" required>
+                        <label class="documents-upload-file" for="documentsUploadFile">
+                            <span class="documents-upload-file-btn">{% if product == "lite" %}Escolher arquivo{% else %}Choose file{% endif %}</span>
+                            <span class="documents-upload-file-name" data-documents-upload-file-name>{% if product == "lite" %}Nenhum arquivo selecionado{% else %}No file chosen{% endif %}</span>
+                        </label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Nome do documento{% else %}Document Name{% endif %}</label>
+                        <input type="text" class="form-control glass-input" name="name" placeholder="{% if product == 'lite' %}Deixe em branco para usar o nome do arquivo{% else %}Leave blank to use filename{% endif %}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Tipo de documento{% else %}Document Type{% endif %}</label>
+                        <select class="form-select glass-input" name="doc_type">
+                            {% for option in document_type_options %}
+                            <option value="{{ option.value }}">{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card mb-4">
+                <div class="card-header"><i class="fas fa-link me-1" aria-hidden="true"></i> {% if product == "lite" %}Vincular a{% else %}Link To{% endif %}</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</label>
+                        <select class="form-select glass-input" name="client_id" id="clientSelect" onchange="checkLinking()">
+                            <option value="">{% if product == "lite" %}Nenhum{% else %}None{% endif %}</option>
+                            {% for c in clients %}
+                            <option value="{{ c.id }}" {% if selected_client_id == c.id %}selected{% endif %}>{{ c.first_name }} {{ c.last_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Processo{% else %}Case{% endif %}</label>
+                        <select class="form-select glass-input" name="case_id" id="caseSelect" onchange="checkLinking()">
+                            <option value="">{% if product == "lite" %}Nenhum{% else %}None{% endif %}</option>
+                            {% for cs in cases %}
+                            <option value="{{ cs.id }}" {% if selected_case_id == cs.id %}selected{% endif %}>{{ cs.case_number or cs.case_name or "Case #" + cs.id|string }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <!-- Unlinked Warning -->
+                    <div class="alert alert-warning" id="unlinkWarning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Aviso:</strong> Este documento não sera vinculado a nenhum cliente ou caso.
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="confirmUnlinked" onchange="checkLinking()">
+                            <label class="form-check-label small" for="confirmUnlinked">
+                                Entendo e desejo continuar sem vincular
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card glass-card">
+                <div class="card-header"><i class="fas fa-sticky-note me-1" aria-hidden="true"></i> {% if product == "lite" %}Observações{% else %}Notes{% endif %}</div>
+                <div class="card-body">
+                    <textarea class="form-control glass-input" name="notes" rows="3"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="documents-upload-actions">
+        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary" id="submitBtn"><i class="fas fa-upload me-1" aria-hidden="true"></i> {% if product == "lite" %}Enviar{% else %}Upload{% endif %}</button>
+        <a href="{{ PREFIX }}/documents" class="btn btn-outline-secondary">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</a>
+    </div>
+</form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function checkLinking() {
+    const clientId = document.getElementById('clientSelect').value;
+    const caseId = document.getElementById('caseSelect').value;
+    const warning = document.getElementById('unlinkWarning');
+    const confirmCheck = document.getElementById('confirmUnlinked');
+    const submitBtn = document.getElementById('submitBtn');
+
+    const isUnlinked = !clientId && !caseId;
+
+    // Show/hide warning
+    warning.style.display = isUnlinked ? 'block' : 'none';
+
+    // Reset checkbox when hidden
+    if (!isUnlinked) {
+        confirmCheck.checked = false;
+    }
+
+    // Enable/disable submit based on linking status
+    if (isUnlinked && !confirmCheck.checked) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('btn-secondary');
+        submitBtn.classList.remove('btn-primary');
+    } else {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('btn-secondary');
+        submitBtn.classList.add('btn-primary');
+    }
+}
+
+// Check on page load
+document.addEventListener('DOMContentLoaded', checkLinking);
+
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('documentsUploadFile');
+    const fileName = document.querySelector('[data-documents-upload-file-name]');
+    if (!fileInput || !fileName) return;
+    const emptyText = fileName.textContent;
+
+    fileInput.addEventListener('change', function() {
+        fileName.textContent = fileInput.files && fileInput.files.length
+            ? fileInput.files[0].name
+            : emptyText;
+    });
+});
+</script>
+{% endblock %}

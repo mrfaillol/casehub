@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block title %}Super Admin - CaseHub{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sa-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    .sa-header h2 { font-size: 1.5rem; font-weight: 700; color: #fff; }
+    .sa-header .badge-sa {
+        background: rgba(255,255,255,0.1);
+        color: #ccc;
+        font-size: 0.75rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background: var(--bg-card, #1a1a1a);
+        border: 1px solid #2a2a2a;
+        border-radius: 12px;
+        padding: 1.25rem;
+        transition: all 0.2s;
+    }
+    .metric-card:hover {
+        border-color: #444;
+        transform: translateY(-2px);
+    }
+    .metric-card .metric-label {
+        font-size: 0.8rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+    .metric-card .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #fff;
+    }
+    .metric-card .metric-sub {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 0.25rem;
+    }
+    .metric-card.mrr .metric-value { color: #44bb44; }
+    .recent-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .recent-table th {
+        color: #888;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #2a2a2a;
+        font-weight: 500;
+    }
+    .recent-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #1e1e1e;
+        font-size: 0.9rem;
+    }
+    .recent-table tr:hover td {
+        background: rgba(255,255,255,0.02);
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    .status-badge.active { background: rgba(68,187,68,0.15); color: #88cc88; }
+    .status-badge.inactive { background: rgba(255,68,68,0.15); color: #ff8888; }
+    .plan-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: rgba(255,255,255,0.08);
+        color: #ccc;
+        text-transform: capitalize;
+    }
+    .chart-container {
+        background: var(--bg-card, #1a1a1a);
+        border: 1px solid #2a2a2a;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    .chart-title {
+        font-size: 0.85rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <div class="sa-header">
+        <h2><i class="fas fa-shield-alt me-2"></i>Super Admin</h2>
+        <span class="badge-sa">Platform Control Panel</span>
+    </div>
+
+    <!-- Metric Cards -->
+    <div class="metric-grid">
+        <div class="metric-card">
+            <div class="metric-label">Total Organizations</div>
+            <div class="metric-value">{{ total_orgs }}</div>
+            <div class="metric-sub">{{ active_orgs }} active / {{ inactive_orgs }} inactive</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Total Users</div>
+            <div class="metric-value">{{ total_users }}</div>
+        </div>
+        <div class="metric-card mrr">
+            <div class="metric-label">Monthly Recurring Revenue</div>
+            <div class="metric-value">${{ "{:,.0f}".format(mrr) }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Signups This Month</div>
+            <div class="metric-value">{{ signups_this_month }}</div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Charts -->
+        <div class="col-lg-7">
+            <div class="chart-container">
+                <div class="chart-title">MRR & Signups Trend</div>
+                <canvas id="trendChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-lg-5">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                </div>
+                <div class="card-body">
+                    <a href="{{ PREFIX }}/superadmin/orgs" class="btn btn-outline-light btn-sm w-100 mb-2 text-start">
+                        <i class="fas fa-building me-2"></i>View All Organizations
+                    </a>
+                    {% if user %}
+                    <a href="{{ PREFIX }}/superadmin/exit-impersonation" class="btn btn-outline-secondary btn-sm w-100 text-start"
+                       style="{% if not request.cookies.get('impersonating') %}display:none{% endif %}">
+                        <i class="fas fa-user-slash me-2"></i>Exit Impersonation
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Organizations -->
+    <div class="card glass-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-clock me-2"></i>Recent Organizations</span>
+            <a href="{{ PREFIX }}/superadmin/orgs" class="btn btn-outline-light btn-sm">View All</a>
+        </div>
+        <div class="card-body p-0">
+            <table class="recent-table">
+                <thead>
+                    <tr>
+                        <th>Organization</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for org in recent_orgs %}
+                    <tr>
+                        <td>
+                            <a href="{{ PREFIX }}/superadmin/orgs/{{ org.id }}" style="color: #fff; text-decoration: none;">
+                                <strong>{{ org.name }}</strong>
+                            </a>
+                            <br><small class="text-muted">{{ org.slug }}</small>
+                        </td>
+                        <td><span class="plan-badge">{{ org.plan or 'starter' }}</span></td>
+                        <td>
+                            <span class="status-badge {% if org.is_active %}active{% else %}inactive{% endif %}">
+                                {{ 'Active' if org.is_active else 'Inactive' }}
+                            </span>
+                        </td>
+                        <td class="text-muted">{{ org.created_at.strftime('%b %d, %Y') if org.created_at else 'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not recent_orgs %}
+                    <tr><td colspan="4" class="text-center text-muted py-4">No organizations yet</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('{{ PREFIX }}/superadmin/metrics')
+        .then(r => r.json())
+        .then(data => {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.months || [],
+                    datasets: [
+                        {
+                            label: 'MRR ($)',
+                            data: data.mrr || [],
+                            backgroundColor: 'rgba(68, 187, 68, 0.3)',
+                            borderColor: 'rgba(68, 187, 68, 0.8)',
+                            borderWidth: 1,
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'New Signups',
+                            data: data.signups || [],
+                            type: 'line',
+                            borderColor: '#fff',
+                            backgroundColor: 'rgba(255,255,255,0.1)',
+                            pointBackgroundColor: '#fff',
+                            tension: 0.3,
+                            yAxisID: 'y1',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#888', font: { size: 11 } } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#666' }, grid: { color: '#1e1e1e' } },
+                        y: {
+                            position: 'left',
+                            ticks: { color: '#666', callback: v => '$' + v.toLocaleString() },
+                            grid: { color: '#1e1e1e' },
+                        },
+                        y1: {
+                            position: 'right',
+                            ticks: { color: '#666' },
+                            grid: { drawOnChartArea: false },
+                        }
+                    }
+                }
+            });
+        })
+        .catch(err => console.error('Metrics fetch error:', err));
+});
+</script>
+{% endblock %}

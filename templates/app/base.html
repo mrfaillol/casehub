@@ -1,0 +1,606 @@
+{# ─────────────────────────────────────────────────────────────────────────────
+   CaseHub App · base.html (Onda 1 — UI Remake 2026-05-23)
+
+   Standalone — does NOT extend legacy templates/base.html.
+   Use for new vanilla post-login surfaces. Mounted at /casehub/v2/* (parallel)
+   until full migration is complete.
+
+   Blocks:
+     - title          → page <title>
+     - extra_head     → page-specific <link>/<meta>/<script defer>
+     - topbar_actions → additional icon buttons inside topbar __actions
+     - bottomnav      → override the entire bottom-nav (default: 6 module pills + Mais)
+     - content        → main content area
+     - extra_js       → page-specific scripts (loaded at end of body)
+─────────────────────────────────────────────────────────────────────────────#}
+{% set PREFIX = PREFIX|default('/casehub') %}
+{% set product = product|default('lite') %}
+{% set org_slug = org_slug|default('') %}
+{% set org_name = org_name|default('CaseHub') %}
+{% set active_module = active_module|default('') %}
+{% set initial_theme = initial_theme|default('') %}{# '' = auto #}
+{% set initial_eco = initial_eco|default('') %}{# '' = auto #}
+<!DOCTYPE html>
+<html lang="{{ lang|default('pt-br') }}"
+      data-theme="{{ initial_theme or 'light' }}"
+      data-theme-pref="{{ initial_theme or 'auto' }}"
+      {% if initial_eco == 'on' %}data-eco="true"{% endif %}
+      data-eco-pref="{{ initial_eco or 'auto' }}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#E6E2DA" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0A0F1A" media="(prefers-color-scheme: dark)" />
+  {# PWA: manifest + ícone home iOS/Android #}
+  <link rel="manifest" href="/static/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="CaseHub" />
+  <link rel="apple-touch-icon" href="/static/brand-kit/favicon/casehub-favicon-degrade-4.svg" />
+  <link rel="icon" type="image/svg+xml" href="/static/brand-kit/favicon/casehub-favicon-degrade-4.svg" />
+  <title>{% block title %}{{ org_name }}{% endblock %}</title>
+  {# Aba "CaseHub - <nome da rota>" (29/05 Victor): pega o 1º segmento do título da
+     página (antes de ·/—/-/|); se não houver nome de rota, cai no org. Roda no <head>
+     antes do paint → sem flash. #}
+  <script>(function(){try{var t=(document.title||'').trim();var p=t.split(/\s[·—\-|]\s/)[0].trim();var o={{ org_name|tojson }};document.title='CaseHub - '+((p&&p!==o)?p:o);}catch(e){}})();</script>
+
+  {# Anti-flash: apply persisted theme before paint #}
+  <script>
+    (function(){
+      try {
+        var t = localStorage.getItem('casehub.theme');
+        var e = localStorage.getItem('casehub.eco');
+        var r = document.documentElement;
+        var resolved = (t === 'light' || t === 'dark') ? t :
+          (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        r.setAttribute('data-theme', resolved);
+        r.setAttribute('data-theme-pref', t || 'auto');
+        var ecoOn = e === 'on' || (e !== 'off' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        if (ecoOn) r.setAttribute('data-eco', 'true');
+        r.setAttribute('data-eco-pref', e || 'auto');
+      } catch (err) {}
+    })();
+    window.CASEHUB_PREFIX = "{{ PREFIX }}";
+  </script>
+
+  {# Fonts (woff2 only, font-display swap) #}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Maven+Pro:wght@400;500;600;700&family=Instrument+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&family=Fraunces:ital,wght@1,500&display=swap" />
+
+  {# Canonical app CSS bundle #}
+  <link rel="stylesheet" href="{{ asset_url('css/app/index.css') }}" />
+
+  {# JS modules — defer keeps non-blocking, all bound on DOMContentLoaded #}
+  <script defer src="{{ asset_url('js/app/index.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/theme.js') }}"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script defer src="{{ asset_url('js/app/icon.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/lucide-shell.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/menu.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/notifications-menu.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/bottomnav.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/nav-tabs.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/sparkline.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/shortcuts.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/palette.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/toast.js') }}"></script>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <a href="#ch-content" class="ch-skip">Pular para o conteúdo</a>
+
+  <div class="ch-app">
+    {# ─────────── Topbar ─────────── #}
+    <header class="ch-topbar-wrap">
+      <div class="ch-shell">
+        <div class="ch-topbar" role="banner">
+          <a class="ch-topbar__brand" href="{{ PREFIX }}/dashboard" aria-label="CaseHub Dashboard">
+            <span class="ch-topbar__brand-full" aria-hidden="true"></span>
+          </a>
+
+          {% if org_slug %}
+          <span class="ch-topbar__slug">
+            <span class="dot" aria-hidden="true"></span>
+            {{ org_slug }}
+          </span>
+          {% endif %}
+
+          <span class="ch-topbar__spacer"></span>
+
+          <button type="button" class="ch-topbar__search" data-action="palette-open"
+                  aria-label="Buscar (cmd+k)">
+            <span data-icon="search" data-icon-size="16"></span>
+            <span>Buscar tudo…</span>
+            <kbd>⌘K</kbd>
+          </button>
+
+          <div class="ch-topbar__actions">
+            {% block topbar_actions %}{% endblock %}
+
+            {# FR-6 (29/05 Victor): lupa mobile abre a barra de busca presa na
+               extremidade INFERIOR (não o palette centralizado). nav-tabs.js
+               intercepta data-action="mobile-search-open"; fallback p/ palette
+               se o JS não carregar (data-action-fallback). #}
+            <button type="button" class="ch-icon-btn ch-icon-btn--search-mobile"
+                    data-action="mobile-search-open"
+                    aria-label="Buscar" title="Buscar">
+              <i data-lucide="search"></i>
+            </button>
+
+            <button type="button" class="ch-icon-btn" data-toggle="theme"
+                    aria-label="Alternar tema (T)" title="Tema (T)">
+              <i data-lucide="moon"></i>
+            </button>
+            <button type="button" class="ch-icon-btn" data-toggle="eco"
+                    aria-label="Alternar modo Eco (E)" title="Modo Eco (E)">
+              <i data-lucide="leaf"></i>
+            </button>
+            <div class="ch-notifications-menu-wrap">
+              <button class="ch-icon-btn"
+                      type="button"
+                      data-menu-toggle="ch-notifications-menu"
+                      data-notifications-toggle
+                      aria-haspopup="true"
+                      aria-expanded="false"
+                      aria-label="Abrir notificações"
+                      title="Notificações">
+                <i data-lucide="bell"></i>
+                {% if unread_notifications and unread_notifications > 0 %}
+                <span class="ch-icon-btn__badge" data-notifications-badge>{{ unread_notifications if unread_notifications < 100 else '99+' }}</span>
+                {% endif %}
+              </button>
+              <div id="ch-notifications-menu"
+                   class="ch-menu ch-menu--notifications"
+                   role="menu"
+                   data-notifications-menu
+                   data-prefix="{{ PREFIX }}">
+                <div class="ch-menu__header ch-notifications-menu__header">
+                  <strong>Notificações</strong>
+                  <small data-notifications-summary>Carregando atualizações...</small>
+                </div>
+                <div class="ch-notifications-menu__list" data-notifications-list>
+                  <div class="ch-notifications-menu__empty">Abra para carregar notificações recentes.</div>
+                </div>
+                <div class="ch-menu__divider" role="separator"></div>
+                <a href="{{ PREFIX }}/notifications/upcoming" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="calendar-clock"></i> Próximas notificações
+                </a>
+                <a href="{{ PREFIX }}/notifications" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="sliders-horizontal"></i> Central de notificações
+                </a>
+                <button type="button" class="ch-menu__item" data-notifications-mark-read role="menuitem">
+                  <i data-lucide="check-check"></i> Marcar tudo como lido
+                </button>
+              </div>
+            </div>
+
+            <div style="position: relative;">
+              <button type="button" class="ch-topbar__avatar"
+                      data-menu-toggle="ch-user-menu"
+                      aria-haspopup="true" aria-expanded="false"
+                      aria-label="Menu do usuário">
+                {{ (user.name[0]|upper) if user and user.name else 'U' }}
+              </button>
+              <div id="ch-user-menu" class="ch-menu" role="menu">
+                <div class="ch-menu__header">
+                  <strong>{{ user.name if user else 'Usuário' }}</strong>
+                  <small>{{ user.email if user else '' }}</small>
+                  <span class="ch-menu__meta">CaseHub v{{ version|default('2.0.0') }}</span>
+                </div>
+                <a href="{{ PREFIX }}/profile" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="user"></i> Perfil
+                </a>
+                <a href="{{ PREFIX }}/settings" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="settings"></i> Configurações
+                </a>
+                <a href="{{ PREFIX }}/notifications" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="bell"></i> Notificações
+                </a>
+                <a href="{{ PREFIX }}/subscription" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="credit-card"></i> Assinatura
+                </a>
+                <a href="{{ PREFIX }}/admin" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="shield"></i> Admin
+                </a>
+                <a href="{{ PREFIX }}/route-map" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="map"></i> Mapa de rotas
+                </a>
+                <div class="ch-menu__divider" role="separator"></div>
+                <button type="button" class="ch-menu__item" data-toggle="theme" role="menuitem">
+                  <i data-lucide="moon"></i> Alternar tema
+                </button>
+                <button type="button" class="ch-menu__item" data-toggle="eco" role="menuitem">
+                  <i data-lucide="leaf"></i> Modo Eco
+                </button>
+                <div class="ch-menu__divider" role="separator"></div>
+                <a href="{{ PREFIX }}/logout" class="ch-menu__item is-danger" role="menuitem">
+                  <i data-lucide="log-out"></i> Sair
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    {# ─────────── Desktop tabs (browser-like, neumorphic) — hidden on mobile ───────────
+       Markup é fallback no-JS (âncoras navegam normal). nav-tabs.js faz progressive
+       enhancement: botão fechar (× ) por aba (exceto data-pinned), reordenação por
+       drag (HTML5 DnD), persistência da ordem em localStorage. "Mais" é uma BOLHA
+       separada da nav (.ch-tabs-more) cujo dropdown lista rotas fora das abas, com
+       ícone Lucide por página. Ordem das abas é a fonte do mapa rota→ícone. #}
+    <nav class="ch-tabs-wrap" aria-label="Navegação principal (desktop)">
+      <div class="ch-shell ch-tabs-shell">
+        <div class="ch-tabs neu-raised-sm" role="tablist" data-nav-tabs>
+          <a href="{{ PREFIX }}/dashboard" class="ch-tab {% if active_module == 'dashboard' %}is-active{% endif %}"
+             role="tab" data-route-key="dashboard" data-pinned="true" aria-label="Painel">
+            <i data-lucide="layout-dashboard"></i> <span class="ch-tab__label">Painel</span>
+          </a>
+          <a href="{{ PREFIX }}/controladoria" class="ch-tab {% if active_module == 'controladoria' %}is-active{% endif %}"
+             role="tab" data-route-key="controladoria">
+            <i data-lucide="scale"></i> <span class="ch-tab__label">Controladoria</span>
+          </a>
+          <a href="{{ PREFIX }}/calendar" class="ch-tab {% if active_module == 'agenda' %}is-active{% endif %}"
+             role="tab" data-route-key="agenda">
+            <i data-lucide="calendar-days"></i> <span class="ch-tab__label">Agenda</span>
+          </a>
+          <a href="{{ PREFIX }}/tasks/kanban" class="ch-tab {% if active_module == 'kanban' %}is-active{% endif %}"
+             role="tab" data-route-key="kanban">
+            <i data-lucide="kanban-square"></i> <span class="ch-tab__label">Kanban</span>
+          </a>
+          <a href="{{ PREFIX }}/cases" class="ch-tab {% if active_module == 'processes' %}is-active{% endif %}"
+             role="tab" data-route-key="processes">
+            <i data-lucide="briefcase-business"></i> <span class="ch-tab__label">Processos</span>
+          </a>
+          <a href="{{ PREFIX }}/clients" class="ch-tab {% if active_module == 'clients' %}is-active{% endif %}"
+             role="tab" data-route-key="clients">
+            <i data-lucide="users"></i> <span class="ch-tab__label">Clientes</span>
+          </a>
+          <a href="{{ PREFIX }}/whatsapp-chat" class="ch-tab {% if active_module == 'whatsapp' %}is-active{% endif %}"
+             role="tab" data-route-key="whatsapp">
+            <svg class="ch-brand-icon ch-brand-icon--whatsapp" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12.04 2C6.58 2 2.14 6.42 2.14 11.86c0 1.74.46 3.44 1.33 4.94L2 22l5.35-1.4a9.93 9.93 0 0 0 4.69 1.19h.01c5.46 0 9.9-4.42 9.9-9.86C21.95 6.44 17.51 2 12.04 2Zm0 18.12h-.01a8.22 8.22 0 0 1-4.18-1.14l-.3-.18-3.17.83.85-3.08-.2-.32a8.13 8.13 0 0 1-1.25-4.37c0-4.52 3.7-8.2 8.26-8.2 2.2 0 4.27.86 5.83 2.41a8.15 8.15 0 0 1 2.42 5.86c0 4.52-3.7 8.19-8.25 8.19Zm4.52-6.13c-.25-.12-1.47-.72-1.7-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.78.96-.14.17-.29.19-.54.07-.25-.13-1.05-.39-2-1.23a7.5 7.5 0 0 1-1.38-1.72c-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.23.25-.87.85-.87 2.07 0 1.22.89 2.4 1.02 2.56.12.17 1.76 2.68 4.26 3.76.6.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.06-.1-.23-.16-.48-.29Z"/>
+            </svg> <span class="ch-tab__label">WhatsApp</span>
+          </a>
+          <a href="{{ PREFIX }}/assistente" class="ch-tab {% if active_module == 'maestro' %}is-active{% endif %}"
+             role="tab" data-route-key="maestro">
+            <i data-lucide="sparkles"></i> <span class="ch-tab__label">Maestro</span>
+          </a>
+          <a href="{{ PREFIX }}/casehub-md" class="ch-tab {% if active_module == 'md' %}is-active{% endif %}"
+             role="tab" data-route-key="md">
+            <i data-lucide="file-pen-line"></i> <span class="ch-tab__label">CaseHub.md</span>
+          </a>
+          <a href="{{ PREFIX }}/billing" class="ch-tab {% if active_module == 'billing' %}is-active{% endif %}"
+             role="tab" data-route-key="billing">
+            <i data-lucide="wallet"></i> <span class="ch-tab__label">Financeiro</span>
+          </a>
+          <a href="{{ PREFIX }}/documents" class="ch-tab {% if active_module == 'documents' %}is-active{% endif %}"
+             role="tab" data-route-key="documents">
+            <i data-lucide="folder-open"></i> <span class="ch-tab__label">Drive</span>
+          </a>
+        </div>
+
+        {# "Mais…" — bolha separada da nav bar. Dropdown lista as rotas que não estão
+           nas abas, com ícone por página (desktop). /route-map continua acessível
+           pelo rodapé do dropdown e pelo menu do usuário. #}
+        <div class="ch-tabs-more">
+          <button type="button"
+                  class="ch-tabs-more__bubble neu-raised-sm {% if active_module == 'route-map' %}is-active{% endif %}"
+                  data-menu-toggle="ch-tabs-more-menu"
+                  aria-haspopup="true" aria-expanded="false"
+                  aria-label="Mais rotas">
+            <i data-lucide="layout-grid"></i>
+            <span class="ch-tabs-more__label">Mais</span>
+          </button>
+          <div id="ch-tabs-more-menu" class="ch-menu ch-menu--tabs-more" role="menu" data-tabs-more-menu>
+            <div class="ch-menu__header">
+              <strong>Mais rotas</strong>
+              <small>Telas fora das abas principais</small>
+            </div>
+            <div class="ch-menu__scroll" data-tabs-more-list>
+              {# Preenchido por nav-tabs.js a partir das abas ocultas/rotas extras.
+                 Fallback estático (no-JS) abaixo: #}
+              <a href="{{ PREFIX }}/reports" class="ch-menu__item" role="menuitem">
+                <i data-lucide="chart-column"></i> Relatórios
+              </a>
+              <a href="{{ PREFIX }}/invoices" class="ch-menu__item" role="menuitem">
+                <i data-lucide="receipt-text"></i> Faturas
+              </a>
+              <a href="{{ PREFIX }}/notifications" class="ch-menu__item" role="menuitem">
+                <i data-lucide="bell"></i> Notificações
+              </a>
+              <a href="{{ PREFIX }}/settings" class="ch-menu__item" role="menuitem">
+                <i data-lucide="settings"></i> Configurações
+              </a>
+            </div>
+            <div class="ch-menu__divider" role="separator"></div>
+            <a href="{{ PREFIX }}/route-map" class="ch-menu__item ch-menu__item--route-map" role="menuitem">
+              <i data-lucide="map"></i> Mapa de rotas completo
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    {# ─────────── Main ─────────── #}
+    <main class="ch-main" id="ch-content" role="main">
+      <div class="ch-shell">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+
+    {# ─────────── Bottom-nav pílula sticky ─────────── #}
+    <nav class="ch-bottomnav-wrap" aria-label="Módulos">
+      <div class="ch-shell">
+        {% block bottomnav %}
+        {% set bottom_mobile_primary = ['dashboard', 'controladoria', 'agenda', 'whatsapp'] %}
+        {# Mobile (≤879px): a pílula carrega só os ≤4 itens primários; o "Mais" é uma
+           BOLHA REDONDA SEPARADA (.ch-bottomnav-more) à direita, espelhando a ideia da
+           .ch-tabs-more do desktop. Desktop (data-bottomnav-desktop) continua usando o
+           scroller único com todos os itens + o botão --more interno. #}
+        <div class="ch-bottomnav-row">
+          <div class="ch-bottomnav {% if active_module not in bottom_mobile_primary %}ch-bottomnav--has-active-extra{% endif %}">
+            <div class="ch-bottomnav__scroller">
+              <a href="{{ PREFIX }}/dashboard" class="ch-bottomnav__item ch-bottomnav__item--mobile-primary {% if active_module == 'dashboard' %}is-active{% endif %}" data-route-key="dashboard" data-pinned="true">
+                <i data-lucide="layout-dashboard"></i> <span class="ch-bottomnav__label">Painel</span>
+              </a>
+              <a href="{{ PREFIX }}/controladoria" class="ch-bottomnav__item ch-bottomnav__item--mobile-primary {% if active_module == 'controladoria' %}is-active{% endif %}" data-route-key="controladoria">
+                <i data-lucide="scale"></i> <span class="ch-bottomnav__label">Controla<wbr>doria</span>
+              </a>
+              <a href="{{ PREFIX }}/calendar" class="ch-bottomnav__item ch-bottomnav__item--mobile-primary {% if active_module == 'agenda' %}is-active{% endif %}" data-route-key="agenda">
+                <i data-lucide="calendar-days"></i> <span class="ch-bottomnav__label">Agenda</span>
+              </a>
+              <a href="{{ PREFIX }}/tasks/kanban" class="ch-bottomnav__item {% if active_module == 'kanban' %}is-active{% endif %}" data-route-key="kanban">
+                <i data-lucide="kanban-square"></i> <span class="ch-bottomnav__label">Kanban</span>
+              </a>
+              <a href="{{ PREFIX }}/cases" class="ch-bottomnav__item {% if active_module == 'processes' %}is-active{% endif %}" data-route-key="processes">
+                <i data-lucide="briefcase-business"></i> <span class="ch-bottomnav__label">Processos</span>
+              </a>
+              <a href="{{ PREFIX }}/clients" class="ch-bottomnav__item {% if active_module == 'clients' %}is-active{% endif %}" data-route-key="clients">
+                <i data-lucide="users"></i> <span class="ch-bottomnav__label">Clientes</span>
+              </a>
+              <a href="{{ PREFIX }}/whatsapp-chat" class="ch-bottomnav__item ch-bottomnav__item--mobile-primary ch-bottomnav__item--mobile-swap {% if active_module == 'whatsapp' %}is-active{% endif %}" data-route-key="whatsapp">
+                <svg class="ch-brand-icon ch-brand-icon--whatsapp" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M12.04 2C6.58 2 2.14 6.42 2.14 11.86c0 1.74.46 3.44 1.33 4.94L2 22l5.35-1.4a9.93 9.93 0 0 0 4.69 1.19h.01c5.46 0 9.9-4.42 9.9-9.86C21.95 6.44 17.51 2 12.04 2Zm0 18.12h-.01a8.22 8.22 0 0 1-4.18-1.14l-.3-.18-3.17.83.85-3.08-.2-.32a8.13 8.13 0 0 1-1.25-4.37c0-4.52 3.7-8.2 8.26-8.2 2.2 0 4.27.86 5.83 2.41a8.15 8.15 0 0 1 2.42 5.86c0 4.52-3.7 8.19-8.25 8.19Zm4.52-6.13c-.25-.12-1.47-.72-1.7-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.78.96-.14.17-.29.19-.54.07-.25-.13-1.05-.39-2-1.23a7.5 7.5 0 0 1-1.38-1.72c-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.23.25-.87.85-.87 2.07 0 1.22.89 2.4 1.02 2.56.12.17 1.76 2.68 4.26 3.76.6.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.06-.1-.23-.16-.48-.29Z"/>
+                </svg> <span class="ch-bottomnav__label ch-bottomnav__label--nowrap">WhatsApp</span>
+              </a>
+              <a href="{{ PREFIX }}/assistente" class="ch-bottomnav__item {% if active_module == 'maestro' %}is-active{% endif %}" data-route-key="maestro">
+                <i data-lucide="sparkles"></i> <span class="ch-bottomnav__label">Maestro</span>
+              </a>
+              <a href="{{ PREFIX }}/casehub-md" class="ch-bottomnav__item {% if active_module == 'md' %}is-active{% endif %}" data-route-key="md">
+                <i data-lucide="file-pen-line"></i> <span class="ch-bottomnav__label">CaseHub.md</span>
+              </a>
+              <a href="{{ PREFIX }}/billing" class="ch-bottomnav__item {% if active_module == 'billing' %}is-active{% endif %}" data-route-key="billing">
+                <i data-lucide="wallet"></i> <span class="ch-bottomnav__label">Financeiro</span>
+              </a>
+              <a href="{{ PREFIX }}/documents" class="ch-bottomnav__item {% if active_module == 'documents' %}is-active{% endif %}" data-route-key="documents">
+                <i data-lucide="folder-open"></i> <span class="ch-bottomnav__label">Drive</span>
+              </a>
+              <a href="{{ PREFIX }}/reports" class="ch-bottomnav__item {% if active_module == 'reports' %}is-active{% endif %}" data-route-key="reports">
+                <i data-lucide="chart-column"></i> <span class="ch-bottomnav__label">Relatórios</span>
+              </a>
+              {# Botão "Mais" interno do scroller — usado só no modo desktop forçado
+                 (data-bottomnav-desktop). No mobile ele é escondido e quem manda é a
+                 bolha separada .ch-bottomnav-more abaixo. #}
+              <button type="button"
+                      class="ch-bottomnav__item ch-bottomnav__item--more {% if active_module == 'route-map' %}is-active{% endif %}"
+                      data-menu-toggle="ch-bottom-more-menu"
+                      aria-haspopup="true"
+                      aria-expanded="false"
+                      aria-label="Abrir menu Mais">
+                <i data-lucide="ellipsis"></i> <span class="ch-bottomnav__label">Mais</span>
+              </button>
+            </div>
+          </div>
+
+          {# Bolha redonda separada do "Mais" (mobile). Tudo que não cabe na pílula
+             vai pro dropdown. Reaproveita #ch-bottom-more-menu. #}
+          <button type="button"
+                  class="ch-bottomnav-more {% if active_module == 'route-map' %}is-active{% endif %}"
+                  data-menu-toggle="ch-bottom-more-menu"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-label="Mais módulos">
+            <i data-lucide="ellipsis"></i>
+            <span class="ch-bottomnav-more__label">Mais</span>
+          </button>
+        </div>
+        <div id="ch-bottom-more-menu" class="ch-menu ch-menu--bottom-more" role="menu">
+          <div class="ch-menu__header">
+            <strong>Mais</strong>
+            <small>Módulos e atalhos do workspace</small>
+          </div>
+          <div class="ch-menu__scroll">
+            {# Tudo que não está na pílula mobile vai aqui. Inclui os primários
+               (Controladoria/Agenda/WhatsApp) p/ que, se fechados via drag-out,
+               continuem reabríveis. Painel nunca fecha → fica de fora. #}
+            <a href="{{ PREFIX }}/controladoria" class="ch-menu__item" role="menuitem">
+              <i data-lucide="scale"></i> Controladoria
+            </a>
+            <a href="{{ PREFIX }}/calendar" class="ch-menu__item" role="menuitem">
+              <i data-lucide="calendar-days"></i> Agenda
+            </a>
+            <a href="{{ PREFIX }}/whatsapp-chat" class="ch-menu__item" role="menuitem">
+              <svg class="ch-brand-icon ch-brand-icon--whatsapp" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" style="flex:0 0 16px;width:16px;height:16px;">
+                <path d="M12.04 2C6.58 2 2.14 6.42 2.14 11.86c0 1.74.46 3.44 1.33 4.94L2 22l5.35-1.4a9.93 9.93 0 0 0 4.69 1.19h.01c5.46 0 9.9-4.42 9.9-9.86C21.95 6.44 17.51 2 12.04 2Zm0 18.12h-.01a8.22 8.22 0 0 1-4.18-1.14l-.3-.18-3.17.83.85-3.08-.2-.32a8.13 8.13 0 0 1-1.25-4.37c0-4.52 3.7-8.2 8.26-8.2 2.2 0 4.27.86 5.83 2.41a8.15 8.15 0 0 1 2.42 5.86c0 4.52-3.7 8.19-8.25 8.19Zm4.52-6.13c-.25-.12-1.47-.72-1.7-.8-.23-.09-.39-.13-.56.12-.16.25-.64.8-.78.96-.14.17-.29.19-.54.07-.25-.13-1.05-.39-2-1.23a7.5 7.5 0 0 1-1.38-1.72c-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.23.25-.87.85-.87 2.07 0 1.22.89 2.4 1.02 2.56.12.17 1.76 2.68 4.26 3.76.6.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.15-1.18-.06-.1-.23-.16-.48-.29Z"/>
+              </svg> WhatsApp
+            </a>
+            <div class="ch-menu__divider" role="separator"></div>
+            <a href="{{ PREFIX }}/tasks/kanban" class="ch-menu__item" role="menuitem">
+              <i data-lucide="kanban-square"></i> Kanban
+            </a>
+            <a href="{{ PREFIX }}/cases" class="ch-menu__item" role="menuitem">
+              <i data-lucide="briefcase-business"></i> Processos
+            </a>
+            <a href="{{ PREFIX }}/clients" class="ch-menu__item" role="menuitem">
+              <i data-lucide="users"></i> Clientes
+            </a>
+            <a href="{{ PREFIX }}/assistente" class="ch-menu__item" role="menuitem">
+              <i data-lucide="sparkles"></i> Maestro
+            </a>
+            <a href="{{ PREFIX }}/casehub-md" class="ch-menu__item" role="menuitem">
+              <i data-lucide="file-pen-line"></i> CaseHub.md
+            </a>
+            <a href="{{ PREFIX }}/billing" class="ch-menu__item" role="menuitem">
+              <i data-lucide="wallet"></i> Financeiro
+            </a>
+            <a href="{{ PREFIX }}/documents" class="ch-menu__item" role="menuitem">
+              <i data-lucide="folder-open"></i> Drive
+            </a>
+            <a href="{{ PREFIX }}/reports" class="ch-menu__item" role="menuitem">
+              <i data-lucide="chart-column"></i> Relatórios
+            </a>
+            <a href="{{ PREFIX }}/notifications" class="ch-menu__item" role="menuitem">
+              <i data-lucide="bell"></i> Central de notificações
+            </a>
+            <a href="{{ PREFIX }}/settings" class="ch-menu__item" role="menuitem">
+              <i data-lucide="settings"></i> Configurações
+            </a>
+            <a href="{{ PREFIX }}/profile" class="ch-menu__item" role="menuitem">
+              <i data-lucide="user"></i> Perfil
+            </a>
+            <a href="{{ PREFIX }}/subscription" class="ch-menu__item" role="menuitem">
+              <i data-lucide="credit-card"></i> Assinatura
+            </a>
+          </div>
+          <div class="ch-menu__divider" role="separator"></div>
+          <a href="{{ PREFIX }}/route-map" class="ch-menu__item ch-menu__item--route-map" role="menuitem">
+            <i data-lucide="map"></i> Mapa de rotas completo
+          </a>
+        </div>
+        {% endblock %}
+      </div>
+    </nav>
+
+    {# ─────────── Mobile search bar (docked to bottom edge) ───────────
+       FR-6 (29/05 Victor): no mobile, tocar a lupa do topbar abre esta barra
+       presa na EXTREMIDADE INFERIOR da tela (acima da bottom-nav). Encaminha a
+       busca para o command palette (mesmo backend de pesquisa). Esconde no desktop. #}
+    <div class="ch-mobile-search" data-mobile-search hidden aria-hidden="true">
+      <div class="ch-mobile-search__bar neu-raised-sm" role="search">
+        <span class="ch-mobile-search__icon" data-icon="search" data-icon-size="18" aria-hidden="true"></span>
+        <input type="search" class="ch-mobile-search__input" inputmode="search"
+               autocomplete="off" spellcheck="false"
+               placeholder="Buscar clientes, processos, tarefas…"
+               aria-label="Buscar" data-mobile-search-input />
+        <button type="button" class="ch-mobile-search__close" data-mobile-search-close
+                aria-label="Fechar busca">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# Catálogo de rotas (fonte única rota→ícone p/ dropdown "Mais" e nav mobile).
+     Espelha core/v2_canonical_routes.py route_map; manter em sincronia. #}
+  <script type="application/json" data-route-catalog>
+  {
+    "prefix": {{ PREFIX|tojson }},
+    "active": {{ active_module|tojson }},
+    "tabs": [
+      {"key":"dashboard","label":"Painel","href":{{ (PREFIX ~ "/dashboard")|tojson }},"icon":"layout-dashboard","pinned":true},
+      {"key":"controladoria","label":"Controladoria","href":{{ (PREFIX ~ "/controladoria")|tojson }},"icon":"scale"},
+      {"key":"agenda","label":"Agenda","href":{{ (PREFIX ~ "/calendar")|tojson }},"icon":"calendar-days"},
+      {"key":"kanban","label":"Kanban","href":{{ (PREFIX ~ "/tasks/kanban")|tojson }},"icon":"kanban-square"},
+      {"key":"processes","label":"Processos","href":{{ (PREFIX ~ "/cases")|tojson }},"icon":"briefcase-business"},
+      {"key":"clients","label":"Clientes","href":{{ (PREFIX ~ "/clients")|tojson }},"icon":"users"},
+      {"key":"whatsapp","label":"WhatsApp","href":{{ (PREFIX ~ "/whatsapp-chat")|tojson }},"icon":"message-circle"},
+      {"key":"maestro","label":"Maestro","href":{{ (PREFIX ~ "/assistente")|tojson }},"icon":"sparkles"},
+      {"key":"md","label":"CaseHub.md","href":{{ (PREFIX ~ "/casehub-md")|tojson }},"icon":"file-pen-line"},
+      {"key":"billing","label":"Financeiro","href":{{ (PREFIX ~ "/billing")|tojson }},"icon":"wallet"},
+      {"key":"documents","label":"Drive","href":{{ (PREFIX ~ "/documents")|tojson }},"icon":"folder-open"}
+    ],
+    "extra": [
+      {"key":"reports","label":"Relatórios","href":{{ (PREFIX ~ "/reports")|tojson }},"icon":"chart-column"},
+      {"key":"invoices","label":"Faturas","href":{{ (PREFIX ~ "/invoices")|tojson }},"icon":"receipt-text"},
+      {"key":"payments","label":"Pagamentos","href":{{ (PREFIX ~ "/payments")|tojson }},"icon":"credit-card"},
+      {"key":"doc-templates","label":"Modelos de documentos","href":{{ (PREFIX ~ "/doc-templates")|tojson }},"icon":"file-stack"},
+      {"key":"notifications","label":"Notificações","href":{{ (PREFIX ~ "/notifications")|tojson }},"icon":"bell"},
+      {"key":"profile","label":"Perfil","href":{{ (PREFIX ~ "/profile")|tojson }},"icon":"user"},
+      {"key":"settings","label":"Configurações","href":{{ (PREFIX ~ "/settings")|tojson }},"icon":"settings"},
+      {"key":"integrations","label":"Integrações","href":{{ (PREFIX ~ "/integrations")|tojson }},"icon":"plug"},
+      {"key":"subscription","label":"Assinatura","href":{{ (PREFIX ~ "/subscription")|tojson }},"icon":"credit-card"},
+      {"key":"admin","label":"Admin","href":{{ (PREFIX ~ "/admin")|tojson }},"icon":"shield"}
+    ],
+    "routeMap": {{ (PREFIX ~ "/route-map")|tojson }}
+  }
+  </script>
+
+  {# Chat de equipe (#equipe) — widget retrátil org-scoped. Backend /api/team-chat (seguro). #}
+  <div class="tc-widget" data-team-chat>
+    <button type="button" class="tc-fab" data-tc-toggle aria-label="Chat da equipe" title="Chat da equipe">
+      <span aria-hidden="true">💬</span>
+      <span class="tc-fab__badge" data-tc-badge hidden>0</span>
+    </button>
+    <section class="tc-panel" data-tc-panel hidden aria-label="Chat da equipe">
+      <header class="tc-panel__head">
+        <strong data-tc-title>#equipe</strong>
+        <span class="tc-panel__spacer"></span>
+        <button type="button" class="tc-panel__icon" data-tc-members aria-label="Membros / nova conversa" title="Membros / nova conversa">👥</button>
+        <button type="button" class="tc-panel__icon" data-tc-min aria-label="Minimizar" title="Minimizar">–</button>
+        <button type="button" class="tc-panel__icon" data-tc-close aria-label="Fechar" title="Fechar">✕</button>
+      </header>
+      <div class="tc-channels" data-tc-channels></div>
+      <div class="tc-panel__list" data-tc-list aria-live="polite"></div>
+      <div class="tc-members" data-tc-members-panel hidden></div>
+      <form class="tc-panel__form" data-tc-form>
+        <button type="button" class="tc-panel__attach" data-tc-attach aria-label="Anexar" title="Anexar imagem, áudio ou arquivo">📎</button>
+        <input type="file" data-tc-file accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip" hidden />
+        <input class="tc-panel__input" data-tc-input maxlength="2000" placeholder="Mensagem para a equipe…" autocomplete="off" aria-label="Mensagem" />
+        <button type="submit" class="tc-panel__send" aria-label="Enviar">➤</button>
+      </form>
+    </section>
+  </div>
+  <style>
+  .tc-widget{position:fixed;right:16px;bottom:16px;z-index:1200}
+  .tc-fab{position:relative;width:52px;height:52px;border-radius:50%;border:0;cursor:pointer;background:var(--surface-card,#fff);box-shadow:var(--shadow-dark-sm,0 4px 14px rgba(0,0,0,.18)),var(--shadow-light-sm,0 1px 0 rgba(255,255,255,.6));font-size:22px;display:grid;place-items:center;transition:transform .15s ease}
+  .tc-fab:hover{transform:translateY(-2px)}
+  .tc-fab__badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--c-danger,#dc2626);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center}
+  .tc-panel{position:absolute;right:0;bottom:64px;width:340px;max-width:calc(100vw - 32px);height:460px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:var(--radius-lg,16px);box-shadow:var(--shadow-dark-md,0 12px 32px rgba(0,0,0,.22));overflow:hidden}
+  .tc-panel__head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line,#e5e7eb);flex:0 0 auto}
+  .tc-panel__head strong{color:var(--fg-default,#111);font-size:15px}
+  .tc-panel__sub{flex:1 1 auto;color:var(--fg-muted,#888);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tc-panel[hidden]{display:none}
+  .tc-fab__badge[hidden]{display:none}
+  .tc-panel__spacer{flex:1 1 auto}
+  .tc-panel__icon{border:0;background:none;cursor:pointer;color:var(--fg-muted,#888);font-size:18px;line-height:1;padding:0 5px}
+  .tc-panel__icon:hover{color:var(--fg-default,#111)}
+  .tc-channels{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;border-bottom:1px solid var(--line,#e5e7eb);flex:0 0 auto}
+  .tc-channels:empty{display:none}
+  .tc-chip{position:relative;flex:0 0 auto;border:1px solid var(--line,#e5e7eb);background:var(--surface-app,#f6f7f9);color:var(--fg-muted,#666);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap}
+  .tc-chip.is-active{background:color-mix(in srgb,var(--c-blue,#6D9EEB) 18%,transparent);color:var(--fg-default,#111);border-color:transparent;font-weight:700}
+  .tc-chip__dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c-danger,#dc2626);margin-left:5px;vertical-align:middle}
+  .tc-members{flex:1 1 auto;overflow-y:auto;padding:8px;background:var(--surface-card,#fff)}
+  .tc-members[hidden]{display:none}
+  .tc-members__head{color:var(--fg-muted,#888);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:4px 6px}
+  .tc-member{display:flex;align-items:center;gap:9px;width:100%;border:0;background:none;cursor:pointer;text-align:left;padding:9px 8px;border-radius:8px;color:var(--fg-default,#111);font-size:14px}
+  .tc-member:hover{background:var(--surface-app,#f6f7f9)}
+  .tc-member__dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%}
+  .tc-empty{color:var(--fg-muted,#888);font-size:13px;padding:14px;text-align:center}
+  .tc-panel__list{flex:1 1 auto;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface-app,#f6f7f9)}
+  .tc-msg{display:flex;flex-direction:column;align-items:flex-start;max-width:82%}
+  .tc-msg.is-mine{align-self:flex-end;align-items:flex-end}
+  .tc-msg__author{font-size:11px;font-weight:700;margin-bottom:1px}
+  .tc-msg__bubble{padding:7px 11px;border-radius:12px;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);color:var(--fg-default,#111);font-size:14px;line-height:1.35;word-break:break-word;white-space:pre-wrap}
+  .tc-msg.is-mine .tc-msg__bubble{background:color-mix(in srgb,var(--c-blue,#6D9EEB) 18%,transparent);border-color:transparent}
+  .tc-msg__time{font-size:10px;color:var(--fg-muted,#aaa);margin-top:2px}
+  .tc-panel__form{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line,#e5e7eb);flex:0 0 auto}
+  .tc-panel__input{flex:1 1 auto;min-width:0;padding:9px 12px;border:1px solid var(--line,#e5e7eb);border-radius:999px;background:var(--surface-app,#f6f7f9);color:var(--fg-default,#111);font-size:14px}
+  .tc-panel__send{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;background:var(--c-blue,#6D9EEB);color:#fff;font-size:15px}
+  .tc-panel__attach{flex:0 0 auto;width:34px;height:38px;border:0;background:none;cursor:pointer;font-size:18px;color:var(--fg-muted,#888)}
+  .tc-panel__attach:hover{color:var(--fg-default,#111)}
+  .tc-panel__attach:disabled{opacity:.5;cursor:default}
+  .tc-msg__img{max-width:200px;max-height:220px;border-radius:10px;display:block;cursor:pointer;border:1px solid var(--line,#e5e7eb)}
+  .tc-msg__audio{max-width:230px;height:36px}
+  .tc-msg__file{display:inline-flex;align-items:center;gap:6px;max-width:230px;padding:8px 11px;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:var(--surface-card,#fff);color:var(--c-blue,#6D9EEB);text-decoration:none;font-size:13px;word-break:break-all}
+  .tc-msg.is-mine .tc-msg__file{background:color-mix(in srgb,var(--c-blue,#6D9EEB) 14%,transparent)}
+  @media (max-width:879px){.tc-widget{bottom:74px}}
+  </style>
+  <script defer src="{{ asset_url('js/app/team-chat.js') }}"></script>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

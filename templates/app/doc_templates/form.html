@@ -1,0 +1,180 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% set is_edit = template_data is defined and template_data and template_data.id %}
+{% block title %}{% if is_edit %}Editar modelo · {{ template_data.name }}{% else %}Novo modelo{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Modelos ·
+      {% if is_edit %}Editando #{{ template_data.id }}{% else %}Novo modelo{% endif %}
+    </span>
+    <h1>
+      {% if is_edit %}
+        Editar <em>{{ template_data.name }}</em>
+      {% else %}
+        Criar <em>modelo</em>
+      {% endif %}
+    </h1>
+    <p class="ch-page-head__sub">
+      Use sintaxe Jinja2 para placeholders. Ex.: <code class="ch-mono">{{ '{{ client.full_name }}' }}</code>, <code class="ch-mono">{{ '{{ case.visa_type }}' }}</code>.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/templates">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<form method="post"
+      action="{% if is_edit %}{{ PREFIX }}/templates/{{ template_data.id }}/edit{% else %}{{ PREFIX }}/templates/new{% endif %}"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  {# ─── Identificação ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Identificação</span>
+        <h2 class="ch-card__title">Nome & categoria</h2>
+      </div>
+      <span data-icon="file" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="name">Nome do modelo <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input" id="name" name="name" type="text" required minlength="2"
+               value="{{ template_data.name if template_data else '' }}" autocomplete="off" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="category">Categoria <span style="color: var(--c-danger);">*</span></label>
+        <select class="ch-select" id="category" name="category" required>
+          <option value="contracts" {% if template_data and template_data.category == 'contracts' %}selected{% endif %}>Contratos</option>
+          <option value="uscis" {% if template_data and template_data.category == 'uscis' %}selected{% endif %}>USCIS</option>
+          <option value="client_communication" {% if template_data and template_data.category == 'client_communication' %}selected{% endif %}>Comunicação com cliente</option>
+          <option value="billing" {% if template_data and template_data.category == 'billing' %}selected{% endif %}>Cobrança</option>
+          <option value="other" {% if template_data and template_data.category == 'other' %}selected{% endif %}>Outro</option>
+        </select>
+      </div>
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="description">Descrição</label>
+      <input class="ch-input" id="description" name="description" type="text"
+             value="{{ template_data.description if template_data else '' }}"
+             placeholder="Resumo curto do propósito deste modelo" />
+    </div>
+  </article>
+
+  {# ─── Corpo ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Conteúdo</span>
+        <h2 class="ch-card__title">Corpo do modelo</h2>
+        <p class="ch-card__subtitle">Texto base com placeholders Jinja. Use as variáveis abaixo para campos dinâmicos.</p>
+      </div>
+      <span data-icon="docs" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="content">Corpo <span style="color: var(--c-danger);">*</span></label>
+      <textarea class="ch-textarea"
+                id="content"
+                name="content"
+                rows="22"
+                spellcheck="false"
+                required
+                style="font-family: var(--mono); line-height: 1.6; font-size: var(--fs-sm); min-height: 480px;">{{ template_data.content if template_data else '' }}</textarea>
+      <p style="margin-top: var(--space-2); font-size: var(--fs-xs); color: var(--fg-muted);">
+        Sintaxe Jinja2 · clique em uma variável ao lado para inserir no cursor.
+      </p>
+    </div>
+  </article>
+
+  {# ─── Placeholders disponíveis ─── #}
+  {% if placeholders %}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Variáveis</span>
+        <h2 class="ch-card__title">Placeholders disponíveis</h2>
+        <p class="ch-card__subtitle">Clique para inserir no corpo do modelo.</p>
+      </div>
+      <span data-icon="cube" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      {% for category, items in placeholders.items() %}
+      <div>
+        <div class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted); letter-spacing: 0.10em; text-transform: uppercase; margin-bottom: var(--space-2);">
+          {{ category }}
+        </div>
+        <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-1);">
+          {% for placeholder, desc in items %}
+          <li class="ch-placeholder"
+              role="button"
+              tabindex="0"
+              data-placeholder="{{ '{{' }} {{ placeholder }} {{ '}}' }}"
+              style="display: flex; flex-direction: column; gap: 2px; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer; background: var(--surface-soft); transition: background 120ms ease, border-color 120ms ease;"
+              onmouseover="this.style.background='var(--surface-raised)'; this.style.borderColor='var(--c-pollen)';"
+              onmouseout="this.style.background='var(--surface-soft)'; this.style.borderColor='var(--line)';">
+            <code class="ch-mono" style="font-size: var(--fs-xs); color: var(--c-green-d);">{{ '{{' }} {{ placeholder }} {{ '}}' }}</code>
+            <small style="color: var(--fg-muted); font-size: var(--fs-xs);">{{ desc }}</small>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+  {% endif %}
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      {% if is_edit %}
+        Atualizando modelo #{{ template_data.id }}
+      {% else %}
+        Novo modelo · sintaxe Jinja2
+      {% endif %}
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/templates">Cancelar</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span>
+        {% if is_edit %}Salvar alterações{% else %}Criar modelo{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+
+<script>
+(function () {
+  var textarea = document.getElementById('content');
+  if (!textarea) return;
+
+  function insertPlaceholder(placeholder) {
+    var start = textarea.selectionStart;
+    var end = textarea.selectionEnd;
+    var value = textarea.value;
+    textarea.value = value.substring(0, start) + placeholder + value.substring(end);
+    textarea.focus();
+    var pos = start + placeholder.length;
+    textarea.selectionStart = textarea.selectionEnd = pos;
+  }
+
+  document.querySelectorAll('.ch-placeholder').forEach(function (item) {
+    item.addEventListener('click', function () {
+      insertPlaceholder(this.dataset.placeholder);
+    });
+    item.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        insertPlaceholder(this.dataset.placeholder);
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

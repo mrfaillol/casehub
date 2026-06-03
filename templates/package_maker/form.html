@@ -1,0 +1,1791 @@
+{% extends "base.html" %}
+{% block title %}Package Maker - {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/package-maker-form.css">
+{% endblock %}
+{% block content %}
+<header class="pmf-page-header">
+    <div>
+        {% if case %}
+        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="pmf-back-link">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Case</span>
+        </a>
+        {% endif %}
+        <h1 class="pmf-title">
+            <i class="fas fa-box pmf-title-icon" aria-hidden="true"></i>
+            <span>Package Maker</span>
+        </h1>
+        <p class="pmf-subtitle">Build a USCIS immigration package with organized exhibits (Musheng Paradigm, A-M).</p>
+    </div>
+</header>
+
+{# ======== USCIS ONLINE FILING NOTICE ======== #}
+<section class="pmf-card pmf-card--info-notice" aria-labelledby="pmf-uscis-notice-title">
+    <div class="pmf-card-body">
+        <h2 id="pmf-uscis-notice-title" class="pmf-checklist-section-heading pmf-heading-info">
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
+            <span>USCIS Online Filing Now Available</span>
+        </h2>
+        <p class="pmf-note">As of 2024, USCIS accepts online filing for I-140 petitions through myUSCIS. Online filing may result in faster processing. This Package Maker is designed for <strong>mailing packages</strong> (paper filing with organized exhibits).</p>
+        <a href="https://www.uscis.gov/i-140" target="_blank" rel="noopener noreferrer" class="pmf-small-link">
+            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+            <span>File I-140 Online (USCIS)</span>
+        </a>
+    </div>
+</section>
+
+{# ======== DOCUMENT CHECKLIST ======== #}
+<section class="pmf-card" aria-labelledby="pmf-checklist-title">
+    <div class="pmf-card-header">
+        <h2 id="pmf-checklist-title" class="pmf-checklist-section-heading" style="margin:0;">
+            <i class="fas fa-clipboard-check" aria-hidden="true"></i>
+            <span>Document Checklist</span>
+        </h2>
+        <div class="pmf-card-header-actions">
+            <label class="pmf-hidden" for="checklistVisaType">Visa type for checklist</label>
+            <select class="pmf-select pmf-select--sm pmf-select--auto" id="checklistVisaType" onchange="loadChecklistTemplate()">
+                <option value="eb2-niw" selected>EB-2 NIW</option>
+                <option value="eb1a">EB-1A</option>
+                <option value="eb1b">EB-1B</option>
+                <option value="custom">Custom</option>
+            </select>
+        </div>
+    </div>
+    <div class="pmf-card-body">
+        <div class="pmf-checklist-tabs" role="tablist">
+            <button type="button" role="tab" aria-selected="true" aria-controls="checklistMailing" class="pmf-checklist-tab is-active" id="tabMailing" onclick="switchChecklistTab('mailing')">For Mailing</button>
+            <button type="button" role="tab" aria-selected="false" aria-controls="checklistOnline" class="pmf-checklist-tab" id="tabOnline" onclick="switchChecklistTab('online')">For Online Filing</button>
+        </div>
+
+        <div id="checklistMailing" role="tabpanel" aria-labelledby="tabMailing">
+            <div class="pmf-checklist-cols">
+                <div>
+                    <h3 class="pmf-checklist-section-heading pmf-heading-info">Exhibit A: USCIS Forms</h3>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Form I-140 (signed)</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Form G-28 (if represented)</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Form G-1145 (e-Notification)</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Filing Fee ($700 + $85 biometrics)</span></label>
+                    <label class="pmf-checklist-item pmf-eb1a"><input class="pmf-ck-item" type="checkbox"><span>Form I-907 (Premium Processing - optional)</span></label>
+
+                    <h3 class="pmf-checklist-section-heading pmf-heading-success">Exhibit B: Petition Letter</h3>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Cover Letter</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Table of Contents</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Legal Brief (Petition Letter)</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Exhibit List</span></label>
+
+                    <h3 class="pmf-checklist-section-heading pmf-heading-danger">Exhibit C: Self-Petitioner Information</h3>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Curriculum Vitae (CV)</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Personal Statement</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Passport Copy (bio page)</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>I-94 Record</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Diploma(s) + Transcripts</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Credential Evaluation (if foreign degree)</span></label>
+                </div>
+                <div>
+                    <h3 class="pmf-checklist-section-heading pmf-heading-muted">Exhibit D: Letters of Recommendation</h3>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>LOR #1 - Supervisor/Manager</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>LOR #2 - Colleague/Collaborator</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>LOR #3 - Industry Expert</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>LOR #4 - Academic/Professor</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>LOR #5 - Independent Expert</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>LOR #6 - Additional (optional)</span></label>
+
+                    <h3 class="pmf-checklist-section-heading pmf-heading-warning">Exhibit E: Employment Evidence</h3>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Employment verification letters</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>W-2 forms / Salary documentation</span></label>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Offer letters</span></label>
+
+                    <div class="pmf-eb1a">
+                        <h3 class="pmf-checklist-section-heading pmf-heading-info">Exhibit F: Memberships (EB-1A)</h3>
+                        <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Professional association memberships</span></label>
+                        <h3 class="pmf-checklist-section-heading pmf-heading-success">Exhibit G: Judging/Peer Review (EB-1A)</h3>
+                        <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Peer review records</span></label>
+                        <h3 class="pmf-checklist-section-heading pmf-heading-danger">Exhibit H: Original Contributions (EB-1A)</h3>
+                        <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Citations to published work</span></label>
+                        <h3 class="pmf-checklist-section-heading pmf-heading-muted">Exhibit I: Awards (EB-1A)</h3>
+                        <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Industry recognition / Awards</span></label>
+                        <h3 class="pmf-checklist-section-heading pmf-heading-warning">Exhibit J: Media Coverage (EB-1A)</h3>
+                        <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>News articles / Press releases</span></label>
+                    </div>
+
+                    <h3 class="pmf-checklist-section-heading">Exhibit M: Supporting Research</h3>
+                    <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Industry statistics / Research</span></label>
+                </div>
+            </div>
+
+            <div class="pmf-checklist-add">
+                <label class="pmf-hidden" for="customItemExhibit">Custom item exhibit</label>
+                <select class="pmf-select pmf-select--sm pmf-select--auto" id="customItemExhibit">
+                    {% for exhibit in exhibits %}<option value="{{ exhibit.letter }}">{{ exhibit.letter }}</option>{% endfor %}
+                </select>
+                <label class="pmf-hidden" for="customItemText">Custom item description</label>
+                <input type="text" class="pmf-input pmf-input--sm" id="customItemText" placeholder="Add custom document...">
+                <button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-accent pmf-btn--icon" onclick="addCustomChecklistItem()" aria-label="Add custom checklist item">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div id="customChecklistItems"></div>
+        </div>
+
+        <div id="checklistOnline" role="tabpanel" aria-labelledby="tabOnline" class="pmf-hidden">
+            <h3 class="pmf-checklist-section-heading">Required Documents</h3>
+            <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Passport Copy (clear, color scan)</span></label>
+            <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>I-94 Record (from CBP website)</span></label>
+            <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Petition Letter / Legal Brief (PDF)</span></label>
+            <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Personal Statement (PDF)</span></label>
+            <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>CV / Resume (PDF)</span></label>
+            <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Letters of Recommendation (all in one PDF)</span></label>
+            <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Educational Credentials</span></label>
+            <label class="pmf-checklist-item"><input class="pmf-ck-item" type="checkbox"><span>Employment Evidence</span></label>
+            <p class="pmf-note"><i class="fas fa-info-circle" aria-hidden="true"></i> Max 6MB per document. Formats: PDF, JPG, PNG. Max 100 pages per PDF.</p>
+        </div>
+
+        <div class="pmf-progress-wrap">
+            <small class="pmf-progress-label" id="packageChecklistProgress">0 / 0 items</small>
+            <div class="pmf-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Checklist completion">
+                <div id="packageChecklistBar" class="pmf-progress-bar pmf-progress-bar--low"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ======== PACKAGE TEMPLATE / VISA PRESET ======== #}
+<section class="pmf-card pmf-card--preset" id="presetPanel" aria-labelledby="pmf-preset-title">
+    <div class="pmf-card-header">
+        <h2 id="pmf-preset-title" class="pmf-checklist-section-heading" style="margin:0;">
+            <i class="fas fa-magic" aria-hidden="true"></i>
+            <span>Package Template</span>
+        </h2>
+        <div class="pmf-card-header-actions">
+            <label class="pmf-hidden" for="presetSelector">Visa preset</label>
+            <select class="pmf-select pmf-select--sm pmf-select--auto" id="presetSelector" onchange="previewPreset(this.value)">
+                <option value="">Select visa type preset...</option>
+            </select>
+            <button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-accent" onclick="applyPreset()" id="applyPresetBtn" disabled>
+                <i class="fas fa-check" aria-hidden="true"></i>
+                <span>Apply</span>
+            </button>
+            <div class="pmf-menu" id="presetMenu">
+                <button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost" aria-haspopup="true" aria-expanded="false" onclick="togglePresetMenu(event)">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>Custom</span>
+                    <i class="fas fa-caret-down" aria-hidden="true"></i>
+                </button>
+                <ul class="pmf-menu-list" role="menu">
+                    <li role="none"><button type="button" role="menuitem" class="pmf-menu-item" onclick="saveCustomTemplate()"><i class="fas fa-save" aria-hidden="true"></i> Save Current Config</button></li>
+                    <li role="none"><button type="button" role="menuitem" class="pmf-menu-item" onclick="showLoadTemplateModal()"><i class="fas fa-folder-open" aria-hidden="true"></i> Load Saved Template</button></li>
+                    <li role="none"><hr class="pmf-menu-divider"></li>
+                    <li role="none"><button type="button" role="menuitem" class="pmf-menu-item pmf-menu-item--danger" onclick="clearCustomTemplates()"><i class="fas fa-trash" aria-hidden="true"></i> Clear All Saved</button></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="pmf-card-body pmf-card-body--tight pmf-hidden" id="presetPreview">
+        <div class="pmf-preset-tags" id="presetExhibitTags"></div>
+        <div class="pmf-preset-info" id="presetInfo"></div>
+    </div>
+</section>
+
+{# ======== CASE DOCUMENT LIBRARY (shown when case_id is set) ======== #}
+<section class="pmf-card pmf-card--docs pmf-hidden" id="caseDocumentsPanel" aria-labelledby="pmf-docs-title">
+    <div class="pmf-card-header">
+        <h2 id="pmf-docs-title" class="pmf-checklist-section-heading" style="margin:0;">
+            <i class="fas fa-folder-open" aria-hidden="true"></i>
+            <span id="docPanelTitle">Case Documents</span>
+        </h2>
+        <div class="pmf-card-header-actions">
+            <span class="pmf-badge" id="docPanelStats">{% if product == "lite" %}Carregando...{% else %}Loading...{% endif %}</span>
+            <button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-success" onclick="autoAssignAll()" title="Select all documents with exhibit assignments">
+                <i class="fas fa-check-double" aria-hidden="true"></i>
+                <span>Auto-Assign All</span>
+            </button>
+            <button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-warning" onclick="batchClassify()" title="Run LLM classification on unassigned docs" id="batchClassifyBtn">
+                <i class="fas fa-brain" aria-hidden="true"></i>
+                <span>Smart Classify</span>
+            </button>
+            <button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost" onclick="clearAllDocs()" title="Deselect all documents">
+                <i class="fas fa-times" aria-hidden="true"></i>
+                <span>Clear All</span>
+            </button>
+        </div>
+    </div>
+    <div class="pmf-card-body" id="docPanelBody">
+        <div class="pmf-card-body--center">
+            <span class="pmf-spinner" role="status" aria-label="Loading"></span>
+            <span class="pmf-muted">Loading case documents...</span>
+        </div>
+    </div>
+    <div class="pmf-card-footer pmf-hidden" id="docPanelFooter">
+        <span class="pmf-muted" id="docPanelSelection">0 documents selected</span>
+        <button type="button" class="pmf-btn pmf-btn--success" onclick="buildFromLibrary()" id="buildFromLibraryBtn">
+            <i class="fas fa-layer-group" aria-hidden="true"></i>
+            <span>Organize Selected into Exhibits</span>
+        </button>
+    </div>
+</section>
+
+{# ======== INTAKE FORM DATA (shown when case_id is set) ======== #}
+<section class="pmf-card pmf-card--intake pmf-hidden" id="intakeDataPanel" aria-labelledby="pmf-intake-title">
+    <div class="pmf-card-header">
+        <h2 id="pmf-intake-title" class="pmf-checklist-section-heading" style="margin:0;">
+            <i class="fas fa-file-invoice" aria-hidden="true"></i>
+            <span id="intakePanelTitle">Intake Form Data</span>
+        </h2>
+        <span class="pmf-badge pmf-badge--info" id="intakePanelStats">{% if product == "lite" %}Carregando...{% else %}Loading...{% endif %}</span>
+    </div>
+    <div class="pmf-card-body" id="intakePanelBody">
+        <div class="pmf-card-body--center">
+            <span class="pmf-spinner" role="status" aria-label="Loading"></span>
+            <span class="pmf-muted">Loading intake data...</span>
+        </div>
+    </div>
+</section>
+
+{# ======== COVER PAGE & OPTIONS ======== #}
+<section class="pmf-card" aria-labelledby="pmf-cover-title">
+    <div class="pmf-card-header">
+        <h2 id="pmf-cover-title" class="pmf-checklist-section-heading" style="margin:0;">
+            <i class="fas fa-file-alt" aria-hidden="true"></i>
+            <span>Cover Page &amp; Options</span>
+        </h2>
+    </div>
+    <div class="pmf-card-body">
+        <div class="pmf-form-grid">
+            <div>
+                <label class="pmf-field-label" for="beneficiaryName">Beneficiary Name<span class="pmf-required-mark" aria-hidden="true">*</span></label>
+                <input type="text" class="pmf-input" id="beneficiaryName" required aria-required="true" value="{% if client %}{{ client.first_name }} {{ client.last_name }}{% endif %}">
+            </div>
+            <div>
+                <label class="pmf-field-label" for="caseType">Case Type</label>
+                <select class="pmf-select" id="caseType">
+                    <option value="EB-2 NIW" {% if case and case.visa_type == 'EB-2 NIW' %}selected{% endif %}>EB-2 NIW</option>
+                    <option value="EB-1A" {% if case and case.visa_type == 'EB-1A' %}selected{% endif %}>EB-1A</option>
+                    <option value="EB-1B" {% if case and case.visa_type == 'EB-1B' %}selected{% endif %}>EB-1B</option>
+                    <option value="O-1A" {% if case and case.visa_type == 'O-1A' %}selected{% endif %}>O-1A</option>
+                    <option value="Family-Based" {% if case and case.visa_type == 'Family-Based' %}selected{% endif %}>Family-Based</option>
+                </select>
+            </div>
+            <div>
+                <label class="pmf-field-label" for="caseNumber">Case Number <span class="pmf-muted">(optional)</span></label>
+                <input type="text" class="pmf-input" id="caseNumber" placeholder="CH-2026-001">
+            </div>
+            <div class="pmf-form-grid-full">
+                <div class="pmf-checkboxes">
+                    <label class="pmf-checkbox" for="includeCover"><input class="pmf-checkbox-input" type="checkbox" id="includeCover" checked><span>Include Cover Page</span></label>
+                    <label class="pmf-checkbox" for="includeToc"><input class="pmf-checkbox-input" type="checkbox" id="includeToc" checked><span>Include Table of Contents</span></label>
+                    <label class="pmf-checkbox" for="includeSeparators"><input class="pmf-checkbox-input" type="checkbox" id="includeSeparators" checked><span>Include Exhibit Separators</span></label>
+                    <label class="pmf-checkbox" for="addPageNumbers"><input class="pmf-checkbox-input" type="checkbox" id="addPageNumbers" checked><span>Add Page Numbers</span></label>
+                    <label class="pmf-checkbox" for="addWatermark"><input class="pmf-checkbox-input" type="checkbox" id="addWatermark"><span>Add DRAFT Watermark</span></label>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ======== TWO-PANEL: EXHIBIT SIDEBAR + CONTENT ======== #}
+<section class="pmf-card" aria-labelledby="pmf-organize-title">
+    <div class="pmf-card-header">
+        <h2 id="pmf-organize-title" class="pmf-checklist-section-heading" style="margin:0;">
+            <i class="fas fa-layer-group" aria-hidden="true"></i>
+            <span>Organize into Exhibits</span>
+        </h2>
+    </div>
+    <div class="pmf-card-body pmf-card-body--flush">
+        <div class="pmf-organize">
+            {# LEFT: EXHIBIT SIDEBAR #}
+            <nav class="pmf-exhibit-sidebar" aria-label="Exhibits">
+                {% for exhibit in exhibits %}
+                <button type="button" class="pmf-exhibit-item" id="exhibitItem-{{ exhibit.letter }}" onclick="selectExhibit('{{ exhibit.letter }}')" ondragover="onExhibitDragOver(event)" ondragleave="onExhibitDragLeave(event)" ondrop="onExhibitDrop(event, '{{ exhibit.letter }}')">
+                    <span class="pmf-exhibit-letter">{{ exhibit.letter }}</span>
+                    <span class="pmf-exhibit-name">{{ exhibit.name }}</span>
+                    <span class="pmf-exhibit-count" id="count-{{ exhibit.letter }}">0</span>
+                </button>
+                {% endfor %}
+            </nav>
+
+            {# RIGHT: CONTENT AREA #}
+            <div class="pmf-exhibit-pane">
+                <h3 id="currentExhibitTitle" class="pmf-exhibit-pane-title">Select an exhibit</h3>
+                <p class="pmf-exhibit-pane-desc" id="currentExhibitDesc">Click an exhibit on the left to start adding files.</p>
+
+                <button type="button" class="pmf-drop-zone" id="dropZone" onclick="document.getElementById('exhibitFiles').click()" aria-label="Upload files to exhibit">
+                    <i class="fas fa-cloud-upload-alt pmf-drop-zone-icon" aria-hidden="true"></i>
+                    <span>Drag &amp; drop files here, or click to browse</span>
+                    <small class="pmf-drop-zone-note">PDF and Images (JPG, PNG). Convert DOCX to PDF before uploading.</small>
+                </button>
+                <input type="file" id="exhibitFiles" multiple accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.tiff" class="pmf-hidden" onchange="handleExhibitUpload(this)">
+
+                <div id="exhibitDocuments" class="pmf-file-list"></div>
+
+                <div class="pmf-sep-card">
+                    <h4 class="pmf-sep-heading">Separator Page</h4>
+                    <div class="pmf-sep-row">
+                        <div>
+                            <label class="pmf-hidden" for="sepTitle">Separator title</label>
+                            <input type="text" class="pmf-input pmf-input--sm" id="sepTitle" placeholder="EXHIBIT A" oninput="updateSeparatorPreview()">
+                        </div>
+                        <div>
+                            <label class="pmf-hidden" for="sepSubtitle">Separator subtitle</label>
+                            <input type="text" class="pmf-input pmf-input--sm" id="sepSubtitle" placeholder="Forms" oninput="updateSeparatorPreview()">
+                        </div>
+                        <button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-accent" onclick="addSeparatorToExhibit()">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Add</span>
+                        </button>
+                    </div>
+                    <div class="pmf-sep-preview" id="separatorPreview">
+                        <div class="pmf-sep-title">EXHIBIT A</div>
+                        <div class="pmf-sep-subtitle">Forms</div>
+                    </div>
+                </div>
+
+                <div id="validationResult" class="pmf-hidden" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ======== ACTION BUTTONS ======== #}
+<div class="pmf-actions">
+    <button type="button" class="pmf-btn pmf-btn--ghost" onclick="saveDraft()">
+        <i class="fas fa-save" aria-hidden="true"></i>
+        <span>Save Draft</span>
+    </button>
+    <button type="button" class="pmf-btn pmf-btn--ghost" onclick="loadDraft()">
+        <i class="fas fa-folder-open" aria-hidden="true"></i>
+        <span>Load Draft</span>
+    </button>
+    <button type="button" class="pmf-btn pmf-btn--ghost-info" onclick="validatePackage()">
+        <i class="fas fa-check-double" aria-hidden="true"></i>
+        <span>Validate</span>
+    </button>
+    <button type="button" class="pmf-btn pmf-btn--primary pmf-btn--lg" id="buildBtn" onclick="buildPackage()">
+        <i class="fas fa-box" aria-hidden="true"></i>
+        <span>Build Package</span>
+    </button>
+</div>
+
+<section class="pmf-card pmf-hidden" id="loadingArea" aria-live="polite">
+    <div class="pmf-card-body pmf-card-body--center">
+        <span class="pmf-spinner pmf-spinner--lg" role="status" aria-label="Building"></span>
+        <p class="pmf-muted" style="margin:0;">Building package... This may take a moment.</p>
+    </div>
+</section>
+
+<section class="pmf-card pmf-card--success pmf-hidden" id="downloadArea" aria-live="polite">
+    <div class="pmf-card-body">
+        <h3 class="pmf-download-title">
+            <i class="fas fa-check-circle" aria-hidden="true"></i>
+            <span>Package Built Successfully</span>
+        </h3>
+        <p class="pmf-muted" id="downloadInfo"></p>
+        <a href="#" id="downloadLink" class="pmf-btn pmf-btn--success">
+            <i class="fas fa-download" aria-hidden="true"></i>
+            <span>Download PDF Package</span>
+        </a>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var PREFIX = '{{ PREFIX }}';
+var DRAFT_KEY = 'ilc_package_draft';
+var CHECKLIST_KEY = 'ilc_package_checklist_state';
+
+// Exhibit definitions
+var EXHIBITS = {
+    {% for exhibit in exhibits %}
+    '{{ exhibit.letter }}': {name: '{{ exhibit.name }}', desc: '{{ exhibit.description }}', required: {{ exhibit.required|tojson }}},
+    {% endfor %}
+};
+
+// Package state
+var packageState = {currentExhibit: null, exhibits: {}};
+for (var letter in EXHIBITS) { packageState.exhibits[letter] = {files: [], separator: null}; }
+
+// ======== CASE DOCUMENT LIBRARY STATE ========
+var caseDocuments = {
+    loaded: false,
+    docs: [],
+    byExhibit: {},
+    unassigned: [],
+    selected: new Set(),
+    caseInfo: null
+};
+
+function pctClassSuffix(pct) {
+    if (pct > 80) return 'high';
+    if (pct > 40) return 'med';
+    return 'low';
+}
+
+async function loadCaseDocuments(caseId) {
+    var panel = document.getElementById('caseDocumentsPanel');
+    panel.classList.remove('pmf-hidden');
+
+    try {
+        var res = await fetch(PREFIX + '/api/package/case-documents/' + caseId);
+        if (!res.ok) {
+            document.getElementById('docPanelBody').innerHTML = '<p class="pmf-heading-danger">Failed to load documents (HTTP ' + res.status + ')</p>';
+            return;
+        }
+        var data = await res.json();
+        caseDocuments.docs = data.documents || [];
+        caseDocuments.byExhibit = data.by_exhibit || {};
+        caseDocuments.unassigned = data.unassigned || [];
+        caseDocuments.caseInfo = data.case_info || {};
+        caseDocuments.loaded = true;
+
+        // Update header
+        var titleParts = [];
+        if (caseDocuments.caseInfo.client_name) titleParts.push(caseDocuments.caseInfo.client_name);
+        if (caseDocuments.caseInfo.case_type) titleParts.push('(' + caseDocuments.caseInfo.case_type + ')');
+        document.getElementById('docPanelTitle').textContent = 'Case Documents' + (titleParts.length ? ' — ' + titleParts.join(' ') : '');
+
+        var stats = data.stats || {};
+        document.getElementById('docPanelStats').textContent = stats.total + ' docs | ' + stats.with_exhibit + ' assigned | ' + stats.unassigned + ' unassigned';
+
+        // Auto-select all docs that have an exhibit assignment
+        caseDocuments.selected.clear();
+        caseDocuments.docs.forEach(function(doc) {
+            if (doc.suggested_exhibit && !doc.drive_only) {
+                caseDocuments.selected.add(doc.id);
+            }
+        });
+
+        renderDocumentPanel();
+        document.getElementById('docPanelFooter').classList.remove('pmf-hidden');
+    } catch (err) {
+        document.getElementById('docPanelBody').innerHTML = '<p class="pmf-heading-danger">Error: ' + escapeHtml(err.message) + '</p>';
+    }
+}
+
+function renderDocumentPanel() {
+    var html = '';
+    var exhibitLetters = Object.keys(EXHIBITS);
+
+    // Render each exhibit group that has documents
+    exhibitLetters.forEach(function(letter) {
+        var docs = caseDocuments.byExhibit[letter];
+        if (!docs || docs.length === 0) return;
+
+        var exhibitName = EXHIBITS[letter] ? EXHIBITS[letter].name : letter;
+        var selectedInGroup = docs.filter(function(d) { return caseDocuments.selected.has(d.id); }).length;
+
+        html += '<div class="pmf-doc-exhibit-group">';
+        html += '<button type="button" class="pmf-doc-exhibit-header" onclick="toggleExhibitGroup(this)" aria-expanded="true">';
+        html += '<span><i class="fas fa-chevron-down pmf-muted" aria-hidden="true"></i> <strong>Exhibit ' + letter + '</strong> — ' + escapeHtml(exhibitName) + ' <span class="pmf-badge pmf-badge--success">' + docs.length + ' docs</span></span>';
+        html += '<span class="pmf-muted">' + selectedInGroup + '/' + docs.length + ' selected</span>';
+        html += '</button>';
+        html += '<div class="pmf-doc-exhibit-docs">';
+        docs.forEach(function(doc) {
+            html += renderDocRow(doc);
+        });
+        html += '</div></div>';
+    });
+
+    // Unassigned group
+    if (caseDocuments.unassigned.length > 0) {
+        html += '<div class="pmf-doc-exhibit-group">';
+        html += '<button type="button" class="pmf-doc-exhibit-header pmf-doc-exhibit-header--unassigned" onclick="toggleExhibitGroup(this)" aria-expanded="true">';
+        html += '<span><i class="fas fa-chevron-down pmf-muted" aria-hidden="true"></i> <strong>Unassigned</strong> <span class="pmf-badge pmf-badge--warning">' + caseDocuments.unassigned.length + ' docs</span></span>';
+        html += '</button>';
+        html += '<div class="pmf-doc-exhibit-docs">';
+        caseDocuments.unassigned.forEach(function(doc) {
+            html += renderDocRow(doc, true);
+        });
+        html += '</div></div>';
+    }
+
+    if (caseDocuments.docs.length === 0) {
+        html = '<p class="pmf-muted">No documents found for this case.</p>';
+    }
+
+    document.getElementById('docPanelBody').innerHTML = html;
+    updateSelectionCount();
+}
+
+function renderDocRow(doc, showExhibitSelect) {
+    var isSelected = caseDocuments.selected.has(doc.id);
+    var isDriveOnly = doc.drive_only;
+    var conf = doc.classification_confidence;
+    var confClass = !conf ? 'pmf-confidence-none' : conf > 0.8 ? 'pmf-confidence-high' : conf > 0.5 ? 'pmf-confidence-med' : 'pmf-confidence-low';
+    var confTitle = !conf ? 'No classification' : 'Confidence: ' + (conf * 100).toFixed(0) + '%';
+
+    var html = '<div class="pmf-doc-row' + (isDriveOnly ? ' is-drive-only' : '') + '">';
+    if (isDriveOnly) {
+        html += '<input type="checkbox" disabled aria-label="Document unavailable (drive only)" title="Drive only — not available locally">';
+    } else {
+        html += '<input type="checkbox" ' + (isSelected ? 'checked' : '') + ' aria-label="Select document" onchange="toggleDoc(' + doc.id + ')">';
+    }
+    html += '<span class="pmf-confidence-dot ' + confClass + '" title="' + confTitle + '" aria-label="' + confTitle + '"></span>';
+    html += '<i class="fas fa-file-pdf pmf-muted" aria-hidden="true"></i>';
+    html += '<span class="pmf-doc-name" title="' + escapeHtml(doc.name) + '">' + escapeHtml(doc.name) + '</span>';
+    if (doc.doc_type) {
+        html += '<span class="pmf-badge pmf-badge--neutral">' + escapeHtml(doc.doc_type) + '</span>';
+    }
+    if (isDriveOnly) {
+        html += '<span class="pmf-badge">Drive only</span>';
+    }
+    html += '<span class="pmf-doc-size">' + formatSize(doc.file_size || 0) + '</span>';
+
+    if (showExhibitSelect) {
+        html += '<label class="pmf-hidden" for="pmf-doc-type-' + doc.id + '">Document type</label>';
+        html += '<select id="pmf-doc-type-' + doc.id + '" class="pmf-doc-select" onchange="manualClassify(' + doc.id + ', this.value)" title="Classify document type">';
+        html += '<option value="">Type...</option>';
+        DOCUMENT_TYPES.forEach(function(dt) {
+            html += '<option value="' + dt + '"' + (doc.doc_type === dt ? ' selected' : '') + '>' + dt + '</option>';
+        });
+        html += '</select>';
+        html += '<label class="pmf-hidden" for="pmf-doc-exhibit-' + doc.id + '">Exhibit assignment</label>';
+        html += '<select id="pmf-doc-exhibit-' + doc.id + '" class="pmf-doc-select" onchange="changeDocExhibit(' + doc.id + ', this.value)" title="Assign to exhibit">';
+        html += '<option value="">Exhibit</option>';
+        for (var letter in EXHIBITS) {
+            html += '<option value="' + letter + '">' + letter + '</option>';
+        }
+        html += '</select>';
+    }
+    html += '</div>';
+    return html;
+}
+
+function toggleExhibitGroup(header) {
+    var docs = header.nextElementSibling;
+    var icon = header.querySelector('.fas');
+    var expanded = header.getAttribute('aria-expanded') !== 'false';
+    if (expanded) {
+        docs.classList.add('pmf-hidden');
+        icon.className = 'fas fa-chevron-right pmf-muted';
+        header.setAttribute('aria-expanded', 'false');
+    } else {
+        docs.classList.remove('pmf-hidden');
+        icon.className = 'fas fa-chevron-down pmf-muted';
+        header.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function toggleDoc(docId) {
+    if (caseDocuments.selected.has(docId)) {
+        caseDocuments.selected.delete(docId);
+    } else {
+        caseDocuments.selected.add(docId);
+    }
+    updateSelectionCount();
+}
+
+function autoAssignAll() {
+    caseDocuments.selected.clear();
+    caseDocuments.docs.forEach(function(doc) {
+        if (!doc.drive_only) {
+            caseDocuments.selected.add(doc.id);
+        }
+    });
+    renderDocumentPanel();
+}
+
+function clearAllDocs() {
+    caseDocuments.selected.clear();
+    renderDocumentPanel();
+}
+
+function changeDocExhibit(docId, newExhibit) {
+    var docIndex = caseDocuments.unassigned.findIndex(function(d) { return d.id === docId; });
+    if (docIndex === -1) return;
+
+    var doc = caseDocuments.unassigned[docIndex];
+    doc.suggested_exhibit = newExhibit;
+
+    if (newExhibit) {
+        caseDocuments.unassigned.splice(docIndex, 1);
+        if (!caseDocuments.byExhibit[newExhibit]) caseDocuments.byExhibit[newExhibit] = [];
+        caseDocuments.byExhibit[newExhibit].push(doc);
+        if (!doc.drive_only) caseDocuments.selected.add(docId);
+    }
+
+    renderDocumentPanel();
+}
+
+// ======== INTAKE DATA PANEL ========
+var intakeData = { loaded: false, forms: [], summary: {} };
+
+async function loadIntakeData(caseId) {
+    var panel = document.getElementById('intakeDataPanel');
+    panel.classList.remove('pmf-hidden');
+
+    try {
+        var res = await fetch(PREFIX + '/api/package/intake-data/' + caseId);
+        if (!res.ok) {
+            document.getElementById('intakePanelBody').innerHTML = '<p class="pmf-muted">No intake data available.</p>';
+            return;
+        }
+        var data = await res.json();
+        intakeData.forms = data.forms || [];
+        intakeData.summary = data.summary || {};
+        intakeData.loaded = true;
+
+        var summary = data.summary || {};
+        document.getElementById('intakePanelStats').textContent =
+            summary.total_forms + ' forms | ' + summary.filled_fields + '/' + summary.total_fields + ' fields (' + summary.completion_pct + '%)';
+        document.getElementById('intakePanelTitle').textContent = 'Intake Form Data' + (data.client_name ? ' — ' + data.client_name : '');
+
+        if (intakeData.forms.length === 0) {
+            document.getElementById('intakePanelBody').innerHTML = '<p class="pmf-muted">No intake questionnaire responses found for this client. <a class="pmf-small-link" href="' + PREFIX + '/intake">Send intake forms</a>.</p>';
+            return;
+        }
+
+        var html = '<div class="pmf-intake-grid">';
+        intakeData.forms.forEach(function(form) {
+            var pctSuffix = pctClassSuffix(form.completion_pct);
+            html += '<button type="button" class="pmf-intake-card" onclick="toggleFormDetail(this, ' + form.response_id + ')">';
+            html += '<div class="pmf-intake-card-title">' + escapeHtml(form.template_name) + '</div>';
+            html += '<div class="pmf-intake-card-meta">';
+            html += '<span class="pmf-intake-badge pmf-intake-badge--' + pctSuffix + '">' + form.completion_pct + '% filled</span>';
+            html += '<span>' + form.filled_fields + '/' + form.total_fields + '</span>';
+            html += '</div>';
+            html += '<div class="pmf-intake-progress-track">';
+            html += '<div class="pmf-intake-progress-bar pmf-intake-progress-bar--' + pctSuffix + '" style="width:' + form.completion_pct + '%;"></div>';
+            html += '</div>';
+            if (form.status) {
+                html += '<span class="pmf-badge pmf-badge--neutral" style="margin-top:var(--space-1);">' + escapeHtml(form.status) + '</span>';
+            }
+            html += '</button>';
+        });
+        html += '</div>';
+        html += '<div id="formDetailView" class="pmf-intake-detail pmf-hidden"></div>';
+
+        html += '<div class="pmf-intake-actions">';
+        html += '<button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-info" onclick="generateFilledForms()" id="generateFormsBtn">';
+        html += '<i class="fas fa-magic" aria-hidden="true"></i><span>Generate Filled Forms</span></button>';
+        html += '<span class="pmf-generate-status" id="generateFormsStatus">Auto-fill USCIS forms with intake data</span>';
+        html += '</div>';
+        html += '<div id="generatedFormsArea" class="pmf-hidden"></div>';
+
+        document.getElementById('intakePanelBody').innerHTML = html;
+    } catch (err) {
+        document.getElementById('intakePanelBody').innerHTML = '<p class="pmf-muted">Could not load intake data.</p>';
+    }
+}
+
+function toggleFormDetail(card, responseId) {
+    var detail = document.getElementById('formDetailView');
+    var form = intakeData.forms.find(function(f) { return f.response_id === responseId; });
+    if (!form) return;
+
+    if (!detail.classList.contains('pmf-hidden') && detail.dataset.activeId == responseId) {
+        detail.classList.add('pmf-hidden');
+        return;
+    }
+
+    detail.dataset.activeId = responseId;
+    var data = form.data || {};
+    var keys = Object.keys(data).filter(function(k) { return data[k] && String(data[k]).trim(); });
+
+    var html = '<h4 class="pmf-intake-detail-title">' + escapeHtml(form.template_name) + ' — ' + keys.length + ' filled fields</h4>';
+    html += '<div class="pmf-intake-table-wrap">';
+    html += '<table class="pmf-intake-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
+    keys.sort().forEach(function(key) {
+        var val = String(data[key]);
+        if (val.length > 100) val = val.substring(0, 100) + '...';
+        html += '<tr><td><code>' + escapeHtml(key) + '</code></td><td>' + escapeHtml(val) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    detail.innerHTML = html;
+    detail.classList.remove('pmf-hidden');
+}
+
+// ======== GENERATE FILLED FORMS ========
+async function generateFilledForms() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var caseId = urlParams.get('case_id');
+    if (!caseId) { alert('No case selected.'); return; }
+
+    var btn = document.getElementById('generateFormsBtn');
+    var status = document.getElementById('generateFormsStatus');
+    var area = document.getElementById('generatedFormsArea');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Generating...</span>';
+    status.textContent = 'Filling forms with intake data...';
+    status.classList.remove('is-error');
+
+    try {
+        var visaType = document.getElementById('caseType').value || '';
+        var res = await fetch(PREFIX + '/api/package/generate-forms/' + caseId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ visa_type: visaType })
+        });
+
+        if (!res.ok) {
+            var err = await res.json().catch(function() { return {}; });
+            throw new Error(err.error || 'HTTP ' + res.status);
+        }
+
+        var data = await res.json();
+        status.textContent = data.forms_generated + '/' + data.forms_total + ' forms generated for ' + data.visa_type;
+
+        var html = '<div class="pmf-generated-grid">';
+        (data.results || []).forEach(function(r) {
+            var iconCls = r.success ? 'fa-check-circle pmf-generated-success' : 'fa-times-circle pmf-generated-failure';
+            html += '<div class="pmf-generated-card">';
+            html += '<div class="pmf-generated-card-title">';
+            html += '<i class="fas ' + iconCls + '" aria-hidden="true"></i>';
+            html += '<span>' + escapeHtml(r.form_name) + '</span>';
+            html += '</div>';
+            if (r.success) {
+                html += '<div class="pmf-generated-meta">' + r.method + ' | ' + r.filled_fields + '/' + r.total_mapped + ' fields (' + r.fill_pct + '%)</div>';
+                if (r.download_url) {
+                    html += '<a href="' + r.download_url + '" class="pmf-btn pmf-btn--sm pmf-btn--ghost-info" target="_blank" rel="noopener noreferrer" style="margin-top:var(--space-1);">';
+                    html += '<i class="fas fa-download" aria-hidden="true"></i><span>Download</span></a>';
+                }
+            } else {
+                html += '<div class="pmf-generated-meta pmf-heading-danger">' + escapeHtml(r.error || 'Failed') + '</div>';
+            }
+            if (r.note) {
+                html += '<div class="pmf-generated-note"><i class="fas fa-info-circle" aria-hidden="true"></i> ' + escapeHtml(r.note) + '</div>';
+            }
+            html += '</div>';
+        });
+        html += '</div>';
+        area.innerHTML = html;
+        area.classList.remove('pmf-hidden');
+
+        var formsAddedToExhibits = 0;
+        (data.results || []).forEach(function(r) {
+            if (r.success && r.filename) {
+                var existingIdx = packageState.exhibits['A'].files.findIndex(function(f) {
+                    return f.type === 'generated_form' && f.form_name === r.form_name;
+                });
+                if (existingIdx !== -1) {
+                    packageState.exhibits['A'].files.splice(existingIdx, 1);
+                }
+                packageState.exhibits['A'].files.push({
+                    type: 'generated_form',
+                    form_name: r.form_name,
+                    filename: r.filename,
+                    download_url: r.download_url + '?t=' + Date.now(),
+                    description: 'Form ' + r.form_name + ' (Auto-filled)',
+                    name: r.filename,
+                    size: 0,
+                    fill_pct: r.fill_pct || 0
+                });
+                formsAddedToExhibits++;
+            }
+        });
+        if (formsAddedToExhibits > 0) {
+            updateExhibitCount('A');
+            if (packageState.currentExhibit === 'A') renderExhibitDocuments();
+            status.textContent += ' | Added to Exhibit A';
+        }
+
+    } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+        status.classList.add('is-error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-magic" aria-hidden="true"></i><span>Generate Filled Forms</span>';
+    }
+}
+
+// ======== PACKAGE TEMPLATES & PRESETS ========
+var CUSTOM_TEMPLATES_KEY = 'ilc_package_templates';
+var activePreset = null;
+
+async function loadPresets() {
+    var selector = document.getElementById('presetSelector');
+    try {
+        var res = await fetch(PREFIX + '/api/package/presets');
+        if (!res.ok) return;
+        var data = await res.json();
+        (data.presets || []).forEach(function(p) {
+            var opt = document.createElement('option');
+            opt.value = p.visa_type;
+            opt.textContent = p.name + ' (' + p.required_exhibits.length + ' required, ' + p.enabled_exhibits.length + ' total)';
+            selector.appendChild(opt);
+        });
+
+        var caseTypeEl = document.getElementById('caseType');
+        if (caseTypeEl && caseTypeEl.value) {
+            var matchingPreset = (data.presets || []).find(function(p) { return p.visa_type === caseTypeEl.value; });
+            if (matchingPreset) {
+                selector.value = matchingPreset.visa_type;
+                previewPreset(matchingPreset.visa_type);
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load presets:', err);
+    }
+}
+
+async function previewPreset(visaType) {
+    var preview = document.getElementById('presetPreview');
+    var applyBtn = document.getElementById('applyPresetBtn');
+
+    if (!visaType) {
+        preview.classList.add('pmf-hidden');
+        applyBtn.disabled = true;
+        return;
+    }
+
+    try {
+        var res = await fetch(PREFIX + '/api/package/presets/' + encodeURIComponent(visaType));
+        if (!res.ok) return;
+        var data = await res.json();
+        activePreset = data;
+
+        var tagsHtml = '';
+        var exhibitLetters = Object.keys(EXHIBITS);
+        exhibitLetters.forEach(function(letter) {
+            var config = (data.exhibits || {})[letter] || {};
+            if (config.required) {
+                tagsHtml += '<span class="pmf-preset-tag pmf-preset-tag--required">' + letter + ' ' + EXHIBITS[letter].name + '</span>';
+            } else if (config.enabled) {
+                tagsHtml += '<span class="pmf-preset-tag pmf-preset-tag--optional">' + letter + ' ' + EXHIBITS[letter].name + '</span>';
+            } else {
+                tagsHtml += '<span class="pmf-preset-tag pmf-preset-tag--disabled">' + letter + '</span>';
+            }
+        });
+        document.getElementById('presetExhibitTags').innerHTML = tagsHtml;
+
+        var forms = (data.forms || []).join(', ') || 'None';
+        document.getElementById('presetInfo').textContent = 'Forms: ' + forms;
+
+        preview.classList.remove('pmf-hidden');
+        applyBtn.disabled = false;
+    } catch (err) {
+        console.error('Failed to preview preset:', err);
+    }
+}
+
+function applyPreset() {
+    if (!activePreset) return;
+
+    var caseTypeEl = document.getElementById('caseType');
+    if (activePreset.visa_type) {
+        for (var i = 0; i < caseTypeEl.options.length; i++) {
+            if (caseTypeEl.options[i].value === activePreset.visa_type) {
+                caseTypeEl.value = activePreset.visa_type;
+                break;
+            }
+        }
+    }
+
+    var exhibitLetters = Object.keys(EXHIBITS);
+    exhibitLetters.forEach(function(letter) {
+        var item = document.getElementById('exhibitItem-' + letter);
+        var config = (activePreset.exhibits || {})[letter] || {};
+        item.classList.remove('preset-required', 'preset-optional', 'preset-disabled');
+        if (config.required) {
+            item.classList.add('preset-required');
+        } else if (config.enabled) {
+            item.classList.add('preset-optional');
+        } else {
+            item.classList.add('preset-disabled');
+        }
+    });
+
+    if (caseDocuments.loaded) {
+        caseDocuments.selected.clear();
+        caseDocuments.docs.forEach(function(doc) {
+            if (doc.drive_only) return;
+            var exhibit = doc.suggested_exhibit;
+            if (!exhibit) return;
+            var config = (activePreset.exhibits || {})[exhibit] || {};
+            if (config.enabled || config.required) {
+                caseDocuments.selected.add(doc.id);
+            }
+        });
+        renderDocumentPanel();
+    }
+
+    var presetInfo = document.getElementById('presetInfo');
+    presetInfo.textContent = 'Preset applied: ' + activePreset.name + '. Green = required, Blue = optional, Grey = not used.';
+}
+
+function togglePresetMenu(event) {
+    event.stopPropagation();
+    var menu = document.getElementById('presetMenu');
+    var btn = menu.querySelector('[aria-haspopup]');
+    var open = menu.classList.toggle('is-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+document.addEventListener('click', function(e) {
+    var menu = document.getElementById('presetMenu');
+    if (!menu) return;
+    if (!menu.contains(e.target)) {
+        menu.classList.remove('is-open');
+        var btn = menu.querySelector('[aria-haspopup]');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+});
+
+function saveCustomTemplate() {
+    var name = prompt('Template name:');
+    if (!name || !name.trim()) return;
+    name = name.trim();
+
+    var exhibits = {};
+    var exhibitLetters = Object.keys(EXHIBITS);
+    exhibitLetters.forEach(function(letter) {
+        var item = document.getElementById('exhibitItem-' + letter);
+        var hasFiles = packageState.exhibits[letter].files.length > 0;
+        var hasLibDocs = (caseDocuments.byExhibit[letter] || []).some(function(d) { return caseDocuments.selected.has(d.id); });
+        exhibits[letter] = {
+            enabled: hasFiles || hasLibDocs || item.classList.contains('preset-required') || item.classList.contains('preset-optional'),
+            required: item.classList.contains('preset-required'),
+        };
+    });
+
+    var template = {
+        name: name,
+        created_at: new Date().toISOString(),
+        case_type: document.getElementById('caseType').value,
+        exhibits: exhibits,
+        options: {
+            includeCover: document.getElementById('includeCover').checked,
+            includeToc: document.getElementById('includeToc').checked,
+            includeSeparators: document.getElementById('includeSeparators').checked,
+            addPageNumbers: document.getElementById('addPageNumbers').checked,
+            addWatermark: document.getElementById('addWatermark').checked,
+        }
+    };
+
+    var templates = JSON.parse(localStorage.getItem(CUSTOM_TEMPLATES_KEY) || '[]');
+    templates.push(template);
+    localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(templates));
+    alert('Template "' + name + '" saved.');
+}
+
+function showLoadTemplateModal() {
+    var templates = JSON.parse(localStorage.getItem(CUSTOM_TEMPLATES_KEY) || '[]');
+    if (templates.length === 0) {
+        alert('No saved templates. Use "Save Current Config" to save one.');
+        return;
+    }
+
+    var options = templates.map(function(t, i) {
+        return (i + 1) + '. ' + t.name + ' (' + t.case_type + ', ' + new Date(t.created_at).toLocaleDateString() + ')';
+    }).join('\n');
+
+    var choice = prompt('Select template number:\n\n' + options);
+    if (!choice) return;
+    var idx = parseInt(choice) - 1;
+    if (idx < 0 || idx >= templates.length) { alert('Invalid selection.'); return; }
+
+    loadCustomTemplate(templates[idx]);
+}
+
+function loadCustomTemplate(template) {
+    if (template.case_type) {
+        document.getElementById('caseType').value = template.case_type;
+    }
+
+    if (template.options) {
+        document.getElementById('includeCover').checked = template.options.includeCover !== false;
+        document.getElementById('includeToc').checked = template.options.includeToc !== false;
+        document.getElementById('includeSeparators').checked = template.options.includeSeparators !== false;
+        document.getElementById('addPageNumbers').checked = template.options.addPageNumbers !== false;
+        document.getElementById('addWatermark').checked = template.options.addWatermark === true;
+    }
+
+    if (template.exhibits) {
+        var exhibitLetters = Object.keys(EXHIBITS);
+        exhibitLetters.forEach(function(letter) {
+            var item = document.getElementById('exhibitItem-' + letter);
+            var config = template.exhibits[letter] || {};
+            item.classList.remove('preset-required', 'preset-optional', 'preset-disabled');
+            if (config.required) {
+                item.classList.add('preset-required');
+            } else if (config.enabled) {
+                item.classList.add('preset-optional');
+            } else {
+                item.classList.add('preset-disabled');
+            }
+        });
+    }
+
+    alert('Template "' + template.name + '" loaded.');
+}
+
+function clearCustomTemplates() {
+    if (!confirm('Delete all saved custom templates?')) return;
+    localStorage.removeItem(CUSTOM_TEMPLATES_KEY);
+    alert('Custom templates cleared.');
+}
+
+// Document types for manual classification dropdown
+var DOCUMENT_TYPES = [
+    "Passport", "I-94 Travel Record", "Visa", "EAD Card", "Green Card",
+    "Birth Certificate", "Marriage Certificate", "Diploma", "Academic Transcript",
+    "Employment Letter", "Employment Contract", "Tax Return", "Pay Stub", "Financial Statement",
+    "Letter of Recommendation", "Resume/CV", "Award/Recognition", "Professional Membership",
+    "Publication", "Supporting Evidence", "USCIS Form",
+    "Receipt Notice", "Approval Notice", "Request for Evidence", "Personal Statement",
+    "Medical Records", "Police Certificate", "Portfolio/Work Samples", "Photo",
+    "Other Document"
+];
+
+async function manualClassify(docId, newDocType) {
+    if (!newDocType) return;
+    try {
+        var res = await fetch(PREFIX + '/api/package/classify-doc/' + docId, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({doc_type: newDocType})
+        });
+        if (!res.ok) {
+            alert('Classification failed: HTTP ' + res.status);
+            return;
+        }
+        var data = await res.json();
+        if (data.success) {
+            var doc = caseDocuments.docs.find(function(d) { return d.id === docId; });
+            if (doc) {
+                doc.doc_type = data.doc_type;
+                doc.suggested_exhibit = data.suggested_exhibit;
+                doc.classification_confidence = 1.0;
+                if (data.suggested_exhibit) {
+                    var idx = caseDocuments.unassigned.findIndex(function(d) { return d.id === docId; });
+                    if (idx !== -1) {
+                        caseDocuments.unassigned.splice(idx, 1);
+                        if (!caseDocuments.byExhibit[data.suggested_exhibit]) caseDocuments.byExhibit[data.suggested_exhibit] = [];
+                        caseDocuments.byExhibit[data.suggested_exhibit].push(doc);
+                        if (!doc.drive_only) caseDocuments.selected.add(docId);
+                    }
+                }
+            }
+            renderDocumentPanel();
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function batchClassify() {
+    var urlParams = new URLSearchParams(window.location.search);
+    var caseId = urlParams.get('case_id');
+    if (!caseId) return;
+
+    var unassignedCount = caseDocuments.unassigned.length;
+    var otherCount = caseDocuments.docs.filter(function(d) { return d.doc_type === 'Other Document'; }).length;
+    var toClassify = unassignedCount + otherCount;
+    if (toClassify === 0) {
+        alert('All documents are already classified.');
+        return;
+    }
+
+    var btn = document.getElementById('batchClassifyBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Classifying ' + toClassify + ' docs...</span>';
+
+    try {
+        var res = await fetch(PREFIX + '/api/package/batch-classify/' + caseId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        if (!res.ok) {
+            alert('Batch classify failed: HTTP ' + res.status);
+            return;
+        }
+        var data = await res.json();
+        alert('Classified ' + data.classified + '/' + data.total + ' documents' + (data.failed > 0 ? ' (' + data.failed + ' failed)' : ''));
+
+        loadCaseDocuments(caseId);
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-brain" aria-hidden="true"></i><span>Smart Classify</span>';
+    }
+}
+
+function updateSelectionCount() {
+    var count = caseDocuments.selected.size;
+    var totalSize = 0;
+    caseDocuments.docs.forEach(function(doc) {
+        if (caseDocuments.selected.has(doc.id) && doc.file_size) {
+            totalSize += doc.file_size;
+        }
+    });
+    document.getElementById('docPanelSelection').textContent = count + ' documents selected | Est. size: ' + formatSize(totalSize);
+}
+
+function clearServerFilesFromExhibits() {
+    for (var letter in packageState.exhibits) {
+        packageState.exhibits[letter].files = packageState.exhibits[letter].files.filter(function(f) {
+            return f instanceof File || f.type === 'generated_form' || f.type === 'intake_summary';
+        });
+        updateExhibitCount(letter);
+    }
+}
+
+async function buildFromLibrary() {
+    var nameInput = document.getElementById('beneficiaryName');
+    if (!nameInput.value && caseDocuments.caseInfo && caseDocuments.caseInfo.client_name) {
+        nameInput.value = caseDocuments.caseInfo.client_name;
+    }
+    if (caseDocuments.caseInfo && caseDocuments.caseInfo.case_type) {
+        var caseTypeSelect = document.getElementById('caseType');
+        for (var i = 0; i < caseTypeSelect.options.length; i++) {
+            if (caseTypeSelect.options[i].value === caseDocuments.caseInfo.case_type) {
+                caseTypeSelect.value = caseDocuments.caseInfo.case_type;
+                break;
+            }
+        }
+    }
+
+    if (caseDocuments.selected.size === 0) {
+        alert('Please select at least one document from the library.');
+        return;
+    }
+
+    var btn = document.getElementById('buildFromLibraryBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Organizing...</span>';
+
+    try {
+        clearServerFilesFromExhibits();
+
+        var addedByExhibit = {};
+        caseDocuments.selected.forEach(function(docId) {
+            var doc = caseDocuments.docs.find(function(d) { return d.id === docId; });
+            if (!doc) return;
+            var exhibit = doc.suggested_exhibit || 'M';
+            if (!packageState.exhibits[exhibit]) exhibit = 'M';
+            packageState.exhibits[exhibit].files.push({
+                type: 'server',
+                doc_id: doc.id,
+                name: doc.name,
+                size: doc.file_size || 0,
+                exhibit: exhibit,
+                description: doc.name,
+                doc_type: doc.doc_type
+            });
+            addedByExhibit[exhibit] = (addedByExhibit[exhibit] || 0) + 1;
+        });
+
+        var formsAdded = 0;
+        var urlParams = new URLSearchParams(window.location.search);
+        var caseId = urlParams.get('case_id');
+        if (caseId) {
+            try {
+                var formsRes = await fetch(PREFIX + '/api/package/generate-forms/' + caseId, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                if (formsRes.ok) {
+                    var formsData = await formsRes.json();
+                    (formsData.results || []).forEach(function(form) {
+                        if (form.success && form.filename) {
+                            var existingIdx = packageState.exhibits['A'].files.findIndex(function(f) {
+                                return f.type === 'generated_form' && f.form_name === form.form_name;
+                            });
+                            if (existingIdx !== -1) {
+                                packageState.exhibits['A'].files.splice(existingIdx, 1);
+                            }
+                            packageState.exhibits['A'].files.push({
+                                type: 'generated_form',
+                                form_name: form.form_name,
+                                filename: form.filename,
+                                download_url: form.download_url + '?t=' + Date.now(),
+                                description: 'Form ' + form.form_name + ' (Auto-filled)',
+                                name: form.filename,
+                                size: 0,
+                                fill_pct: form.fill_pct || 0
+                            });
+                            formsAdded++;
+                        }
+                    });
+                }
+            } catch (formErr) {
+                console.error('Could not generate USCIS forms:', formErr);
+            }
+        }
+
+        if (intakeData.loaded && intakeData.forms && intakeData.forms.length > 0) {
+            packageState.exhibits['C'].files.push({
+                type: 'intake_summary',
+                name: 'Intake Questionnaire Summary',
+                description: (intakeData.summary.filled_fields || 0) + '/' + (intakeData.summary.total_fields || 0) + ' fields',
+                size: 0,
+                completion_pct: intakeData.summary.completion_pct || 0
+            });
+        }
+
+        for (var letter in packageState.exhibits) {
+            updateExhibitCount(letter);
+        }
+
+        var firstWithFiles = null;
+        for (var letter in packageState.exhibits) {
+            if (packageState.exhibits[letter].files.length > 0) {
+                firstWithFiles = letter;
+                break;
+            }
+        }
+        if (firstWithFiles) selectExhibit(firstWithFiles);
+
+        var organizeCard = document.querySelector('.pmf-exhibit-sidebar');
+        if (organizeCard) organizeCard.closest('.pmf-card').scrollIntoView({behavior: 'smooth'});
+
+        var totalDocs = caseDocuments.selected.size;
+        var exhibitCount = Object.keys(addedByExhibit).length;
+        var msg = totalDocs + ' document(s) organized into ' + exhibitCount + ' exhibit(s).';
+        if (formsAdded > 0) msg += '\n' + formsAdded + ' USCIS form(s) auto-generated in Exhibit A.';
+        msg += '\n\nReview the exhibits below, then click "Build Package" when ready.';
+        alert(msg);
+
+    } catch (err) {
+        alert('Error organizing documents: ' + err.message);
+        console.error(err);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-layer-group" aria-hidden="true"></i><span>Organize Selected into Exhibits</span>';
+    }
+}
+
+// ======== EXHIBIT SELECTION ========
+function selectExhibit(letter) {
+    packageState.currentExhibit = letter;
+    document.querySelectorAll('.pmf-exhibit-item').forEach(function(el) { el.classList.remove('is-selected'); });
+    document.getElementById('exhibitItem-' + letter).classList.add('is-selected');
+    document.getElementById('currentExhibitTitle').textContent = 'Exhibit ' + letter + ' - ' + EXHIBITS[letter].name;
+    document.getElementById('currentExhibitDesc').textContent = EXHIBITS[letter].desc;
+    document.getElementById('sepTitle').value = 'EXHIBIT ' + letter;
+    document.getElementById('sepSubtitle').value = EXHIBITS[letter].name;
+    updateSeparatorPreview();
+    renderExhibitDocuments();
+}
+
+// ======== FILE UPLOAD ========
+var dropZone = document.getElementById('dropZone');
+if (dropZone) {
+    dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('is-dragover'); });
+    dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('is-dragover'); });
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault(); dropZone.classList.remove('is-dragover');
+        if (packageState.currentExhibit) handleFiles(e.dataTransfer.files);
+        else alert('Please select an exhibit first.');
+    });
+}
+
+function handleExhibitUpload(input) {
+    if (!packageState.currentExhibit) { alert('Please select an exhibit first.'); return; }
+    handleFiles(input.files);
+    input.value = '';
+}
+
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+var ALLOWED_TYPES = ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff'];
+var MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
+
+function handleFiles(files) {
+    var letter = packageState.currentExhibit;
+    var rejected = [];
+    for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        var ext = '.' + f.name.split('.').pop().toLowerCase();
+        if (ALLOWED_TYPES.indexOf(ext) === -1) {
+            rejected.push(f.name + ' (unsupported format - convert to PDF first)');
+            continue;
+        }
+        if (f.size > MAX_FILE_SIZE) {
+            rejected.push(f.name + ' (exceeds 50MB limit)');
+            continue;
+        }
+        packageState.exhibits[letter].files.push(f);
+    }
+    updateExhibitCount(letter);
+    renderExhibitDocuments();
+    if (rejected.length > 0) {
+        alert('Some files were not added:\n\n' + rejected.join('\n'));
+    }
+}
+
+function updateExhibitCount(letter) {
+    var count = packageState.exhibits[letter].files.length;
+    var el = document.getElementById('count-' + letter);
+    el.textContent = count;
+    el.className = 'pmf-exhibit-count' + (count > 0 ? ' has' : '');
+    var item = document.getElementById('exhibitItem-' + letter);
+    if (count > 0) item.classList.add('has-files');
+    else item.classList.remove('has-files');
+}
+
+function renderExhibitDocuments() {
+    var letter = packageState.currentExhibit;
+    if (!letter) return;
+    var files = packageState.exhibits[letter].files;
+    var sep = packageState.exhibits[letter].separator;
+    var html = '';
+
+    if (sep) {
+        html += '<div class="pmf-file-item pmf-file-item--separator"><span><strong>SEPARATOR:</strong> ' + escapeHtml(sep.title) + ' - ' + escapeHtml(sep.subtitle) + '</span>';
+        html += '<button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-danger pmf-btn--icon" onclick="removeSeparator()" aria-label="Remove separator"><i class="fas fa-times" aria-hidden="true"></i></button></div>';
+    }
+
+    files.forEach(function(f, idx) {
+        var iconHtml, nameText, sizeText, badges = '', previewBtn = '', previewUrl = '';
+
+        if (f.type === 'server') {
+            iconHtml = '<i class="fas fa-database pmf-icon-server" aria-hidden="true"></i>';
+            nameText = escapeHtml(f.name);
+            sizeText = formatSize(f.size);
+            if (f.doc_type) badges += ' <span class="pmf-badge pmf-badge--neutral">' + escapeHtml(f.doc_type) + '</span>';
+            previewUrl = PREFIX + '/documents/' + f.doc_id + '/preview';
+            previewBtn = '<button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-accent pmf-btn--icon" onclick="toggleInlinePreview(' + idx + ', \'' + previewUrl + '\')" aria-label="Toggle preview"><i class="fas fa-eye" aria-hidden="true"></i></button>';
+        } else if (f.type === 'generated_form') {
+            iconHtml = '<i class="fas fa-file-invoice pmf-icon-form" aria-hidden="true"></i>';
+            nameText = escapeHtml(f.description || f.form_name);
+            sizeText = (f.fill_pct || 0) + '% filled';
+            badges += ' <span class="pmf-badge pmf-badge--info">Auto-generated</span>';
+            if (f.download_url) {
+                previewUrl = f.download_url;
+                previewBtn = '<button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-info pmf-btn--icon" onclick="toggleInlinePreview(' + idx + ', \'' + previewUrl + '\')" aria-label="Toggle preview"><i class="fas fa-eye" aria-hidden="true"></i></button>';
+            }
+        } else if (f.type === 'intake_summary') {
+            iconHtml = '<i class="fas fa-clipboard-list pmf-icon-intake" aria-hidden="true"></i>';
+            nameText = escapeHtml(f.name);
+            sizeText = (f.completion_pct || 0) + '% complete';
+            badges += ' <span class="pmf-badge pmf-badge--warning">Intake Data</span>';
+        } else {
+            iconHtml = '<i class="fas fa-file pmf-icon-file" aria-hidden="true"></i>';
+            nameText = escapeHtml(f.name);
+            sizeText = formatSize(f.size);
+            if (f.type && f.type.startsWith('application/pdf')) {
+                previewUrl = URL.createObjectURL(f);
+                previewBtn = '<button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost pmf-btn--icon" onclick="toggleInlinePreview(' + idx + ', \'' + previewUrl + '\')" aria-label="Toggle preview"><i class="fas fa-eye" aria-hidden="true"></i></button>';
+            }
+        }
+
+        html += '<div class="pmf-file-item" draggable="true" ondragstart="onFileDragStart(event, ' + idx + ')">';
+        html += '<span class="pmf-file-item-label">' + iconHtml + ' <span class="pmf-file-item-name">' + nameText + '</span> <span class="pmf-file-item-meta">(' + sizeText + ')</span>' + badges + '</span>';
+        html += '<span class="pmf-file-item-actions">' + previewBtn;
+        html += '<button type="button" class="pmf-btn pmf-btn--sm pmf-btn--ghost-danger pmf-btn--icon" onclick="removeDocument(' + idx + ')" aria-label="Remove document"><i class="fas fa-times" aria-hidden="true"></i></button>';
+        html += '</span></div>';
+        html += '<div id="previewFrame-' + idx + '" class="pmf-preview-frame">';
+        html += '<iframe class="pmf-preview-iframe" title="Document preview" src="about:blank"></iframe>';
+        html += '</div>';
+    });
+
+    document.getElementById('exhibitDocuments').innerHTML = html || '<p class="pmf-muted">No files added to this exhibit yet.</p>';
+}
+
+function removeDocument(idx) {
+    var letter = packageState.currentExhibit;
+    packageState.exhibits[letter].files.splice(idx, 1);
+    updateExhibitCount(letter);
+    renderExhibitDocuments();
+}
+
+function removeSeparator() {
+    packageState.exhibits[packageState.currentExhibit].separator = null;
+    renderExhibitDocuments();
+}
+
+// ======== DRAG-AND-DROP BETWEEN EXHIBITS ========
+function onFileDragStart(e, idx) {
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+        sourceExhibit: packageState.currentExhibit,
+        fileIndex: idx
+    }));
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function onExhibitDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('is-dragover');
+}
+
+function onExhibitDragLeave(e) {
+    e.currentTarget.classList.remove('is-dragover');
+}
+
+function onExhibitDrop(e, targetExhibit) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('is-dragover');
+    try {
+        var data = JSON.parse(e.dataTransfer.getData('text/plain'));
+        var sourceExhibit = data.sourceExhibit;
+        var fileIndex = data.fileIndex;
+        if (sourceExhibit === targetExhibit) return;
+        var file = packageState.exhibits[sourceExhibit].files.splice(fileIndex, 1)[0];
+        if (file.type === 'server') file.exhibit = targetExhibit;
+        packageState.exhibits[targetExhibit].files.push(file);
+        updateExhibitCount(sourceExhibit);
+        updateExhibitCount(targetExhibit);
+        if (packageState.currentExhibit === sourceExhibit || packageState.currentExhibit === targetExhibit) {
+            renderExhibitDocuments();
+        }
+    } catch(err) {
+        console.error('Drop error:', err);
+    }
+}
+
+// ======== INLINE PREVIEW ========
+function toggleInlinePreview(idx, url) {
+    var container = document.getElementById('previewFrame-' + idx);
+    if (!container) return;
+    var iframe = container.querySelector('iframe');
+    if (container.style.display === 'none' || !container.style.display) {
+        iframe.src = url;
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+        iframe.src = 'about:blank';
+    }
+}
+
+// ======== SEPARATOR ========
+function updateSeparatorPreview() {
+    var title = document.getElementById('sepTitle').value || 'EXHIBIT A';
+    var subtitle = document.getElementById('sepSubtitle').value || 'Forms';
+    var preview = document.getElementById('separatorPreview');
+    preview.innerHTML = '<div class="pmf-sep-title">' + escapeHtml(title) + '</div><div class="pmf-sep-subtitle">' + escapeHtml(subtitle) + '</div>';
+}
+
+function addSeparatorToExhibit() {
+    if (!packageState.currentExhibit) { alert('Select an exhibit first.'); return; }
+    packageState.exhibits[packageState.currentExhibit].separator = {
+        title: document.getElementById('sepTitle').value,
+        subtitle: document.getElementById('sepSubtitle').value
+    };
+    renderExhibitDocuments();
+}
+
+// ======== CHECKLIST ========
+function loadChecklistTemplate() {
+    var visaType = document.getElementById('checklistVisaType').value;
+    var eb1aItems = document.querySelectorAll('.pmf-eb1a');
+    eb1aItems.forEach(function(el) {
+        if (visaType === 'eb1a' || visaType === 'custom') {
+            el.classList.remove('pmf-eb1a-hidden');
+        } else {
+            el.classList.add('pmf-eb1a-hidden');
+        }
+    });
+    updatePackageChecklistProgress();
+}
+
+function switchChecklistTab(tab) {
+    var mailing = document.getElementById('checklistMailing');
+    var online = document.getElementById('checklistOnline');
+    var tabMailing = document.getElementById('tabMailing');
+    var tabOnline = document.getElementById('tabOnline');
+
+    if (tab === 'mailing') {
+        mailing.classList.remove('pmf-hidden');
+        online.classList.add('pmf-hidden');
+        tabMailing.classList.add('is-active');
+        tabOnline.classList.remove('is-active');
+        tabMailing.setAttribute('aria-selected', 'true');
+        tabOnline.setAttribute('aria-selected', 'false');
+    } else {
+        mailing.classList.add('pmf-hidden');
+        online.classList.remove('pmf-hidden');
+        tabMailing.classList.remove('is-active');
+        tabOnline.classList.add('is-active');
+        tabMailing.setAttribute('aria-selected', 'false');
+        tabOnline.setAttribute('aria-selected', 'true');
+    }
+    updatePackageChecklistProgress();
+}
+
+function addCustomChecklistItem() {
+    var exhibit = document.getElementById('customItemExhibit').value;
+    var text = document.getElementById('customItemText').value.trim();
+    if (!text) return;
+    var container = document.getElementById('customChecklistItems');
+    var label = document.createElement('label');
+    label.className = 'pmf-checklist-item';
+    label.innerHTML = '<input class="pmf-ck-item" type="checkbox" onchange="updatePackageChecklistProgress()"><span>[' + escapeHtml(exhibit) + '] ' + escapeHtml(text) + '</span>';
+    container.appendChild(label);
+    document.getElementById('customItemText').value = '';
+    updatePackageChecklistProgress();
+}
+
+function updatePackageChecklistProgress() {
+    var visible = document.querySelectorAll('.pmf-ck-item');
+    var total = 0, checked = 0;
+    visible.forEach(function(el) {
+        var hiddenEb1a = el.closest('.pmf-eb1a');
+        if (hiddenEb1a && hiddenEb1a.classList.contains('pmf-eb1a-hidden')) return;
+        var hiddenMailing = el.closest('#checklistMailing');
+        if (hiddenMailing && hiddenMailing.classList.contains('pmf-hidden')) return;
+        var hiddenOnline = el.closest('#checklistOnline');
+        if (hiddenOnline && hiddenOnline.classList.contains('pmf-hidden')) return;
+        total++;
+        if (el.checked) checked++;
+    });
+    document.getElementById('packageChecklistProgress').textContent = checked + ' / ' + total + ' items';
+    var pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+    var bar = document.getElementById('packageChecklistBar');
+    bar.style.width = pct + '%';
+    bar.classList.remove('pmf-progress-bar--low', 'pmf-progress-bar--med', 'pmf-progress-bar--high');
+    if (pct < 30) bar.classList.add('pmf-progress-bar--low');
+    else if (pct < 80) bar.classList.add('pmf-progress-bar--med');
+    else bar.classList.add('pmf-progress-bar--high');
+    var track = bar.parentElement;
+    if (track && track.setAttribute) track.setAttribute('aria-valuenow', pct);
+}
+
+// ======== VALIDATION ========
+async function validatePackage() {
+    var structure = buildStructureJSON();
+    if (structure.length === 0) { alert('No files assigned to any exhibit.'); return; }
+
+    try {
+        var res = await fetch(PREFIX + '/api/package/validate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({structure: structure})
+        });
+        if (!res.ok) {
+            if (res.status === 401 || res.status === 403 || res.redirected) {
+                alert('Session expired. Please log in again.');
+                window.location.href = PREFIX + '/login';
+                return;
+            }
+            var errText = await res.text().catch(function() { return ''; });
+            alert('Server error (' + res.status + '). Please try again.');
+            return;
+        }
+        var data = await res.json();
+        renderValidation(data);
+    } catch (err) { alert('Validation error: ' + err.message); }
+}
+
+function renderValidation(data) {
+    var el = document.getElementById('validationResult');
+    var html = '';
+    if (data.valid) {
+        html += '<div class="pmf-validation-box pmf-validation-box--success"><span class="pmf-validation-title pmf-validation-title--success">Package Valid</span><p class="pmf-validation-note pmf-muted">All required exhibits are present.</p></div>';
+    }
+    if (data.issues && data.issues.length) {
+        html += '<div class="pmf-validation-box pmf-validation-box--error"><span class="pmf-validation-title pmf-validation-title--error">Issues Found</span><ul class="pmf-validation-list">';
+        data.issues.forEach(function(i) { html += '<li>' + escapeHtml(i.message) + '</li>'; });
+        html += '</ul></div>';
+    }
+    if (data.warnings && data.warnings.length) {
+        html += '<div class="pmf-validation-box pmf-validation-box--warning"><span class="pmf-validation-title pmf-validation-title--warning">Recommendations</span><ul class="pmf-validation-list">';
+        data.warnings.forEach(function(w) { html += '<li>' + escapeHtml(w.message) + '</li>'; });
+        html += '</ul></div>';
+    }
+    if (data.summary) {
+        html += '<div class="pmf-validation-box pmf-validation-box--info"><span class="pmf-validation-title pmf-validation-title--info">Summary</span><p class="pmf-validation-note">Exhibits: ' + (data.summary.exhibits_present || []).join(', ') + ' | Files: ' + (data.summary.total_files || 0) + '</p></div>';
+    }
+    el.innerHTML = html;
+    el.classList.remove('pmf-hidden');
+}
+
+// ======== BUILD ========
+function buildStructureJSON() {
+    var structure = [];
+    var globalIndex = 0;
+    for (var letter in packageState.exhibits) {
+        var ex = packageState.exhibits[letter];
+        if (ex.files.length > 0) {
+            var filesWithGlobalIndex = [];
+            ex.files.forEach(function(f) {
+                if (f instanceof File) {
+                    filesWithGlobalIndex.push({index: globalIndex, description: f.name});
+                    globalIndex++;
+                }
+            });
+            structure.push({
+                letter: letter,
+                files: filesWithGlobalIndex,
+                separator: ex.separator
+            });
+        }
+    }
+    return structure;
+}
+
+async function buildPackage() {
+    var structure = buildStructureJSON();
+    var totalFiles = 0;
+    structure.forEach(function(s) { totalFiles += s.files.length; });
+
+    var serverFiles = [];
+    var generatedForms = [];
+    for (var letter in packageState.exhibits) {
+        packageState.exhibits[letter].files.forEach(function(f) {
+            if (f.type === 'server') {
+                serverFiles.push({doc_id: f.doc_id, exhibit: letter, description: f.description || f.name});
+            } else if (f.type === 'generated_form') {
+                generatedForms.push({filename: f.filename, exhibit: letter, description: f.description || f.form_name});
+            }
+        });
+    }
+
+    if (totalFiles === 0 && serverFiles.length === 0 && generatedForms.length === 0) {
+        alert('Please select documents from the library or upload files to exhibits.');
+        return;
+    }
+
+    var beneficiaryName = document.getElementById('beneficiaryName').value;
+    if (!beneficiaryName) { alert('Please enter the beneficiary name.'); return; }
+
+    document.getElementById('buildBtn').disabled = true;
+    var fromLibBtn = document.getElementById('buildFromLibraryBtn');
+    if (fromLibBtn) fromLibBtn.disabled = true;
+    document.getElementById('loadingArea').classList.remove('pmf-hidden');
+    document.getElementById('downloadArea').classList.add('pmf-hidden');
+
+    var formData = new FormData();
+    formData.append('beneficiary_name', beneficiaryName);
+    formData.append('case_type', document.getElementById('caseType').value);
+    formData.append('case_number', document.getElementById('caseNumber').value);
+    formData.append('include_cover', document.getElementById('includeCover').checked ? 'true' : 'false');
+    formData.append('include_toc', document.getElementById('includeToc').checked ? 'true' : 'false');
+    formData.append('include_separators', document.getElementById('includeSeparators').checked ? 'true' : 'false');
+    formData.append('add_page_numbers', document.getElementById('addPageNumbers').checked ? 'true' : 'false');
+    formData.append('add_watermark', document.getElementById('addWatermark').checked ? 'true' : 'false');
+
+    formData.append('server_files', JSON.stringify(serverFiles));
+    formData.append('generated_forms', JSON.stringify(generatedForms));
+
+    var fileIndex = 0;
+    for (var letter in packageState.exhibits) {
+        var ex = packageState.exhibits[letter];
+        ex.files.forEach(function(f) {
+            if (f instanceof File) {
+                formData.append('file_' + fileIndex, f);
+                fileIndex++;
+            }
+        });
+    }
+    formData.append('structure', JSON.stringify(structure));
+
+    try {
+        var res = await fetch(PREFIX + '/api/package/build', { method: 'POST', body: formData });
+        if (!res.ok) {
+            document.getElementById('loadingArea').classList.add('pmf-hidden');
+            if (res.status === 401 || res.status === 403 || res.redirected) {
+                alert('Session expired. Please log in again.');
+                window.location.href = PREFIX + '/login';
+                return;
+            }
+            try {
+                var errData = await res.json();
+                alert(errData.error || 'Server error (' + res.status + ')');
+            } catch(e) {
+                alert('Server error (' + res.status + '). Please try again.');
+            }
+            document.getElementById('buildBtn').disabled = false;
+            return;
+        }
+        var data = await res.json();
+        document.getElementById('loadingArea').classList.add('pmf-hidden');
+
+        if (data.success) {
+            document.getElementById('downloadArea').classList.remove('pmf-hidden');
+            var info = data.total_exhibits + ' exhibits, ' + data.total_documents + ' documents';
+            if (data.warnings && data.warnings.length > 0) {
+                info += ' (' + data.warnings.length + ' file(s) skipped)';
+                alert('Package built with warnings:\n\n' + data.warnings.join('\n'));
+            }
+            document.getElementById('downloadInfo').textContent = info;
+            document.getElementById('downloadLink').href = data.download_url + '?t=' + Date.now();
+        } else {
+            alert(data.error || 'Error building package');
+        }
+    } catch (err) {
+        document.getElementById('loadingArea').classList.add('pmf-hidden');
+        alert('Error: ' + err.message);
+    }
+    document.getElementById('buildBtn').disabled = false;
+    if (fromLibBtn) fromLibBtn.disabled = false;
+}
+
+// ======== DRAFT SAVE/LOAD ========
+function saveDraft() {
+    var draft = {
+        timestamp: new Date().toISOString(),
+        beneficiaryName: document.getElementById('beneficiaryName').value,
+        caseType: document.getElementById('caseType').value,
+        caseNumber: document.getElementById('caseNumber').value,
+        options: {
+            includeCover: document.getElementById('includeCover').checked,
+            includeToc: document.getElementById('includeToc').checked,
+            includeSeparators: document.getElementById('includeSeparators').checked,
+            addPageNumbers: document.getElementById('addPageNumbers').checked,
+            addWatermark: document.getElementById('addWatermark').checked
+        },
+        exhibitSeparators: {}
+    };
+    for (var letter in packageState.exhibits) {
+        if (packageState.exhibits[letter].separator) {
+            draft.exhibitSeparators[letter] = packageState.exhibits[letter].separator;
+        }
+    }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    alert('Draft saved! (Note: files are not persisted, only metadata and separators)');
+}
+
+function loadDraft() {
+    var saved = localStorage.getItem(DRAFT_KEY);
+    if (!saved) { alert('No saved draft found.'); return; }
+    try {
+        var draft = JSON.parse(saved);
+        document.getElementById('beneficiaryName').value = draft.beneficiaryName || '';
+        document.getElementById('caseType').value = draft.caseType || 'EB-2 NIW';
+        document.getElementById('caseNumber').value = draft.caseNumber || '';
+        if (draft.options) {
+            document.getElementById('includeCover').checked = draft.options.includeCover !== false;
+            document.getElementById('includeToc').checked = draft.options.includeToc !== false;
+            document.getElementById('includeSeparators').checked = draft.options.includeSeparators !== false;
+            document.getElementById('addPageNumbers').checked = draft.options.addPageNumbers !== false;
+            document.getElementById('addWatermark').checked = draft.options.addWatermark === true;
+        }
+        if (draft.exhibitSeparators) {
+            for (var letter in draft.exhibitSeparators) {
+                if (packageState.exhibits[letter]) {
+                    packageState.exhibits[letter].separator = draft.exhibitSeparators[letter];
+                }
+            }
+        }
+        alert('Draft loaded! (Saved ' + new Date(draft.timestamp).toLocaleString() + ')');
+    } catch(e) { alert('Error loading draft.'); }
+}
+
+// ======== UTILITIES ========
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// ======== INIT ========
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.pmf-ck-item').forEach(function(el) {
+        el.addEventListener('change', updatePackageChecklistProgress);
+    });
+    loadChecklistTemplate();
+    updatePackageChecklistProgress();
+
+    var firstLetter = Object.keys(EXHIBITS)[0];
+    if (firstLetter) selectExhibit(firstLetter);
+
+    loadPresets();
+
+    var urlParams = new URLSearchParams(window.location.search);
+    var caseId = urlParams.get('case_id');
+    if (caseId) {
+        loadCaseDocuments(caseId);
+        loadIntakeData(caseId);
+    }
+});
+</script>
+{% endblock %}

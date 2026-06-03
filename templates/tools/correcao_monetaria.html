@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Correção Monetária - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-correcao-monetaria.css">
+{% endblock %}
+
+{% block content %}
+<main class="tools-cm-main" aria-labelledby="tools-cm-title">
+    <header class="tools-cm-header tools-cm-no-print">
+        <div class="tools-cm-heading">
+            <h1 id="tools-cm-title" class="tools-cm-title">
+                <i class="fas fa-chart-line" aria-hidden="true"></i>
+                <span>Correção Monetária</span>
+            </h1>
+            <p class="tools-cm-subtitle">CPC Art. 524, Lei 14.905/2024</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-cm-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="tools-cm-alert tools-cm-no-print" role="alert">
+        <i class="fas fa-exclamation-triangle tools-cm-alert-icon" aria-hidden="true"></i>
+        <span class="tools-cm-alert-message">{{ error }}</span>
+        <button type="button" class="tools-cm-alert-close" data-tools-cm-alert-dismiss aria-label="Fechar aviso">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="tools-cm-grid {% if resultado %}tools-cm-grid--with-result{% endif %}">
+        <section class="tools-cm-card" aria-labelledby="tools-cm-form-title">
+            <header class="tools-cm-card-header">
+                <h2 id="tools-cm-form-title" class="tools-cm-card-title">
+                    <i class="fas fa-calculator" aria-hidden="true"></i>
+                    <span>Dados do Cálculo</span>
+                </h2>
+            </header>
+            <div class="tools-cm-card-body">
+                <form class="tools-cm-form" method="POST" action="{{ PREFIX }}/tools/correcao-monetaria/calcular">
+                    <fieldset class="tools-cm-fieldset">
+                        <legend class="tools-cm-section-title">Valores e Período</legend>
+
+                        <div class="tools-cm-field">
+                            <label class="tools-cm-label" for="valor">Valor Original (R$)</label>
+                            <div class="tools-cm-input-group">
+                                <span class="tools-cm-affix tools-cm-affix--prefix" aria-hidden="true">R$</span>
+                                <input type="number" class="tools-cm-input" id="valor" name="valor"
+                                       step="0.01" min="0" inputmode="decimal"
+                                       value="{{ form.valor if form else '' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="tools-cm-row">
+                            <div class="tools-cm-field">
+                                <label class="tools-cm-label" for="data_inicial">Data Inicial</label>
+                                <input type="date" class="tools-cm-input" id="data_inicial" name="data_inicial"
+                                       value="{{ form.data_inicial if form else '' }}" required>
+                            </div>
+                            <div class="tools-cm-field">
+                                <label class="tools-cm-label" for="data_final">Data Final</label>
+                                <input type="date" class="tools-cm-input" id="data_final" name="data_final"
+                                       value="{{ form.data_final if form else '' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="tools-cm-field">
+                            <label class="tools-cm-label" for="indice">Índice de Correção</label>
+                            <select class="tools-cm-select" id="indice" name="indice">
+                                <option value="ipca" {% if form and form.indice == 'ipca' %}selected{% endif %}>IPCA (~6%/ano)</option>
+                                <option value="inpc" {% if form and form.indice == 'inpc' %}selected{% endif %}>INPC (~5,5%/ano)</option>
+                                <option value="igpm" {% if form and form.indice == 'igpm' %}selected{% endif %}>IGP-M (~7%/ano)</option>
+                                <option value="selic" {% if form and form.indice == 'selic' %}selected{% endif %}>Selic (~13,75%/ano)</option>
+                                <option value="tr" {% if form and form.indice == 'tr' %}selected{% endif %}>TR (~2%/ano)</option>
+                            </select>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="tools-cm-fieldset">
+                        <legend class="tools-cm-section-title">Juros Moratórios</legend>
+
+                        <div class="tools-cm-check">
+                            <input class="tools-cm-checkbox" type="checkbox"
+                                   id="juros_moratorios" name="juros_moratorios" value="true"
+                                   data-tools-cm-toggle aria-controls="tools-cm-taxa-juros"
+                                   aria-expanded="{{ 'true' if form and form.juros_moratorios else 'false' }}"
+                                   {% if form and form.juros_moratorios %}checked{% endif %}>
+                            <label class="tools-cm-check-label" for="juros_moratorios">Incluir juros moratórios</label>
+                        </div>
+
+                        <div id="tools-cm-taxa-juros" class="tools-cm-conditional" {% if not (form and form.juros_moratorios) %}hidden{% endif %}>
+                            <div class="tools-cm-field">
+                                <label class="tools-cm-label" for="taxa_juros_mensal">Taxa de Juros (% ao mês)</label>
+                                <div class="tools-cm-input-group">
+                                    <input type="number" class="tools-cm-input" id="taxa_juros_mensal" name="taxa_juros_mensal"
+                                           step="0.01" min="0" inputmode="decimal"
+                                           value="{{ form.taxa_juros_mensal if form else '1.0' }}">
+                                    <span class="tools-cm-affix tools-cm-affix--suffix" aria-hidden="true">% / mês</span>
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="tools-cm-actions tools-cm-no-print">
+                        <button type="submit" class="tools-cm-btn tools-cm-btn--primary">
+                            <i class="fas fa-calculator" aria-hidden="true"></i>
+                            <span>Calcular</span>
+                        </button>
+                        <a href="{{ PREFIX }}/tools/correcao-monetaria" class="tools-cm-btn">
+                            <i class="fas fa-eraser" aria-hidden="true"></i>
+                            <span>Limpar</span>
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        {% if resultado %}
+        <section class="tools-cm-card" id="resultado" aria-labelledby="tools-cm-result-title">
+            <header class="tools-cm-card-header tools-cm-card-header--result">
+                <h2 id="tools-cm-result-title" class="tools-cm-card-title">
+                    <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+                    <span>Resultado — Correção Monetária</span>
+                </h2>
+                <button type="button" class="tools-cm-btn tools-cm-btn--ghost tools-cm-btn--sm tools-cm-no-print" data-tools-cm-print>
+                    <i class="fas fa-print" aria-hidden="true"></i>
+                    <span>Imprimir</span>
+                </button>
+            </header>
+            <div class="tools-cm-card-body tools-cm-card-body--flush">
+                <div class="tools-cm-table-wrap">
+                    <table class="tools-cm-table">
+                        <caption class="tools-cm-sr-only">Resultado detalhado da correção monetária</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Item</th>
+                                <th scope="col">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Valor Original</td>
+                                <td>R$ {{ "%.2f"|format(resultado.valor_original) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Período</td>
+                                <td>{{ resultado.data_inicial }} a {{ resultado.data_final }} ({{ resultado.meses }} meses)</td>
+                            </tr>
+                            <tr>
+                                <td>Índice</td>
+                                <td>{{ resultado.indice_label }}</td>
+                            </tr>
+                            <tr>
+                                <td>Fator de Correção</td>
+                                <td>{{ resultado.fator_correcao }}</td>
+                            </tr>
+                            <tr>
+                                <td>Diferença de Correção</td>
+                                <td>R$ {{ "%.2f"|format(resultado.diferenca_correcao) }}</td>
+                            </tr>
+                            <tr class="is-highlight">
+                                <td>Valor Corrigido</td>
+                                <td>R$ {{ "%.2f"|format(resultado.valor_corrigido) }}</td>
+                            </tr>
+                            {% if resultado.juros_moratorios %}
+                            <tr>
+                                <td>Juros Moratórios ({{ resultado.taxa_juros_mensal }}%/mês × {{ resultado.meses }} meses)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.juros_valor) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="is-total">
+                                <td>TOTAL</td>
+                                <td>R$ {{ "%.2f"|format(resultado.total) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <footer class="tools-cm-card-footer">
+                <p class="tools-cm-legal-title">
+                    <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                    <span>Fundamentação Legal</span>
+                </p>
+                <ul class="tools-cm-legal-list">
+                    <li><strong>CPC Art. 524</strong> — Requisitos do requerimento de cumprimento de sentença</li>
+                    <li><strong>Lei 14.905/2024</strong> — Nova regra: taxa Selic como juros legais</li>
+                    <li><strong>CC Art. 389</strong> — Perdas e danos incluem correção monetária e juros</li>
+                </ul>
+                <p class="tools-cm-warning" role="note">
+                    <i class="fas fa-exclamation-triangle tools-cm-warning-icon" aria-hidden="true"></i>
+                    <span>Cálculo simplificado (MVP). Para cálculos judiciais precisos, consultar tabelas do tribunal (TJ/TRF).</span>
+                </p>
+            </footer>
+        </section>
+        {% endif %}
+    </div>
+</main>
+
+<script type="module">
+(function () {
+    'use strict';
+
+    var toggle = document.querySelector('[data-tools-cm-toggle]');
+    if (toggle) {
+        var targetId = toggle.getAttribute('aria-controls');
+        var target = targetId ? document.getElementById(targetId) : null;
+        toggle.addEventListener('change', function () {
+            var open = toggle.checked;
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (target) target.hidden = !open;
+        });
+    }
+
+    var dismissBtn = document.querySelector('[data-tools-cm-alert-dismiss]');
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', function () {
+            var alert = dismissBtn.closest('.tools-cm-alert');
+            if (alert) alert.remove();
+        });
+    }
+
+    var printBtn = document.querySelector('[data-tools-cm-print]');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () { window.print(); });
+    }
+
+    {% if resultado %}
+    var resultEl = document.getElementById('resultado');
+    if (resultEl && window.matchMedia('(max-width: 992px)').matches) {
+        var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        resultEl.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+    {% endif %}
+})();
+</script>
+{% endblock %}

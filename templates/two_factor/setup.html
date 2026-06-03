@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Autenticação em Dois Fatores{% else %}Two-Factor Authentication{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/two-factor-setup.css">
+{% endblock %}
+
+{% block content %}
+<main class="tfa-setup-main" aria-labelledby="tfa-setup-title">
+    <header class="tfa-setup-header">
+        <h1 id="tfa-setup-title" class="tfa-setup-title">
+            <i class="fas fa-shield-alt tfa-setup-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Autenticação em Dois Fatores{% else %}Two-Factor Authentication{% endif %}</span>
+        </h1>
+    </header>
+
+    <div class="tfa-setup-grid">
+        <div class="tfa-setup-main-col">
+            {% if status.unavailable %}
+            <section class="tfa-setup-card" aria-labelledby="tfa-setup-unavailable-heading">
+                <header class="tfa-setup-card-header tfa-setup-card-header--warning">
+                    <i class="fas fa-tools tfa-setup-card-icon" aria-hidden="true"></i>
+                    <span id="tfa-setup-unavailable-heading">
+                        {% if product == "lite" %}2FA temporariamente indisponível{% else %}2FA temporarily unavailable{% endif %}
+                    </span>
+                </header>
+                <div class="tfa-setup-card-body">
+                    <div class="tfa-setup-banner tfa-setup-banner--warning" role="status">
+                        <p class="tfa-setup-banner-title">
+                            {% if product == "lite" %}A configuração de autenticação em dois fatores ainda não está pronta neste ambiente.{% else %}Two-factor authentication setup is not ready in this environment yet.{% endif %}
+                        </p>
+                        <p class="tfa-setup-banner-text">
+                            {% if product == "lite" %}Sua sessão atual continua funcionando. A equipe técnica precisa concluir a configuração do módulo antes de ativar este recurso.{% else %}Your current session still works. The technical team must finish the module setup before enabling this feature.{% endif %}
+                        </p>
+                    </div>
+                </div>
+            </section>
+            {% elif status.enabled %}
+            <section class="tfa-setup-card" aria-labelledby="tfa-setup-enabled-heading">
+                <header class="tfa-setup-card-header tfa-setup-card-header--success">
+                    <i class="fas fa-check-circle tfa-setup-card-icon" aria-hidden="true"></i>
+                    <span id="tfa-setup-enabled-heading">{% if product == "lite" %}2FA Ativado{% else %}2FA is Enabled{% endif %}</span>
+                </header>
+                <div class="tfa-setup-card-body">
+                    <p class="tfa-setup-section-text tfa-setup-section-text--strong">
+                        {% if product == "lite" %}Sua conta está protegida com autenticação em dois fatores.{% else %}Your account is protected with two-factor authentication.{% endif %}
+                    </p>
+
+                    <div class="tfa-setup-banner tfa-setup-banner--info" role="status" aria-live="polite">
+                        <p class="tfa-setup-banner-text">
+                            <strong>{% if product == "lite" %}Códigos de backup restantes:{% else %}Backup codes remaining:{% endif %}</strong>
+                            <span>{{ status.backup_codes_remaining }}</span>
+                        </p>
+                        <p class="tfa-setup-banner-text">
+                            {% if product == "lite" %}Use os códigos de backup se perder acesso ao seu app autenticador.{% else %}Use backup codes if you lose access to your authenticator app.{% endif %}
+                        </p>
+                    </div>
+
+                    <hr class="tfa-setup-divider">
+
+                    <section aria-labelledby="tfa-setup-regenerate-title">
+                        <h2 id="tfa-setup-regenerate-title" class="tfa-setup-section-title">
+                            {% if product == "lite" %}Regenerar Códigos de Backup{% else %}Regenerate Backup Codes{% endif %}
+                        </h2>
+                        <p class="tfa-setup-section-text">
+                            {% if product == "lite" %}Se você já usou a maioria dos seus códigos de backup, gere novos.{% else %}If you've used most of your backup codes, generate new ones.{% endif %}
+                        </p>
+                        <form id="regenerateForm" class="tfa-setup-form" novalidate>
+                            <div class="tfa-setup-field">
+                                <label for="regenerateCode" class="tfa-setup-label">
+                                    {% if product == "lite" %}Digite o código 2FA atual para confirmar{% else %}Enter current 2FA code to confirm{% endif %}
+                                </label>
+                                <input type="text" id="regenerateCode" name="regenerate_code"
+                                       class="tfa-setup-input"
+                                       placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                                       inputmode="numeric" autocomplete="one-time-code" required>
+                            </div>
+                            <div class="tfa-setup-actions">
+                                <button type="submit" class="tfa-setup-btn tfa-setup-btn--warning">
+                                    <i class="fas fa-sync" aria-hidden="true"></i>
+                                    <span>{% if product == "lite" %}Regenerar Códigos{% else %}Regenerate Codes{% endif %}</span>
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <hr class="tfa-setup-divider">
+
+                    <section aria-labelledby="tfa-setup-disable-title">
+                        <h2 id="tfa-setup-disable-title" class="tfa-setup-section-title tfa-setup-section-title--danger">
+                            {% if product == "lite" %}Desativar 2FA{% else %}Disable 2FA{% endif %}
+                        </h2>
+                        <p class="tfa-setup-section-text" id="tfa-setup-disable-warning">
+                            {% if product == "lite" %}Não recomendado. Sua conta ficará menos segura.{% else %}Not recommended. Your account will be less secure.{% endif %}
+                        </p>
+                        <form id="disableForm" class="tfa-setup-form"
+                              aria-describedby="tfa-setup-disable-warning" novalidate>
+                            <div class="tfa-setup-field">
+                                <label for="disableCode" class="tfa-setup-label">
+                                    {% if product == "lite" %}Digite o código 2FA atual para desativar{% else %}Enter current 2FA code to disable{% endif %}
+                                </label>
+                                <input type="text" id="disableCode" name="disable_code"
+                                       class="tfa-setup-input"
+                                       placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                                       inputmode="numeric" autocomplete="one-time-code" required>
+                            </div>
+                            <div class="tfa-setup-actions">
+                                <button type="submit" class="tfa-setup-btn tfa-setup-btn--danger">
+                                    <i class="fas fa-times" aria-hidden="true"></i>
+                                    <span>{% if product == "lite" %}Desativar 2FA{% else %}Disable 2FA{% endif %}</span>
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+                </div>
+            </section>
+
+            {% else %}
+            <section class="tfa-setup-card" aria-labelledby="tfa-setup-wizard-heading">
+                <header class="tfa-setup-card-header">
+                    <i class="fas fa-mobile-alt tfa-setup-card-icon" aria-hidden="true"></i>
+                    <span id="tfa-setup-wizard-heading">
+                        {% if product == "lite" %}Configurar Autenticação em Dois Fatores{% else %}Setup Two-Factor Authentication{% endif %}
+                    </span>
+                </header>
+                <div class="tfa-setup-card-body" aria-live="polite">
+                    <section id="step1" class="tfa-setup-step" aria-labelledby="tfa-setup-step1-title">
+                        <h2 id="tfa-setup-step1-title" class="tfa-setup-section-title">
+                            {% if product == "lite" %}Passo 1: Instale um App Autenticador{% else %}Step 1: Install an Authenticator App{% endif %}
+                        </h2>
+                        <p class="tfa-setup-section-text">
+                            {% if product == "lite" %}Baixe um destes apps autenticadores no seu celular:{% else %}Download one of these authenticator apps on your phone:{% endif %}
+                        </p>
+                        <ul class="tfa-setup-app-list">
+                            <li><strong>Google Authenticator</strong> (iOS / Android)</li>
+                            <li><strong>Microsoft Authenticator</strong> (iOS / Android)</li>
+                            <li><strong>Authy</strong> (iOS / Android / Desktop)</li>
+                        </ul>
+                        <div class="tfa-setup-actions">
+                            <button type="button" id="startSetupBtn" class="tfa-setup-btn tfa-setup-btn--primary">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Já tenho um app, continuar{% else %}I have an app, continue{% endif %}</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <section id="step2" class="tfa-setup-step" aria-labelledby="tfa-setup-step2-title" hidden>
+                        <h2 id="tfa-setup-step2-title" class="tfa-setup-section-title">
+                            {% if product == "lite" %}Passo 2: Escaneie o QR Code{% else %}Step 2: Scan QR Code{% endif %}
+                        </h2>
+                        <p class="tfa-setup-section-text">
+                            {% if product == "lite" %}Abra seu app autenticador e escaneie este QR code:{% else %}Open your authenticator app and scan this QR code:{% endif %}
+                        </p>
+
+                        <div class="tfa-setup-qr">
+                            <div id="qrCode" class="tfa-setup-qr-frame" role="img"
+                                 aria-label="{% if product == 'lite' %}QR code para configurar a autenticação em dois fatores{% else %}QR code to set up two-factor authentication{% endif %}"
+                                 aria-busy="true">
+                                <span class="tfa-setup-qr-spinner" aria-hidden="true"></span>
+                                <span class="visually-hidden">{% if product == "lite" %}Carregando…{% else %}Loading…{% endif %}</span>
+                            </div>
+                            <p class="tfa-setup-qr-help">
+                                {% if product == "lite" %}Não consegue escanear? Digite este código manualmente:{% else %}Can't scan? Enter this code manually:{% endif %}
+                            </p>
+                            <code id="manualSecret" class="tfa-setup-qr-secret"
+                                  aria-label="{% if product == 'lite' %}Chave secreta para entrada manual{% else %}Manual entry secret key{% endif %}"></code>
+                        </div>
+
+                        <div class="tfa-setup-actions">
+                            <button type="button" id="backToStep1" class="tfa-setup-btn tfa-setup-btn--ghost">
+                                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Voltar{% else %}Back{% endif %}</span>
+                            </button>
+                            <button type="button" id="goToStep3" class="tfa-setup-btn tfa-setup-btn--primary">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Já escaneei, continuar{% else %}I've scanned it, continue{% endif %}</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <section id="step3" class="tfa-setup-step" aria-labelledby="tfa-setup-step3-title" hidden>
+                        <h2 id="tfa-setup-step3-title" class="tfa-setup-section-title">
+                            {% if product == "lite" %}Passo 3: Verificar Configuração{% else %}Step 3: Verify Setup{% endif %}
+                        </h2>
+                        <p class="tfa-setup-section-text">
+                            {% if product == "lite" %}Digite o código de 6 dígitos do seu app autenticador:{% else %}Enter the 6-digit code from your authenticator app:{% endif %}
+                        </p>
+
+                        <form id="verifyForm" class="tfa-setup-form" novalidate>
+                            <div class="tfa-setup-field">
+                                <label for="verifyCode" class="tfa-setup-label visually-hidden">
+                                    {% if product == "lite" %}Código de verificação de 6 dígitos{% else %}6-digit verification code{% endif %}
+                                </label>
+                                <input type="text" id="verifyCode" name="verify_code"
+                                       class="tfa-setup-input tfa-setup-input--otp"
+                                       placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                                       inputmode="numeric" autocomplete="one-time-code" required>
+                            </div>
+                            <div class="tfa-setup-actions">
+                                <button type="button" id="backToStep2" class="tfa-setup-btn tfa-setup-btn--ghost">
+                                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                                    <span>{% if product == "lite" %}Voltar{% else %}Back{% endif %}</span>
+                                </button>
+                                <button type="submit" class="tfa-setup-btn tfa-setup-btn--success">
+                                    <i class="fas fa-check" aria-hidden="true"></i>
+                                    <span>{% if product == "lite" %}Verificar e Ativar{% else %}Verify and Enable{% endif %}</span>
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <section id="step4" class="tfa-setup-step" aria-labelledby="tfa-setup-step4-title" hidden>
+                        <div class="tfa-setup-banner tfa-setup-banner--success" role="status">
+                            <p class="tfa-setup-banner-title">
+                                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                                <span id="tfa-setup-step4-title">
+                                    {% if product == "lite" %}2FA Ativado com Sucesso!{% else %}2FA Enabled Successfully!{% endif %}
+                                </span>
+                            </p>
+                            <p class="tfa-setup-banner-text">
+                                {% if product == "lite" %}Sua conta agora está protegida com autenticação em dois fatores.{% else %}Your account is now protected with two-factor authentication.{% endif %}
+                            </p>
+                        </div>
+
+                        <h3 class="tfa-setup-section-title">
+                            {% if product == "lite" %}Salve seus Códigos de Backup{% else %}Save Your Backup Codes{% endif %}
+                        </h3>
+                        <p class="tfa-setup-section-text tfa-setup-section-text--danger">
+                            <strong>{% if product == "lite" %}Importante:{% else %}Important:{% endif %}</strong>
+                            {% if product == "lite" %}Salve estes códigos em um lugar seguro. Você pode usá-los para acessar sua conta se perder seu celular.{% else %}Save these codes in a safe place. You can use them to access your account if you lose your phone.{% endif %}
+                        </p>
+
+                        <div id="backupCodesContainer" class="tfa-setup-codes" role="region"
+                             aria-label="{% if product == 'lite' %}Códigos de backup{% else %}Backup codes{% endif %}"></div>
+
+                        <div class="tfa-setup-actions">
+                            <button type="button" id="downloadCodes" class="tfa-setup-btn tfa-setup-btn--ghost">
+                                <i class="fas fa-download" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Baixar Códigos{% else %}Download Codes{% endif %}</span>
+                            </button>
+                            <a href="{{ PREFIX }}/dashboard" class="tfa-setup-btn tfa-setup-btn--primary">
+                                <i class="fas fa-check" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Concluído{% else %}Done{% endif %}</span>
+                            </a>
+                        </div>
+                    </section>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <aside class="tfa-setup-side-col" aria-labelledby="tfa-setup-info-heading">
+            <section class="tfa-setup-card">
+                <header class="tfa-setup-card-header">
+                    <i class="fas fa-info-circle tfa-setup-card-icon" aria-hidden="true"></i>
+                    <span id="tfa-setup-info-heading">{% if product == "lite" %}Sobre o 2FA{% else %}About 2FA{% endif %}</span>
+                </header>
+                <div class="tfa-setup-card-body">
+                    <p class="tfa-setup-info-text">
+                        {% if product == "lite" %}A autenticação em dois fatores adiciona uma camada extra de segurança à sua conta.{% else %}Two-factor authentication adds an extra layer of security to your account.{% endif %}
+                    </p>
+                    <p class="tfa-setup-info-text">
+                        {% if product == "lite" %}Quando ativado, você precisará digitar um código do seu celular além da sua senha ao fazer login.{% else %}When enabled, you'll need to enter a code from your phone in addition to your password when logging in.{% endif %}
+                    </p>
+                    <h2 class="tfa-setup-info-subtitle">
+                        {% if product == "lite" %}Benefícios:{% else %}Benefits:{% endif %}
+                    </h2>
+                    <ul class="tfa-setup-info-list">
+                        <li>{% if product == "lite" %}Protege contra roubo de senha{% else %}Protects against password theft{% endif %}</li>
+                        <li>{% if product == "lite" %}Previne acesso não autorizado{% else %}Prevents unauthorized access{% endif %}</li>
+                        <li>{% if product == "lite" %}Padrão de segurança do mercado{% else %}Industry standard security{% endif %}</li>
+                    </ul>
+                </div>
+            </section>
+        </aside>
+    </div>
+</main>
+
+<script>
+(function () {
+    var PREFIX = '{{ PREFIX }}';
+    var I18N = {
+        error: {% if product == "lite" %}'Erro'{% else %}'Error'{% endif %},
+        confirmDisable: {% if product == "lite" %}'Tem certeza que deseja desativar o 2FA? Sua conta ficará menos segura.'{% else %}'Are you sure you want to disable 2FA? Your account will be less secure.'{% endif %},
+        disableSuccess: {% if product == "lite" %}'2FA foi desativado.'{% else %}'2FA has been disabled.'{% endif %},
+        regenSuccessTitle: {% if product == "lite" %}'Novos códigos de backup gerados:\n\n'{% else %}'New backup codes generated:\n\n'{% endif %},
+        regenSuccessFooter: {% if product == "lite" %}'\n\nSalve estes códigos!'{% else %}'\n\nSave these codes!'{% endif %},
+        downloadHeader: {% if product == "lite" %}'Códigos de Backup 2FA'{% else %}'2FA Backup Codes'{% endif %},
+        downloadFooter: {% if product == "lite" %}'Mantenha estes códigos em segurança!'{% else %}'Keep these codes safe!'{% endif %},
+        downloadFile: {% if product == "lite" %}'codigos-backup-2fa.txt'{% else %}'casehub-backup-codes.txt'{% endif %},
+        qrAlt: {% if product == "lite" %}'QR code para configurar a autenticação em dois fatores'{% else %}'QR code to set up two-factor authentication'{% endif %},
+        org: '{{ org_name|default("CaseHub") }}'
+    };
+
+    var backupCodes = [];
+
+    function showStep(id) {
+        ['step1', 'step2', 'step3', 'step4'].forEach(function (s) {
+            var el = document.getElementById(s);
+            if (!el) return;
+            if (s === id) el.removeAttribute('hidden');
+            else el.setAttribute('hidden', '');
+        });
+    }
+
+    function renderQRError(message) {
+        var qr = document.getElementById('qrCode');
+        if (!qr) return;
+        qr.innerHTML = '';
+        qr.removeAttribute('aria-busy');
+        var p = document.createElement('p');
+        p.className = 'tfa-setup-qr-error';
+        p.textContent = message;
+        qr.appendChild(p);
+    }
+
+    function generateQRCode() {
+        var qr = document.getElementById('qrCode');
+        if (!qr) return;
+        qr.setAttribute('aria-busy', 'true');
+        fetch(PREFIX + '/2fa/setup/generate', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.success) {
+                    qr.innerHTML = '';
+                    qr.removeAttribute('aria-busy');
+                    var img = document.createElement('img');
+                    img.src = data.qr_code;
+                    img.alt = '';
+                    img.className = 'tfa-setup-qr-image';
+                    qr.appendChild(img);
+                    var secret = document.getElementById('manualSecret');
+                    if (secret) secret.textContent = data.secret;
+                } else {
+                    renderQRError((data && data.error) || I18N.error);
+                }
+            })
+            .catch(function (e) {
+                renderQRError(I18N.error + ': ' + (e && e.message ? e.message : ''));
+            });
+    }
+
+    var startBtn = document.getElementById('startSetupBtn');
+    if (startBtn) {
+        startBtn.addEventListener('click', function () {
+            showStep('step2');
+            generateQRCode();
+        });
+    }
+
+    var backTo1 = document.getElementById('backToStep1');
+    if (backTo1) {
+        backTo1.addEventListener('click', function () { showStep('step1'); });
+    }
+
+    var goTo3 = document.getElementById('goToStep3');
+    if (goTo3) {
+        goTo3.addEventListener('click', function () {
+            showStep('step3');
+            var input = document.getElementById('verifyCode');
+            if (input) input.focus();
+        });
+    }
+
+    var backTo2 = document.getElementById('backToStep2');
+    if (backTo2) {
+        backTo2.addEventListener('click', function () { showStep('step2'); });
+    }
+
+    var verifyForm = document.getElementById('verifyForm');
+    if (verifyForm) {
+        verifyForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var code = document.getElementById('verifyCode').value;
+            var formData = new FormData();
+            formData.append('code', code);
+            fetch(PREFIX + '/2fa/setup/verify', { method: 'POST', body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        backupCodes = data.backup_codes || [];
+                        var container = document.getElementById('backupCodesContainer');
+                        if (container) {
+                            container.innerHTML = '';
+                            backupCodes.forEach(function (c) {
+                                var node = document.createElement('code');
+                                node.className = 'tfa-setup-code';
+                                node.textContent = c;
+                                container.appendChild(node);
+                            });
+                        }
+                        showStep('step4');
+                    } else {
+                        window.alert(I18N.error + ': ' + ((data && data.error) || ''));
+                    }
+                })
+                .catch(function (err) {
+                    window.alert(I18N.error + ': ' + (err && err.message ? err.message : ''));
+                });
+        });
+    }
+
+    var dlBtn = document.getElementById('downloadCodes');
+    if (dlBtn) {
+        dlBtn.addEventListener('click', function () {
+            var text = I18N.org + ' - ' + I18N.downloadHeader + '\n' +
+                       '================================\n\n' +
+                       backupCodes.join('\n') +
+                       '\n\n' + I18N.downloadFooter;
+            var blob = new Blob([text], { type: 'text/plain' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = I18N.downloadFile;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    }
+
+    var disableForm = document.getElementById('disableForm');
+    if (disableForm) {
+        disableForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            if (!window.confirm(I18N.confirmDisable)) return;
+            var formData = new FormData();
+            formData.append('code', document.getElementById('disableCode').value);
+            fetch(PREFIX + '/2fa/disable', { method: 'POST', body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        window.alert(I18N.disableSuccess);
+                        window.location.reload();
+                    } else {
+                        window.alert(I18N.error + ': ' + ((data && data.error) || ''));
+                    }
+                });
+        });
+    }
+
+    var regenForm = document.getElementById('regenerateForm');
+    if (regenForm) {
+        regenForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var formData = new FormData();
+            formData.append('code', document.getElementById('regenerateCode').value);
+            fetch(PREFIX + '/2fa/regenerate-backup-codes', { method: 'POST', body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        window.alert(I18N.regenSuccessTitle + (data.backup_codes || []).join('\n') + I18N.regenSuccessFooter);
+                        window.location.reload();
+                    } else {
+                        window.alert(I18N.error + ': ' + ((data && data.error) || ''));
+                    }
+                });
+        });
+    }
+})();
+</script>
+{% endblock %}

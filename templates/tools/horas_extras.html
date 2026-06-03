@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Horas Extras + DSR - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-horas-extras.css">
+{% endblock %}
+
+{% block content %}
+<main class="tools-horas-extras-main" aria-labelledby="tools-horas-extras-title">
+    <header class="tools-horas-extras-header tools-horas-extras-no-print">
+        <div class="tools-horas-extras-heading">
+            <h1 id="tools-horas-extras-title" class="tools-horas-extras-title">
+                <i class="fas fa-clock tools-horas-extras-title-icon" aria-hidden="true"></i>
+                <span>Horas Extras + DSR + Reflexos</span>
+            </h1>
+            <p class="tools-horas-extras-subtitle">CLT Art. 59, 67 e Súmula 172 TST</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-horas-extras-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    <div class="tools-horas-extras-grid {% if resultado %}tools-horas-extras-grid--with-result{% endif %}">
+        <section aria-labelledby="tools-horas-extras-form-title">
+            <form method="POST" action="{{ PREFIX }}/tools/horas-extras/calcular">
+                <div class="tools-horas-extras-card">
+                    <div class="tools-horas-extras-card-body">
+                        <h2 id="tools-horas-extras-form-title" class="tools-horas-extras-section-title">Dados Salariais</h2>
+
+                        <div class="tools-horas-extras-field">
+                            <label for="tools-horas-extras-salario" class="tools-horas-extras-label">Salário Base (R$)</label>
+                            <div class="tools-horas-extras-input-group">
+                                <span class="tools-horas-extras-input-prefix" aria-hidden="true">R$</span>
+                                <input type="number" class="tools-horas-extras-input" id="tools-horas-extras-salario" name="salario"
+                                       step="0.01" min="0" inputmode="decimal"
+                                       value="{{ form.salario if form else '' }}"
+                                       required aria-required="true">
+                            </div>
+                        </div>
+
+                        <div class="tools-horas-extras-field-row">
+                            <div>
+                                <label for="tools-horas-extras-jornada" class="tools-horas-extras-label">Jornada Semanal (horas)</label>
+                                <input type="number" class="tools-horas-extras-input" id="tools-horas-extras-jornada" name="jornada_semanal"
+                                       step="0.5" min="1" max="44" inputmode="decimal"
+                                       value="{{ form.jornada_semanal if form else '44' }}"
+                                       required aria-required="true">
+                            </div>
+                            <div>
+                                <label for="tools-horas-extras-horas" class="tools-horas-extras-label">Horas Extras Trabalhadas</label>
+                                <input type="number" class="tools-horas-extras-input" id="tools-horas-extras-horas" name="horas_extras"
+                                       step="0.5" min="0" inputmode="decimal"
+                                       value="{{ form.horas_extras if form else '' }}"
+                                       required aria-required="true">
+                            </div>
+                        </div>
+
+                        <h2 class="tools-horas-extras-section-title tools-horas-extras-section-title--spaced">Parâmetros do Cálculo</h2>
+
+                        <div class="tools-horas-extras-field-row tools-horas-extras-field-row--three">
+                            <div>
+                                <label for="tools-horas-extras-percentual" class="tools-horas-extras-label">Adicional (%)</label>
+                                <select class="tools-horas-extras-select" id="tools-horas-extras-percentual" name="percentual">
+                                    <option value="50" {% if form and form.percentual == 50 %}selected{% endif %}>50% (normal)</option>
+                                    <option value="100" {% if form and form.percentual == 100 %}selected{% endif %}>100% (domingos/feriados)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="tools-horas-extras-dias-uteis" class="tools-horas-extras-label">Dias Úteis no Mês</label>
+                                <input type="number" class="tools-horas-extras-input" id="tools-horas-extras-dias-uteis" name="dias_uteis"
+                                       min="1" max="31" inputmode="numeric"
+                                       value="{{ form.dias_uteis if form else '22' }}"
+                                       required aria-required="true">
+                            </div>
+                            <div>
+                                <label for="tools-horas-extras-domingos" class="tools-horas-extras-label">Domingos/Feriados</label>
+                                <input type="number" class="tools-horas-extras-input" id="tools-horas-extras-domingos" name="domingos_feriados"
+                                       min="0" max="15" inputmode="numeric"
+                                       value="{{ form.domingos_feriados if form else '8' }}"
+                                       required aria-required="true">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tools-horas-extras-actions tools-horas-extras-no-print">
+                    <button type="submit" class="tools-horas-extras-btn tools-horas-extras-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/horas-extras" class="tools-horas-extras-btn tools-horas-extras-btn--ghost">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </section>
+
+        {% if resultado %}
+        <section id="resultado" aria-labelledby="tools-horas-extras-result-title">
+            <article class="tools-horas-extras-card">
+                <header class="tools-horas-extras-result-header">
+                    <h2 id="tools-horas-extras-result-title" class="tools-horas-extras-result-title">
+                        <i class="fas fa-file-invoice-dollar tools-horas-extras-result-icon" aria-hidden="true"></i>
+                        <span>Resultado — Horas Extras</span>
+                    </h2>
+                    <button type="button" class="tools-horas-extras-btn tools-horas-extras-btn--ghost tools-horas-extras-btn--small tools-horas-extras-no-print" data-action="print">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+
+                <div class="tools-horas-extras-table-wrap">
+                    <table class="tools-horas-extras-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Verba</th>
+                                <th scope="col" class="tools-horas-extras-table-value">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Valor Hora Normal</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.valor_hora_normal) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Valor Hora Extra ({{ resultado.percentual|int }}%)</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.valor_hora_extra) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Total Horas Extras ({{ resultado.horas_extras }} horas)</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.total_horas_extras) }}</td>
+                            </tr>
+                            <tr>
+                                <td>DSR sobre Horas Extras</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.dsr) }}</td>
+                            </tr>
+                            <tr class="tools-horas-extras-table-subtotal">
+                                <td>Subtotal (HE + DSR)</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.total_he_dsr) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Reflexo no 13º Salário</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.reflexo_13) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Reflexo em Férias + 1/3</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.reflexo_ferias) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Reflexo no FGTS (8%)</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.reflexo_fgts) }}</td>
+                            </tr>
+                            <tr class="tools-horas-extras-table-total">
+                                <td>Total Geral</td>
+                                <td class="tools-horas-extras-table-value">R$ {{ "%.2f"|format(resultado.total_geral) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="tools-horas-extras-card-footer">
+                    <h3 class="tools-horas-extras-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-horas-extras-legal-list">
+                        <li><strong>CLT Art. 59</strong> — Acordo de prorrogação da jornada, adicional mínimo de 50%</li>
+                        <li><strong>CLT Art. 67</strong> — Descanso semanal remunerado</li>
+                        <li><strong>Súmula 172 TST</strong> — Reflexos das horas extras habituais no 13º, férias e FGTS</li>
+                        <li><strong>CF Art. 7º, XVI</strong> — Remuneração do serviço extraordinário superior, no mínimo, em 50%</li>
+                    </ul>
+                    <p class="tools-horas-extras-footnote">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Cálculo estimativo. Valores podem variar conforme convenção coletiva.</span>
+                    </p>
+                </footer>
+            </article>
+        </section>
+        {% endif %}
+    </div>
+</main>
+
+{% if resultado %}
+<script>
+    (function () {
+        document.addEventListener('DOMContentLoaded', function () {
+            var el = document.getElementById('resultado');
+            if (el && window.innerWidth <= 960) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            var printBtn = document.querySelector('[data-action="print"]');
+            if (printBtn) {
+                printBtn.addEventListener('click', function () { window.print(); });
+            }
+        });
+    })();
+</script>
+{% endif %}
+{% endblock %}

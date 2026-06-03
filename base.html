@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+{# Set default translations if not provided #}
+{% set t = t|default({
+    'nav_dashboard': 'Dashboard',
+    'nav_clients': 'Clients',
+    'nav_cases': 'Cases',
+    'nav_documents': 'Documents',
+    'nav_tasks': 'Tasks',
+    'nav_billing': 'Billing',
+    'nav_calendar': 'Calendar',
+    'processes': 'Processes',
+    'custom_fields': 'Custom Fields',
+    'webhooks': 'Webhooks',
+    'nav_uscis': 'USCIS',
+    'nav_admin': 'Admin',
+    'nav_logout': 'Logout'
+}) %}
+<html lang="{{ lang|default('en') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ILC CaseHub{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4a90d9;
+            --secondary: #1a1a2e;
+            --accent: #4a90d9;
+            --bg-dark: #0f0f1a;
+            --bg-card: #1e1e2e;
+            --bg-body: #121218;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --sidebar-width: 250px;
+        }
+        body { background: var(--bg-body); font-family: 'Segoe UI', system-ui, sans-serif; color: var(--text-primary); }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: linear-gradient(180deg, var(--secondary) 0%, var(--bg-dark) 100%);
+            padding: 1rem 0;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        .sidebar .logo {
+            padding: 1rem 1.5rem;
+            color: white;
+            font-size: 1.4rem;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 1rem;
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.7);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            color: white;
+            background: rgba(255,255,255,0.1);
+        }
+        .sidebar .nav-link i {
+            width: 24px;
+            margin-right: 10px;
+        }
+        .sidebar .badge {
+            margin-left: auto;
+        }
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        .top-bar {
+            background: var(--bg-card);
+            padding: 1rem 2rem;
+            margin: -2rem -2rem 2rem -2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-primary);
+        }
+        .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.3); background: var(--bg-card); color: var(--text-primary); }
+        .card-header { background: var(--bg-card); border-bottom: 1px solid #333; font-weight: 600; color: var(--text-primary); }
+        .stat-card { text-align: center; padding: 1.5rem; }
+        .stat-card .number { font-size: 2.5rem; font-weight: 700; color: var(--primary); }
+        .stat-card .label { color: var(--text-secondary); font-size: 0.9rem; }
+        .table { color: var(--text-primary); }
+        .table-light { background: var(--bg-card) !important; color: var(--text-primary) !important; }
+        .table-hover tbody tr:hover { background: rgba(255,255,255,0.05); }
+        .form-control, .form-select { background: #2a2a3a; border-color: #444; color: var(--text-primary); }
+        .form-control:focus, .form-select:focus { background: #2a2a3a; border-color: var(--primary); color: var(--text-primary); }
+        .btn-outline-secondary { color: var(--text-secondary); border-color: #444; }
+        .btn-outline-secondary:hover { background: #333; color: var(--text-primary); }
+        .text-muted { color: var(--text-secondary) !important; }
+        .dropdown-menu { background: var(--bg-card); border-color: #333; }
+        .dropdown-item { color: var(--text-primary); }
+        .dropdown-item:hover { background: rgba(255,255,255,0.1); color: white; }
+        .modal-content { background: var(--bg-card); color: var(--text-primary); }
+        .modal-header, .modal-footer { border-color: #333; }
+        .lang-switcher {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .lang-switcher a {
+            text-decoration: none;
+            font-size: 1.2rem;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+            color: var(--text-secondary);
+        }
+        .lang-switcher a:hover, .lang-switcher a.active {
+            opacity: 1;
+            color: var(--text-primary);
+        }
+        a { color: var(--primary); }
+        h1, h2, h3, h4, h5, h6 { color: var(--text-primary); }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="logo">
+            <i class="fas fa-balance-scale me-2"></i>CaseHub
+        </div>
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/dashboard">
+                    <i class="fas fa-home"></i> {{ t.nav_dashboard }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/clients">
+                    <i class="fas fa-users"></i> {{ t.nav_clients }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/cases">
+                    <i class="fas fa-folder"></i> {{ t.nav_cases }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/documents">
+                    <i class="fas fa-file-alt"></i> {{ t.nav_documents }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/tasks">
+                    <i class="fas fa-tasks"></i> {{ t.nav_tasks }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/billing">
+                    <i class="fas fa-dollar-sign"></i> {{ t.nav_billing }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/calendar">
+                    <i class="fas fa-calendar"></i> {{ t.nav_calendar }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/processes">
+                    <i class="fas fa-project-diagram"></i> {{ t.processes or 'Processes' }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/letters">
+                    <i class="fas fa-file-alt"></i> Letters
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/questionnaires">
+                    <i class="fas fa-clipboard-list"></i> Questionnaires
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/custom-fields">
+                    <i class="fas fa-plus-circle"></i> {{ t.custom_fields }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/webhooks">
+                    <i class="fas fa-link"></i> {{ t.webhooks }}</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/uscis">
+                    <i class="fas fa-flag-usa"></i> {{ t.nav_uscis }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/emails">
+                    <i class="fas fa-envelope"></i> Emails
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/communications">
+                    <i class="fas fa-paper-plane"></i> Communications
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/reports">
+                    <i class="fas fa-chart-bar"></i> Reports
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/notion">
+                    <i class="fab fa-n"></i> Notion
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/import">
+                    <i class="fas fa-file-import"></i> Import
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/ilc-tools">
+                    <i class="fas fa-tools"></i> ILC Tools
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/notifications">
+                    <i class="fas fa-bell"></i> Notifications
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/whatsapp-chat">
+                    <i class="fab fa-whatsapp"></i> WhatsApp Chat
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/callhippo">
+                    <i class="fas fa-phone-alt"></i> CallHippo
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/moskit">
+                    <i class="fas fa-bullseye"></i> Moskit CRM
+                </a>
+            </li>
+            <li class="nav-item mt-4">
+                <a class="nav-link" href="{{ PREFIX }}/admin">
+                    <i class="fas fa-cog"></i> {{ t.nav_admin }}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/logout">
+                    <i class="fas fa-sign-out-alt"></i> {{ t.nav_logout }}
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <main class="main-content">
+        <div class="top-bar">
+            <div>
+                <strong>{{ user.name if user else 'Guest' }}</strong>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="lang-switcher">
+                    <a href="{{ PREFIX }}/set-language/pt-BR" class="{{ 'active' if lang == 'pt-BR' else '' }}" title="Portugues">BR</a>
+                    <a href="{{ PREFIX }}/set-language/en" class="{{ 'active' if lang == 'en' else '' }}" title="English">EN</a>
+                </div>
+                <span class="text-muted">ILC CaseHub v1.0</span>
+            </div>
+        </div>
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

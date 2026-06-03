@@ -1,0 +1,269 @@
+{% extends "app/base.html" %}
+{% set active_module = 'reports' %}
+{% block title %}Relatórios · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{{ asset_url('css/app/reports.css') }}" />
+{% endblock %}
+{% block content %}
+{% set report_icons = {
+  'processos_por_status': 'chart-pie',
+  'produtividade': 'activity',
+  'financeiro_mensal': 'landmark',
+  'prazos': 'calendar-clock',
+  'clientes': 'users',
+  'cases_by_status': 'chart-pie',
+  'cases_by_visa_type': 'badge-check',
+  'cases_timeline': 'calendar-days',
+  'client_demographics': 'globe-2',
+  'revenue_summary': 'landmark',
+  'time_entries': 'clock-3',
+  'tasks_overview': 'list-checks',
+  'document_status': 'files',
+  'upcoming_deadlines': 'calendar-clock',
+  'staff_productivity': 'activity'
+} %}
+
+<section class="ch-reports-hero" aria-labelledby="reports-title">
+  <div>
+    <p class="ch-eyebrow">Relatórios · Inteligência</p>
+    <h1 id="reports-title">Leitura executiva do escritório.</h1>
+    <p>
+      Risco, produtividade, carteira e dinheiro em uma visão preparada para a reunião semanal,
+      com relatórios detalhados logo abaixo.
+    </p>
+  </div>
+  <div class="ch-reports-hero__actions" aria-label="Atalhos de análise">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/controladoria">
+      <i data-lucide="scale"></i>
+      Controladoria
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/billing">
+      <i data-lucide="landmark"></i>
+      Financeiro
+    </a>
+  </div>
+</section>
+
+{% if product == "lite" %}
+<section class="ch-reports-kpis" id="quickStats" aria-label="Resumo executivo">
+  <article class="ch-report-kpi">
+    <span class="ch-report-kpi__icon"><i data-lucide="briefcase-business"></i></span>
+    <div>
+      <span class="ch-report-kpi__label">Processos ativos</span>
+      <strong class="ch-report-kpi__value" id="qsProcessos">--</strong>
+      <small>Carteira operacional aberta</small>
+    </div>
+  </article>
+  <article class="ch-report-kpi is-danger">
+    <span class="ch-report-kpi__icon"><i data-lucide="alarm-clock"></i></span>
+    <div>
+      <span class="ch-report-kpi__label">Prazos urgentes</span>
+      <strong class="ch-report-kpi__value" id="qsPrazos">--</strong>
+      <small>Próximos 7 dias</small>
+    </div>
+  </article>
+  <article class="ch-report-kpi is-success">
+    <span class="ch-report-kpi__icon"><i data-lucide="circle-check-big"></i></span>
+    <div>
+      <span class="ch-report-kpi__label">Taxa de conclusão</span>
+      <strong class="ch-report-kpi__value" id="qsTaxa">--</strong>
+      <small>Tarefas dos últimos 90 dias</small>
+    </div>
+  </article>
+  <article class="ch-report-kpi">
+    <span class="ch-report-kpi__icon"><i data-lucide="users"></i></span>
+    <div>
+      <span class="ch-report-kpi__label">Clientes ativos</span>
+      <strong class="ch-report-kpi__value" id="qsClientes">--</strong>
+      <small>Clientes com caso em andamento</small>
+    </div>
+  </article>
+</section>
+
+<section class="ch-reports-board" aria-label="Leitura operacional">
+  <article class="ch-reports-panel ch-reports-panel--wide">
+    <div class="ch-reports-panel__header">
+      <div>
+        <p class="ch-eyebrow">Diagnóstico</p>
+        <h2>O que merece atenção agora</h2>
+      </div>
+      <span class="ch-reports-period">Últimos 90 dias</span>
+    </div>
+    <div class="ch-reports-health" data-reports-health>
+      <div class="ch-reports-health__item">
+        <i data-lucide="loader-circle"></i>
+        <span>Carregando leitura do escritório...</span>
+      </div>
+    </div>
+  </article>
+
+  <article class="ch-reports-panel">
+    <p class="ch-eyebrow">Financeiro</p>
+    <h2>Receita e pendências</h2>
+    <div class="ch-reports-money">
+      <div>
+        <span>Faturado</span>
+        <strong id="qsFaturado">--</strong>
+      </div>
+      <div>
+        <span>Recebido</span>
+        <strong id="qsPago">--</strong>
+      </div>
+      <div>
+        <span>Pendente</span>
+        <strong id="qsPendente">--</strong>
+      </div>
+    </div>
+    <a class="ch-reports-inline-link" href="{{ PREFIX }}/reports/financeiro_mensal">
+      Abrir relatório financeiro
+      <i data-lucide="arrow-right"></i>
+    </a>
+  </article>
+</section>
+{% endif %}
+
+<section class="ch-reports-catalog" aria-labelledby="catalog-title">
+  <div class="ch-reports-section-head">
+    <div>
+      <p class="ch-eyebrow">Biblioteca</p>
+      <h2 id="catalog-title">Relatórios prontos para decisão.</h2>
+    </div>
+    <p>Escolha uma área para abrir gráfico, tabela e exportação CSV quando precisar levar os dados para fora do CaseHub.</p>
+  </div>
+
+  {% for cat_id, category in categories.items() %}
+  {% if category.reports %}
+  <section class="ch-reports-group" aria-labelledby="report-group-{{ cat_id }}">
+    <div class="ch-reports-group__title">
+      <span><i data-lucide="folder-open"></i></span>
+      <h3 id="report-group-{{ cat_id }}">{% if product == "lite" %}{{ category.name_pt }}{% else %}{{ category.name }}{% endif %}</h3>
+    </div>
+    <div class="ch-reports-grid">
+      {% for report in category.reports %}
+      <a class="ch-report-card" href="{{ PREFIX }}/reports/{{ report.id }}">
+        <span class="ch-report-card__icon">
+          <i data-lucide="{{ report_icons.get(report.id, 'chart-column') }}"></i>
+        </span>
+        <span class="ch-report-card__body">
+          <strong>{% if product == "lite" %}{{ report.name_pt }}{% else %}{{ report.name }}{% endif %}</strong>
+          <small>{% if product == "lite" %}{{ report.description_pt }}{% else %}{{ report.description }}{% endif %}</small>
+        </span>
+        <i data-lucide="arrow-up-right" class="ch-report-card__arrow"></i>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+  {% endfor %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+{% if product == "lite" %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const prefix = '{{ PREFIX }}';
+  const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  const state = {};
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function number(value) {
+    return Number.isFinite(Number(value)) ? Number(value) : 0;
+  }
+
+  function renderHealth() {
+    const host = document.querySelector('[data-reports-health]');
+    if (!host) return;
+
+    const prazos = state.prazos || {};
+    const produtividade = state.produtividade || {};
+    const financeiro = state.financeiro_mensal || {};
+    const clientes = state.clientes || {};
+    const items = [];
+
+    const urgentes = number(prazos.urgentes_7dias);
+    const vencidos = number(prazos.vencidos);
+    if (urgentes || vencidos) {
+      items.push({
+        icon: 'alarm-clock',
+        tone: 'danger',
+        title: urgentes + ' prazo' + (urgentes === 1 ? '' : 's') + ' nos próximos 7 dias',
+        text: vencidos ? vencidos + ' vencido' + (vencidos === 1 ? '' : 's') + ' nos últimos 90 dias.' : 'Sem vencidos recentes.'
+      });
+    } else {
+      items.push({
+        icon: 'shield-check',
+        tone: 'success',
+        title: 'Sem prazos urgentes no radar',
+        text: 'A Controladoria não aponta risco crítico para os próximos 7 dias.'
+      });
+    }
+
+    const taxa = number(produtividade.taxa_conclusao);
+    items.push({
+      icon: taxa >= 70 ? 'trending-up' : 'list-todo',
+      tone: taxa >= 70 ? 'success' : 'neutral',
+      title: taxa.toFixed(1) + '% de conclusão de tarefas',
+      text: number(produtividade.pendentes) + ' tarefa' + (number(produtividade.pendentes) === 1 ? '' : 's') + ' pendente' + (number(produtividade.pendentes) === 1 ? '' : 's') + ' no período.'
+    });
+
+    const pendente = number(financeiro.pendente);
+    items.push({
+      icon: pendente > 0 ? 'circle-dollar-sign' : 'badge-check',
+      tone: pendente > 0 ? 'warn' : 'success',
+      title: currency.format(pendente) + ' pendente',
+      text: 'Receita faturada e recebida dos últimos 90 dias.'
+    });
+
+    items.push({
+      icon: 'users',
+      tone: 'neutral',
+      title: number(clientes.ativos) + ' cliente' + (number(clientes.ativos) === 1 ? '' : 's') + ' ativo' + (number(clientes.ativos) === 1 ? '' : 's'),
+      text: number(clientes.novos_mes) + ' novo' + (number(clientes.novos_mes) === 1 ? '' : 's') + ' neste mês.'
+    });
+
+    host.innerHTML = items.map(item => `
+      <div class="ch-reports-health__item is-${item.tone}">
+        <i data-lucide="${item.icon}"></i>
+        <span><strong>${item.title}</strong><small>${item.text}</small></span>
+      </div>
+    `).join('');
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  async function loadQuickStat(type) {
+    const response = await fetch(prefix + '/reports/quick/' + type, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error(type + ' HTTP ' + response.status);
+    state[type] = await response.json();
+  }
+
+  Promise.allSettled([
+    loadQuickStat('processos_por_status'),
+    loadQuickStat('prazos'),
+    loadQuickStat('produtividade'),
+    loadQuickStat('clientes'),
+    loadQuickStat('financeiro_mensal')
+  ]).then(() => {
+    setText('qsProcessos', number(state.processos_por_status && state.processos_por_status.total));
+    setText('qsPrazos', number(state.prazos && state.prazos.urgentes_7dias));
+    setText('qsTaxa', number(state.produtividade && state.produtividade.taxa_conclusao).toFixed(1) + '%');
+    setText('qsClientes', number(state.clientes && state.clientes.ativos));
+    setText('qsFaturado', currency.format(number(state.financeiro_mensal && state.financeiro_mensal.faturado)));
+    setText('qsPago', currency.format(number(state.financeiro_mensal && state.financeiro_mensal.pago)));
+    setText('qsPendente', currency.format(number(state.financeiro_mensal && state.financeiro_mensal.pendente)));
+    renderHealth();
+  }).catch(() => {
+    const host = document.querySelector('[data-reports-health]');
+    if (host) {
+      host.innerHTML = '<div class="ch-reports-health__item is-warn"><i data-lucide="circle-alert"></i><span><strong>Não foi possível carregar os indicadores.</strong><small>Os relatórios detalhados continuam disponíveis abaixo.</small></span></div>';
+      if (window.lucide) window.lucide.createIcons();
+    }
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

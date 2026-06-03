@@ -1,0 +1,316 @@
+{% extends "app/base.html" %}
+{% set active_module = 'reports' %}
+{% block title %}Reports · View · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/reports" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="fas fa-arrow-left me-1"></i> {% if product == "lite" %}Voltar aos Relatórios{% else %}Back to Reports{% endif %}
+    </a>
+    <h2><i class="fas {{ report.icon }} me-2"></i>{% if product == "lite" %}{{ report.name_pt }}{% else %}{{ report.name }}{% endif %}</h2>
+    <p class="text-muted">{% if product == "lite" %}{{ report.description_pt }}{% else %}{{ report.description }}{% endif %}</p>
+</div>
+
+<!-- Date Filter -->
+<div class="{% if product == 'lite' %}glass-card{% else %}card{% endif %} mb-4">
+    <div class="{% if product == 'lite' %}glass-card-body{% else %}card-body{% endif %}">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">{% if product == "lite" %}Data Início{% else %}Start Date{% endif %}</label>
+                <input type="date" name="start_date" class="form-control glass-input" value="{{ start_date }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">{% if product == "lite" %}Data Fim{% else %}End Date{% endif %}</label>
+                <input type="date" name="end_date" class="form-control glass-input" value="{{ end_date }}">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary glass-btn glass-btn--primary me-2">
+                    <i class="fas fa-filter me-1"></i> {% if product == "lite" %}Filtrar{% else %}Filter{% endif %}
+                </button>
+                <a href="{{ PREFIX }}/reports/{{ report.id }}/export?start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-outline-success">
+                    <i class="fas fa-download me-1"></i> {% if product == "lite" %}Exportar CSV{% else %}CSV{% endif %}
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Chart Section -->
+    <div class="col-lg-8">
+        <div class="{% if product == 'lite' %}glass-card{% else %}card{% endif %} mb-4">
+            <div class="{% if product == 'lite' %}glass-card-header{% else %}card-header{% endif %}">
+                <i class="fas fa-chart-bar me-2"></i>{% if product == "lite" %}Visualização{% else %}Visualization{% endif %}
+            </div>
+            <div class="{% if product == 'lite' %}glass-card-body{% else %}card-body{% endif %}">
+                <canvas id="reportChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Section -->
+    <div class="col-lg-4">
+        {% if data.summary %}
+        <div class="{% if product == 'lite' %}glass-card{% else %}card{% endif %} mb-4">
+            <div class="{% if product == 'lite' %}glass-card-header{% else %}card-header{% endif %}">
+                <i class="fas fa-info-circle me-2"></i>{% if product == "lite" %}Resumo{% else %}Summary{% endif %}
+            </div>
+            <div class="{% if product == 'lite' %}glass-card-body{% else %}card-body{% endif %}">
+                <dl class="mb-0">
+                    {% if data.summary.total is defined %}
+                    <dt>Total</dt>
+                    <dd class="h4 text-primary">{{ data.summary.total }}</dd>
+                    {% endif %}
+
+                    {% if data.summary.total_billed is defined %}
+                    <dt>{% if product == "lite" %}Total Faturado{% else %}Total Billed{% endif %}</dt>
+                    <dd class="h5 text-info">{{ data.summary.total_billed|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</dd>
+                    <dt>{% if product == "lite" %}Total Pago{% else %}Total Paid{% endif %}</dt>
+                    <dd class="h5 text-success">{{ data.summary.total_paid|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</dd>
+                    <dt>{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</dt>
+                    <dd class="h5 text-warning">{{ data.summary.total_pending|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</dd>
+                    {% endif %}
+
+                    {% if data.summary.completed is defined %}
+                    <dt>{% if product == "lite" %}Concluídas{% else %}Completed{% endif %}</dt>
+                    <dd class="text-success">{{ data.summary.completed }}</dd>
+                    <dt>{% if product == "lite" %}Pendentes{% else %}Pending{% endif %}</dt>
+                    <dd class="text-warning">{{ data.summary.pending }}</dd>
+                    <dt>{% if product == "lite" %}Taxa de Conclusão{% else %}Completion Rate{% endif %}</dt>
+                    <dd class="h5">{{ "%.1f"|format(data.summary.completion_rate) }}%</dd>
+                    {% endif %}
+
+                    {% if data.summary.urgent is defined %}
+                    <dt class="text-danger">{% if product == "lite" %}Urgente (7 dias){% else %}Urgent (7 days){% endif %}</dt>
+                    <dd class="text-danger h5">{{ data.summary.urgent }}</dd>
+                    <dt class="text-warning">{% if product == "lite" %}Atenção (14 dias){% else %}Warning (14 days){% endif %}</dt>
+                    <dd class="text-warning">{{ data.summary.warning }}</dd>
+                    <dt>{% if product == "lite" %}Próximos{% else %}Upcoming{% endif %}</dt>
+                    <dd>{{ data.summary.upcoming }}</dd>
+                    {% if data.summary.missed is defined %}
+                    <dt class="text-danger mt-2">{% if product == "lite" %}Vencidos{% else %}Missed{% endif %}</dt>
+                    <dd class="text-danger h5">{{ data.summary.missed }}</dd>
+                    {% endif %}
+                    {% endif %}
+
+                    {% if data.summary.total_hours is defined %}
+                    <dt>{% if product == "lite" %}Total de Horas{% else %}Total Hours{% endif %}</dt>
+                    <dd class="h5">{{ "%.1f"|format(data.summary.total_hours) }}h</dd>
+                    <dt>{% if product == "lite" %}Valor Total{% else %}Total Value{% endif %}</dt>
+                    <dd class="h5 text-success">{{ data.summary.total_value|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if data.total is defined and not data.summary %}
+        <div class="{% if product == 'lite' %}glass-card{% else %}card{% endif %} mb-4">
+            <div class="{% if product == 'lite' %}glass-card-body{% else %}card-body{% endif %} text-center">
+                <div class="h6 text-muted mb-1">Total</div>
+                <div class="h2 text-primary">{{ data.total }}</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="{% if product == 'lite' %}glass-card{% else %}card glass-card{% endif %}">
+    <div class="{% if product == 'lite' %}glass-card-header{% else %}card-header{% endif %} d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-table me-2"></i>{% if product == "lite" %}Dados{% else %}Data{% endif %}</span>
+        <span class="badge bg-secondary">{{ data['items']|length if data['items'] else data['rows']|length if data['rows'] else 0 }} {% if product == "lite" %}registros{% else %}records{% endif %}</span>
+    </div>
+    <div class="{% if product == 'lite' %}glass-card-body{% else %}card-body{% endif %}">
+        {% if data.grouped %}
+        <!-- Grouped list for deadlines -->
+        {% if data.grouped.urgent %}
+        <h6 class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</h6>
+        <ul class="list-group mb-3">
+            {% for item in data.grouped.urgent %}
+            <li class="list-group-item list-group-item-danger d-flex justify-content-between align-items-center">
+                <span>
+                    <span class="badge bg-danger me-2">{{ item.type }}</span>
+                    {{ item.name }}
+                </span>
+                <span>
+                    {{ item.deadline }} ({{ item.days_left }} {% if product == "lite" %}dias{% else %}days{% endif %})
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if data.grouped.warning %}
+        <h6 class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>{% if product == "lite" %}Atenção{% else %}Warning{% endif %}</h6>
+        <ul class="list-group mb-3">
+            {% for item in data.grouped.warning %}
+            <li class="list-group-item list-group-item-warning d-flex justify-content-between align-items-center">
+                <span>
+                    <span class="badge bg-warning text-dark me-2">{{ item.type }}</span>
+                    {{ item.name }}
+                </span>
+                <span>
+                    {{ item.deadline }} ({{ item.days_left }} {% if product == "lite" %}dias{% else %}days{% endif %})
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if data.grouped.upcoming %}
+        <h6><i class="fas fa-clock me-1"></i>{% if product == "lite" %}Próximos{% else %}Upcoming{% endif %}</h6>
+        <ul class="list-group">
+            {% for item in data.grouped.upcoming %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>
+                    <span class="badge bg-secondary me-2">{{ item.type }}</span>
+                    {{ item.name }}
+                </span>
+                <span>
+                    {{ item.deadline }} ({{ item.days_left }} {% if product == "lite" %}dias{% else %}days{% endif %})
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% else %}
+        <!-- Standard table -->
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        {% for header in data.headers %}
+                        <th>{{ header }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data.rows %}
+                    <tr>
+                        {% for cell in row %}
+                        <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="{{ data.headers|length }}" class="text-center text-muted">
+                            {% if product == "lite" %}Nenhum dado encontrado para o período selecionado{% else %}No data found{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('reportChart').getContext('2d');
+    const chartData = {{ data.chart_data | tojson | safe if data.chart_data else '{}' }};
+    const chartType = '{{ data.type }}';
+    const isLite = {{ 'true' if product == 'lite' else 'false' }};
+
+    let config = {
+        type: 'bar',
+        data: {
+            labels: chartData.labels || [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom'
+                }
+            }
+        }
+    };
+
+    if (chartType === 'pie_chart') {
+        config.type = 'doughnut';
+        config.data.datasets = [{
+            data: chartData.values || [],
+            backgroundColor: chartData.colors || [
+                '#1C2447', '#22c55e', '#f59e0b', '#ef4444', '#6b7280',
+                '#1a6670', '#fd7e14', '#6610f2', '#e83e8c', '#20c997'
+            ]
+        }];
+    } else if (chartType === 'bar_chart') {
+        config.data.datasets = [{
+            label: isLite ? 'Quantidade' : 'Count',
+            data: chartData.values || [],
+            backgroundColor: isLite ? '#1C2447' : '#1C2447'
+        }];
+    } else if (chartType === 'horizontal_bar') {
+        config.type = 'bar';
+        config.options.indexAxis = 'y';
+        config.data.datasets = [{
+            label: isLite ? 'Quantidade' : 'Count',
+            data: chartData.values || [],
+            backgroundColor: '#22c55e'
+        }];
+    } else if (chartType === 'line_chart') {
+        config.type = 'line';
+        config.data.datasets = [{
+            label: isLite ? 'Novos' : 'New Cases',
+            data: chartData.values || [],
+            borderColor: isLite ? '#1C2447' : '#1C2447',
+            backgroundColor: 'rgba(28, 36, 71, 0.1)',
+            fill: true,
+            tension: 0.3
+        }];
+    } else if (chartType === 'revenue') {
+        config.type = 'bar';
+        config.data.datasets = [
+            {
+                label: isLite ? 'Faturado' : 'Billed',
+                data: chartData.billed || [],
+                backgroundColor: '#1C2447'
+            },
+            {
+                label: isLite ? 'Pago' : 'Paid',
+                data: chartData.paid || [],
+                backgroundColor: '#22c55e'
+            }
+        ];
+    } else if (chartType === 'grouped_bar') {
+        config.type = 'bar';
+        config.data.datasets = [
+            {
+                label: isLite ? 'Processos' : 'Cases',
+                data: chartData.cases || chartData.assigned || [],
+                backgroundColor: '#1C2447'
+            },
+            {
+                label: isLite ? 'Tarefas' : 'Tasks',
+                data: chartData.tasks || [],
+                backgroundColor: '#22c55e'
+            }
+        ];
+    } else if (chartType === 'list') {
+        config.type = 'bar';
+        config.data.labels = isLite
+            ? ['Urgente', 'Atenção', 'Próximos']
+            : ['Urgent', 'Warning', 'Upcoming'];
+        const summary = {{ data.summary | tojson | safe if data.summary else '{}' }};
+        config.data.datasets = [{
+            label: isLite ? 'Prazos' : 'Deadlines',
+            data: [summary.urgent || 0, summary.warning || 0, summary.upcoming || 0],
+            backgroundColor: ['#ef4444', '#f59e0b', '#1C2447']
+        }];
+    }
+
+    new Chart(ctx, config);
+});
+</script>
+{% endblock %}

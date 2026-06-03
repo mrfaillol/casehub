@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}{{ 'Editar' if action == 'Edit' else 'Novo' }} Cliente{% else %}{{ action }} Client{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/clients-form.css?v=20260519-mobile-actions">
+{% endblock %}
+
+{% block content %}
+<section class="clients-form-main" aria-labelledby="clients-form-title">
+    <div class="clients-form-container">
+        <header class="clients-form-header">
+            <a href="{% if client %}{{ PREFIX }}/clients/{{ client.id }}{% else %}{{ PREFIX }}/clients{% endif %}" class="clients-form-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Voltar{% else %}Back{% endif %}</span>
+            </a>
+            <h1 id="clients-form-title" class="clients-form-title">
+                <i class="fas fa-user-{% if client %}edit{% else %}plus{% endif %} clients-form-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}{{ 'Editar' if action == 'Edit' else 'Novo' }} Cliente{% else %}{{ action }} Client{% endif %}</span>
+            </h1>
+        </header>
+
+        <form method="post" action="{% if client %}{{ PREFIX }}/clients/{{ client.id }}/edit{% else %}{{ PREFIX }}/clients/new{% endif %}">
+            <div class="clients-form-grid">
+                <div class="clients-form-column">
+                    <section class="clients-form-card" aria-labelledby="clients-form-personal-heading">
+                        <h2 id="clients-form-personal-heading" class="clients-form-card-header">
+                            <i class="fas fa-user clients-form-card-header-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Dados Pessoais{% else %}Personal Information{% endif %}</span>
+                        </h2>
+                        <div class="clients-form-card-body">
+                            <div class="clients-form-row">
+                                <div>
+                                    <label for="clients-form-first-name" class="clients-form-label">
+                                        {% if product == "lite" %}Nome{% else %}First Name{% endif %}
+                                        <span class="clients-form-required" aria-hidden="true">*</span>
+                                    </label>
+                                    <input id="clients-form-first-name" type="text" class="clients-form-input" name="first_name" value="{{ client.first_name if client else '' }}" required aria-required="true">
+                                </div>
+                                <div>
+                                    <label for="clients-form-last-name" class="clients-form-label">
+                                        {% if product == "lite" %}Sobrenome{% else %}Last Name{% endif %}
+                                        <span class="clients-form-required" aria-hidden="true">*</span>
+                                    </label>
+                                    <input id="clients-form-last-name" type="text" class="clients-form-input" name="last_name" value="{{ client.last_name if client else '' }}" required aria-required="true">
+                                </div>
+                            </div>
+                            <div class="clients-form-field">
+                                <label for="clients-form-email" class="clients-form-label">Email</label>
+                                <input id="clients-form-email" type="email" class="clients-form-input" name="email" value="{{ client.email if client else '' }}">
+                            </div>
+                            <div class="clients-form-row">
+                                <div>
+                                    <label for="clients-form-phone" class="clients-form-label">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</label>
+                                    <input id="clients-form-phone" type="tel" class="clients-form-input" name="phone" value="{{ client.phone if client else '' }}">
+                                </div>
+                                <div>
+                                    <label for="clients-form-whatsapp" class="clients-form-label">WhatsApp</label>
+                                    <input id="clients-form-whatsapp" type="tel" class="clients-form-input" name="whatsapp" value="{{ client.whatsapp if client else '' }}">
+                                </div>
+                            </div>
+                            <div class="clients-form-row">
+                                <div>
+                                    <label for="clients-form-dob" class="clients-form-label">{% if product == "lite" %}Data de Nascimento{% else %}Date of Birth{% endif %}</label>
+                                    <input id="clients-form-dob" type="date" class="clients-form-input" name="date_of_birth" value="{{ client.date_of_birth.strftime('%Y-%m-%d') if client and client.date_of_birth else '' }}">
+                                </div>
+                                <div>
+                                    <label for="clients-form-country" class="clients-form-label">{% if product == "lite" %}Cidade{% else %}Country of Origin{% endif %}</label>
+                                    <input id="clients-form-country" type="text" class="clients-form-input" name="country_of_origin" value="{{ client.country_of_origin if client else '' }}">
+                                </div>
+                            </div>
+                            <div class="clients-form-field">
+                                <label for="clients-form-address" class="clients-form-label">{% if product == "lite" %}Endereço{% else %}Address{% endif %}</label>
+                                <textarea id="clients-form-address" class="clients-form-textarea" name="address" rows="2">{{ client.address if client else '' }}</textarea>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="clients-form-column">
+                    {% if product == "immigration" %}
+                    <section class="clients-form-card" aria-labelledby="clients-form-immigration-heading">
+                        <h2 id="clients-form-immigration-heading" class="clients-form-card-header">
+                            <i class="fas fa-passport clients-form-card-header-icon" aria-hidden="true"></i>
+                            <span>Immigration Information</span>
+                        </h2>
+                        <div class="clients-form-card-body">
+                            <div class="clients-form-field">
+                                <label for="clients-form-alien" class="clients-form-label">Alien Number (A#)</label>
+                                <input id="clients-form-alien" type="text" class="clients-form-input" name="alien_number" value="{{ client.alien_number if client else '' }}" placeholder="A###-###-###">
+                            </div>
+                            <div class="clients-form-field">
+                                <label for="clients-form-passport" class="clients-form-label">Passport Number</label>
+                                <input id="clients-form-passport" type="text" class="clients-form-input" name="passport_number" value="{{ client.passport_number if client else '' }}">
+                            </div>
+                            <div class="clients-form-field">
+                                <label for="clients-form-ssn" class="clients-form-label">SSN</label>
+                                <input id="clients-form-ssn" type="text" class="clients-form-input" name="ssn" value="{{ client.ssn if client else '' }}" placeholder="###-##-####">
+                            </div>
+                        </div>
+                    </section>
+                    {% endif %}
+                    {% if product == "lite" %}
+                    <section class="clients-form-card" aria-labelledby="clients-form-docs-heading">
+                        <h2 id="clients-form-docs-heading" class="clients-form-card-header">
+                            <i class="fas fa-id-card clients-form-card-header-icon" aria-hidden="true"></i>
+                            <span>Documentos</span>
+                        </h2>
+                        <div class="clients-form-card-body">
+                            <div class="clients-form-row clients-form-row--docs">
+                                <div>
+                                    <label for="clients-form-cpf" class="clients-form-label">CPF</label>
+                                    <input id="clients-form-cpf" type="text" class="clients-form-input" name="cpf" value="{{ client.cpf|default('') }}" placeholder="000.000.000-00">
+                                </div>
+                                <div>
+                                    <label for="clients-form-rg" class="clients-form-label">RG</label>
+                                    <input id="clients-form-rg" type="text" class="clients-form-input" name="rg" value="{{ client.rg|default('') }}">
+                                </div>
+                                <div>
+                                    <label for="clients-form-cnpj" class="clients-form-label">CNPJ</label>
+                                    <input id="clients-form-cnpj" type="text" class="clients-form-input" name="cnpj" value="{{ client.cnpj|default('') }}" placeholder="00.000.000/0000-00">
+                                </div>
+                                <div>
+                                    <label for="clients-form-oab" class="clients-form-label">OAB</label>
+                                    <input id="clients-form-oab" type="text" class="clients-form-input" name="oab_number" value="{{ client.oab_number|default('') }}" placeholder="OAB/MG 123.456">
+                                </div>
+                                <div>
+                                    <label for="clients-form-type" class="clients-form-label">Tipo de Cliente</label>
+                                    <select id="clients-form-type" class="clients-form-select" name="client_type">
+                                        <option value="individual" {% if client and client.client_type == 'individual' %}selected{% endif %}>Pessoa Física</option>
+                                        <option value="company" {% if client and client.client_type == 'company' %}selected{% endif %}>Pessoa Jurídica</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    {% endif %}
+                    <section class="clients-form-card" aria-labelledby="clients-form-status-heading">
+                        <h2 id="clients-form-status-heading" class="clients-form-card-header">
+                            <i class="fas fa-cog clients-form-card-header-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Status e Observações{% else %}Status & Notes{% endif %}</span>
+                        </h2>
+                        <div class="clients-form-card-body">
+                            <div class="clients-form-field">
+                                <label for="clients-form-status" class="clients-form-label">Status</label>
+                                <select id="clients-form-status" class="clients-form-select" name="status">
+                                    {% if product == "lite" %}
+                                    <option value="lead" {% if client and client.status == 'lead' %}selected{% endif %}>Lead</option>
+                                    <option value="prospect" {% if client and client.status == 'prospect' %}selected{% endif %}>Prospecto</option>
+                                    <option value="active" {% if client and client.status == 'active' %}selected{% endif %}>Ativo</option>
+                                    <option value="approved" {% if client and client.status == 'approved' %}selected{% endif %}>Aprovado</option>
+                                    <option value="denied" {% if client and client.status == 'denied' %}selected{% endif %}>Negado</option>
+                                    <option value="closed" {% if client and client.status == 'closed' %}selected{% endif %}>Encerrado</option>
+                                    {% else %}
+                                    <option value="lead" {% if client and client.status == 'lead' %}selected{% endif %}>Lead</option>
+                                    <option value="prospect" {% if client and client.status == 'prospect' %}selected{% endif %}>Prospect</option>
+                                    <option value="active" {% if client and client.status == 'active' %}selected{% endif %}>Active</option>
+                                    <option value="approved" {% if client and client.status == 'approved' %}selected{% endif %}>Approved</option>
+                                    <option value="denied" {% if client and client.status == 'denied' %}selected{% endif %}>Denied</option>
+                                    <option value="closed" {% if client and client.status == 'closed' %}selected{% endif %}>Closed</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div class="clients-form-field">
+                                <label for="clients-form-notes" class="clients-form-label">{% if product == "lite" %}Observações{% else %}Notes{% endif %}</label>
+                                <textarea id="clients-form-notes" class="clients-form-textarea" name="notes" rows="4">{{ client.notes if client else '' }}</textarea>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            {% if custom_fields %}
+            <section class="clients-form-card clients-form-custom" aria-labelledby="clients-form-custom-heading">
+                <h2 id="clients-form-custom-heading" class="clients-form-card-header">
+                    <i class="fas fa-plus-circle clients-form-card-header-icon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Campos Personalizados{% else %}Custom Fields{% endif %}</span>
+                </h2>
+                <div class="clients-form-card-body">
+                    <div class="clients-form-row clients-form-row--custom">
+                        {% for field in custom_fields %}
+                        <div>
+                            <label for="clients-form-cf-{{ field.field_name }}" class="clients-form-label">
+                                {{ field.field_label }}
+                                {% if field.required %}<span class="clients-form-required" aria-hidden="true">*</span>{% endif %}
+                            </label>
+                            {% if field.field_type == 'text' %}
+                            <input id="clients-form-cf-{{ field.field_name }}" type="text" class="clients-form-input" name="cf_{{ field.field_name }}"
+                                   value="{{ field.value if field.value else '' }}"
+                                   {% if field.required %}required aria-required="true"{% endif %}>
+                            {% elif field.field_type == 'textarea' %}
+                            <textarea id="clients-form-cf-{{ field.field_name }}" class="clients-form-textarea" name="cf_{{ field.field_name }}" rows="3"
+                                      {% if field.required %}required aria-required="true"{% endif %}>{{ field.value if field.value else '' }}</textarea>
+                            {% elif field.field_type == 'number' %}
+                            <input id="clients-form-cf-{{ field.field_name }}" type="number" class="clients-form-input" name="cf_{{ field.field_name }}"
+                                   value="{{ field.value if field.value else '' }}"
+                                   {% if field.required %}required aria-required="true"{% endif %}>
+                            {% elif field.field_type == 'date' %}
+                            <input id="clients-form-cf-{{ field.field_name }}" type="date" class="clients-form-input" name="cf_{{ field.field_name }}"
+                                   value="{{ field.value if field.value else '' }}"
+                                   {% if field.required %}required aria-required="true"{% endif %}>
+                            {% elif field.field_type == 'select' %}
+                            <select id="clients-form-cf-{{ field.field_name }}" class="clients-form-select" name="cf_{{ field.field_name }}"
+                                    {% if field.required %}required aria-required="true"{% endif %}>
+                                <option value="">{% if product == "lite" %}-- Selecione --{% else %}-- Select --{% endif %}</option>
+                                {% if field.options %}
+                                {% for opt in field.options %}
+                                <option value="{{ opt }}" {% if field.value == opt %}selected{% endif %}>{{ opt }}</option>
+                                {% endfor %}
+                                {% endif %}
+                            </select>
+                            {% elif field.field_type == 'checkbox' %}
+                            <label class="clients-form-check" for="clients-form-cf-{{ field.field_name }}">
+                                <input id="clients-form-cf-{{ field.field_name }}" class="clients-form-check-input" type="checkbox" name="cf_{{ field.field_name }}" value="true"
+                                       {% if field.required %}required aria-required="true"{% endif %}
+                                       {% if field.value == 'true' or field.value == true %}checked{% endif %}>
+                                <span>{% if product == "lite" %}Sim{% else %}Yes{% endif %}</span>
+                            </label>
+                            {% else %}
+                            <input id="clients-form-cf-{{ field.field_name }}" type="text" class="clients-form-input" name="cf_{{ field.field_name }}"
+                                   value="{{ field.value if field.value else '' }}">
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+
+            <div class="clients-form-actions">
+                <button type="submit" class="clients-form-btn clients-form-btn--primary">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}{{ 'Salvar' if action == 'Edit' else 'Criar' }} Cliente{% else %}{{ action }} Client{% endif %}</span>
+                </button>
+                <a href="{% if client %}{{ PREFIX }}/clients/{{ client.id }}{% else %}{{ PREFIX }}/clients{% endif %}" class="clients-form-btn clients-form-btn--ghost">
+                    {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+                </a>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

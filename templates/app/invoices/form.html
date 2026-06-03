@@ -1,0 +1,199 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Nova fatura · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Financeiro · Faturas · Nova emissão</span>
+    <h1>Emitir <em>fatura</em></h1>
+    <p class="ch-page-head__sub">
+      Selecione o processo para carregar os itens e horas elegíveis. Campos com <span style="color: var(--c-danger);">*</span> são obrigatórios.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<form method="post" action="{{ PREFIX }}/invoices/new"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  {# ─── Identificação ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Identificação</span>
+        <h2 class="ch-card__title">Número & vencimento</h2>
+      </div>
+      <span data-icon="billing" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="invoice_number">Número da fatura</label>
+        <input class="ch-input ch-mono" id="invoice_number" name="invoice_number" type="text"
+               value="{{ invoice_number }}" readonly />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="due_date">Data de vencimento</label>
+        <input class="ch-input ch-mono" id="due_date" name="due_date" type="date" value="" />
+      </div>
+    </div>
+  </article>
+
+  {# ─── Processo ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Vínculo</span>
+        <h2 class="ch-card__title">Processo</h2>
+      </div>
+      <span data-icon="folder" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="case_id">Processo <span style="color: var(--c-danger);">*</span></label>
+      <select class="ch-select" id="case_id" name="case_id" required onchange="reloadWithCase(this.value)">
+        <option value="">— Selecione um processo —</option>
+        {% for c in cases %}
+        <option value="{{ c.id }}"
+                {% if selected_case and selected_case.id == c.id %}selected{% endif %}>
+          {{ c.case_name or c.case_number or ('Case #' ~ c.id) }}
+          {% if c.visa_type %} · {{ c.visa_type }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if not selected_case %}
+    <p style="margin-top: var(--space-3); font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      Selecione um processo para ver itens pendentes & horas faturáveis.
+    </p>
+    {% endif %}
+  </article>
+
+  {# ─── Itens elegíveis ─── #}
+  {% if unbilled_items and unbilled_items|length > 0 %}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Itens elegíveis</span>
+        <h2 class="ch-card__title">{{ unbilled_items|length }} item(ns) pendente(s)</h2>
+      </div>
+      <span data-icon="check" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div class="ch-list" role="list">
+      {% for item in unbilled_items %}
+      <label class="ch-list__row" style="cursor: pointer;">
+        <span class="ch-list__icon" aria-hidden="true">
+          <input class="ch-checkbox item-checkbox" type="checkbox" value="{{ item.id }}" id="item{{ item.id }}" checked />
+        </span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ item.description }}</p>
+          <p class="ch-list__meta">{{ item.item_type or 'fee' }}</p>
+        </div>
+        <div class="ch-list__right">
+          <strong class="ch-mono">R$ {{ "%.2f"|format(item.amount|float) }}</strong>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+    <input type="hidden" name="item_ids" id="itemIds" value="" />
+  </article>
+  {% elif selected_case %}
+  <article class="ch-card">
+    <div class="ch-empty">
+      <span class="ch-empty__icon" aria-hidden="true"><span data-icon="inbox"></span></span>
+      <h3>Sem itens pendentes</h3>
+      <p>Este processo não possui itens de cobrança pendentes. Você ainda pode incluir horas trabalhadas abaixo.</p>
+    </div>
+  </article>
+  {% endif %}
+
+  {# ─── Horas faturáveis ─── #}
+  {% if unbilled_time and unbilled_time|length > 0 %}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Horas faturáveis</span>
+        <h2 class="ch-card__title">
+          {{ unbilled_time|length }} registro(s) · {{ unbilled_time|sum(attribute='hours') }} horas
+        </h2>
+      </div>
+      <span data-icon="calendar" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <label class="ch-checkbox" for="includeTime" style="margin-bottom: var(--space-3);">
+      <input id="includeTime" type="checkbox" name="include_time" value="true" />
+      <span>Incluir horas trabalhadas na fatura</span>
+    </label>
+    <div id="timeRateRow" style="display: none;">
+      <div class="ch-field">
+        <label class="ch-field__label" for="time_rate">Valor por hora (R$)</label>
+        <input class="ch-input ch-mono" id="time_rate" name="time_rate" type="number"
+               step="0.01" min="0" inputmode="decimal" value="250" placeholder="250.00" />
+      </div>
+    </div>
+  </article>
+  {% endif %}
+
+  {# ─── Observações ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Notas</span>
+        <h2 class="ch-card__title">Observações da fatura</h2>
+      </div>
+      <span data-icon="file" data-icon-size="20" style="color: var(--fg-muted);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="notes">Observações (opcional)</label>
+      <textarea class="ch-textarea" id="notes" name="notes" rows="3"
+                placeholder="Informações adicionais para o cliente, prazo de pagamento, dados bancários…"></textarea>
+    </div>
+  </article>
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      Nova fatura · Nº <strong>{{ invoice_number }}</strong>
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices">Cancelar</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span> Emitir fatura
+      </button>
+    </div>
+  </div>
+</form>
+
+<script>
+  function reloadWithCase(caseId) {
+    if (caseId) {
+      window.location.href = '{{ PREFIX }}/invoices/new?case_id=' + encodeURIComponent(caseId);
+    }
+  }
+
+  (function () {
+    var checkboxes = document.querySelectorAll('.item-checkbox');
+    var hidden = document.getElementById('itemIds');
+    function syncIds() {
+      if (!hidden) return;
+      var ids = [];
+      checkboxes.forEach(function (cb) { if (cb.checked) ids.push(cb.value); });
+      hidden.value = ids.join(',');
+    }
+    checkboxes.forEach(function (cb) { cb.addEventListener('change', syncIds); });
+    syncIds();
+
+    var includeTime = document.getElementById('includeTime');
+    var rateRow = document.getElementById('timeRateRow');
+    if (includeTime && rateRow) {
+      includeTime.addEventListener('change', function () {
+        rateRow.style.display = this.checked ? 'block' : 'none';
+      });
+    }
+  })();
+</script>
+{% endblock %}

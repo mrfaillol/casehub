@@ -1,0 +1,58 @@
+-- ============================================================
+-- Migration: Encrypt PII fields (SSN, alien_number, passport_number)
+-- Date: 2026-03-21
+-- ============================================================
+--
+-- CONTEXT:
+-- Previously, SSN, alien_number, and passport_number were stored as plaintext.
+-- After this migration, they are encrypted at the application layer using
+-- Fernet symmetric encryption (see services/encryption.py).
+--
+-- STEP 1: Widen columns to hold encrypted ciphertext (Fernet tokens are ~120+ chars)
+-- These ALTER statements are safe to run even if the columns already hold data.
+
+ALTER TABLE clients ALTER COLUMN ssn TYPE VARCHAR(200);
+ALTER TABLE clients ALTER COLUMN alien_number TYPE VARCHAR(200);
+ALTER TABLE clients ALTER COLUMN passport_number TYPE VARCHAR(200);
+
+-- STEP 2: Encrypt existing plaintext data
+-- This CANNOT be done in pure SQL because Fernet encryption requires the
+-- application-layer key. Run the following Python script after applying
+-- the column changes above:
+--
+--   python3 -c "
+--   import os
+--   os.environ.setdefault('ENCRYPTION_KEY', '<YOUR_KEY_HERE>')
+--   from models import SessionLocal, Client
+--   from services.encryption import encrypt_value
+--   db = SessionLocal()
+--   clients = db.query(Client).all()
+--   count = 0
+--   for c in clients:
+--       changed = False
+--       # Only encrypt if the value looks like plaintext (not already a Fernet token)
+--       for field in ('ssn', 'alien_number', 'passport_number'):
+--           val = getattr(c, field)
+--           if val and not val.startswith('gAAAAA'):
+--               setattr(c, field, encrypt_value(val))
+--               changed = True
+--       if changed:
+--           count += 1
+--   db.commit()
+--   db.close()
+--   print(f'Encrypted PII for {count} clients')
+--   "
+--
+-- STEP 3: Verify the migration worked:
+--   SELECT id, first_name, last_name,
+--          LEFT(ssn, 10) as ssn_prefix,
+--          LEFT(alien_number, 10) as an_prefix
+--   FROM clients
+--   WHERE ssn IS NOT NULL OR alien_number IS NOT NULL
+--   LIMIT 10;
+--   -- All values should now start with "gAAAAA" (Fernet token prefix)
+--
+-- ROLLBACK:
+-- If needed, the decrypt_value() function gracefully handles both encrypted
+-- and plaintext values (returns plaintext as-is if decryption fails).
+-- No rollback SQL is needed for the column widening.

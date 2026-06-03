@@ -1,0 +1,426 @@
+{% extends "base.html" %}
+{% block title %}{{ case.case_name or case.case_number }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/cases-detail.css">
+{% endblock %}
+
+{% block content %}
+<section class="cases-detail" aria-labelledby="cases-detail-title">
+
+    <header class="cases-detail-header">
+        <div>
+            <a href="{{ PREFIX }}/cases" class="cases-detail-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Voltar aos Processos{% else %}Back to Cases{% endif %}</span>
+            </a>
+            <h1 id="cases-detail-title" class="cases-detail-title">
+                <i class="fas fa-folder" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}{{ case.case_name or case.case_number or "Processo #" + case.id|string }}{% else %}{{ case.case_name or case.case_number or "Case #" + case.id|string }}{% endif %}</span>
+            </h1>
+        </div>
+        <div class="cases-detail-actions">
+            {% if product != "lite" and case.receipt_number %}
+            <a href="{{ PREFIX }}/uscis/check/{{ case.id }}" class="btn btn-outline-success">
+                <i class="fas fa-flag-usa me-1" aria-hidden="true"></i> Check USCIS
+            </a>
+            {% endif %}
+            <a href="{{ PREFIX }}/cases/{{ case.id }}/checklist" class="btn btn-outline-info">
+                <i class="fas fa-clipboard-list me-1" aria-hidden="true"></i>
+                {% if product == "lite" %}Checklist{% else %}Document Checklist{% endif %}
+            </a>
+            <a href="{{ PREFIX }}/cases/{{ case.id }}/edit" class="btn btn-outline-primary">
+                <i class="fas fa-edit me-1" aria-hidden="true"></i>
+                {% if product == "lite" %}Editar{% else %}Edit{% endif %}
+            </a>
+            <form method="post" action="{{ PREFIX }}/cases/{{ case.id }}/delete" class="d-inline" onsubmit="return confirm({% if product == 'lite' %}'Deletar este processo?'{% else %}'Delete this case?'{% endif %});">
+                <button type="submit" class="btn btn-outline-danger">
+                    <i class="fas fa-trash me-1" aria-hidden="true"></i>
+                    {% if product == "lite" %}Deletar{% else %}Delete{% endif %}
+                </button>
+            </form>
+        </div>
+    </header>
+
+    {# ===== Document Checklist Progress Bar (Lite only) ===== #}
+    {% if product == "lite" and checklist_progress and checklist_progress.total > 0 %}
+    <section class="card mb-4 border-0 shadow-sm" aria-labelledby="cases-detail-progress-title">
+        <div class="card-body py-3">
+            <div class="cases-detail-progress-meta">
+                <span id="cases-detail-progress-title" class="fw-semibold">
+                    <i class="fas fa-clipboard-check me-2 text-info" aria-hidden="true"></i>{{ checklist_progress.tipo_acao_nome }}
+                </span>
+                <span class="text-muted">Documentos: <strong>{{ checklist_progress.entregues }}/{{ checklist_progress.total }}</strong> entregues</span>
+            </div>
+            <div class="progress cases-detail-progress-bar"
+                 role="progressbar"
+                 aria-label="Progresso da checklist documental"
+                 aria-valuenow="{{ checklist_progress.percent }}"
+                 aria-valuemin="0"
+                 aria-valuemax="100">
+                <div class="progress-bar {% if checklist_progress.percent == 100 %}bg-success{% elif checklist_progress.percent >= 50 %}bg-info{% else %}bg-warning{% endif %}"
+                     style="width: {{ checklist_progress.percent }}%"></div>
+            </div>
+            <a href="{{ PREFIX }}/documents?case_id={{ case.id }}" class="cases-detail-progress-link">
+                <i class="fas fa-folder-open" aria-hidden="true"></i>
+                <span>Ver documentos do processo</span>
+            </a>
+        </div>
+    </section>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <section class="card h-100" aria-labelledby="cases-detail-info-title">
+                <header class="card-header" id="cases-detail-info-title">
+                    <i class="fas fa-info-circle me-1" aria-hidden="true"></i>
+                    {% if product == "lite" %}Informações do Processo{% else %}Case Information{% endif %}
+                </header>
+                <div class="card-body">
+                    <table class="table table-borderless mb-0">
+                        <tbody>
+                        <tr><th scope="row" class="cases-detail-label">{% if product == "lite" %}Número do Processo{% else %}Case Number{% endif %}</th><td><strong>{{ case.case_number or "-" }}</strong></td></tr>
+                        <tr><th scope="row" class="cases-detail-label">{% if product == "lite" %}Nome do Processo{% else %}Case Name{% endif %}</th><td>{{ case.case_name or "-" }}</td></tr>
+                        {% if product != "lite" %}
+                        <tr><th scope="row" class="cases-detail-label">Receipt Number</th><td>{{ case.receipt_number or "-" }}</td></tr>
+                        <tr><th scope="row" class="cases-detail-label">Visa Type</th><td>{{ case.visa_type or "-" }}</td></tr>
+                        {% endif %}
+                        {% if product == "lite" %}
+                        <tr><th scope="row" class="cases-detail-label">Tipo de Ação</th><td>{{ case.tipo_acao or "-" }}</td></tr>
+                        <tr><th scope="row" class="cases-detail-label">Vara</th><td>{{ case.vara or "-" }}</td></tr>
+                        <tr><th scope="row" class="cases-detail-label">Comarca</th><td>{{ case.comarca or "-" }}</td></tr>
+                        <tr><th scope="row" class="cases-detail-label">Tribunal</th><td>{{ case.tribunal or "-" }}</td></tr>
+                        <tr><th scope="row" class="cases-detail-label">Fase Processual</th><td>{{ case.fase_processual or "-" }}</td></tr>
+                        {% endif %}
+                        <tr><th scope="row" class="cases-detail-label">Status</th><td>
+                            {% if product == "lite" %}
+                                {% if case.status == "approved" or case.status == "deferido" %}<span class="badge bg-success">Deferido</span>
+                                {% elif case.status == "filed" or case.status == "protocolado" %}<span class="badge bg-primary">Protocolado</span>
+                                {% elif case.status == "denied" or case.status == "indeferido" %}<span class="badge bg-danger">Indeferido</span>
+                                {% elif case.status == "intake" %}<span class="badge bg-secondary">Intake</span>
+                                {% elif case.status == "em_andamento" %}<span class="badge bg-info">Em Andamento</span>
+                                {% elif case.status == "arquivado" %}<span class="badge bg-dark">Arquivado</span>
+                                {% else %}<span class="badge bg-secondary">{{ case.status }}</span>{% endif %}
+                            {% else %}
+                                {% if case.status == "approved" %}<span class="badge bg-success">Approved</span>
+                                {% elif case.status == "filed" %}<span class="badge bg-primary">Filed</span>
+                                {% elif case.status == "denied" %}<span class="badge bg-danger">Denied</span>
+                                {% elif case.status == "rfe" %}<span class="badge bg-warning">RFE</span>
+                                {% else %}<span class="badge bg-secondary">{{ case.status }}</span>{% endif %}
+                            {% endif %}
+                        </td></tr>
+                        <tr><th scope="row" class="cases-detail-label">{% if product == "lite" %}Prioridade{% else %}Priority{% endif %}</th><td>
+                            {% if case.priority == "urgent" %}<span class="badge bg-danger">{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</span>
+                            {% elif case.priority == "high" %}<span class="badge bg-warning">{% if product == "lite" %}Alta{% else %}High{% endif %}</span>
+                            {% elif case.priority == "medium" %}<span class="badge bg-info">{% if product == "lite" %}Média{% else %}Medium{% endif %}</span>
+                            {% elif case.priority == "low" %}<span class="badge bg-secondary">{% if product == "lite" %}Baixa{% else %}Low{% endif %}</span>
+                            {% else %}<span class="badge bg-secondary">{{ case.priority }}</span>{% endif %}
+                        </td></tr>
+                        <tr><th scope="row" class="cases-detail-label">{% if product == "lite" %}Valor da Causa{% else %}Case Value{% endif %}</th><td>{{ case.case_value|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) if case.case_value else "-" }}</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <div class="col-md-6 mb-4">
+            <section class="card h-100" aria-labelledby="cases-detail-dates-title">
+                <header class="card-header" id="cases-detail-dates-title">
+                    <i class="fas fa-calendar-alt me-1" aria-hidden="true"></i>
+                    {% if product == "lite" %}Datas Importantes{% else %}Important Dates{% endif %}
+                </header>
+                <div class="card-body">
+                    <table class="table table-borderless mb-0">
+                        <tbody>
+                        <tr>
+                            <th scope="row" class="cases-detail-label">{% if product == "lite" %}Data de Protocolo{% else %}Filing Date{% endif %}</th>
+                            <td>{% if product == "lite" %}{{ case.filing_date.strftime('%d/%m/%Y') if case.filing_date else "-" }}{% else %}{{ case.filing_date.strftime('%Y-%m-%d') if case.filing_date else "-" }}{% endif %}</td>
+                        </tr>
+                        {% if product != "lite" %}
+                        <tr>
+                            <th scope="row" class="cases-detail-label">Priority Date</th>
+                            <td>{{ case.priority_date.strftime('%Y-%m-%d') if case.priority_date else "-" }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th scope="row" class="cases-detail-label">{% if product == "lite" %}Data de Expiração{% else %}Expiration Date{% endif %}</th>
+                            <td>
+                                {% if case.expiration_date %}
+                                    {% if product == "lite" %}{{ case.expiration_date.strftime('%d/%m/%Y') }}{% else %}{{ case.expiration_date.strftime('%Y-%m-%d') }}{% endif %}
+                                    {% if case.expiration_date < now() %}
+                                        <span class="badge bg-danger ms-2">{% if product == "lite" %}Expirado{% else %}Expired{% endif %}</span>
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="cases-detail-label">{% if product == "lite" %}Criado em{% else %}Created{% endif %}</th>
+                            <td>{% if product == "lite" %}{{ case.created_at.strftime('%d/%m/%Y') if case.created_at else "-" }}{% else %}{{ case.created_at.strftime('%Y-%m-%d') if case.created_at else "-" }}{% endif %}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <section class="card h-100" aria-labelledby="cases-detail-client-title">
+                <header class="card-header" id="cases-detail-client-title">
+                    <i class="fas fa-user me-1" aria-hidden="true"></i>
+                    {% if product == "lite" %}Cliente{% else %}Client{% endif %}
+                </header>
+                <div class="card-body">
+                    {% if client %}
+                    <p class="cases-detail-client-name">
+                        <a href="{{ PREFIX }}/clients/{{ client.id }}">{{ client.first_name }} {{ client.last_name }}</a>
+                    </p>
+                    <p class="cases-detail-client-line">
+                        <i class="fas fa-envelope" aria-hidden="true"></i>
+                        <span>{{ client.email or "-" }}</span>
+                    </p>
+                    <p class="cases-detail-client-line">
+                        <i class="fas fa-phone" aria-hidden="true"></i>
+                        <span>{{ client.phone or "-" }}</span>
+                    </p>
+                    {% else %}
+                    <p class="cases-detail-empty-line">{% if product == "lite" %}Nenhum cliente vinculado{% else %}No client linked{% endif %}</p>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+        <div class="col-md-6 mb-4">
+            <section class="card h-100" aria-labelledby="cases-detail-actions-title">
+                <header class="card-header" id="cases-detail-actions-title">
+                    <i class="fas fa-tasks me-1" aria-hidden="true"></i>
+                    {% if product == "lite" %}Ações Rápidas{% else %}Quick Actions{% endif %}
+                </header>
+                <div class="card-body">
+                    <div class="cases-detail-quick-actions">
+                        <a href="{{ PREFIX }}/documents/upload?case_id={{ case.id }}" class="btn btn-outline-primary">
+                            <i class="fas fa-upload me-1" aria-hidden="true"></i>
+                            {% if product == "lite" %}Enviar Documento{% else %}Upload Document{% endif %}
+                        </a>
+                        <a href="{{ PREFIX }}/documents?case_id={{ case.id }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-folder-open me-1" aria-hidden="true"></i>
+                            {% if product == "lite" %}Ver Documentos{% else %}View Documents{% endif %}
+                        </a>
+                        {% if product == "lite" %}
+                        <a href="{{ PREFIX }}/controladoria?case_id={{ case.id }}" class="btn btn-outline-warning">
+                            <i class="fas fa-clock me-1" aria-hidden="true"></i> Novo Prazo
+                        </a>
+                        {% else %}
+                        <a href="{{ PREFIX }}/lor-maker?case_id={{ case.id }}{% if client %}&client_name={{ (client.first_name ~ ' ' ~ client.last_name)|urlencode }}{% endif %}&visa_type={{ (case.visa_type or '')|urlencode }}" class="btn btn-outline-success">
+                            <i class="fas fa-file-signature me-1" aria-hidden="true"></i> Generate LOR
+                        </a>
+                        <a href="{{ PREFIX }}/ps-maker?case_id={{ case.id }}{% if client %}&client_name={{ (client.first_name ~ ' ' ~ client.last_name)|urlencode }}{% endif %}&visa_type={{ (case.visa_type or '')|urlencode }}" class="btn btn-outline-success">
+                            <i class="fas fa-pen me-1" aria-hidden="true"></i> Personal Statement
+                        </a>
+                        <a href="{{ PREFIX }}/package-maker?case_id={{ case.id }}" class="btn btn-outline-success">
+                            <i class="fas fa-box me-1" aria-hidden="true"></i> Build Package
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    {# ===== Linked Prazos Section (Lite only) ===== #}
+    {% if product == "lite" and prazos is defined %}
+    <section class="card mb-4" aria-labelledby="cases-detail-prazos-title">
+        <header class="card-header d-flex justify-content-between align-items-center">
+            <span id="cases-detail-prazos-title">
+                <i class="fas fa-clock me-1" aria-hidden="true"></i> Prazos Processuais
+            </span>
+            <a href="{{ PREFIX }}/controladoria?case_id={{ case.id }}" class="btn btn-sm btn-outline-warning">
+                <i class="fas fa-plus me-1" aria-hidden="true"></i> Novo Prazo
+            </a>
+        </header>
+        <div class="card-body p-0">
+            {% if prazos %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Tipo</th>
+                            <th scope="col">Vencimento</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Responsável</th>
+                            <th scope="col"><span class="visually-hidden">Ações</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in prazos %}
+                        <tr>
+                            <td>
+                                <strong>{{ p.tipo }}</strong>
+                                {% if p.descricao %}<br><small class="text-muted">{{ p.descricao[:80] }}</small>{% endif %}
+                            </td>
+                            <td>
+                                <span class="cases-detail-prazo-date--{{ p.urgencia if p.urgencia in ['vencido','proximo','futuro'] else 'futuro' }}">
+                                    {{ p.data_vencimento.strftime('%d/%m/%Y') if p.data_vencimento else '-' }}
+                                </span>
+                                {% if p.urgencia == 'vencido' %}<span class="badge bg-danger ms-1">Vencido</span>{% endif %}
+                                {% if p.urgencia == 'proximo' %}<span class="badge bg-warning ms-1">Próximo</span>{% endif %}
+                            </td>
+                            <td>
+                                {% if p.status == 'concluido' %}<span class="badge bg-success">Concluído</span>
+                                {% elif p.status == 'perdido' %}<span class="badge bg-danger">Perdido</span>
+                                {% elif p.status == 'em_andamento' %}<span class="badge bg-info">Em Andamento</span>
+                                {% else %}<span class="badge bg-secondary">Pendente</span>{% endif %}
+                            </td>
+                            <td>{{ p.responsavel }}</td>
+                            <td>
+                                {% if p.status != 'concluido' %}
+                                <form method="post" action="{{ PREFIX }}/controladoria/{{ p.id }}/concluir" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" aria-label="Concluir prazo {{ p.tipo }}">
+                                        <i class="fas fa-check" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-clock fa-2x mb-2 d-block opacity-50" aria-hidden="true"></i>
+                Nenhum prazo cadastrado para este processo.
+            </div>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+
+    {# ===== Financial Tab (Lite only) ===== #}
+    {% if product == "lite" and financeiro is defined %}
+    <section class="card mb-4" aria-labelledby="cases-detail-finance-title">
+        <header class="card-header" id="cases-detail-finance-title">
+            <i class="fas fa-dollar-sign me-1" aria-hidden="true"></i> Financeiro
+        </header>
+        <div class="card-body">
+            <div class="cases-detail-finance-summary">
+                <div class="cases-detail-finance-card">
+                    <span class="cases-detail-finance-label">Total Honorários</span>
+                    <p class="cases-detail-finance-value cases-detail-finance-value--accent">R$ {{ "%.2f"|format(financeiro.total_honorarios)|replace('.', ',') }}</p>
+                </div>
+                <div class="cases-detail-finance-card">
+                    <span class="cases-detail-finance-label">Pagamentos</span>
+                    <p class="cases-detail-finance-value cases-detail-finance-value--success">R$ {{ "%.2f"|format(financeiro.total_pagamentos)|replace('.', ',') }}</p>
+                </div>
+                <div class="cases-detail-finance-card">
+                    <span class="cases-detail-finance-label">Saldo Devedor</span>
+                    <p class="cases-detail-finance-value {% if financeiro.saldo > 0 %}cases-detail-finance-value--danger{% else %}cases-detail-finance-value--success{% endif %}">R$ {{ "%.2f"|format(financeiro.saldo)|replace('.', ',') }}</p>
+                </div>
+            </div>
+            {% if financeiro['items'] %}
+            <h2 class="cases-detail-finance-section-title">Últimos Lançamentos</h2>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Descrição</th>
+                            <th scope="col">Tipo</th>
+                            <th scope="col" class="text-end">Valor</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in financeiro['items'] %}
+                        <tr>
+                            <td>{{ item.description }}</td>
+                            <td>
+                                {% if item.item_type == 'payment' %}<span class="badge bg-success">Pagamento</span>
+                                {% elif item.item_type == 'fee' %}<span class="badge bg-primary">Honorário</span>
+                                {% elif item.item_type == 'expense' %}<span class="badge bg-warning">Despesa</span>
+                                {% elif item.item_type == 'filing_fee' %}<span class="badge bg-info">Custas</span>
+                                {% else %}<span class="badge bg-secondary">{{ item.item_type }}</span>{% endif %}
+                            </td>
+                            <td class="text-end {% if item.item_type == 'payment' %}text-success{% endif %}">
+                                {% if item.item_type == 'payment' %}-{% endif %}R$ {{ "%.2f"|format(item.amount)|replace('.', ',') }}
+                            </td>
+                            <td>
+                                {% if item.status == 'paid' %}<span class="badge bg-success">Pago</span>
+                                {% elif item.status == 'invoiced' %}<span class="badge bg-info">Faturado</span>
+                                {% else %}<span class="badge bg-secondary">Pendente</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+
+    {% if custom_fields %}
+    <section class="card mb-4" aria-labelledby="cases-detail-custom-title">
+        <header class="card-header" id="cases-detail-custom-title">
+            <i class="fas fa-plus-circle me-1" aria-hidden="true"></i>
+            {% if product == "lite" %}Campos Personalizados{% else %}Custom Fields{% endif %}
+        </header>
+        <div class="card-body">
+            <div class="cases-detail-custom-grid">
+                {% for field in custom_fields %}
+                {% if field.value %}
+                <div>
+                    <span class="cases-detail-custom-label">{{ field.field_label }}</span>
+                    {% if field.field_type == 'checkbox' %}
+                    <span class="badge bg-{{ 'success' if field.value == 'true' or field.value == true else 'secondary' }}">
+                        {% if product == "lite" %}{{ 'Sim' if field.value == 'true' or field.value == true else 'Não' }}{% else %}{{ 'Yes' if field.value == 'true' or field.value == true else 'No' }}{% endif %}
+                    </span>
+                    {% else %}
+                    {{ field.value }}
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    {% if case.notes %}
+    <section class="card mb-4" aria-labelledby="cases-detail-notes-title">
+        <header class="card-header" id="cases-detail-notes-title">
+            <i class="fas fa-sticky-note me-1" aria-hidden="true"></i>
+            {% if product == "lite" %}Observações{% else %}Notes{% endif %}
+        </header>
+        <div class="card-body">
+            <pre class="cases-detail-notes">{{ case.notes }}</pre>
+        </div>
+    </section>
+    {% endif %}
+
+    {# ===== Case Timeline (Lite only) ===== #}
+    {% if product == "lite" and timeline is defined and timeline|length > 0 %}
+    <section class="card mb-4" aria-labelledby="cases-detail-timeline-title">
+        <header class="card-header" id="cases-detail-timeline-title">
+            <i class="fas fa-history me-1" aria-hidden="true"></i> Histórico do Processo
+        </header>
+        <div class="card-body">
+            <ol class="cases-detail-timeline">
+                {% for event in timeline[:20] %}
+                <li class="cases-detail-timeline-item">
+                    <span class="cases-detail-timeline-dot cases-detail-timeline-dot--{{ event.color }}" aria-hidden="true">
+                        <i class="{{ event.icon }}"></i>
+                    </span>
+                    <time class="cases-detail-timeline-date" datetime="{{ event.date.isoformat() if event.date else '' }}">
+                        {{ event.date.strftime('%d/%m/%Y %H:%M') if event.date else '' }}
+                    </time>
+                    <p class="cases-detail-timeline-desc">{{ event.description }}</p>
+                </li>
+                {% endfor %}
+            </ol>
+        </div>
+    </section>
+    {% endif %}
+
+</section>
+{% endblock %}

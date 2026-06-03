@@ -1,0 +1,153 @@
+{# templates/auth/login.html — theme-agnostic login (F4)
+
+   Consome apenas tokens semânticos via auth-layout.css + themes/<theme>.css.
+   Zero hex hardcoded. Zero box-shadow literal. Zero transition literal.
+
+   Inputs Jinja:
+     - product (str)         : 'casehub' / white-label
+     - org_name (str|None)   : tenant display name
+     - org_slug (str|None)   : tenant slug
+     - lang (str)            : 'pt' default
+     - theme (str)           : 'glass' | 'desktop' | 'neuromorphic' | 'white-label'
+     - error (str|None)      : flash error
+     - email_prefill (str)   : pre-populated email (deep-link / invite flow)
+     - next_url (str|None)   : post-login redirect
+     - csrf_token            : Flask-WTF
+
+   Spec: docs/handoff/casehub-templates/per-template/login.md
+#}
+<!DOCTYPE html>
+<html lang="{{ lang|default('pt-BR') }}"
+      data-theme="{{ theme|default('glass') }}"
+      data-product="{{ product|default('casehub') }}"
+      data-org="{{ org_slug|default('') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseHub{% if org_name and org_name != 'CaseHub' %} - {{ org_name }}{% endif %} — Entrar</title>
+  <link rel="icon" type="image/svg+xml" href="/static/brand-kit/favicon/casehub-favicon-degrade-4.svg">
+  <link rel="canonical" href="https://casehub.legal{{ request.path if request else '/casehub/login' }}">
+
+  {# Design system: tokens contract → theme overrides → screen layout #}
+  <link rel="stylesheet" href="/static/css/themes/_tokens.css">
+  <link rel="stylesheet" href="/static/css/themes/{{ theme|default('glass') }}.css">
+  <link rel="stylesheet" href="/static/css/screens/auth-layout.css">
+
+  {# White-label: cliente injeta accent via inline override #}
+  {% if org_settings and org_settings.get('accent_color') %}
+  <style>
+    [data-theme="white-label"] {
+      --client-accent: {{ org_settings.get('accent_color') }};
+    }
+  </style>
+  {% endif %}
+</head>
+<body class="auth-layout">
+  <a class="auth-skip-link" href="#auth-main">Pular para o conteúdo</a>
+
+  <header class="auth-header">
+    <a class="auth-brand" href="/" aria-label="CaseHub — início">
+      <span class="auth-brand__mark" aria-hidden="true">C</span>
+      <span>{{ product|default('CaseHub')|title if product != 'casehub' else 'CaseHub' }}</span>
+    </a>
+    {% if org_name %}
+    <span class="auth-tenant">{{ org_name }}</span>
+    {% endif %}
+  </header>
+
+  <main id="auth-main" class="auth-main">
+    <div class="auth-wrap">
+      <section class="auth-card" aria-labelledby="auth-title">
+        <div>
+          <h1 id="auth-title" class="auth-card__title">Entrar</h1>
+          <p class="auth-card__sub">
+            {% if org_name %}Acesse {{ org_name }}{% else %}Acesse sua conta CaseHub{% endif %}
+          </p>
+        </div>
+
+        {% if error %}
+        <div id="auth-alert" class="auth-alert auth-alert--danger" role="alert">
+          <svg class="auth-alert__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M8 4.5v4M8 10.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form class="auth-form" method="POST" action="/login" novalidate{% if error %} aria-describedby="auth-alert"{% endif %}>
+          {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+          {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+
+          <div class="auth-field">
+            <label class="auth-field__label" for="email">Email</label>
+            <input
+              class="auth-field__input"
+              id="email"
+              name="email"
+              type="email"
+              inputmode="email"
+              autocomplete="email"
+              autocapitalize="off"
+              spellcheck="false"
+              required
+              {% if not email_prefill %}autofocus{% endif %}
+              value="{{ email_prefill|default('') }}"
+              placeholder="voce@escritorio.com">
+          </div>
+
+          <div class="auth-field auth-field--password">
+            <label class="auth-field__label" for="password">Senha</label>
+            <input
+              class="auth-field__input"
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              minlength="8"
+              {% if email_prefill %}autofocus{% endif %}
+              placeholder="••••••••">
+            <button
+              class="auth-field__toggle"
+              type="button"
+              data-field-toggle="password"
+              aria-label="Mostrar senha"
+              aria-pressed="false">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M8 3.5c-3 0-5.5 2-6.5 4.5C2.5 10.5 5 12.5 8 12.5s5.5-2 6.5-4.5C13.5 5.5 11 3.5 8 3.5z" stroke="currentColor" stroke-width="1.3"/>
+                <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="auth-form__row">
+            <label class="auth-checkbox">
+              <input type="checkbox" name="remember" value="1">
+              <span>Lembrar de mim</span>
+            </label>
+            <a class="auth-link" href="/forgot-password">Esqueci minha senha</a>
+          </div>
+
+          <button class="auth-submit" type="submit" data-submit-label="Entrar">
+            <span class="auth-submit__label">Entrar</span>
+          </button>
+        </form>
+
+        <p class="auth-card__alt">
+          Ainda não tem conta?
+          <a class="auth-link auth-link--inline" href="/signup">Criar conta</a>
+        </p>
+      </section>
+
+      <nav class="auth-footer" aria-label="Links legais">
+        <a href="/terms">Termos</a>
+        <a href="/privacy">Privacidade</a>
+        <a href="/support">Suporte</a>
+      </nav>
+    </div>
+  </main>
+
+  <script src="/static/js/auth.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Pecas_Index · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <style>
+    .peca-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
+        border: none;
+    }
+    .peca-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+    }
+    .peca-icon {
+        width: 64px;
+        height: 64px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+    .peca-badge {
+        font-size: 0.7rem;
+        letter-spacing: 0.03em;
+    }
+    .ollama-status {
+        font-size: 0.85rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+    }
+    .bg-purple { background-color: #6f42c1 !important; }
+    .bg-opacity-10-purple { background-color: rgba(111, 66, 193, 0.1) !important; }
+    .text-purple { color: #6f42c1 !important; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="fas fa-file-signature me-2"></i>Gerador de Peças Jurídicas</h2>
+            <p class="text-muted mb-0">Gere petições, contestações, recursos e outras peças processuais</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            {% if ollama_online %}
+            <span class="ollama-status bg-success bg-opacity-10 text-success">
+                <i class="fas fa-robot me-1"></i>IA Disponível (Maestro)
+            </span>
+            {% else %}
+            <span class="ollama-status bg-secondary bg-opacity-10 text-secondary">
+                <i class="fas fa-robot me-1"></i>IA Indisponível
+            </span>
+            {% endif %}
+            <a href="{{ PREFIX }}/tools" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Peticoes e Acoes -->
+    <h5 class="text-muted mb-3"><i class="fas fa-gavel me-2"></i>Peticoes e Acoes</h5>
+    <div class="row g-4 mb-5">
+        {% for peca in pecas %}
+        {% if peca.tipo in ['peticao_inicial_civel', 'mandado_seguranca'] %}
+        <div class="col-md-6 col-xl-3">
+            <a href="{{ PREFIX }}/tools/pecas/{{ peca.tipo }}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm peca-card">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <span class="peca-icon bg-{{ peca.cor }} bg-opacity-10">
+                                <i class="{{ peca.icone }} fa-2x text-{{ peca.cor }}"></i>
+                            </span>
+                        </div>
+                        <h5 class="card-title text-dark">{{ peca.nome }}</h5>
+                        <p class="card-text text-muted small mb-3">{{ peca.descricao }}</p>
+                        <span class="badge bg-{{ peca.cor }} bg-opacity-10 text-{{ peca.cor }} peca-badge">
+                            {{ peca.num_campos }} campos
+                        </span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Respostas e Manifestacoes -->
+    <h5 class="text-muted mb-3"><i class="fas fa-shield-alt me-2"></i>Respostas e Manifestacoes</h5>
+    <div class="row g-4 mb-5">
+        {% for peca in pecas %}
+        {% if peca.tipo in ['contestacao', 'replica'] %}
+        <div class="col-md-6 col-xl-3">
+            <a href="{{ PREFIX }}/tools/pecas/{{ peca.tipo }}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm peca-card">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <span class="peca-icon bg-{{ peca.cor }} bg-opacity-10">
+                                <i class="{{ peca.icone }} fa-2x text-{{ peca.cor }}"></i>
+                            </span>
+                        </div>
+                        <h5 class="card-title text-dark">{{ peca.nome }}</h5>
+                        <p class="card-text text-muted small mb-3">{{ peca.descricao }}</p>
+                        <span class="badge bg-{{ peca.cor }} bg-opacity-10 text-{{ peca.cor }} peca-badge">
+                            {{ peca.num_campos }} campos
+                        </span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Recursos -->
+    <h5 class="text-muted mb-3"><i class="fas fa-level-up-alt me-2"></i>Recursos</h5>
+    <div class="row g-4 mb-5">
+        {% for peca in pecas %}
+        {% if peca.tipo in ['recurso_apelacao', 'agravo_instrumento', 'embargos_declaracao', 'recurso_ordinario_trabalhista'] %}
+        <div class="col-md-6 col-xl-3">
+            <a href="{{ PREFIX }}/tools/pecas/{{ peca.tipo }}" class="text-decoration-none">
+                <div class="card h-100 shadow-sm peca-card">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <span class="peca-icon bg-{{ peca.cor }} bg-opacity-10">
+                                <i class="{{ peca.icone }} fa-2x text-{{ peca.cor }}"></i>
+                            </span>
+                        </div>
+                        <h5 class="card-title text-dark">{{ peca.nome }}</h5>
+                        <p class="card-text text-muted small mb-3">{{ peca.descricao }}</p>
+                        <span class="badge bg-{{ peca.cor }} bg-opacity-10 text-{{ peca.cor }} peca-badge">
+                            {{ peca.num_campos }} campos
+                        </span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Info box -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <i class="fas fa-info-circle fa-2x text-primary"></i>
+                </div>
+                <div class="col">
+                    <h6 class="mb-1">Como funciona</h6>
+                    <p class="text-muted small mb-0">
+                        Selecione o tipo de peça, preencha os campos do formulário e clique em <strong>Gerar</strong>.
+                        O sistema monta a peça usando o modelo processual adequado.
+                        {% if ollama_online %}
+                        Ative a opção <strong>"Gerar com IA"</strong> para que o Maestro revise e melhore a redação jurídica automaticamente.
+                        {% else %}
+                        Quando o Ollama estiver rodando, você poderá ativar a opção <strong>"Gerar com IA"</strong> para revisão automática da redação.
+                        {% endif %}
+                        Após gerar, você pode copiar o texto ou baixar em formato DOCX/TXT.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tip: link from process -->
+    <div class="card border-0 glass-card mb-4">
+        <div class="card-body py-3">
+            <p class="text-muted small mb-0">
+                <i class="fas fa-lightbulb text-warning me-2"></i>
+                <strong>Dica:</strong> Você também pode gerar peças diretamente a partir de um processo.
+                Acesse o processo e clique em "Gerar Peça" para pre-preencher os campos automaticamente.
+                Ou adicione <code>?process_id=ID</code> a URL de qualquer peça.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

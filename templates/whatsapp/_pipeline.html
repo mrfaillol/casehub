@@ -1,0 +1,79 @@
+{#
+  _pipeline.html — WhatsApp Web clone lead pipeline / funnel (WS-D).
+
+  Kanban of conversations grouped by wa_contacts.lead_stage. Rendered as a
+  STANDALONE FRAGMENT by routes/whatsapp_crm.py (GET <prefix>/crm/pipeline) and
+  injected into chat.html by static/js/whatsapp-crm.js — chat.html is untouched.
+
+  Visual pattern follows templates/tasks/kanban.html (column board, drag cards).
+  Styling: static/css/templates/whatsapp-crm.css (semantic tokens only).
+  Card data is hydrated client-side from <prefix>/api/crm/pipeline.
+
+  Context: lead_stages, lead_stage_labels.
+#}
+<div class="wac-pipeline" id="wacPipeline">
+  <header class="wac-pipeline__header">
+    <span class="wac-pipeline__title">
+      <i class="fas fa-filter-circle-dollar" aria-hidden="true"></i>
+      Funil de leads
+    </span>
+    <div class="wac-pipeline__tools">
+      <span class="wac-pipeline__total" id="wacPipelineTotal" aria-live="polite">
+        0 conversas
+      </span>
+      <button type="button" class="wac-btn wac-btn--ghost wac-btn--sm"
+              id="wacPipelineRefresh" aria-label="Atualizar funil">
+        <i class="fas fa-sync-alt" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="wac-btn wac-btn--ghost wac-btn--sm"
+              data-wac-close aria-label="Fechar funil">
+        <i class="fas fa-times" aria-hidden="true"></i>
+      </button>
+    </div>
+  </header>
+
+  {# ── Métricas do funil (PR11 — preenchidas por whatsapp-crm.js) ── #}
+  <div class="wac-pipeline__metrics" id="wacPipelineMetrics" aria-label="Métricas do funil"></div>
+
+  <div class="wac-pipeline__board" id="wacPipelineBoard" role="list">
+    {% for s in lead_stages %}
+      <section class="wac-col wac-col--{{ s }}"
+               data-stage="{{ s }}"
+               role="listitem"
+               aria-label="Estágio {{ lead_stage_labels[s] }}">
+        <header class="wac-col__header">
+          <span class="wac-col__dot wac-col__dot--{{ s }}" aria-hidden="true"></span>
+          <span class="wac-col__name">{{ lead_stage_labels[s] }}</span>
+          <span class="wac-col__count" data-stage-count="{{ s }}">0</span>
+        </header>
+        <div class="wac-col__cards" data-stage-dropzone="{{ s }}">
+          {# Cards injected by whatsapp-crm.js renderPipeline() #}
+          <p class="wac-empty wac-empty--col" data-stage-empty="{{ s }}">
+            Nenhum lead neste estágio.
+          </p>
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+
+  {# Card template cloned by whatsapp-crm.js for each conversation. #}
+  <template id="wacPipelineCardTpl">
+    <article class="wac-card" draggable="true" role="button" tabindex="0">
+      <div class="wac-card__top">
+        <span class="wac-card__avatar" aria-hidden="true"></span>
+        <span class="wac-card__name"></span>
+        <span class="wac-card__unread" hidden></span>
+      </div>
+      <p class="wac-card__snippet"></p>
+      <div class="wac-card__meta">
+        <span class="wac-card__client" hidden></span>
+        <span class="wac-card__time"></span>
+      </div>
+      <div class="wac-card__tags"></div>
+    </article>
+  </template>
+
+  <div class="wac-pipeline__loading" id="wacPipelineLoading">
+    <span class="wac-spinner" aria-hidden="true"></span> Carregando funil…
+  </div>
+</div>

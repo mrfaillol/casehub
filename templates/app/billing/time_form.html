@@ -1,0 +1,157 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% set is_edit = entry is defined and entry and entry.id %}
+{% block title %}{% if is_edit %}Editar tempo · {{ entry.description|truncate(40, true) }}{% else %}Registrar tempo{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Financeiro · Tempo ·
+      {% if is_edit %}Editando #{{ entry.id }}{% else %}Novo registro{% endif %}
+    </span>
+    <h1>
+      {% if is_edit %}
+        Editar <em>registro de tempo</em>
+      {% else %}
+        Registrar <em>horas trabalhadas</em>
+      {% endif %}
+    </h1>
+    <p class="ch-page-head__sub">
+      Time-tracking faturável vincula horas ao processo e converte em item de cobrança no momento da fatura.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<form method="post"
+      action="{% if is_edit %}{{ PREFIX }}/billing/time/{{ entry.id }}/edit{% else %}{{ PREFIX }}/billing/time/new{% endif %}"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  {# ─── Vínculo ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Vínculo</span>
+        <h2 class="ch-card__title">Processo</h2>
+      </div>
+      <span data-icon="folder" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="case_id">Processo <span style="color: var(--c-danger);">*</span></label>
+      <select class="ch-select" id="case_id" name="case_id" required>
+        <option value="">— Selecione o processo —</option>
+        {% for c in cases %}
+        <option value="{{ c.id }}"
+                {% if (entry and entry.case_id == c.id) or (selected_case_id and selected_case_id == c.id) %}selected{% endif %}>
+          {{ c.case_number or c.case_name or ('Case #' ~ c.id) }}
+          {% if c.case_name and c.case_number %} · {{ c.case_name }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </article>
+
+  {# ─── Descrição ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Trabalho</span>
+        <h2 class="ch-card__title">O que foi feito</h2>
+      </div>
+      <span data-icon="check" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="description">Descrição <span style="color: var(--c-danger);">*</span></label>
+      <textarea class="ch-textarea" id="description" name="description" rows="3" required minlength="2"
+                placeholder="Reunião com cliente, redação de petição inicial, audiência…">{{ entry.description if entry else '' }}</textarea>
+    </div>
+  </article>
+
+  {# ─── Tempo & valor ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Mensuração</span>
+        <h2 class="ch-card__title">Data, horas & valor/hora</h2>
+      </div>
+      <span data-icon="calendar" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div class="ch-grid ch-grid--3">
+      <div class="ch-field">
+        <label class="ch-field__label" for="entry_date">Data <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input ch-mono" id="entry_date" name="entry_date" type="date" required
+               value="{{ entry.date.strftime('%Y-%m-%d') if entry and entry.date else (today.strftime('%Y-%m-%d') if today else '') }}" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="hours">Horas <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input ch-mono" id="hours" name="hours" type="number"
+               step="0.25" min="0.25" inputmode="decimal" required
+               value="{{ entry.hours if entry else '' }}" placeholder="1.5" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="rate">Valor (R$/hora)</label>
+        <input class="ch-input ch-mono" id="rate" name="rate" type="number"
+               step="0.01" min="0" inputmode="decimal"
+               value="{{ entry.rate if entry and entry.rate else '' }}" placeholder="Opcional" />
+      </div>
+    </div>
+  </article>
+
+  {# ─── Responsável & faturável ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Atribuição</span>
+        <h2 class="ch-card__title">Responsável & faturável</h2>
+      </div>
+      <span data-icon="user" data-icon-size="20" style="color: var(--fg-muted);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="user_id">Responsável</label>
+        <select class="ch-select" id="user_id" name="user_id">
+          <option value="">Usuário atual{% if user %} ({{ user.name }}){% endif %}</option>
+          {% for u in users %}
+          <option value="{{ u.id }}"
+                  {% if entry and entry.user_id == u.id %}selected{% endif %}>{{ u.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="billable">Faturável</label>
+        <input type="hidden" name="billable" value="false" />
+        <label class="ch-checkbox" for="billable" style="margin-top: var(--space-2);">
+          <input id="billable" type="checkbox" name="billable" value="true"
+                 {% if not entry or entry.billable %}checked{% endif %} />
+          <span>Este tempo é faturável</span>
+        </label>
+      </div>
+    </div>
+  </article>
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      {% if is_edit %}
+        Atualizando ID #{{ entry.id }}
+      {% else %}
+        Novo registro
+      {% endif %}
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing">Cancelar</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span>
+        {% if is_edit %}Salvar alterações{% else %}Registrar tempo{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Automações de Processos - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/triggers-list.css">
+{% endblock %}
+
+{% block content %}
+{% set trigger_event_labels = {
+    'status_changed': 'Status alterado',
+    'case_created': 'Processo criado',
+    'document_uploaded': 'Documento enviado',
+    'task_completed': 'Tarefa concluída',
+    'deadline_approaching': 'Prazo próximo',
+    'payment_received': 'Pagamento recebido'
+} %}
+{% set trigger_action_labels = {
+    'create_task': 'Criar tarefa',
+    'send_email': 'Enviar e-mail',
+    'update_status': 'Atualizar status',
+    'add_note': 'Adicionar nota',
+    'send_notification': 'Enviar notificação',
+    'create_reminder': 'Criar lembrete',
+    'webhook': 'Webhook'
+} %}
+{% set trigger_status_labels = {
+    'any': 'Qualquer',
+    'intake': 'Entrada',
+    'document_collection': 'Coleta de documentos',
+    'drafting': 'Minuta',
+    'review': 'Revisão',
+    'filed': 'Protocolado',
+    'rfe': 'Exigência (RFE)',
+    'approved': 'Aprovado',
+    'denied': 'Negado'
+} %}
+<section class="triggers-list-main" aria-labelledby="triggers-list-title">
+    <header class="triggers-list-header">
+        <div class="triggers-list-heading">
+            <h1 id="triggers-list-title" class="triggers-list-title">
+                <i class="fas fa-bolt" aria-hidden="true"></i>
+                <span>Automações de Processos</span>
+            </h1>
+            <p class="triggers-list-subtitle">Regras automáticas para mudanças de status e eventos do processo</p>
+        </div>
+
+        <div class="triggers-list-actions">
+            <a href="{{ PREFIX }}/triggers/new{% if selected_case %}?case_id={{ selected_case.id }}{% endif %}" class="triggers-list-cta">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>Nova Automação</span>
+            </a>
+        </div>
+    </header>
+
+    <div class="triggers-list-card triggers-list-card--filter">
+        <form method="GET" class="triggers-list-filter" aria-label="Filtrar automações por processo">
+            <div class="triggers-list-field">
+                <label for="triggers-list-case-filter" class="triggers-list-label">Processo</label>
+                <select id="triggers-list-case-filter" name="case_id" class="triggers-list-select" onchange="this.form.submit()">
+                    <option value="">Todos os processos</option>
+                    {% for case in cases %}
+                    <option value="{{ case.id }}" {% if selected_case and selected_case.id == case.id %}selected{% endif %}>
+                        {{ case.case_number }} - {{ case.case_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="triggers-list-btn triggers-list-btn--primary">
+                <i class="fas fa-filter" aria-hidden="true"></i>
+                <span>Filtrar</span>
+            </button>
+        </form>
+    </div>
+
+    {% if selected_case %}
+    <aside class="triggers-list-banner" role="status" aria-live="polite">
+        <div class="triggers-list-banner-text">
+            <i class="fas fa-briefcase" aria-hidden="true"></i>
+            <span>Exibindo automações para: <strong>{{ selected_case.case_number }}</strong> - {{ selected_case.case_name }}</span>
+        </div>
+        <button type="button" class="triggers-list-btn triggers-list-btn--ghost" onclick="applyDefaults({{ selected_case.id }})">
+            <i class="fas fa-magic" aria-hidden="true"></i>
+            <span>Aplicar automações padrão</span>
+        </button>
+    </aside>
+    {% endif %}
+
+    <div class="triggers-list-card">
+        <div class="triggers-list-tablewrap">
+            <table class="triggers-list-table">
+                <caption>Lista de automações com evento, condição, ação, processo relacionado, execuções, status e ações por linha.</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Automação</th>
+                        <th scope="col">Evento</th>
+                        <th scope="col">Condição</th>
+                        <th scope="col">Ação</th>
+                        <th scope="col">Processo</th>
+                        <th scope="col">Execuções</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="triggers-list-cell-actions">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trigger in triggers %}
+                    <tr>
+                        <th scope="row">
+                            <span class="triggers-list-name">{{ trigger.name or trigger.trigger_id }}</span>
+                            <small class="triggers-list-id">{{ trigger.trigger_id }}</small>
+                        </th>
+                        <td>
+                            <span class="triggers-list-badge triggers-list-badge--info">{{ trigger_event_labels.get(trigger.event, trigger.event.replace('_', ' ')|title) }}</span>
+                        </td>
+                        <td>
+                            {% set cond = trigger.condition_config %}
+                            {% if cond %}
+                            <div class="triggers-list-condition">
+                                {% if cond is string %}
+                                    {% set cond = cond|tojson|safe %}
+                                {% endif %}
+                                <span><span class="triggers-list-condition-label">De:</span> {{ trigger_status_labels.get(cond.get('from_status', 'any'), cond.get('from_status', 'any')) }}</span>
+                                <span><span class="triggers-list-condition-label">Para:</span> {{ trigger_status_labels.get(cond.get('to_status', 'any'), cond.get('to_status', 'any')) }}</span>
+                            </div>
+                            {% else %}
+                            <span class="triggers-list-placeholder" aria-label="Qualquer condição">Qualquer</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="triggers-list-badge triggers-list-badge--neutral">{{ trigger_action_labels.get(trigger.action, trigger.action.replace('_', ' ')|title) }}</span>
+                        </td>
+                        <td>
+                            {% if trigger.case_number %}
+                            <a href="{{ PREFIX }}/cases/{{ trigger.case_id }}" class="triggers-list-link">{{ trigger.case_number }}</a>
+                            {% else %}
+                            <span class="triggers-list-placeholder" aria-label="Nenhum processo vinculado">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="triggers-list-count">{{ trigger.execution_count or 0 }}</span>
+                        </td>
+                        <td>
+                            {% if trigger.enabled %}
+                            <span class="triggers-list-badge triggers-list-badge--active">Ativa</span>
+                            {% else %}
+                            <span class="triggers-list-badge triggers-list-badge--inactive">Desativada</span>
+                            {% endif %}
+                        </td>
+                        <td class="triggers-list-cell-actions">
+                            <div class="triggers-list-row-actions">
+                                <button type="button"
+                                        class="triggers-list-action-btn {% if trigger.enabled %}triggers-list-action-btn--warning{% else %}triggers-list-action-btn--success{% endif %}"
+                                        onclick="toggleTrigger('{{ trigger.trigger_id }}')"
+                                        aria-label="{% if trigger.enabled %}Pausar{% else %}Ativar{% endif %} automação {{ trigger.name or trigger.trigger_id }}">
+                                    <i class="fas fa-{% if trigger.enabled %}pause{% else %}play{% endif %}" aria-hidden="true"></i>
+                                </button>
+                                <button type="button"
+                                        class="triggers-list-action-btn triggers-list-action-btn--danger"
+                                        onclick="deleteTrigger('{{ trigger.trigger_id }}')"
+                                        aria-label="Excluir automação {{ trigger.name or trigger.trigger_id }}">
+                                    <i class="fas fa-trash" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8">
+                            <div class="triggers-list-empty">
+                                <i class="fas fa-bolt triggers-list-empty-icon" aria-hidden="true"></i>
+                                <h2 class="triggers-list-empty-title">Nenhuma automação configurada</h2>
+                                <p class="triggers-list-empty-text">Crie automações para executar ações quando o status do processo mudar.</p>
+                                <a href="{{ PREFIX }}/triggers/new{% if selected_case %}?case_id={{ selected_case.id }}{% endif %}" class="triggers-list-cta">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
+                                    <span>Criar primeira automação</span>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<script>
+const PREFIX = '{{ PREFIX }}';
+
+async function toggleTrigger(triggerId) {
+    const response = await fetch(`${PREFIX}/triggers/${triggerId}/toggle`, {method: 'POST'});
+    if (response.ok) {
+        location.reload();
+    }
+}
+
+async function deleteTrigger(triggerId) {
+    if (confirm('Excluir esta automação?')) {
+        const response = await fetch(`${PREFIX}/triggers/${triggerId}/delete`, {method: 'POST'});
+        if (response.ok) {
+            location.reload();
+        }
+    }
+}
+
+async function applyDefaults(caseId) {
+    const response = await fetch(`${PREFIX}/triggers/api/apply-defaults/${caseId}`, {method: 'POST'});
+    const data = await response.json();
+    if (data.success) {
+        alert(`Foram aplicadas ${data.created} automações padrão.`);
+        location.reload();
+    }
+}
+</script>
+{% endblock %}

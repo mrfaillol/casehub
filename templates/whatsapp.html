@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}WhatsApp Bot - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/whatsapp.css">
+{% endblock %}
+
+{% block content %}
+<main class="whatsapp-main" aria-labelledby="whatsapp-title">
+    <header class="whatsapp-header">
+        <h1 id="whatsapp-title" class="whatsapp-title">
+            <i class="fab fa-whatsapp whatsapp-title-icon" aria-hidden="true"></i>
+            <span>WhatsApp Bot Control</span>
+        </h1>
+        <a href="/" class="whatsapp-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    <section class="whatsapp-card" aria-labelledby="whatsapp-status-heading">
+        <header class="whatsapp-card-header whatsapp-card-header--accent">
+            <h2 id="whatsapp-status-heading" class="whatsapp-card-title">
+                <i class="fas fa-signal" aria-hidden="true"></i>
+                <span>Status da Conexão</span>
+            </h2>
+        </header>
+        <div class="whatsapp-card-body">
+            <div class="whatsapp-status-row">
+                <div class="whatsapp-status-info" role="status" aria-live="polite">
+                    <span id="status-indicator"
+                          class="whatsapp-status-dot"
+                          data-state="unknown"
+                          aria-label="Verificando status do bot"></span>
+                    <div>
+                        <p id="status-text" class="whatsapp-status-text">Verificando…</p>
+                        <small id="status-time" class="whatsapp-status-time">--</small>
+                    </div>
+                </div>
+                <div class="whatsapp-actions">
+                    <button id="btn-toggle"
+                            type="button"
+                            class="whatsapp-btn whatsapp-btn--warning"
+                            aria-pressed="true"
+                            aria-label="Alternar bot"
+                            onclick="toggleBot()">
+                        <i class="fas fa-power-off" aria-hidden="true"></i>
+                        <span id="toggle-text">Desativar</span>
+                    </button>
+                    <a href="/whatsapp-api/qr"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="whatsapp-btn whatsapp-btn--success">
+                        <i class="fas fa-qrcode" aria-hidden="true"></i>
+                        <span>QR Code</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="whatsapp-card" aria-labelledby="whatsapp-config-heading">
+        <header class="whatsapp-card-header">
+            <h2 id="whatsapp-config-heading" class="whatsapp-card-title">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                <span>Horário de Funcionamento</span>
+            </h2>
+        </header>
+        <div class="whatsapp-card-body">
+            <div class="whatsapp-config-grid">
+                <div>
+                    <h3 class="whatsapp-config-section-title">Horário configurado</h3>
+                    <ul class="whatsapp-list">
+                        <li>
+                            <i class="fas fa-check whatsapp-list-icon" aria-hidden="true"></i>
+                            <span>Segunda a Sexta: 12h - 18h BRT</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-check whatsapp-list-icon" aria-hidden="true"></i>
+                            <span>Sabado e Domingo: 24 horas</span>
+                        </li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="whatsapp-config-section-title">Comandos via WhatsApp</h3>
+                    <ul class="whatsapp-list">
+                        <li><code class="whatsapp-cmd">!status</code><span>Ver status do bot</span></li>
+                        <li><code class="whatsapp-cmd">!bot-off</code><span>Desativar bot</span></li>
+                        <li><code class="whatsapp-cmd">!bot-on</code><span>Ativar bot</span></li>
+                    </ul>
+                    <small class="whatsapp-list-helper">* Comandos disponíveis para administradores</small>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="whatsapp-metrics-grid" aria-label="Métricas do bot">
+        <article class="whatsapp-metric-card">
+            <i class="fas fa-user-plus whatsapp-metric-icon" data-tone="primary" aria-hidden="true"></i>
+            <p id="leads-today" class="whatsapp-metric-value" aria-live="polite">--</p>
+            <p class="whatsapp-metric-label">Leads Hoje</p>
+        </article>
+        <article class="whatsapp-metric-card">
+            <i class="fas fa-comments whatsapp-metric-icon" data-tone="info" aria-hidden="true"></i>
+            <p id="messages-today" class="whatsapp-metric-value" aria-live="polite">--</p>
+            <p class="whatsapp-metric-label">Mensagens Hoje</p>
+        </article>
+        <article class="whatsapp-metric-card">
+            <i class="fas fa-clock whatsapp-metric-icon" data-tone="warning" aria-hidden="true"></i>
+            <p id="awaiting-human" class="whatsapp-metric-value" aria-live="polite">--</p>
+            <p class="whatsapp-metric-label">Aguardando Humano</p>
+        </article>
+        <article class="whatsapp-metric-card">
+            <i class="fas fa-chart-line whatsapp-metric-icon" data-tone="success" aria-hidden="true"></i>
+            <p id="leads-week" class="whatsapp-metric-value" aria-live="polite">--</p>
+            <p class="whatsapp-metric-label">Leads Esta Semana</p>
+        </article>
+    </section>
+</main>
+
+<script>
+let currentStatus = {};
+
+function setStatusDot(state, label) {
+    const dot = document.getElementById('status-indicator');
+    if (!dot) return;
+    dot.setAttribute('data-state', state);
+    dot.setAttribute('aria-label', label);
+}
+
+function setStatusText(text, state) {
+    const el = document.getElementById('status-text');
+    if (!el) return;
+    el.textContent = text;
+    if (state) {
+        el.setAttribute('data-state', state);
+    } else {
+        el.removeAttribute('data-state');
+    }
+}
+
+function setStatusTime(text, state) {
+    const el = document.getElementById('status-time');
+    if (!el) return;
+    el.textContent = text;
+    if (state) {
+        el.setAttribute('data-state', state);
+    } else {
+        el.removeAttribute('data-state');
+    }
+}
+
+function setToggle(variant, label, pressed) {
+    const btn = document.getElementById('btn-toggle');
+    const text = document.getElementById('toggle-text');
+    if (!btn || !text) return;
+    btn.className = 'whatsapp-btn whatsapp-btn--' + variant;
+    btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    btn.setAttribute('aria-label', pressed ? 'Desativar bot' : 'Ativar bot');
+    text.textContent = label;
+}
+
+async function checkStatus() {
+    try {
+        const res = await fetch('/whatsapp-api/api/status');
+        const data = await res.json();
+        currentStatus = data;
+
+        if (data.connected || data.isReady) {
+            setStatusDot('connected', 'Bot conectado');
+            setStatusText('Conectado', 'connected');
+        } else {
+            setStatusDot('disconnected', 'Bot desconectado');
+            setStatusText('Desconectado', 'disconnected');
+        }
+
+        const configRes = await fetch('/whatsapp-api/api/admin/bot-status');
+        const configData = await configRes.json();
+
+        if (configData.hardOff) {
+            setToggle('success', 'Ativar', false);
+            setStatusTime(
+                'Bot em HARD OFF - desativado permanentemente por ' + (configData.hardOffBy || 'admin'),
+                'hard-off'
+            );
+        } else if (configData.globalEnabled === false) {
+            setToggle('success', 'Ativar', false);
+            setStatusTime('Bot DESATIVADO manualmente', null);
+        } else if (configData.botIsActive) {
+            setToggle('warning', 'Desativar', true);
+            setStatusTime('Bot ATIVO - ' + (configData.currentTime || ''), null);
+        } else {
+            setToggle('success', 'Ativar', false);
+            setStatusTime('Fora do horário - ' + (configData.reason || ''), null);
+        }
+    } catch (err) {
+        console.error('Erro ao verificar status:', err);
+    }
+}
+
+async function toggleBot() {
+    try {
+        const statusRes = await fetch('/whatsapp-api/api/admin/bot-status');
+        const statusData = await statusRes.json();
+        const isCurrentlyOn = statusData.globalEnabled && !statusData.hardOff;
+
+        const res = await fetch('/whatsapp-api/api/admin/bot-global-toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                enabled: !isCurrentlyOn,
+                updatedBy: 'CaseHub'
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            checkStatus();
+        }
+    } catch (err) {
+        console.error('Erro ao toggle bot:', err);
+        alert('Erro ao alterar status do bot');
+    }
+}
+
+async function loadMetrics() {
+    try {
+        const res = await fetch('/whatsapp-api/stats');
+        const data = await res.json();
+
+        document.getElementById('leads-today').textContent = data.leadsToday || '0';
+        document.getElementById('messages-today').textContent = data.messagesToday || '0';
+        document.getElementById('awaiting-human').textContent = data.awaitingHuman || '0';
+        document.getElementById('leads-week').textContent = data.leadsThisWeek || '0';
+    } catch (err) {
+        console.error('Erro ao carregar metricas:', err);
+    }
+}
+
+checkStatus();
+loadMetrics();
+
+setInterval(checkStatus, 30000);
+setInterval(loadMetrics, 60000);
+</script>
+{% endblock %}

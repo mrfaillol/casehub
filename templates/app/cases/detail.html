@@ -1,0 +1,601 @@
+{% extends "app/base.html" %}
+{% set active_module = 'processes' %}
+{% set is_lite = product is defined and product == 'lite' %}
+{% block title %}{{ case.case_name or case.case_number or 'Processo' }} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+{# ─── Status pill helper ─── #}
+{% set status_key = (case.status or 'intake')|lower %}
+{% set status_labels = {
+    'intake': 'Cadastro',
+    'document_collection': 'Coleta de documentos',
+    'drafting': 'Elaboração',
+    'review': 'Revisão',
+    'filed': 'Protocolado',
+    'em_andamento': 'Em andamento',
+    'rfe': 'RFE',
+    'approved': 'Deferido' if is_lite else 'Approved',
+    'denied': 'Indeferido' if is_lite else 'Denied',
+    'arquivado': 'Arquivado',
+    'closed': 'Encerrado' if is_lite else 'Closed'
+} %}
+{% set status_label = status_labels.get(status_key, case.status or '—') %}
+
+{# ─── Days remaining (countdown) ─── #}
+{% set days_remaining = none %}
+{% if case.expiration_date %}
+  {% if today is defined and today %}
+    {% set days_remaining = (case.expiration_date - today).days %}
+  {% endif %}
+{% endif %}
+
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Processo · {{ case.case_number or 'CASE-%04d'|format(case.id) }}
+      {% if case.status %} ·
+        {% if status_key in ['approved','closed','arquivado'] %}<span style="color: var(--c-green-d);">{{ status_label }}</span>
+        {% elif status_key in ['denied'] %}<span style="color: var(--c-danger);">{{ status_label }}</span>
+        {% elif status_key in ['rfe','review','drafting'] %}<span style="color: var(--c-warn);">{{ status_label }}</span>
+        {% elif status_key in ['filed','em_andamento'] %}<span style="color: var(--c-info);">{{ status_label }}</span>
+        {% else %}<span style="color: var(--fg-muted);">{{ status_label }}</span>{% endif %}
+      {% endif %}
+      {% if case.priority == 'urgent' %} · <span style="color: var(--c-danger);">Urgente</span>{% endif %}
+    </span>
+    <h1>
+      {% if case.case_name %}
+        {{ case.case_number or '' }} <em>{{ case.case_name }}</em>
+      {% elif case.tipo_acao %}
+        <em>{{ case.tipo_acao|replace('_', ' ')|title }}</em>
+      {% else %}
+        Processo <em>{{ case.case_number or '#%04d'|format(case.id) }}</em>
+      {% endif %}
+    </h1>
+    <p class="ch-page-head__sub">
+      {% if client %}
+        <a href="{{ PREFIX }}/clients/{{ client.id }}" style="color: var(--c-green-d);">{{ client.first_name }} {{ client.last_name }}</a>
+      {% else %}
+        <span style="color: var(--fg-muted);">Sem cliente vinculado</span>
+      {% endif %}
+      {% if is_lite and case.numero_processo %} · <span class="ch-mono">{{ case.numero_processo }}</span>{% endif %}
+      {% if not is_lite and case.visa_type %} · <span class="ch-mono">{{ case.visa_type }}</span>{% endif %}
+      {% if not is_lite and case.receipt_number %} · receipt <span class="ch-mono">{{ case.receipt_number }}</span>{% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks/new?case_id={{ case.id }}">
+      <span data-icon="tasks"></span> Nova tarefa
+    </a>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/documents/upload?case_id={{ case.id }}">
+      <span data-icon="docs"></span> Anexar
+    </a>
+    {% if is_lite %}
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing/new?case_id={{ case.id }}">
+      <span data-icon="billing"></span> Lançar tempo
+    </a>
+    {% endif %}
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/cases/{{ case.id }}/edit">
+      <span data-icon="settings"></span> Editar
+    </a>
+  </div>
+</section>
+
+{# ─── Checklist progress bar (Lite) ─── #}
+{% if is_lite and checklist_progress and checklist_progress.total > 0 %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Checklist documental</span>
+      <h2 class="ch-card__title">{{ checklist_progress.tipo_acao_nome }}</h2>
+    </div>
+    <span class="ch-mono" style="font-size: var(--fs-sm); color: var(--fg-muted);">
+      {{ checklist_progress.entregues }}/{{ checklist_progress.total }} · {{ checklist_progress.percent }}%
+    </span>
+  </header>
+  <div role="progressbar"
+       aria-valuenow="{{ checklist_progress.percent }}" aria-valuemin="0" aria-valuemax="100"
+       style="height: 8px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: var(--space-2);">
+    <div style="height: 100%; width: {{ checklist_progress.percent }}%; background: {% if checklist_progress.percent == 100 %}var(--c-green-d){% elif checklist_progress.percent >= 50 %}var(--c-info){% else %}var(--c-warn){% endif %}; transition: width 280ms cubic-bezier(.2,.8,.2,1);"></div>
+  </div>
+  <footer class="ch-card__footer">
+    <a class="ch-card__action" href="{{ PREFIX }}/documents?case_id={{ case.id }}">
+      <span data-icon="folder"></span> Ver documentos do processo <span data-icon="chevron_right" data-icon-size="14"></span>
+    </a>
+  </footer>
+</section>
+{% endif %}
+
+{# ─── Cliente + Resumo (2-col grid) ─── #}
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);">
+
+  {# Card 1 — Cliente vinculado #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Cliente vinculado</span>
+        <h2 class="ch-card__title">
+          {% if client %}{{ client.first_name }} {{ client.last_name }}{% else %}—{% endif %}
+        </h2>
+      </div>
+      <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    {% if client %}
+    <div class="ch-list" role="list">
+      {% if client.email %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="bell"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title"><a href="mailto:{{ client.email }}" style="color: var(--c-green-d);">{{ client.email }}</a></p>
+          <p class="ch-list__meta">E-mail</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.phone %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="bell"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title ch-mono">{{ client.phone }}</p>
+          <p class="ch-list__meta">Telefone</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.cpf %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><strong style="font-family: var(--mono); font-size: 10px;">CPF</strong></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title ch-mono">{{ client.cpf }}</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    <footer class="ch-card__footer">
+      <a class="ch-card__action" href="{{ PREFIX }}/clients/{{ client.id }}">
+        Abrir cliente <span data-icon="chevron_right" data-icon-size="14"></span>
+      </a>
+    </footer>
+    {% else %}
+    <div class="ch-empty" style="padding: var(--space-4) 0;">
+      <p>Nenhum cliente vinculado a este processo.</p>
+      <a class="ch-btn ch-btn--ghost ch-btn--sm" href="{{ PREFIX }}/cases/{{ case.id }}/edit" style="margin-top: var(--space-2);">
+        <span data-icon="plus"></span> Vincular cliente
+      </a>
+    </div>
+    {% endif %}
+  </article>
+
+  {# Card 2 — Resumo #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Resumo</span>
+        <h2 class="ch-card__title">Status & marcos</h2>
+      </div>
+      <span data-icon="chart" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0;">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Status</span>
+        {% if status_key in ['approved','closed','arquivado'] %}
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ status_label }}</span>
+        {% elif status_key == 'denied' %}
+          <span class="ch-pill ch-pill--danger"><span class="dot"></span>{{ status_label }}</span>
+        {% elif status_key in ['rfe','review','drafting'] %}
+          <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ status_label }}</span>
+        {% elif status_key in ['filed','em_andamento'] %}
+          <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ status_label }}</span>
+        {% else %}
+          <span class="ch-pill"><span class="dot"></span>{{ status_label }}</span>
+        {% endif %}
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Prioridade</span>
+        {% if case.priority == 'urgent' %}
+          <span class="ch-pill ch-pill--danger"><span class="dot"></span>{% if is_lite %}Urgente{% else %}Urgent{% endif %}</span>
+        {% elif case.priority == 'high' %}
+          <span class="ch-pill ch-pill--warn"><span class="dot"></span>{% if is_lite %}Alta{% else %}High{% endif %}</span>
+        {% elif case.priority == 'low' %}
+          <span class="ch-pill"><span class="dot"></span>{% if is_lite %}Baixa{% else %}Low{% endif %}</span>
+        {% else %}
+          <span class="ch-pill ch-pill--info"><span class="dot"></span>{% if is_lite %}Média{% else %}Medium{% endif %}</span>
+        {% endif %}
+      </div>
+      {% if case.filing_date %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">{% if is_lite %}Protocolo{% else %}Filed{% endif %}</span>
+        <strong class="ch-mono">{% if is_lite %}{{ case.filing_date.strftime('%d/%m/%Y') }}{% else %}{{ case.filing_date.strftime('%Y-%m-%d') }}{% endif %}</strong>
+      </div>
+      {% endif %}
+      {% if case.expiration_date %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">{% if is_lite %}Expira em{% else %}Expires{% endif %}</span>
+        <span style="display: flex; align-items: center; gap: var(--space-2);">
+          <strong class="ch-mono">{% if is_lite %}{{ case.expiration_date.strftime('%d/%m/%Y') }}{% else %}{{ case.expiration_date.strftime('%Y-%m-%d') }}{% endif %}</strong>
+          {% if days_remaining is not none %}
+            {% if days_remaining < 0 %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>{{ -days_remaining }}d vencido</span>
+            {% elif days_remaining <= 7 %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ days_remaining }}d</span>
+            {% else %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ days_remaining }}d</span>
+            {% endif %}
+          {% endif %}
+        </span>
+      </div>
+      {% endif %}
+      {% if case.case_value %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">{% if is_lite %}Valor da causa{% else %}Case value{% endif %}</span>
+        <strong class="ch-mono">{% if is_lite %}R$ {{ "%.2f"|format(case.case_value|float) }}{% else %}{{ currency_symbol|default('$') }} {{ "%.2f"|format(case.case_value|float) }}{% endif %}</strong>
+      </div>
+      {% endif %}
+      {% if is_lite and case.tipo_acao %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Tipo de ação</span>
+        <span style="font-size: var(--fs-sm);">{{ case.tipo_acao|replace('_',' ')|title }}</span>
+      </div>
+      {% endif %}
+      {% if is_lite and (case.vara or case.comarca or case.tribunal) %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Foro</span>
+        <span style="font-size: var(--fs-sm); text-align: right;">
+          {{ case.vara or '' }}{% if case.vara and case.comarca %} · {% endif %}{{ case.comarca or '' }}{% if (case.vara or case.comarca) and case.tribunal %} · {% endif %}{{ case.tribunal or '' }}
+        </span>
+      </div>
+      {% endif %}
+    </div>
+  </article>
+</section>
+
+{# ─── Financeiro (Lite KPIs) ─── #}
+{% if is_lite and financeiro is defined and (financeiro.total_honorarios or financeiro.total_pagamentos or financeiro['items']) %}
+<section class="ch-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5);">
+  <div class="ch-kpi">
+    <span class="ch-kpi__label">Honorários</span>
+    <p class="ch-kpi__value ch-mono">R$ {{ "%.2f"|format(financeiro.total_honorarios|float) }}</p>
+    <span class="ch-kpi__hint">Total lançado</span>
+  </div>
+  <div class="ch-kpi">
+    <span class="ch-kpi__label">Pagamentos</span>
+    <p class="ch-kpi__value ch-mono" style="color: var(--c-green-d);">R$ {{ "%.2f"|format(financeiro.total_pagamentos|float) }}</p>
+    <span class="ch-kpi__hint">Recebido</span>
+  </div>
+  <div class="ch-kpi {% if financeiro.saldo > 0 %}ch-kpi--warn{% endif %}">
+    <span class="ch-kpi__label">Saldo devedor</span>
+    <p class="ch-kpi__value ch-mono">R$ {{ "%.2f"|format(financeiro.saldo|float) }}</p>
+    <span class="ch-kpi__hint">{% if financeiro.saldo > 0 %}A receber{% else %}Em dia{% endif %}</span>
+  </div>
+</section>
+{% endif %}
+
+{# ─── Prazos processuais (Lite) ─── #}
+{% if is_lite and prazos is defined %}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Prazos processuais</span>
+      <h2 class="ch-card__title">{{ prazos|length }} prazo{% if prazos|length != 1 %}s{% endif %}</h2>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/controladoria?case_id={{ case.id }}">
+      <span data-icon="plus"></span> Novo prazo
+    </a>
+  </header>
+  {% if prazos and prazos|length > 0 %}
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Tipo</th>
+          <th>Vencimento</th>
+          <th>Urgência</th>
+          <th>Status</th>
+          <th>Responsável</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in prazos %}
+        <tr>
+          <td data-label="Tipo">
+            <strong>{{ p.tipo }}</strong>
+            {% if p.descricao %}<div style="color: var(--fg-muted); font-size: var(--fs-xs);">{{ p.descricao[:80] }}</div>{% endif %}
+          </td>
+          <td data-label="Vencimento" class="ch-mono" style="font-size: var(--fs-xs);">
+            {{ p.data_vencimento.strftime('%d/%m/%Y') if p.data_vencimento else '—' }}
+          </td>
+          <td data-label="Urgência">
+            {% if p.urgencia == 'vencido' %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>FATAL · vencido</span>
+            {% elif p.urgencia == 'proximo' %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>≤ 7 dias</span>
+            {% else %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>No prazo</span>
+            {% endif %}
+          </td>
+          <td data-label="Status">
+            {% if p.status == 'concluido' %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>Concluído</span>
+            {% elif p.status == 'perdido' %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>Perdido</span>
+            {% elif p.status == 'em_andamento' %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>Em andamento</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>Pendente</span>
+            {% endif %}
+          </td>
+          <td data-label="Responsável" style="font-size: var(--fs-sm);">{{ p.responsavel or '—' }}</td>
+          <td data-label="" style="text-align: right;">
+            {% if p.status != 'concluido' %}
+            <form method="post" action="{{ PREFIX }}/controladoria/{{ p.id }}/concluir" style="display: inline; margin: 0;">
+              <button class="ch-chip" type="submit" aria-label="Concluir prazo {{ p.tipo }}">
+                <span data-icon="check" data-icon-size="14"></span>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="ch-empty" style="padding: var(--space-5);">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="calendar"></span></span>
+    <h3>Sem prazos cadastrados</h3>
+    <p>Cadastre prazos processuais para acompanhar vencimentos e responsáveis.</p>
+    <a class="ch-btn ch-btn--primary ch-btn--sm" href="{{ PREFIX }}/controladoria?case_id={{ case.id }}" style="margin-top: var(--space-3);">
+      <span data-icon="plus"></span> Novo prazo
+    </a>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ─── Tarefas vinculadas ─── #}
+{% if tasks is defined and tasks and tasks|length > 0 %}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Tarefas</span>
+      <h2 class="ch-card__title">{{ tasks|length }} tarefa{% if tasks|length != 1 %}s{% endif %}</h2>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/tasks?case_id={{ case.id }}">
+      Ver todas <span data-icon="chevron_right" data-icon-size="14"></span>
+    </a>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Título</th>
+          <th>Prazo</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr>
+          <td data-label="Título"><strong>{{ t.title or t.name or '—' }}</strong></td>
+          <td data-label="Prazo" class="ch-mono" style="font-size: var(--fs-xs);">
+            {{ t.due_date.strftime('%d/%m/%Y') if t.due_date else '—' }}
+          </td>
+          <td data-label="Status">
+            {% set ts = (t.status or 'pending')|lower %}
+            {% if ts in ['done','completed','concluido'] %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ t.status }}</span>
+            {% elif ts in ['in_progress','em_andamento'] %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ t.status }}</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>{{ t.status or 'Pendente' }}</span>
+            {% endif %}
+          </td>
+          <td data-label="" style="text-align: right;">
+            <a class="ch-chip" href="{{ PREFIX }}/tasks/{{ t.id }}" aria-label="Abrir tarefa">
+              <span data-icon="chevron_right" data-icon-size="14"></span>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{# ─── Documentos ─── #}
+{% if documents is defined and documents and documents|length > 0 %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Documentos</span>
+      <h2 class="ch-card__title">{{ documents|length }} arquivo{% if documents|length != 1 %}s{% endif %}</h2>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/documents?case_id={{ case.id }}">
+      Ver todos <span data-icon="chevron_right" data-icon-size="14"></span>
+    </a>
+  </header>
+  <div class="ch-list">
+    {% for doc in documents[:8] %}
+    <a class="ch-list__row" href="{{ PREFIX }}/documents/{{ doc.id }}">
+      <span class="ch-list__icon"><span data-icon="file"></span></span>
+      <div class="ch-list__body">
+        <p class="ch-list__title">{{ doc.name }}</p>
+        <p class="ch-list__meta">{{ doc.doc_type or 'arquivo' }} · {{ (doc.file_size / 1024)|round(0)|int if doc.file_size else '?' }} KB</p>
+      </div>
+      <div class="ch-list__right">
+        {% set dstatus = (doc.status or '')|lower %}
+        {% if dstatus in ['approved','received','reviewed'] %}
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ doc.status }}</span>
+        {% elif dstatus == 'pending' %}
+          <span class="ch-pill ch-pill--warn"><span class="dot"></span>Pendente</span>
+        {% elif doc.uploaded_at or doc.created_at %}
+          <span class="ch-pill"><span class="dot"></span>{{ (doc.uploaded_at or doc.created_at).strftime('%d/%m/%Y') }}</span>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# ─── Lançamentos (billing items) ─── #}
+{% if is_lite and financeiro is defined and financeiro['items'] and financeiro['items']|length > 0 %}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Lançamentos</span>
+      <h2 class="ch-card__title">Últimos {{ financeiro['items']|length }}</h2>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/billing?case_id={{ case.id }}">
+      Ver todos <span data-icon="chevron_right" data-icon-size="14"></span>
+    </a>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Descrição</th>
+          <th>Tipo</th>
+          <th style="text-align: right;">Valor</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in financeiro['items'] %}
+        <tr>
+          <td data-label="Descrição"><strong>{{ item.description }}</strong>
+            {% if item.created_at %}<div style="color: var(--fg-muted); font-size: var(--fs-xs);" class="ch-mono">{{ item.created_at.strftime('%d/%m/%Y') }}</div>{% endif %}
+          </td>
+          <td data-label="Tipo">
+            {% if item.item_type == 'payment' %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>Pagamento</span>
+            {% elif item.item_type == 'fee' %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>Honorário</span>
+            {% elif item.item_type == 'expense' %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>Despesa</span>
+            {% elif item.item_type == 'filing_fee' %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>Custas</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>{{ item.item_type }}</span>
+            {% endif %}
+          </td>
+          <td data-label="Valor" class="ch-mono" style="text-align: right; {% if item.item_type == 'payment' %}color: var(--c-green-d);{% endif %}">
+            {% if item.item_type == 'payment' %}−{% endif %}R$ {{ "%.2f"|format(item.amount|float) }}
+          </td>
+          <td data-label="Status">
+            {% if item.status == 'paid' %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>Pago</span>
+            {% elif item.status == 'invoiced' %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>Faturado</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>Pendente</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{# ─── Campos personalizados ─── #}
+{% if custom_fields and custom_fields|length > 0 %}
+{% set has_filled_cf = namespace(any=false) %}
+{% for field in custom_fields %}{% if field.value %}{% set has_filled_cf.any = true %}{% endif %}{% endfor %}
+{% if has_filled_cf.any %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Customização</span>
+      <h2 class="ch-card__title">Campos personalizados</h2>
+    </div>
+    <span data-icon="settings" data-icon-size="20" style="color: var(--fg-muted);"></span>
+  </header>
+  <div class="ch-grid ch-grid--2">
+    {% for field in custom_fields %}
+      {% if field.value %}
+      <div style="display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">
+          {{ field.field_label }}
+        </span>
+        {% if field.field_type == 'checkbox' %}
+          {% if field.value == 'true' or field.value == true %}
+            <span class="ch-pill ch-pill--ok"><span class="dot"></span>{% if is_lite %}Sim{% else %}Yes{% endif %}</span>
+          {% else %}
+            <span class="ch-pill"><span class="dot"></span>{% if is_lite %}Não{% else %}No{% endif %}</span>
+          {% endif %}
+        {% else %}
+          <strong>{{ field.value }}</strong>
+        {% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endif %}
+
+{# ─── Observações ─── #}
+{% if case.notes %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Observações</span>
+      <h2 class="ch-card__title">Notas internas</h2>
+    </div>
+  </header>
+  <pre style="white-space: pre-wrap; word-wrap: break-word; font-family: var(--sans); color: var(--fg-default); margin: 0; line-height: var(--lh-base);">{{ case.notes }}</pre>
+</section>
+{% endif %}
+
+{# ─── Timeline (status history / events) ─── #}
+{% if is_lite and timeline is defined and timeline|length > 0 %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Histórico</span>
+      <h2 class="ch-card__title">Linha do tempo</h2>
+    </div>
+    <span data-icon="chart" data-icon-size="20" style="color: var(--fg-muted);"></span>
+  </header>
+  <ol style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-3);">
+    {% for event in timeline[:20] %}
+    <li style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); align-items: start; padding: var(--space-2) 0; {% if not loop.last %}border-bottom: 1px solid var(--line);{% endif %}">
+      <span style="display: inline-flex; width: 28px; height: 28px; border-radius: 50%; align-items: center; justify-content: center;
+        background: {% if event.color == 'danger' %}var(--c-danger){% elif event.color == 'warning' %}var(--c-warn){% elif event.color == 'success' %}var(--c-green-d){% elif event.color == 'info' %}var(--c-info){% else %}var(--c-pollen){% endif %};
+        color: white; font-size: 12px;" aria-hidden="true">
+        {% if event.type == 'criacao' %}<span data-icon="plus" data-icon-size="14"></span>
+        {% elif event.type == 'protocolo' %}<span data-icon="check" data-icon-size="14"></span>
+        {% elif event.type == 'documento' %}<span data-icon="file" data-icon-size="14"></span>
+        {% elif event.type == 'tarefa' %}<span data-icon="tasks" data-icon-size="14"></span>
+        {% elif event.type == 'prazo' %}<span data-icon="calendar" data-icon-size="14"></span>
+        {% else %}<span data-icon="chevron_right" data-icon-size="14"></span>{% endif %}
+      </span>
+      <div style="display: flex; flex-direction: column; gap: var(--space-1);">
+        <time class="ch-mono" datetime="{{ event.date.isoformat() if event.date else '' }}"
+              style="font-size: var(--fs-xs); color: var(--fg-muted); letter-spacing: 0.06em;">
+          {{ event.date.strftime('%d/%m/%Y %H:%M') if event.date else '' }}
+        </time>
+        <p style="margin: 0; line-height: var(--lh-base);">{{ event.description }}</p>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+{# ─── Footer: ID + atualização + Excluir ─── #}
+<section class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+  <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint); letter-spacing: 0.10em; text-transform: uppercase;">
+    ID #{{ case.id }} · Atualizado {{ case.updated_at.strftime('%d/%m/%Y') if case.updated_at else (case.created_at.strftime('%d/%m/%Y') if case.created_at else '—') }}
+  </span>
+  <form method="post" action="{{ PREFIX }}/cases/{{ case.id }}/delete"
+        onsubmit="return confirm('Excluir processo {{ case.case_name or case.case_number or case.id }}? Esta ação não pode ser desfeita.');"
+        style="margin: 0;">
+    <button class="ch-btn ch-btn--ghost" type="submit" style="color: var(--c-danger);">
+      <span data-icon="x"></span> Excluir processo
+    </button>
+  </form>
+</section>
+{% endblock %}

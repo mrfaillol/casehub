@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Configurações de Numeração{% else %}Auto-Numbering Settings{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/settings-numbering.css">
+{% endblock %}
+
+{% block content %}
+<main class="settings-numbering-main" aria-labelledby="settings-numbering-title">
+    <header class="settings-numbering-header">
+        <a href="{{ PREFIX }}/settings" class="settings-numbering-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar às Configurações{% else %}Back to Settings{% endif %}</span>
+        </a>
+        <h1 id="settings-numbering-title" class="settings-numbering-title">
+            <i class="fas fa-hashtag settings-numbering-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Configurações de Numeração{% else %}Auto-Numbering Settings{% endif %}</span>
+        </h1>
+    </header>
+
+    {% if request.query_params.get('saved') %}
+    <div class="settings-numbering-alert" role="status">
+        <i class="fas fa-check settings-numbering-alert-icon" aria-hidden="true"></i>
+        <span class="settings-numbering-alert-message">{% if product == "lite" %}Configurações salvas com sucesso!{% else %}Settings saved successfully!{% endif %}</span>
+        <button type="button" class="settings-numbering-alert-close" onclick="this.closest('.settings-numbering-alert').remove()" aria-label="{% if product == 'lite' %}Fechar aviso{% else %}Dismiss notification{% endif %}">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="settings-numbering-grid">
+        <form class="settings-numbering-form" method="POST" action="{{ PREFIX }}/settings/numbering">
+            <section class="settings-numbering-card" aria-labelledby="settings-numbering-case-title">
+                <div class="settings-numbering-card-header">
+                    <i class="fas fa-briefcase settings-numbering-card-header-icon" aria-hidden="true"></i>
+                    <h2 id="settings-numbering-case-title" class="settings-numbering-card-header-title">
+                        {% if product == "lite" %}Numeração de Processos{% else %}Case Numbering{% endif %}
+                    </h2>
+                </div>
+                <div class="settings-numbering-card-body">
+                    <div class="settings-numbering-field">
+                        <label for="caseFormat" class="settings-numbering-label">
+                            {% if product == "lite" %}Formato do Número do Processo{% else %}Case Number Format{% endif %}
+                        </label>
+                        <input type="text" name="case_format" class="settings-numbering-input"
+                               id="caseFormat"
+                               value="{{ settings.case_format }}"
+                               placeholder="CASE-{YYYY}-{####}"
+                               aria-describedby="caseFormatHint">
+                        <small id="caseFormatHint" class="settings-numbering-hint">
+                            {% if product == "lite" %}Contador atual: {{ settings.case_counter }}{% else %}Current counter: {{ settings.case_counter }}{% endif %}
+                        </small>
+                    </div>
+
+                    <div class="settings-numbering-field">
+                        <label for="casePreview" class="settings-numbering-label">
+                            {% if product == "lite" %}Pré-visualização{% else %}Preview{% endif %}
+                        </label>
+                        <div class="settings-numbering-preview">
+                            <span class="settings-numbering-preview-icon" aria-hidden="true"><i class="fas fa-eye"></i></span>
+                            <input type="text" class="settings-numbering-input" id="casePreview" readonly
+                                   value="{{ preview_case }}"
+                                   aria-label="{% if product == 'lite' %}Pré-visualização do formato de processo{% else %}Case format preview{% endif %}">
+                        </div>
+                    </div>
+
+                    <div class="settings-numbering-check">
+                        <input class="settings-numbering-check-input" type="checkbox" name="reset_case_counter"
+                               id="resetCaseCounter" value="true">
+                        <label class="settings-numbering-check-label settings-numbering-check-label--danger" for="resetCaseCounter">
+                            <i class="fas fa-exclamation-triangle settings-numbering-check-label-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Reiniciar contador de processos para 1{% else %}Reset case counter to 1{% endif %}</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <section class="settings-numbering-card" aria-labelledby="settings-numbering-client-title">
+                <div class="settings-numbering-card-header">
+                    <i class="fas fa-user settings-numbering-card-header-icon" aria-hidden="true"></i>
+                    <h2 id="settings-numbering-client-title" class="settings-numbering-card-header-title">
+                        {% if product == "lite" %}Numeração de Clientes{% else %}Client Numbering{% endif %}
+                    </h2>
+                </div>
+                <div class="settings-numbering-card-body">
+                    <div class="settings-numbering-field">
+                        <label for="clientFormat" class="settings-numbering-label">
+                            {% if product == "lite" %}Formato do Número do Cliente{% else %}Client Number Format{% endif %}
+                        </label>
+                        <input type="text" name="client_format" class="settings-numbering-input"
+                               id="clientFormat"
+                               value="{{ settings.client_format }}"
+                               placeholder="CLT-{YYYY}-{####}"
+                               aria-describedby="clientFormatHint">
+                        <small id="clientFormatHint" class="settings-numbering-hint">
+                            {% if product == "lite" %}Contador atual: {{ settings.client_counter }}{% else %}Current counter: {{ settings.client_counter }}{% endif %}
+                        </small>
+                    </div>
+
+                    <div class="settings-numbering-field">
+                        <label for="clientPreview" class="settings-numbering-label">
+                            {% if product == "lite" %}Pré-visualização{% else %}Preview{% endif %}
+                        </label>
+                        <div class="settings-numbering-preview">
+                            <span class="settings-numbering-preview-icon" aria-hidden="true"><i class="fas fa-eye"></i></span>
+                            <input type="text" class="settings-numbering-input" id="clientPreview" readonly
+                                   value="{{ preview_client }}"
+                                   aria-label="{% if product == 'lite' %}Pré-visualização do formato de cliente{% else %}Client format preview{% endif %}">
+                        </div>
+                    </div>
+
+                    <div class="settings-numbering-check">
+                        <input class="settings-numbering-check-input" type="checkbox" name="reset_client_counter"
+                               id="resetClientCounter" value="true">
+                        <label class="settings-numbering-check-label settings-numbering-check-label--danger" for="resetClientCounter">
+                            <i class="fas fa-exclamation-triangle settings-numbering-check-label-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Reiniciar contador de clientes para 1{% else %}Reset client counter to 1{% endif %}</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <section class="settings-numbering-card" aria-labelledby="settings-numbering-general-title">
+                <div class="settings-numbering-card-header">
+                    <i class="fas fa-cog settings-numbering-card-header-icon" aria-hidden="true"></i>
+                    <h2 id="settings-numbering-general-title" class="settings-numbering-card-header-title">
+                        {% if product == "lite" %}Opções Gerais{% else %}General Options{% endif %}
+                    </h2>
+                </div>
+                <div class="settings-numbering-card-body">
+                    <div class="settings-numbering-check">
+                        <input class="settings-numbering-check-input" type="checkbox" name="reset_annually"
+                               id="resetAnnually" value="true"
+                               {% if settings.reset_annually %}checked{% endif %}
+                               aria-describedby="resetAnnuallyDescription">
+                        <div class="settings-numbering-check-text">
+                            <label class="settings-numbering-check-label" for="resetAnnually">
+                                <span>{% if product == "lite" %}Reiniciar contadores anualmente{% else %}Reset counters annually{% endif %}</span>
+                            </label>
+                            <p id="resetAnnuallyDescription" class="settings-numbering-check-description">
+                                {% if product == "lite" %}Os contadores serão reiniciados para 1 em 1º de janeiro de cada ano{% else %}Counter will reset to 1 on January 1st each year{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="settings-numbering-actions">
+                <a href="{{ PREFIX }}/settings" class="settings-numbering-btn settings-numbering-btn--secondary">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</span>
+                </a>
+                <button type="submit" class="settings-numbering-btn settings-numbering-btn--primary">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Salvar Configurações{% else %}Save Settings{% endif %}</span>
+                </button>
+            </div>
+        </form>
+
+        <aside class="settings-numbering-aside" aria-labelledby="settings-numbering-reference-title">
+            <section class="settings-numbering-reference">
+                <div class="settings-numbering-reference-header">
+                    <i class="fas fa-info-circle settings-numbering-reference-header-icon" aria-hidden="true"></i>
+                    <h2 id="settings-numbering-reference-title" class="settings-numbering-reference-header-title">
+                        {% if product == "lite" %}Variáveis Disponíveis{% else %}Available Placeholders{% endif %}
+                    </h2>
+                </div>
+                <div class="settings-numbering-reference-body">
+                    <table class="settings-numbering-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">{% if product == "lite" %}Variável{% else %}Placeholder{% endif %}</th>
+                                <th scope="col">{% if product == "lite" %}Resultado{% else %}Output{% endif %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>{YYYY}</code></td>
+                                <td>{% if product == "lite" %}Ano 4 dígitos (2026){% else %}4-digit year (2026){% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{YY}</code></td>
+                                <td>{% if product == "lite" %}Ano 2 dígitos (26){% else %}2-digit year (26){% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{MM}</code></td>
+                                <td>{% if product == "lite" %}Mês 2 dígitos (01-12){% else %}2-digit month (01-12){% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{DD}</code></td>
+                                <td>{% if product == "lite" %}Dia 2 dígitos (01-31){% else %}2-digit day (01-31){% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{##}</code></td>
+                                <td>{% if product == "lite" %}Contador (2 dígitos){% else %}Counter (2 digits){% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{###}</code></td>
+                                <td>{% if product == "lite" %}Contador (3 dígitos){% else %}Counter (3 digits){% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{####}</code></td>
+                                <td>{% if product == "lite" %}Contador (4 dígitos){% else %}Counter (4 digits){% endif %}</td>
+                            </tr>
+                            <tr>
+                                <td><code>{#####}</code></td>
+                                <td>{% if product == "lite" %}Contador (5 dígitos){% else %}Counter (5 digits){% endif %}</td>
+                            </tr>
+                            {% if product != "lite" %}
+                            <tr>
+                                <td><code>{TYPE}</code></td>
+                                <td>Visa type code (cases only)</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td><code>{DEPT}</code></td>
+                                <td>{% if product == "lite" %}Código do departamento{% else %}Department code{% endif %}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div>
+                        <h3 class="settings-numbering-reference-subtitle">{% if product == "lite" %}Exemplos{% else %}Examples{% endif %}</h3>
+                        <ul class="settings-numbering-examples">
+                            {% if product == "lite" %}
+                            <li>
+                                <code>PROC-{YYYY}-{####}</code>
+                                <span class="settings-numbering-example-arrow" aria-hidden="true">&rarr;</span>
+                                <span class="settings-numbering-example-output">PROC-2026-0001</span>
+                            </li>
+                            <li>
+                                <code>{YY}{MM}-{####}</code>
+                                <span class="settings-numbering-example-arrow" aria-hidden="true">&rarr;</span>
+                                <span class="settings-numbering-example-output">2601-0001</span>
+                            </li>
+                            <li>
+                                <code>CLT-{YYYY}-{###}</code>
+                                <span class="settings-numbering-example-arrow" aria-hidden="true">&rarr;</span>
+                                <span class="settings-numbering-example-output">CLT-2026-001</span>
+                            </li>
+                            <li>
+                                <code>C{YYYY}{MM}{DD}-{##}</code>
+                                <span class="settings-numbering-example-arrow" aria-hidden="true">&rarr;</span>
+                                <span class="settings-numbering-example-output">C20260113-01</span>
+                            </li>
+                            {% else %}
+                            <li>
+                                <code>CASE-{YYYY}-{####}</code>
+                                <span class="settings-numbering-example-arrow" aria-hidden="true">&rarr;</span>
+                                <span class="settings-numbering-example-output">CASE-2026-0001</span>
+                            </li>
+                            <li>
+                                <code>{YY}{MM}-{####}</code>
+                                <span class="settings-numbering-example-arrow" aria-hidden="true">&rarr;</span>
+                                <span class="settings-numbering-example-output">2601-0001</span>
+                            </li>
+                            <li>
+                                <code>{PREFIX}-{TYPE}-{###}</code>
+                                <span class="settings-numbering-example-arrow" aria-hidden="true">&rarr;</span>
+                                <span class="settings-numbering-example-output">CH-EB1A-001</span>
+                            </li>
+                            <li>
+                                <code>C{YYYY}{MM}{DD}-{##}</code>
+                                <span class="settings-numbering-example-arrow" aria-hidden="true">&rarr;</span>
+                                <span class="settings-numbering-example-output">C20260113-01</span>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </aside>
+    </div>
+</main>
+
+<script>
+async function updateNumberingPreview(formatInput, previewInput, type) {
+    const format = formatInput.value;
+    try {
+        const response = await fetch(`{{ PREFIX }}/settings/numbering/preview?format=${encodeURIComponent(format)}&type=${type}`);
+        const data = await response.json();
+        previewInput.value = data.preview;
+    } catch (e) {
+        previewInput.value = '{% if product == "lite" %}Erro{% else %}Error{% endif %}';
+    }
+}
+
+document.getElementById('caseFormat').addEventListener('input', function() {
+    updateNumberingPreview(this, document.getElementById('casePreview'), 'case');
+});
+
+document.getElementById('clientFormat').addEventListener('input', function() {
+    updateNumberingPreview(this, document.getElementById('clientPreview'), 'client');
+});
+</script>
+{% endblock %}

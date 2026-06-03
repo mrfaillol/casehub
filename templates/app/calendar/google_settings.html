@@ -1,0 +1,271 @@
+{% extends "app/base.html" %}
+{% set active_module = 'agenda' %}
+{% block title %}Calendar · Google_Settings · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/calendar-google-settings.css?v=20260504-google-simple-verified">
+{% endblock %}
+{% block content %}
+{% set verified_accounts = accounts | selectattr('connected') | list %}
+{% set connected_count = verified_accounts | length %}
+{% set first_action_account = accounts | rejectattr('connected') | list | first %}
+{% if not first_action_account and accounts %}
+{% set first_action_account = accounts[0] %}
+{% endif %}
+{% set connection_error = error or request.query_params.get('error') %}
+
+<main class="gcal-connect" aria-labelledby="gcal-title">
+    <a href="{{ PREFIX }}/calendar/agenda" class="gcal-back">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        <span>Voltar para a agenda</span>
+    </a>
+
+    <section class="gcal-hero">
+        <div class="gcal-hero__copy">
+            <span class="gcal-eyebrow">
+                <i class="fab fa-google" aria-hidden="true"></i>
+                Google Calendar
+            </span>
+            <h1 id="gcal-title">Entrar com Google</h1>
+            <p>Use a conta Google do escritorio para liberar a agenda no CaseHub. O login usa um callback central do produto, então subdominios de clientes nao precisam de uma URL OAuth nova.</p>
+        </div>
+
+        <div class="gcal-hero__action">
+            {% if first_action_account and not connection_error %}
+            <a href="{{ PREFIX }}/google-calendar/connect/{{ first_action_account.slug }}" class="gcal-google-button">
+                <span class="gcal-google-mark" aria-hidden="true">G</span>
+                <span>Entrar com Google</span>
+            </a>
+            <small>O CaseHub guarda apenas o token autorizado pelo Google. Senha nao fica salva.</small>
+            {% elif connected_count %}
+            <div class="gcal-connected-pill" role="status">
+                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                <span>{{ connected_count }} agenda{% if connected_count > 1 %}s{% endif %} validada{% if connected_count > 1 %}s{% endif %}</span>
+            </div>
+            <a href="{{ PREFIX }}/calendar/agenda" class="gcal-secondary-link">Abrir agenda</a>
+            {% else %}
+            <div class="gcal-waiting-pill" role="status">
+                <i class="fas fa-circle-info" aria-hidden="true"></i>
+                <span>Conexao Google aguardando login</span>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    {% if request.query_params.get('success') %}
+    <div class="gcal-alert gcal-alert--success" role="status" data-gsettings-alert>
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <span>Login Google recebido. Se a conta ainda aparecer como pendente, clique em "Entrar com Google" novamente para concluir a validacao.</span>
+        <button type="button" aria-label="Fechar aviso" data-gsettings-alert-dismiss>&times;</button>
+    </div>
+    {% endif %}
+
+    {% if connection_error %}
+    <div class="gcal-alert gcal-alert--soft" role="alert" data-gsettings-alert>
+        <i class="fas fa-circle-info" aria-hidden="true"></i>
+        <span>
+            {% if connection_error == 'redirect_uri_mismatch' %}
+                URL de retorno não autorizada no Google. Suporte: <a href="mailto:contato@example.com">contato@example.com</a>.
+            {% elif connection_error == 'invalid_grant' %}
+                Token expirado. Clique em "Entrar com Google" novamente.
+            {% elif connection_error == 'access_denied' %}
+                Você cancelou a permissão. Tudo bem — pode tentar novamente quando quiser.
+            {% else %}
+                O Google recusou o login neste ambiente. Detalhes técnicos disponíveis no painel de Suporte.
+            {% endif %}
+        </span>
+        <button type="button" aria-label="Fechar aviso" data-gsettings-alert-dismiss>&times;</button>
+    </div>
+    {% endif %}
+
+    {# LGPD disclosure (P1.6 audit) — escopos + revogação + isolation #}
+    <details class="gcal-alert gcal-alert--soft" style="display: block;" data-gsettings-alert>
+        <summary style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
+            <i class="fas fa-lock" aria-hidden="true"></i>
+            <strong>Privacidade & LGPD — o que o Google recebe?</strong>
+        </summary>
+        <p style="margin: 12px 0 0; line-height: 1.55;">
+            Ao conectar, você autoriza o CaseHub a ler eventos da agenda Google do escritório
+            (escopo <code>calendar.events</code>). Você pode revogar a qualquer momento clicando
+            em <strong>Desconectar</strong> abaixo. Os dados ficam isolados no seu escritório
+            (multi-tenant): nenhuma agenda é compartilhada entre orgs. Conforme LGPD,
+            <a href="{{ PREFIX }}/legal/privacy">ver Termos completos</a>.
+        </p>
+    </details>
+
+    {% if error %}
+    <div class="gcal-alert gcal-alert--danger" role="alert">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <div class="gcal-alert gcal-alert--soft" role="note">
+        <i class="fas fa-shield-halved" aria-hidden="true"></i>
+        {% if sync_options.event_detail_mode == 'neutral' %}
+        <span>{{ t.get('google_calendar_notice_neutral', 'Modo neutro ativo: o Google Calendar recebe horário e identificador privado do compromisso; título, cliente, tipo e notas ficam apenas no CaseHub.') }}</span>
+        {% else %}
+        <span>{{ t.get('google_calendar_notice_details', 'Ao conectar, o Google Calendar receberá título, cliente, tipo e notas dos compromissos sincronizados. Use apenas conta Google controlada pelo escritório/tenant.') }}</span>
+        {% endif %}
+    </div>
+
+    {% if oauth_setup_issue %}
+    <section class="gcal-setup-issue" aria-label="Correcao do login Google">
+        <div class="gcal-setup-issue__header">
+            <i class="fab fa-google" aria-hidden="true"></i>
+            <div>
+                <strong>Login Google bloqueado por configuracao OAuth</strong>
+                <span>{{ oauth_setup_issue.message }}</span>
+            </div>
+        </div>
+        <div class="gcal-copy-row">
+            <code>{{ oauth_setup_issue.redirect_uri }}</code>
+            <button type="button" class="gcal-copy-button" data-gcal-copy="{{ oauth_setup_issue.redirect_uri }}">Copiar URL</button>
+        </div>
+        <ol class="gcal-setup-steps">
+            <li>Abra o Google Cloud Console no projeto usado pelo escritorio.</li>
+            <li>Acesse APIs e servicos, depois Credenciais.</li>
+            <li>Edite o OAuth Client do tipo Web application.</li>
+            <li>Cole a URL central acima em Authorized redirect URIs e salve. Ela vale para os subdominios do CaseHub.</li>
+            <li>Volte ao CaseHub e clique em Entrar com Google.</li>
+        </ol>
+        <div class="gcal-setup-actions">
+            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="gcal-btn">
+                <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                <span>Abrir Google Cloud</span>
+            </a>
+            <a href="https://support.google.com/cloud/answer/15549257" target="_blank" rel="noopener" class="gcal-btn">
+                <i class="fas fa-book" aria-hidden="true"></i>
+                <span>Manual OAuth</span>
+            </a>
+        </div>
+        <p class="gcal-setup-note">Senha de app do Google nao corrige Calendar OAuth. Senha de app serve para e-mail/SMTP; agenda precisa deste redirect URI liberado.</p>
+        {% if authorized_redirect_uris %}
+        <details class="gcal-authorized-list">
+            <summary>URLs autorizadas no arquivo atual</summary>
+            {% for uri in authorized_redirect_uris %}
+            <code>{{ uri }}</code>
+            {% endfor %}
+        </details>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="gcal-accounts" aria-label="Contas Google">
+        {% for account in accounts %}
+        <article class="gcal-account-card{% if account.connected %} is-connected{% endif %}">
+            <div class="gcal-account-card__main">
+                <span class="gcal-account-icon{% if account.connected %} is-connected{% endif %}" aria-hidden="true">G</span>
+                <div class="gcal-account-copy">
+                    <h2>{{ account.label }}</h2>
+                    <p>{{ account.display_email }}</p>
+                    <span class="gcal-account-detail">
+                        {% if account.connected %}
+                        {{ account.calendar_count }} calendario{% if account.calendar_count != 1 %}s{% endif %} visivel{% if account.calendar_count != 1 %}s{% endif %} para o CaseHub.
+                        {% elif account.token_exists and account.error %}
+                        Existe token salvo, mas ele nao foi validado pelo Google agora: {{ account.error }}.
+                        {% elif not account.credentials_file_exists %}
+                        Credenciais OAuth do Google ainda nao configuradas neste servidor.
+                        {% else %}
+                        Aguardando login com a conta Google correta.
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="gcal-account-card__status">
+                {% if account.connected %}
+                <span class="gcal-status gcal-status--connected">
+                    <i class="fas fa-check" aria-hidden="true"></i>
+                    Validada
+                </span>
+                {% elif account.token_exists %}
+                <span class="gcal-status gcal-status--pending">
+                    <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+                    Validacao pendente
+                </span>
+                {% else %}
+                <span class="gcal-status gcal-status--issue">
+                    <i class="far fa-circle" aria-hidden="true"></i>
+                    Nao conectada
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="gcal-account-card__actions">
+                {% if account.connected %}
+                <a href="{{ PREFIX }}/google-calendar/connect/{{ account.slug }}" class="gcal-btn">
+                    <i class="fas fa-rotate" aria-hidden="true"></i>
+                    <span>Trocar conta</span>
+                </a>
+                <form method="POST" action="{{ PREFIX }}/google-calendar/disconnect/{{ account.slug }}" data-gsettings-confirm="Desconectar esta agenda?">
+                    <button type="submit" class="gcal-btn gcal-btn--quiet">
+                        <i class="fas fa-unlink" aria-hidden="true"></i>
+                        <span>Desconectar</span>
+                    </button>
+                </form>
+                {% elif not connection_error and account.credentials_file_exists %}
+                <a href="{{ PREFIX }}/google-calendar/connect/{{ account.slug }}" class="gcal-btn gcal-btn--primary">
+                    <span class="gcal-google-mark" aria-hidden="true">G</span>
+                    <span>Entrar com Google</span>
+                </a>
+                {% else %}
+                <button type="button" class="gcal-btn" disabled>
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <span>Aguardando configuracao</span>
+                </button>
+                {% endif %}
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+
+    <section class="gcal-notes" aria-label="Como funciona">
+        <article>
+            <i class="fas fa-calendar-check" aria-hidden="true"></i>
+            <strong>Eventos no CaseHub</strong>
+            <span>Audiencias, reunioes e compromissos aparecem na agenda do escritorio quando a conta esta validada.</span>
+        </article>
+        <article>
+            <i class="fas fa-shield-halved" aria-hidden="true"></i>
+            <strong>Acesso limitado</strong>
+            <span>A permissao e apenas para agenda. O CaseHub nao guarda senha Google.</span>
+        </article>
+        <article>
+            <i class="fas fa-rotate" aria-hidden="true"></i>
+            <strong>Troca simples</strong>
+            <span>Se a conta mudar, use "Trocar conta" e entre novamente com Google.</span>
+        </article>
+    </section>
+</main>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    document.querySelectorAll('[data-gsettings-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            var message = form.getAttribute('data-gsettings-confirm');
+            if (message && !window.confirm(message)) event.preventDefault();
+        });
+    });
+
+    document.querySelectorAll('[data-gsettings-alert-dismiss]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var alert = button.closest('[data-gsettings-alert]');
+            if (alert) alert.remove();
+        });
+    });
+
+    document.querySelectorAll('[data-gcal-copy]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var value = button.getAttribute('data-gcal-copy') || '';
+            if (navigator.clipboard && value) {
+                navigator.clipboard.writeText(value).then(function () {
+                    button.textContent = 'Copiado';
+                    setTimeout(function () { button.textContent = 'Copiar URL'; }, 1400);
+                }).catch(function () {});
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,159 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Faturas · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Financeiro · Faturas
+      {% if stats and stats.count is defined %} · {{ stats.count }} no total{% endif %}
+    </span>
+    <h1>Faturas em <em>movimento</em>.</h1>
+    <p class="ch-page-head__sub">Documentos consolidados a partir dos itens de cobrança. Filtre por status e envie/marque pago direto daqui.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Financeiro
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/invoices/new">
+      <span data-icon="plus"></span> Nova fatura
+    </a>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--4" style="margin-bottom: var(--space-6);">
+  <article class="ch-kpi ch-kpi--hero">
+    <span class="ch-kpi__label">Total faturado</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.2f"|format((stats.total_invoiced if stats else 0)|float) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Soma de todas as faturas</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Pago</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.2f"|format((stats.total_paid if stats else 0)|float) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Recebido</span>
+  </article>
+  <article class="ch-kpi ch-kpi--warn">
+    <span class="ch-kpi__label">Pendente</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.2f"|format((stats.total_pending if stats else 0)|float) }}</span>
+    </div>
+    <span class="ch-kpi__hint">A receber</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Quantidade</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">{{ stats.count if stats else 0 }}</span>
+    </div>
+    <span class="ch-kpi__hint">Faturas emitidas</span>
+  </article>
+</section>
+
+<form class="ch-card ch-card--compact" method="get" action="{{ PREFIX }}/invoices"
+      style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--space-5);">
+  <div class="ch-field" style="flex: 0 0 240px;">
+    <label class="ch-field__label" for="status">Status</label>
+    <select class="ch-select" id="status" name="status" onchange="this.form.submit()">
+      <option value="" {% if not filter_status %}selected{% endif %}>Todas</option>
+      <option value="invoiced" {% if filter_status == 'invoiced' %}selected{% endif %}>Pendentes</option>
+      <option value="paid" {% if filter_status == 'paid' %}selected{% endif %}>Pagas</option>
+    </select>
+  </div>
+  <div style="display: flex; gap: var(--space-2); margin-left: auto;">
+    <button class="ch-btn" type="submit"><span data-icon="check"></span> Filtrar</button>
+    {% if filter_status %}
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices">
+      <span data-icon="x"></span> Limpar
+    </a>
+    {% endif %}
+  </div>
+</form>
+
+{% if invoices and invoices|length > 0 %}
+<section class="ch-card ch-card--bleed">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Faturas emitidas</span>
+      <h2 class="ch-card__title">{{ invoices|length }} {% if invoices|length == 1 %}fatura{% else %}faturas{% endif %}</h2>
+    </div>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Fatura</th>
+          <th>Data</th>
+          <th>Itens</th>
+          <th style="text-align: right;">Total</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td data-label="Fatura">
+            <a href="{{ PREFIX }}/invoices/{{ inv.invoice_number }}" style="color: var(--c-green-d); font-weight: 700;">
+              {{ inv.invoice_number }}
+            </a>
+          </td>
+          <td data-label="Data" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
+            {{ inv.created_at.strftime('%d/%m/%Y') if inv.created_at else '—' }}
+          </td>
+          <td data-label="Itens">
+            <span class="ch-mono" style="font-size: var(--fs-xs);">{{ inv.item_count }} item(ns)</span>
+          </td>
+          <td data-label="Total" class="ch-mono" style="font-weight: 700; text-align: right;">
+            R$ {{ "%.2f"|format((inv.total or 0)|float) }}
+          </td>
+          <td data-label="Status">
+            {% if inv.status == 'paid' %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>Pago</span>
+            {% elif inv.status == 'invoiced' %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>Pendente</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>{{ inv.status }}</span>
+            {% endif %}
+          </td>
+          <td data-label="" style="text-align: right;">
+            <a class="ch-chip" href="{{ PREFIX }}/invoices/{{ inv.invoice_number }}" title="Ver fatura">
+              <span data-icon="chevron_right" data-icon-size="14"></span>
+            </a>
+            <a class="ch-chip" href="{{ PREFIX }}/invoices/{{ inv.invoice_number }}/print" target="_blank" title="Imprimir">
+              <span data-icon="file" data-icon-size="14"></span>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<div class="ch-card">
+  <div class="ch-empty ch-empty--hero">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="billing"></span></span>
+    <h3>Nenhuma fatura emitida</h3>
+    <p>
+      {% if filter_status %}
+        Nenhuma fatura corresponde ao filtro selecionado. Limpe o filtro ou crie uma nova fatura.
+      {% else %}
+        Comece registrando itens de cobrança e emita a primeira fatura para o cliente.
+      {% endif %}
+    </p>
+    <div style="display: flex; gap: var(--space-2); justify-content: center; margin-top: var(--space-4);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing">
+        <span data-icon="billing"></span> Itens de cobrança
+      </a>
+      <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/invoices/new">
+        <span data-icon="plus"></span> Nova fatura
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

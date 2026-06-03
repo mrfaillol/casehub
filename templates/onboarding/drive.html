@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="{% if product == 'lite' %}pt-BR{% else %}en{% endif %}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if product == "lite" %}Configuração do Google Drive - CaseHub Setup{% else %}Google Drive - CaseHub Setup{% endif %}</title>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Design system canonical -->
+    <link rel="stylesheet" href="/static/css/tokens.css?v=1">
+    <link rel="stylesheet" href="/static/css/reset.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/buttons.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/forms.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/cards.css?v=1">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: rgba(26, 26, 26, 0.7);
+            --border: rgba(255,255,255,0.08);
+            --text-primary: #e0e0e0;
+            --text-muted: #888;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--bg-primary);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .wizard-wrapper { width: 100%; max-width: 600px; }
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .step-indicator {
+            display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 2rem;
+        }
+        .step-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--border-color, #333); transition: all 0.3s;
+        }
+        .step-dot.active { background: var(--accent, #fff); transform: scale(1.2); }
+        .step-dot.done { background: var(--color-success, #44bb44); }
+        .step-title {
+            font-size: 1.4rem; font-weight: 700; color: var(--accent, #fff);
+            margin-bottom: 0.25rem; text-align: center;
+        }
+        .step-subtitle {
+            text-align: center; color: var(--text-muted);
+            margin-bottom: 2rem; font-size: 0.9rem;
+        }
+        .drive-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .drive-icon {
+            width: 64px; height: 64px; margin: 0 auto 1rem;
+            background: rgba(255,255,255,0.05); border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.8rem; color: #4285f4;
+        }
+        .drive-card h3 { font-size: 1.1rem; color: var(--accent, #fff); margin-bottom: 0.5rem; }
+        .drive-card p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+        .btn-google {
+            background: #fff; color: #333; border: none; border-radius: 8px;
+            padding: 0.6rem 1.5rem; font-weight: 500; font-size: 0.9rem;
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            transition: all 0.2s;
+        }
+        .btn-google:hover { background: #f0f0f0; transform: translateY(-1px); }
+        .btn-google img { height: 18px; }
+        .benefit-list {
+            list-style: none; padding: 0; margin: 0 0 1.5rem; text-align: left;
+        }
+        .benefit-list li {
+            padding: 0.5rem 0;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .benefit-list li i { color: var(--color-success, #44bb44); width: 16px; }
+        .btn-row {
+            display: flex; gap: 0.75rem; justify-content: space-between;
+            align-items: center;
+        }
+        .btn-next {
+            background: var(--accent, #fff); color: var(--bg-primary); border: none; border-radius: 10px;
+            padding: 0.65rem 2rem; font-weight: 600; font-size: 0.95rem;
+            transition: all 0.2s; text-decoration: none;
+        }
+        .btn-next:hover { background: var(--text-primary); color: var(--bg-primary); transform: translateY(-1px); }
+        .btn-skip {
+            background: transparent; color: var(--text-muted); border: 1px solid var(--border-color, #333);
+            border-radius: 10px; padding: 0.65rem 1.5rem;
+            font-size: 0.9rem; text-decoration: none;
+        }
+        .btn-skip:hover { color: var(--text-primary); border-color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="wizard-wrapper">
+        <div class="glass-card">
+            <div class="step-indicator">
+                {% for i in range(1, total_steps + 1) %}
+                <div class="step-dot {% if i == step %}active{% elif i < step %}done{% endif %}"></div>
+                {% endfor %}
+            </div>
+
+            {% if product == "lite" %}
+            <h2 class="step-title"><i class="fab fa-google-drive me-2"></i>Configuração do Google Drive</h2>
+            <p class="step-subtitle">Conecte o Google Drive para armazenar e sincronizar documentos</p>
+
+            <div class="drive-card">
+                <div class="drive-icon">
+                    <i class="fab fa-google-drive"></i>
+                </div>
+                <h3>Conectar Google Drive</h3>
+                <p>O CaseHub criara pastas organizadas para cada cliente e sincronizara documentos automáticamente.</p>
+
+                <ul class="benefit-list">
+                    <li><i class="fas fa-check"></i> Estrutura de pastas automática por cliente</li>
+                    <li><i class="fas fa-check"></i> Sincronizacao de documentos em tempo real</li>
+                    <li><i class="fas fa-check"></i> Pastas compartilhadas para colaboração com clientes</li>
+                    <li><i class="fas fa-check"></i> Seus dados permanecem na sua conta Google</li>
+                </ul>
+
+                <a class="btn-google" href="{{ PREFIX }}/integrations/google-drive/connect">
+                    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                    Conectar com Google
+                </a>
+            </div>
+
+            <div class="btn-row">
+                <a href="{{ PREFIX }}/setup/team" class="btn-skip">Pular por agora</a>
+                <a href="{{ PREFIX }}/setup/team" class="btn-next">
+                    Continuar <i class="fas fa-arrow-right ms-2"></i>
+                </a>
+            </div>
+            {% else %}
+            <h2 class="step-title"><i class="fab fa-google-drive me-2"></i>Google Drive</h2>
+            <p class="step-subtitle">Connect Google Drive to store and sync documents</p>
+
+            <div class="drive-card">
+                <div class="drive-icon">
+                    <i class="fab fa-google-drive"></i>
+                </div>
+                <h3>Connect Google Drive</h3>
+                <p>CaseHub will create organized folders for each client and sync documents automátically.</p>
+
+                <ul class="benefit-list">
+                    <li><i class="fas fa-check"></i> Automatic folder structure per client</li>
+                    <li><i class="fas fa-check"></i> Real-time document sync</li>
+                    <li><i class="fas fa-check"></i> Shared folders for client collaboration</li>
+                    <li><i class="fas fa-check"></i> Your data stays in your Google account</li>
+                </ul>
+
+                <a class="btn-google" href="{{ PREFIX }}/integrations/google-drive/connect">
+                    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                    Connect with Google
+                </a>
+            </div>
+
+            <div class="btn-row">
+                <a href="{{ PREFIX }}/setup/team" class="btn-skip">Skip for now</a>
+                <a href="{{ PREFIX }}/setup/team" class="btn-next">
+                    Continue <i class="fas fa-arrow-right ms-2"></i>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

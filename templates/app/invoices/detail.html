@@ -1,0 +1,219 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Fatura {{ invoice_number }} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Financeiro · Fatura ·
+      {% if status == 'paid' %}<span style="color: var(--c-green-d);">Paga</span>
+      {% else %}<span style="color: var(--c-warn);">Pendente</span>{% endif %}
+    </span>
+    <h1>Fatura <em>{{ invoice_number }}</em></h1>
+    <p class="ch-page-head__sub">
+      {% if client %}
+        Cliente <a href="{{ PREFIX }}/clients/{{ client.id }}" style="color: var(--c-green-d);">{{ client.first_name }} {{ client.last_name }}</a>
+      {% endif %}
+      {% if case %}
+        {% if client %} · {% endif %}
+        Processo <a href="{{ PREFIX }}/cases/{{ case.id }}" style="color: var(--c-green-d);">{{ case.case_number or case.case_name or ('Case #' ~ case.id) }}</a>
+      {% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices/{{ invoice_number }}/print" target="_blank">
+      <span data-icon="file"></span> Imprimir
+    </a>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices/{{ invoice_number }}/pdf">
+      <span data-icon="docs"></span> PDF
+    </a>
+    {% if status != 'paid' %}
+    <button class="ch-btn ch-btn--ghost" type="button" onclick="sendInvoice()">
+      <span data-icon="bell"></span> Enviar
+    </button>
+    <form method="post" action="{{ PREFIX }}/invoices/{{ invoice_number }}/mark-paid" style="margin: 0;">
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span> Marcar como paga
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);">
+  {# ─── Cliente ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Cobrar de</span>
+        <h2 class="ch-card__title">Cliente</h2>
+      </div>
+      <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    {% if client %}
+    <div class="ch-list" role="list">
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="user"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ client.first_name }} {{ client.last_name }}</p>
+          <p class="ch-list__meta">Nome completo</p>
+        </div>
+      </div>
+      {% if client.email %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="bell"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title"><a href="mailto:{{ client.email }}" style="color: var(--c-green-d);">{{ client.email }}</a></p>
+          <p class="ch-list__meta">E-mail</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.phone %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="bell"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ client.phone }}</p>
+          <p class="ch-list__meta">Telefone</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.address %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="folder"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ client.address }}</p>
+          <p class="ch-list__meta">Endereço</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% else %}
+    <p style="color: var(--fg-muted);">Informações do cliente não disponíveis.</p>
+    {% endif %}
+  </article>
+
+  {# ─── Datas & metadata ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Datas</span>
+        <h2 class="ch-card__title">Emissão & vencimento</h2>
+      </div>
+      <span data-icon="calendar" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0;">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Data da fatura</span>
+        <strong>{{ items[0].created_at.strftime('%d/%m/%Y') if items and items[0].created_at else '—' }}</strong>
+      </div>
+      {% if due_date %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Vencimento</span>
+        <strong>{{ due_date.strftime('%d/%m/%Y') }}</strong>
+      </div>
+      {% endif %}
+      {% if status == 'paid' and items and items[0].paid_date %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Pago em</span>
+        <strong style="color: var(--c-green-d);">{{ items[0].paid_date.strftime('%d/%m/%Y') }}</strong>
+      </div>
+      {% endif %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Status</span>
+        {% if status == 'paid' %}
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>Pago</span>
+        {% elif status == 'invoiced' %}
+          <span class="ch-pill ch-pill--warn"><span class="dot"></span>Pendente</span>
+        {% else %}
+          <span class="ch-pill"><span class="dot"></span>{{ status }}</span>
+        {% endif %}
+      </div>
+      {% if case %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Tipo</span>
+        <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ case.visa_type or '—' }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </article>
+</section>
+
+{# ─── Itens da fatura ─── #}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Detalhes</span>
+      <h2 class="ch-card__title">{{ items|length }} item(ns)</h2>
+    </div>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Descrição</th>
+          <th>Tipo</th>
+          <th style="text-align: right;">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td data-label="Descrição">
+            <strong>{{ item.description }}</strong>
+            {% if item.notes %}
+            <div style="color: var(--fg-muted); font-size: var(--fs-xs); margin-top: var(--space-1);">{{ item.notes }}</div>
+            {% endif %}
+          </td>
+          <td data-label="Tipo">
+            <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ item.item_type or 'fee' }}</span>
+          </td>
+          <td data-label="Valor" class="ch-mono" style="text-align: right; font-weight: 700;">
+            R$ {{ "%.2f"|format(item.amount|float) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2" style="text-align: right; padding-top: var(--space-4);">Subtotal</th>
+          <th class="ch-mono" style="text-align: right; padding-top: var(--space-4);">R$ {{ "%.2f"|format(subtotal|float) }}</th>
+        </tr>
+        <tr>
+          <th colspan="2" style="text-align: right; font-size: var(--fs-lg);">Total a pagar</th>
+          <th class="ch-mono" style="text-align: right; font-size: var(--fs-lg); color: var(--c-green-d);">R$ {{ "%.2f"|format(total|float) }}</th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>
+
+<section class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+  <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint); letter-spacing: 0.10em; text-transform: uppercase;">
+    Fatura {{ invoice_number }} · {{ items|length }} item(ns)
+  </span>
+  <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices">
+    <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar para faturas
+  </a>
+</section>
+
+<script>
+  async function sendInvoice() {
+    if (!confirm('Enviar fatura para o cliente por e-mail?')) return;
+    try {
+      var response = await fetch('{{ PREFIX }}/invoices/{{ invoice_number }}/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      var data = await response.json().catch(function () { return {}; });
+      if (response.ok) {
+        alert(data.message || 'Fatura enviada!');
+      } else {
+        alert('Erro: ' + (data.detail || 'falha ao enviar fatura.'));
+      }
+    } catch (error) {
+      alert('Erro: ' + error.message);
+    }
+  }
+</script>
+{% endblock %}

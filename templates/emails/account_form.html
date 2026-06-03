@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} {% if product == "lite" %}Conta de E-mail{% else %}Email Account{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/emails-account-form.css">
+{% endblock %}
+
+{% block content %}
+<main class="emails-account-form-main" aria-labelledby="emails-account-form-title">
+    <header class="emails-account-form-header">
+        <a href="{{ PREFIX }}/emails/accounts" class="emails-account-form-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar às Contas{% else %}Back to Accounts{% endif %}</span>
+        </a>
+        <h1 id="emails-account-form-title" class="emails-account-form-title">
+            <i class="fas fa-at emails-account-form-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}{% if action == "Create" %}Criar{% elif action == "Edit" %}Editar{% else %}{{ action }}{% endif %} Conta de E-mail{% else %}{{ action }} Email Account{% endif %}</span>
+        </h1>
+    </header>
+
+    <form method="post" action="{% if account %}{{ PREFIX }}/emails/accounts/{{ account.id }}/edit{% else %}{{ PREFIX }}/emails/accounts/new{% endif %}" novalidate>
+        <div class="emails-account-form-grid">
+            <section class="emails-account-form-card" aria-labelledby="emails-account-form-details-title">
+                <header id="emails-account-form-details-title" class="emails-account-form-card-header">
+                    <span>{% if product == "lite" %}Detalhes da Conta{% else %}Account Details{% endif %}</span>
+                </header>
+                <div class="emails-account-form-card-body">
+                    <div class="emails-account-form-field">
+                        <label for="emails-account-form-name" class="emails-account-form-label">
+                            {% if product == "lite" %}Nome da Conta{% else %}Account Name{% endif %}<span class="emails-account-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text"
+                               id="emails-account-form-name"
+                               name="name"
+                               class="emails-account-form-input"
+                               value="{{ account.name if account else '' }}"
+                               placeholder="{% if product == 'lite' %}ex.: E-mail do Escritório{% else %}e.g., Office Email{% endif %}"
+                               autocomplete="off"
+                               required>
+                    </div>
+                    <div class="emails-account-form-field">
+                        <label for="emails-account-form-email" class="emails-account-form-label">
+                            {% if product == "lite" %}Endereço de E-mail{% else %}Email Address{% endif %}<span class="emails-account-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="email"
+                               id="emails-account-form-email"
+                               name="email_address"
+                               class="emails-account-form-input"
+                               value="{{ account.email_address if account else '' }}"
+                               placeholder="office@example.com"
+                               autocomplete="email"
+                               required>
+                    </div>
+                </div>
+            </section>
+
+            <section class="emails-account-form-card" aria-labelledby="emails-account-form-imap-title">
+                <header id="emails-account-form-imap-title" class="emails-account-form-card-header">
+                    <span>{% if product == "lite" %}Configurações IMAP (Recebimento){% else %}IMAP Settings (Incoming){% endif %}</span>
+                </header>
+                <div class="emails-account-form-card-body">
+                    <div class="emails-account-form-row">
+                        <div class="emails-account-form-field">
+                            <label for="emails-account-form-imap-server" class="emails-account-form-label">
+                                {% if product == "lite" %}Servidor IMAP{% else %}IMAP Server{% endif %}<span class="emails-account-form-required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="text"
+                                   id="emails-account-form-imap-server"
+                                   name="imap_server"
+                                   class="emails-account-form-input"
+                                   value="{{ account.imap_server if account else '' }}"
+                                   placeholder="imap.gmail.com"
+                                   autocomplete="off"
+                                   required>
+                        </div>
+                        <div class="emails-account-form-field">
+                            <label for="emails-account-form-imap-port" class="emails-account-form-label">
+                                {% if product == "lite" %}Porta{% else %}Port{% endif %}<span class="emails-account-form-required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="number"
+                                   id="emails-account-form-imap-port"
+                                   name="imap_port"
+                                   class="emails-account-form-input"
+                                   value="{{ account.imap_port if account else 993 }}"
+                                   min="1"
+                                   max="65535"
+                                   inputmode="numeric"
+                                   required>
+                        </div>
+                    </div>
+                    <div class="emails-account-form-field">
+                        <label class="emails-account-form-switch" for="emails-account-form-use-ssl">
+                            <input type="checkbox"
+                                   id="emails-account-form-use-ssl"
+                                   name="use_ssl"
+                                   value="true"
+                                   class="emails-account-form-switch-input"
+                                   {% if not account or account.use_ssl %}checked{% endif %}>
+                            <span class="emails-account-form-switch-track" aria-hidden="true">
+                                <span class="emails-account-form-switch-thumb"></span>
+                            </span>
+                            <span class="emails-account-form-switch-text">{% if product == "lite" %}Usar SSL/TLS{% else %}Use SSL/TLS{% endif %}</span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <section class="emails-account-form-card" aria-labelledby="emails-account-form-auth-title">
+                <header id="emails-account-form-auth-title" class="emails-account-form-card-header">
+                    <span>{% if product == "lite" %}Autenticação{% else %}Authentication{% endif %}</span>
+                </header>
+                <div class="emails-account-form-card-body">
+                    <div class="emails-account-form-field">
+                        <label for="emails-account-form-username" class="emails-account-form-label">
+                            {% if product == "lite" %}Usuário{% else %}Username{% endif %}<span class="emails-account-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text"
+                               id="emails-account-form-username"
+                               name="username"
+                               class="emails-account-form-input"
+                               value="{{ account.username if account else '' }}"
+                               placeholder="{% if product == 'lite' %}usuário ou e-mail{% else %}username or email{% endif %}"
+                               autocomplete="username"
+                               required>
+                    </div>
+                    <div class="emails-account-form-field">
+                        <label for="emails-account-form-password" class="emails-account-form-label">
+                            {% if product == "lite" %}Senha{% else %}Password{% endif %}{% if not account %}<span class="emails-account-form-required" aria-hidden="true">*</span>{% endif %}
+                        </label>
+                        <input type="password"
+                               id="emails-account-form-password"
+                               name="password"
+                               class="emails-account-form-input"
+                               placeholder="{% if account %}{% if product == 'lite' %}Deixe em branco para manter a atual{% else %}Leave blank to keep current{% endif %}{% else %}{% if product == 'lite' %}Senha de app ou senha regular{% else %}App password or regular password{% endif %}{% endif %}"
+                               autocomplete="new-password"
+                               aria-describedby="emails-account-form-password-hint"
+                               {% if not account %}required{% endif %}>
+                        <small id="emails-account-form-password-hint" class="emails-account-form-hint">
+                            {% if product == "lite" %}Para Gmail, use uma Senha de App{% else %}For Gmail, use an App Password{% endif %}
+                        </small>
+                    </div>
+                </div>
+            </section>
+
+            <section class="emails-account-form-card" aria-labelledby="emails-account-form-smtp-title">
+                <header id="emails-account-form-smtp-title" class="emails-account-form-card-header">
+                    <span>{% if product == "lite" %}Configurações SMTP (Opcional){% else %}SMTP Settings (Optional){% endif %}</span>
+                </header>
+                <div class="emails-account-form-card-body">
+                    <div class="emails-account-form-row">
+                        <div class="emails-account-form-field">
+                            <label for="emails-account-form-smtp-server" class="emails-account-form-label">
+                                {% if product == "lite" %}Servidor SMTP{% else %}SMTP Server{% endif %}
+                            </label>
+                            <input type="text"
+                                   id="emails-account-form-smtp-server"
+                                   name="smtp_server"
+                                   class="emails-account-form-input"
+                                   value="{{ account.smtp_server if account else '' }}"
+                                   placeholder="smtp.gmail.com"
+                                   autocomplete="off">
+                        </div>
+                        <div class="emails-account-form-field">
+                            <label for="emails-account-form-smtp-port" class="emails-account-form-label">
+                                {% if product == "lite" %}Porta{% else %}Port{% endif %}
+                            </label>
+                            <input type="number"
+                                   id="emails-account-form-smtp-port"
+                                   name="smtp_port"
+                                   class="emails-account-form-input"
+                                   value="{{ account.smtp_port if account else 587 }}"
+                                   min="1"
+                                   max="65535"
+                                   inputmode="numeric">
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="emails-account-form-status-row">
+            <label class="emails-account-form-switch" for="emails-account-form-enabled">
+                <input type="checkbox"
+                       id="emails-account-form-enabled"
+                       name="enabled"
+                       value="true"
+                       class="emails-account-form-switch-input"
+                       {% if not account or account.enabled %}checked{% endif %}>
+                <span class="emails-account-form-switch-track" aria-hidden="true">
+                    <span class="emails-account-form-switch-thumb"></span>
+                </span>
+                <span class="emails-account-form-switch-text">{% if product == "lite" %}Ativo{% else %}Enabled{% endif %}</span>
+            </label>
+        </div>
+
+        <div class="emails-account-form-actions">
+            <button type="submit" class="emails-account-form-btn emails-account-form-btn--primary">
+                <i class="fas fa-save" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}{% if action == "Create" %}Criar{% elif action == "Edit" %}Salvar{% else %}{{ action }}{% endif %} Conta{% else %}{{ action }} Account{% endif %}</span>
+            </button>
+            <a href="{{ PREFIX }}/emails/accounts" class="emails-account-form-btn emails-account-form-btn--ghost">
+                <span>{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</span>
+            </a>
+        </div>
+    </form>
+</main>
+{% endblock %}

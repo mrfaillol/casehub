@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Importar Dados{% else %}Import Data{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2><i class="fas fa-file-import me-2"></i>{{ 'Importar Dados' if lang == 'pt-BR' else 'Import Data' }}</h2>
+    <p class="text-muted">{{ 'Importe dados de sistemas externos como Cerenade' if lang == 'pt-BR' else 'Import data from external systems like Cerenade' }}</p>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+</div>
+{% endif %}
+
+<!-- Current Stats -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <div class="h3 text-primary">{{ client_count }}</div>
+                <div class="text-muted">{{ 'Clientes' if lang == 'pt-BR' else 'Clients' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <div class="h3 text-success">{{ case_count }}</div>
+                <div class="text-muted">{{ 'Casos' if lang == 'pt-BR' else 'Cases' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-light">
+            <div class="card-body text-center">
+                <div class="h3 text-info">{{ doc_count }}</div>
+                <div class="text-muted">{{ 'Documentos' if lang == 'pt-BR' else 'Documents' }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Upload JSON/CSV -->
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-upload me-2"></i>{{ 'Upload de Arquivo' if lang == 'pt-BR' else 'File Upload' }}
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#jsonTab">JSON</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#csvTab">CSV</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- JSON Upload -->
+                    <div class="tab-pane fade show active" id="jsonTab">
+                        <form method="POST" action="{{ PREFIX }}/import/json" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label class="form-label">{{ 'Tipo de Dados' if lang == 'pt-BR' else 'Data Type' }}</label>
+                                <select name="data_type" class="form-select glass-input" required>
+                                    <option value="clients">{{ 'Clientes' if lang == 'pt-BR' else 'Clients' }}</option>
+                                    <option value="cases">{{ 'Casos' if lang == 'pt-BR' else 'Cases' }}</option>
+                                    <option value="documents">{{ 'Documentos' if lang == 'pt-BR' else 'Documents' }}</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ 'Arquivo JSON' if lang == 'pt-BR' else 'JSON File' }}</label>
+                                <input type="file" name="json_file" class="form-control glass-input" accept=".json" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
+                                <i class="fas fa-upload me-1"></i> {{ 'Importar' if lang == 'pt-BR' else 'Import' }}
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- CSV Upload -->
+                    <div class="tab-pane fade" id="csvTab">
+                        <form method="POST" action="{{ PREFIX }}/import/csv" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label class="form-label">{{ 'Tipo de Dados' if lang == 'pt-BR' else 'Data Type' }}</label>
+                                <select name="data_type" class="form-select glass-input" id="csvDataType" required>
+                                    <option value="clients">{{ 'Clientes' if lang == 'pt-BR' else 'Clients' }}</option>
+                                    <option value="cases">{{ 'Casos' if lang == 'pt-BR' else 'Cases' }}</option>
+                                    <option value="documents">{{ 'Documentos' if lang == 'pt-BR' else 'Documents' }}</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">{{ 'Arquivo CSV' if lang == 'pt-BR' else 'CSV File' }}</label>
+                                <input type="file" name="csv_file" class="form-control glass-input" accept=".csv" required>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
+                                    <i class="fas fa-upload me-1"></i> {{ 'Importar' if lang == 'pt-BR' else 'Import' }}
+                                </button>
+                                <a href="#" class="btn btn-outline-secondary" id="downloadTemplate">
+                                    <i class="fas fa-download me-1"></i> {{ 'Template' if lang == 'pt-BR' else 'Download Template' }}
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if product != "lite" %}
+    <!-- Cerenade Import -->
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-database me-2"></i>Cerenade Import
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    {{ 'Importe dados de arquivos JSON exportados do Cerenade.' if lang == 'pt-BR' else 'Import data from exported Cerenade JSON files.' }}
+                </p>
+
+                <form method="POST" action="{{ PREFIX }}/import/cerenade">
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'O que importar' if lang == 'pt-BR' else 'What to import' }}</label>
+                        <select name="import_type" class="form-select glass-input">
+                            <option value="all">{{ 'Tudo (Clientes, Casos, Documentos)' if lang == 'pt-BR' else 'All (Clients, Cases, Documents)' }}</option>
+                            <option value="clients">{{ 'Apenas Clientes' if lang == 'pt-BR' else 'Clients Only' }}</option>
+                            <option value="cases">{{ 'Apenas Casos' if lang == 'pt-BR' else 'Cases Only' }}</option>
+                            <option value="documents">{{ 'Apenas Documentos' if lang == 'pt-BR' else 'Documents Only' }}</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success glass-btn glass-btn--success">
+                        <i class="fas fa-file-import me-1"></i> {{ 'Importar do Cerenade' if lang == 'pt-BR' else 'Import from Cerenade' }}
+                    </button>
+                </form>
+
+                <hr>
+
+                <div class="small text-muted">
+                    <strong>{{ 'Arquivos esperados:' if lang == 'pt-BR' else 'Expected files:' }}</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>clients.json</li>
+                        <li>cases.json</li>
+                        <li>documents.json</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Format Help -->
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>{{ 'Formato dos Dados' if lang == 'pt-BR' else 'Data Format' }}
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2"><strong>Clients JSON:</strong></p>
+                <pre class="bg-light p-2 small"><code>[{"name": "John Doe", "email": "john@example.com", "phone": "+1...", "country": "Brazil", "status": "Active"}]</code></pre>
+
+                <p class="small text-muted mb-2 mt-3"><strong>Cases JSON:</strong></p>
+                <pre class="bg-light p-2 small"><code>[{"client_name": "John Doe", "case_number": "CASE-001", "visa_type": "H-1B", "status": "Filed"}]</code></pre>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Format Help (Lite) -->
+    <div class="col-lg-6">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>Formato dos Dados
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2"><strong>Clientes JSON:</strong></p>
+                <pre class="bg-light p-2 small"><code>[{"name": "João Silva", "email": "joao@exemplo.com", "phone": "+55...", "status": "Ativo"}]</code></pre>
+
+                <p class="small text-muted mb-2 mt-3"><strong>Processos JSON:</strong></p>
+                <pre class="bg-light p-2 small"><code>[{"client_name": "João Silva", "case_number": "PROC-001", "tipo_acao": "Cível", "status": "Em Andamento"}]</code></pre>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('downloadTemplate').addEventListener('click', function(e) {
+    e.preventDefault();
+    const dataType = document.getElementById('csvDataType').value;
+    window.location.href = '{{ PREFIX }}/import/template/' + dataType;
+});
+</script>
+{% endblock %}

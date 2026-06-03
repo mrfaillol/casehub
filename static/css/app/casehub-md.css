@@ -1,0 +1,885 @@
+/* ============================================================
+   CaseHub.md — Editor "folha A4"
+   ------------------------------------------------------------
+   Folha de impressão A4 (210×297mm → 794px @96dpi) sempre
+   centralizada sobre um canvas suave, com elevação realista.
+   O fundo da folha (claro/escuro) é um TOGGLE LOCAL do editor
+   (data-md-paper), independente do tema do shell:
+     · claro → folha branca, texto PRETO
+     · escuro → folha grafite, texto BRANCO
+   Mobile: sensação Notion / Google Docs app — pane única,
+   toolbar sticky, Drive como drawer slide-over.
+   ------------------------------------------------------------
+   Leis: Fitts (alvos ≥40px mobile / ≥36px desktop), Doherty
+   (transições 150-220ms transform/opacity GPU), tokens
+   semânticos do shell (sem hex/px cru fora dos tokens locais).
+   ============================================================ */
+
+.ch-md {
+  /* ── Geometria da folha A4 ─────────────────────────────── */
+  --md-a4-ratio:     1.4142;                  /* 297 / 210 (A4 retrato) */
+  --md-page-max:     794px;                   /* 210mm @96dpi */
+  --md-page-pad-x:   clamp(32px, 7vw, 96px);  /* margem ~1" desktop */
+  --md-page-pad-y:   clamp(40px, 8vw, 96px);
+  --md-paper-radius: 6px;                     /* canto sutil de papel */
+  --md-rail-width:   clamp(240px, 24vw, 308px);
+
+  /* ── Canvas (mesa) onde a folha repousa ────────────────── */
+  --md-canvas-bg:    color-mix(in srgb, var(--surface-app) 86%, var(--c-ink, #001f3e) 10%);
+  --md-rail-bg:      color-mix(in srgb, var(--surface-card) 90%, var(--surface-app));
+
+  /* ── Folha CLARA (default) — folha branca, texto preto ─── */
+  --md-paper:        #ffffff;
+  --md-paper-fg:     #14181f;                 /* "preto" tipográfico, não #000 puro */
+  --md-paper-muted:  color-mix(in srgb, var(--md-paper-fg) 56%, transparent);
+  --md-paper-hair:   color-mix(in srgb, var(--md-paper-fg) 12%, transparent);
+  --md-paper-accent: var(--c-green-d, #008C4D);
+  --md-paper-edge:   rgba(0, 31, 62, 0.10);
+  --md-paper-shadow:
+    0 0 0 1px var(--md-paper-edge),
+    0 1px 2px rgba(0, 31, 62, 0.06),
+    0 18px 48px rgba(0, 31, 62, 0.12);
+
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* ── Folha ESCURA (toggle local) — folha grafite, texto branco ──
+   Independente de [data-theme]: o usuário pode ler em folha escura
+   mesmo no shell claro, e vice-versa. */
+.ch-md[data-md-paper="dark"] {
+  --md-paper:        #1b1f29;                 /* grafite quente, não preto */
+  --md-paper-fg:     #f4f6fb;                 /* branco tipográfico */
+  --md-paper-muted:  color-mix(in srgb, var(--md-paper-fg) 60%, transparent);
+  --md-paper-hair:   color-mix(in srgb, var(--md-paper-fg) 16%, transparent);
+  --md-paper-accent: #4ed38a;
+  --md-paper-edge:   rgba(255, 255, 255, 0.08);
+  --md-paper-shadow:
+    0 0 0 1px var(--md-paper-edge),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 22px 56px rgba(0, 0, 0, 0.55);
+}
+
+/* Canvas mais profundo quando shell escuro, para a folha não "flutuar" demais */
+[data-theme="dark"] .ch-md {
+  --md-canvas-bg:    color-mix(in srgb, var(--surface-app) 78%, #000 22%);
+  --md-rail-bg:      color-mix(in srgb, var(--surface-card) 92%, var(--surface-app));
+}
+
+/* High contrast: borda nítida, sombra plana */
+[data-theme="hc"] .ch-md,
+[data-theme="hc-dark"] .ch-md {
+  --md-paper-shadow: 0 0 0 1.5px var(--line-strong);
+  --md-paper-edge:   var(--line-strong);
+}
+
+.ch-md .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─────────────── Frame: contém chrome + toolbar + body ─── */
+.ch-md__frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--md-canvas-bg);
+  box-shadow: var(--shadow-card);
+}
+
+/* ─────────────── Chrome (title + actions) ─────────────── */
+.ch-md__chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-card);
+}
+
+.ch-md__file {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 360px);
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.ch-md__file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ch-md__file-label svg {
+  width: 18px;
+  height: 18px;
+  color: var(--c-green-d);
+}
+
+.ch-md__doc-id {
+  grid-column: 2;
+  max-width: min(100%, 260px);
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.ch-md__chrome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ch-md__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-card-2);
+  color: var(--fg-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.ch-md__status[data-tone="ok"]    { color: var(--c-green-d); }
+.ch-md__status[data-tone="warn"]  { color: var(--c-warning, #9a6a00); }
+.ch-md__status[data-tone="error"] { color: var(--c-danger); }
+
+/* Icon-only button (drawer open/close on mobile) */
+.ch-md__icon-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--fg-default);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.ch-md__icon-btn:hover { background: var(--surface-card-2); }
+.ch-md__icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 2px var(--c-green-d));
+}
+.ch-md__icon-btn svg { width: 19px; height: 19px; }
+
+/* ─────────────── Toolbar ─────────────── */
+.ch-md__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-card);
+}
+
+.ch-md__toolbar-sep {
+  display: inline-block;
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background: var(--line);
+}
+
+.ch-md__tool {
+  min-width: 36px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-default);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.ch-md__tool:hover {
+  background: var(--surface-card-2);
+}
+
+.ch-md__tool.is-active {
+  border-color: var(--line-strong);
+  background: var(--surface-card-2);
+}
+
+.ch-md__tool:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring, 0 0 0 2px var(--c-green-d));
+}
+
+.ch-md__tool svg {
+  width: 17px;
+  height: 17px;
+}
+
+.ch-md__tool--label {
+  min-width: 0;
+  padding: 0 12px;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  background: var(--surface-card);
+}
+
+.ch-md__tool--label:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-card-2);
+}
+
+.ch-md__tool--toggle.is-active {
+  color: var(--c-green-d);
+  border-color: var(--line-strong);
+  background: var(--surface-card-2);
+}
+
+/* Paper toggle: cross-fade sun ⇄ moon (GPU: opacity only) */
+.ch-md__tool--toggle .ch-md__paper-icon {
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.ch-md__paper-icon--dark { display: none; }
+.ch-md [data-md-paper-toggle] .ch-md__paper-icon--light { display: inline-flex; }
+.ch-md[data-md-paper="dark"] [data-md-paper-toggle] .ch-md__paper-icon--light { display: none; }
+.ch-md[data-md-paper="dark"] [data-md-paper-toggle] .ch-md__paper-icon--dark  { display: inline-flex; }
+
+/* ─────────────── Body: rail + canvas ─────────────── */
+.ch-md__body {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--md-rail-width) minmax(0, 1fr);
+  min-height: min(74vh, 860px);
+  background: var(--md-canvas-bg);
+}
+
+/* ─── Drive rail (sidebar desktop / drawer mobile) ─────── */
+.ch-md__docs {
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  background: var(--md-rail-bg);
+  overflow: auto;
+}
+
+.ch-md__docs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.ch-md__docs-head > div { min-width: 0; flex: 1; }
+
+.ch-md__docs-head h2,
+.ch-md__pane h2 {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  color: var(--fg-default);
+}
+
+.ch-md__docs-head p {
+  margin: 4px 0 0;
+  color: var(--fg-muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ch-md__docs-refresh { flex: 0 0 auto; }
+
+.ch-md__explorer {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  min-height: 100%;
+}
+
+.ch-md__explorer-col {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  min-width: 0;
+}
+
+.ch-md__explorer-col + .ch-md__explorer-col {
+  border-top: 1px solid var(--line);
+}
+
+.ch-md__explorer-col--docs {
+  overflow: auto;
+  padding-bottom: var(--space-4);
+}
+
+.ch-md__explorer-item {
+  min-width: 0;
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  text-align: left;
+  font: 600 12px/1.2 var(--sans);
+  cursor: pointer;
+}
+
+.ch-md__explorer-item:hover,
+.ch-md__explorer-item.is-active {
+  border-color: var(--line);
+  background: var(--surface-card);
+  color: var(--fg-default);
+}
+
+.ch-md__explorer-item svg {
+  width: 15px;
+  height: 15px;
+  color: var(--c-green-d);
+}
+
+.ch-md__explorer-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ch-md__explorer-item small {
+  color: var(--fg-muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.ch-md__doc-list {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.ch-md__doc {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-default);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ch-md__doc:hover,
+.ch-md__doc.is-active {
+  border-color: var(--line);
+  background: var(--surface-card);
+}
+
+.ch-md__doc svg {
+  width: 17px;
+  height: 17px;
+  color: var(--c-green-d);
+}
+
+.ch-md__doc-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.ch-md__doc strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+
+.ch-md__doc small {
+  overflow: hidden;
+  color: var(--fg-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.ch-md__empty {
+  padding: var(--space-3);
+  color: var(--fg-muted);
+  font-size: var(--fs-sm);
+}
+
+/* Scrim behind the mobile drawer (hidden on desktop) */
+.ch-md__scrim {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: color-mix(in srgb, var(--c-ink, #001f3e) 52%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+/* ─── Canvas (mesa) + folhas A4 ────────────────────────── */
+.ch-md__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  justify-items: center;
+  gap: var(--space-6);
+  padding: clamp(24px, 4vw, 56px) clamp(20px, 4vw, 48px) clamp(48px, 6vw, 88px);
+  background: var(--md-canvas-bg);
+  overflow: auto;
+}
+
+/* A folha A4: largura fixa-fluida + altura mínima proporcional A4.
+   aspect-ratio garante a "cara" de página mesmo com pouco conteúdo;
+   o conteúdo cresce além da primeira página naturalmente. */
+.ch-md__pane {
+  position: relative;
+  width: 100%;
+  max-width: var(--md-page-max);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: calc(min(var(--md-page-max), 92vw) * var(--md-a4-ratio));
+  border-radius: var(--md-paper-radius);
+  background: var(--md-paper);
+  box-shadow: var(--md-paper-shadow);
+  transition: background 180ms ease, box-shadow 180ms ease;
+}
+
+.ch-md__pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 10px clamp(28px, 6vw, 96px);
+  border-bottom: 1px dashed var(--md-paper-hair);
+  background: transparent;
+  border-radius: var(--md-paper-radius) var(--md-paper-radius) 0 0;
+}
+
+.ch-md__pane-head h2 {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--md-paper-muted);
+}
+
+.ch-md__pane-hint {
+  color: var(--md-paper-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ch-md__title-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-app);
+  color: var(--fg-default);
+  font: 700 var(--fs-sm) var(--sans);
+}
+
+.ch-md__title-input:focus-visible {
+  outline: none;
+  border-color: var(--c-green-d);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-green-d) 30%, transparent);
+}
+
+/* ─── Editor source (markdown raw) ─────────────────────── */
+.ch-md__source {
+  flex: 1;
+  width: 100%;
+  min-height: 520px;
+  padding: var(--md-page-pad-y) var(--md-page-pad-x);
+  border: 0;
+  resize: none;
+  outline: none;
+  background: transparent;
+  color: var(--md-paper-fg);
+  font: 14px/1.7 var(--mono);
+  tab-size: 2;
+  caret-color: var(--md-paper-accent);
+}
+
+.ch-md__source::placeholder {
+  color: var(--md-paper-muted);
+}
+
+/* ─── Preview (rich, editable) — tipografia "documento" ─ */
+.ch-md__preview {
+  flex: 1;
+  min-height: 520px;
+  padding: var(--md-page-pad-y) var(--md-page-pad-x);
+  background: transparent;
+  color: var(--md-paper-fg);
+  font: 16px/1.75 var(--sans);
+  letter-spacing: 0.005em;
+}
+
+.ch-md__preview[contenteditable="true"] {
+  cursor: text;
+  outline: none;
+}
+
+.ch-md__preview[contenteditable="true"]:focus-visible {
+  box-shadow: none;
+}
+
+.ch-md__preview > *:first-child { margin-top: 0; }
+.ch-md__preview > *:last-child  { margin-bottom: 0; }
+
+.ch-md__preview h1,
+.ch-md__preview h2,
+.ch-md__preview h3 {
+  line-height: 1.25;
+  color: var(--md-paper-fg);
+  margin: 1.6em 0 0.6em;
+  font-family: var(--sans);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.ch-md__preview h1 {
+  font-size: clamp(26px, 3vw, 32px);
+  margin-top: 0.4em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--md-paper-hair);
+}
+
+.ch-md__preview h2 { font-size: 22px; }
+.ch-md__preview h3 { font-size: 18px; }
+
+.ch-md__preview p,
+.ch-md__preview li,
+.ch-md__preview blockquote {
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.ch-md__preview strong { color: var(--md-paper-fg); font-weight: 700; }
+
+.ch-md__preview p { margin: 0 0 1em; }
+
+.ch-md__preview ul,
+.ch-md__preview ol {
+  padding-left: 1.8em;
+  margin: 0 0 1em;
+}
+
+.ch-md__preview code {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--md-paper-fg) 8%, transparent);
+  color: var(--md-paper-fg);
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.ch-md__preview pre {
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+  margin: 0 0 1em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--md-paper-fg) 92%, var(--md-paper));
+  color: var(--md-paper);
+}
+
+.ch-md__preview pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.ch-md__preview blockquote {
+  margin: 1em 0;
+  padding: 0.2em 0 0.2em var(--space-3);
+  border-left: 3px solid var(--md-paper-accent);
+  color: var(--md-paper-muted);
+  font-style: italic;
+}
+
+.ch-md__preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 1em;
+}
+
+.ch-md__preview th,
+.ch-md__preview td {
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--md-paper-fg) 15%, transparent);
+}
+
+.ch-md__preview th {
+  background: color-mix(in srgb, var(--md-paper-fg) 5%, transparent);
+  font-weight: 700;
+  text-align: left;
+}
+
+.ch-md__preview a {
+  color: var(--md-paper-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ch-md__preview hr {
+  border: 0;
+  border-top: 1px solid var(--md-paper-hair);
+  margin: 2em 0;
+}
+
+.ch-md__hidden-input { display: none; }
+
+/* ─────────────── View modes: doc vs split ───────────────
+   "doc" oculta visualmente o pane source MAS preserva no
+   layout/DOM (com clip + sr-only-style) — toolbar buttons
+   chamam source.focus()/setRangeText() e precisam manter
+   o nó focável e mensurável. Não trocar por display:none. */
+.ch-md__workspace[data-view="doc"] .ch-md__pane--source {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+/* ─────────────── Tablet (≤1080px) ─────────────── */
+@media (max-width: 1080px) {
+  .ch-md {
+    --md-rail-width: clamp(220px, 28vw, 280px);
+  }
+
+  .ch-md__workspace {
+    padding: clamp(20px, 3vw, 36px);
+    gap: var(--space-5);
+  }
+}
+
+/* ============================================================
+   Mobile (≤880px): sensação Notion / Google Docs app
+   ------------------------------------------------------------
+   · Drive vira drawer slide-over (fora do fluxo) → editor full-width
+   · Folha vira coluna de leitura confortável sobre canvas suave
+     (mantém "papel", só remove o aspect-ratio rígido pra não
+      desperdiçar viewport)
+   · Toolbar sticky com scroll horizontal + tap targets 44px
+   ============================================================ */
+@media (max-width: 880px) {
+  .ch-md {
+    --md-page-pad-x: clamp(18px, 6vw, 28px);
+    --md-page-pad-y: clamp(24px, 7vw, 36px);
+    gap: var(--space-3);
+  }
+
+  /* Botões de drawer aparecem; rótulos de texto somem pra ganhar espaço */
+  .ch-md__icon-btn { display: inline-flex; }
+  .ch-md__file-label-text { display: none; }
+  .ch-md__tool-text { display: none; }
+  .ch-md__tool--label { padding: 0; min-width: 40px; }
+
+  .ch-md__chrome {
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .ch-md__file {
+    grid-template-columns: 1fr;
+  }
+
+  .ch-md__file-label { display: none; }
+
+  .ch-md__doc-id {
+    grid-column: 1;
+    max-width: 100%;
+  }
+
+  .ch-md__chrome-actions {
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  /* Status condensado no mobile: vira um ponto/etiqueta curta */
+  .ch-md__status {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Toolbar sticky no topo do editor, rolável na horizontal */
+  .ch-md__toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: var(--space-2) var(--space-3);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ch-md__toolbar::-webkit-scrollbar { display: none; }
+
+  .ch-md__tool {
+    min-width: 44px;
+    min-height: 44px;
+    flex: 0 0 auto;
+  }
+
+  /* Body single-column; rail sai do fluxo e vira drawer */
+  .ch-md__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ch-md__docs {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 5;
+    width: min(86vw, 360px);
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+    box-shadow: 0 12px 48px rgba(0, 31, 62, 0.28);
+    transform: translateX(-102%);
+    transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    will-change: transform;
+  }
+
+  .ch-md.is-drawer-open .ch-md__docs {
+    transform: translateX(0);
+  }
+
+  .ch-md__scrim {
+    display: block;
+  }
+
+  .ch-md.is-drawer-open .ch-md__scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .ch-md__explorer-col--docs {
+    max-height: none;
+  }
+
+  /* Canvas suave (não branco edge-to-edge): folha "respira" como no
+     Google Docs app, com margem lateral pequena e cantos arredondados. */
+  .ch-md__workspace {
+    padding: var(--space-3) var(--space-3) var(--space-6);
+    gap: var(--space-4);
+    background: var(--md-canvas-bg);
+  }
+
+  .ch-md__pane {
+    /* sem aspect-ratio rígido no mobile: aproveita o viewport,
+       mas mantém papel com canto e elevação suave */
+    min-height: 70vh;
+    border-radius: 12px;
+    box-shadow:
+      0 0 0 1px var(--md-paper-edge),
+      0 8px 24px rgba(0, 31, 62, 0.14);
+  }
+
+  .ch-md__pane-head {
+    padding: 8px clamp(18px, 6vw, 28px);
+  }
+
+  .ch-md__source,
+  .ch-md__preview {
+    min-height: 60vh;
+  }
+
+  /* iOS: 16px+ evita zoom automático no focus */
+  .ch-md__preview { font-size: 16px; }
+  .ch-md__source { font-size: 15px; }
+}
+
+/* ─────────────── Small phones (≤480px) ─────────────── */
+@media (max-width: 480px) {
+  .ch-md__workspace {
+    padding: var(--space-2) var(--space-2) var(--space-5);
+  }
+
+  .ch-md__pane {
+    border-radius: 10px;
+  }
+
+  /* Esconde as ações de export do chrome — ficam via toolbar/drawer.
+     Mantém só Drive (save), que é a ação primária. */
+  .ch-md__chrome-actions [data-md-action="google-doc"],
+  .ch-md__chrome-actions [data-md-action="docx"] {
+    display: none;
+  }
+}
+
+/* ─────────────── Reduced motion ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ch-md__pane,
+  .ch-md__docs,
+  .ch-md__scrim,
+  .ch-md__tool,
+  .ch-md__icon-btn,
+  .ch-md__paper-icon {
+    transition: none;
+  }
+}

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Personal Statement Generator - Tools - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/ilc-tools" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="fas fa-arrow-left me-1"></i> {{ 'Voltar' if lang == 'pt-BR' else 'Back' }}
+    </a>
+    <h2><i class="fas fa-user-edit me-2"></i>Personal Statement Generator</h2>
+    <p class="text-muted">{{ 'Gere personal statements convincentes para auto-petições' if lang == 'pt-BR' else 'Generate compelling personal statements for self-petitions' }}</p>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+</div>
+{% endif %}
+
+<form method="POST" action="{{ PREFIX }}/ilc-tools/ps/generate">
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Basic Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-user me-2"></i>{{ 'Informações Básicas' if lang == 'pt-BR' else 'Basic Information' }}
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Vincular a Caso (opcional)' if lang == 'pt-BR' else 'Link to Case (optional)' }}</label>
+                        <select name="case_id" class="form-select glass-input">
+                            <option value="">{{ 'Nenhum caso' if lang == 'pt-BR' else 'No case' }}</option>
+                            {% for c in cases %}
+                            <option value="{{ c.id }}" {% if case and case.id == c.id %}selected{% endif %}>
+                                {{ c.case_name or c.case_number }} - {{ c.visa_type }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Nome Completo' if lang == 'pt-BR' else 'Full Name' }} *</label>
+                            <input type="text" name="beneficiary_name" class="form-control glass-input" required
+                                   value="{{ client.first_name ~ ' ' ~ client.last_name if client else ps_data.beneficiary_name|default('') }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'País de Origem' if lang == 'pt-BR' else 'Country of Origin' }} *</label>
+                            <input type="text" name="country_of_origin" class="form-control glass-input" required
+                                   value="{{ client.country_of_origin if client else ps_data.country_of_origin|default('') }}">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Área de Atuação' if lang == 'pt-BR' else 'Field of Expertise' }} *</label>
+                            <input type="text" name="field_of_expertise" class="form-control glass-input" required
+                                   value="{{ case.visa_type if case else ps_data.field_of_expertise|default('') }}"
+                                   placeholder="e.g., Artificial Intelligence, Healthcare">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ 'Posição Atual' if lang == 'pt-BR' else 'Current Position' }}</label>
+                            <input type="text" name="current_position" class="form-control glass-input"
+                                   value="{{ ps_data.current_position|default('') }}"
+                                   placeholder="e.g., Senior Researcher at XYZ Corp">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Background -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-graduation-cap me-2"></i>{{ 'Background e Conquistas' if lang == 'pt-BR' else 'Background & Achievements' }}
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Formação Acadêmica' if lang == 'pt-BR' else 'Educational Background' }}</label>
+                        <textarea name="education_background" class="form-control glass-input" rows="3"
+                                  placeholder="{{ 'PhD em X da Universidade Y, MS em Z...' if lang == 'pt-BR' else 'PhD in X from Y University, MS in Z...' }}">{{ ps_data.education_background|default('') }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Principais Conquistas' if lang == 'pt-BR' else 'Key Achievements' }} *</label>
+                        <textarea name="key_achievements" class="form-control glass-input" rows="4" required
+                                  placeholder="{{ 'Publicações, patentes, prêmios, projetos relevantes...' if lang == 'pt-BR' else 'Publications, patents, awards, relevant projects...' }}">{{ ps_data.key_achievements|default('') }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Proposed Endeavor -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-rocket me-2"></i>{{ 'Endeavor Proposto' if lang == 'pt-BR' else 'Proposed Endeavor' }}
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Descrição do Endeavor' if lang == 'pt-BR' else 'Endeavor Description' }} *</label>
+                        <textarea name="proposed_endeavor" class="form-control glass-input" rows="4" required
+                                  placeholder="{{ 'Descreva o trabalho que você pretende realizar nos EUA...' if lang == 'pt-BR' else 'Describe the work you intend to perform in the US...' }}">{{ ps_data.proposed_endeavor|default('') }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Importância Nacional' if lang == 'pt-BR' else 'National Importance' }} *</label>
+                        <textarea name="national_importance" class="form-control glass-input" rows="4" required
+                                  placeholder="{{ 'Como seu trabalho beneficiará os EUA nacionalmente...' if lang == 'pt-BR' else 'How will your work benefit the US nationally...' }}">{{ ps_data.national_importance|default('') }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{{ 'Planos Futuros' if lang == 'pt-BR' else 'Future Plans' }}</label>
+                        <textarea name="future_plans" class="form-control glass-input" rows="3"
+                                  placeholder="{{ 'Seus planos de carreira e contribuições futuras...' if lang == 'pt-BR' else 'Your career plans and future contributions...' }}">{{ ps_data.future_plans|default('') }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card sticky-top" style="top: 1rem;">
+                <div class="card-header">
+                    <i class="fas fa-magic me-2"></i>{{ 'Gerar' if lang == 'pt-BR' else 'Generate' }}
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted">
+                        {{ 'O personal statement será otimizado para os requisitos do USCIS.' if lang == 'pt-BR' else 'The personal statement will be optimized for USCIS requirements.' }}
+                    </p>
+                    <button type="submit" class="btn btn-success glass-btn glass-btn--success btn-lg w-100">
+                        <i class="fas fa-user-edit me-2"></i>{{ 'Gerar PS' if lang == 'pt-BR' else 'Generate PS' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}

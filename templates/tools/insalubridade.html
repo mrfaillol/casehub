@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Insalubridade / Periculosidade - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-insalubridade.css">
+{% endblock %}
+
+{% block content %}
+<section class="tools-insal-main" aria-labelledby="tools-insal-title">
+    <div class="tools-insal-container">
+        <header class="tools-insal-header tools-insal-no-print">
+            <div>
+                <h1 id="tools-insal-title" class="tools-insal-title">
+                    <i class="fas fa-shield-alt tools-insal-title-icon" aria-hidden="true"></i>
+                    <span>Insalubridade / Periculosidade</span>
+                </h1>
+                <p class="tools-insal-subtitle">CLT Art. 192-193 — Adicionais de condições de trabalho</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="tools-insal-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        <div class="tools-insal-layout{% if resultado %} tools-insal-layout--with-result{% endif %}">
+            <div class="tools-insal-col{% if not resultado %} tools-insal-col--form-centered{% endif %}">
+                <form method="POST" action="{{ PREFIX }}/tools/insalubridade/calcular">
+                    <div class="tools-insal-card">
+                        <div class="tools-insal-section-group">
+                            <h2 class="tools-insal-section-title">Tipo de adicional</h2>
+                            <div class="tools-insal-field">
+                                <label for="tipo" class="tools-insal-label">Selecione o tipo</label>
+                                <select
+                                    id="tipo"
+                                    name="tipo"
+                                    class="tools-insal-select"
+                                    required
+                                    aria-required="true"
+                                    aria-controls="campos-insalubridade campos-periculosidade"
+                                    data-tools-insal-toggle
+                                >
+                                    <option value="insalubridade" {% if form and form.tipo == 'insalubridade' %}selected{% endif %}>Insalubridade</option>
+                                    <option value="periculosidade" {% if form and form.tipo == 'periculosidade' %}selected{% endif %}>Periculosidade</option>
+                                </select>
+                                <small class="tools-insal-help">Art. 193, § 2º CLT: não cumulativos — trabalhador deve optar por um.</small>
+                            </div>
+                        </div>
+
+                        <div
+                            id="campos-insalubridade"
+                            class="tools-insal-section-group tools-insal-fieldgroup"
+                            data-tools-insal-group="insalubridade"
+                        >
+                            <h2 class="tools-insal-section-title">Insalubridade</h2>
+                            <div class="tools-insal-grid-2">
+                                <div class="tools-insal-field">
+                                    <label for="salario_minimo" class="tools-insal-label">Salário mínimo vigente</label>
+                                    <div class="tools-insal-input-group">
+                                        <span class="tools-insal-input-prefix" aria-hidden="true">R$</span>
+                                        <input
+                                            type="number"
+                                            id="salario_minimo"
+                                            name="salario_minimo"
+                                            class="tools-insal-input"
+                                            step="0.01"
+                                            min="0"
+                                            inputmode="decimal"
+                                            value="{{ form.salario_minimo if form else '1518.00' }}"
+                                            aria-describedby="salario_minimo_help"
+                                        >
+                                    </div>
+                                    <small id="salario_minimo_help" class="tools-insal-help">Valor padrão atual: R$ 1.518,00.</small>
+                                </div>
+                                <div class="tools-insal-field">
+                                    <label for="grau_insalubridade" class="tools-insal-label">Grau de insalubridade</label>
+                                    <select id="grau_insalubridade" name="grau_insalubridade" class="tools-insal-select">
+                                        <option value="10" {% if form and form.grau_insalubridade == 10 %}selected{% endif %}>Mínimo (10%)</option>
+                                        <option value="20" {% if form and (not form.grau_insalubridade or form.grau_insalubridade == 20) %}selected{% endif %}>Médio (20%)</option>
+                                        <option value="40" {% if form and form.grau_insalubridade == 40 %}selected{% endif %}>Máximo (40%)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            id="campos-periculosidade"
+                            class="tools-insal-section-group tools-insal-fieldgroup"
+                            data-tools-insal-group="periculosidade"
+                            hidden
+                        >
+                            <h2 class="tools-insal-section-title">Periculosidade</h2>
+                            <div class="tools-insal-field">
+                                <label for="salario_base" class="tools-insal-label">Salário base</label>
+                                <div class="tools-insal-input-group">
+                                    <span class="tools-insal-input-prefix" aria-hidden="true">R$</span>
+                                    <input
+                                        type="number"
+                                        id="salario_base"
+                                        name="salario_base"
+                                        class="tools-insal-input"
+                                        step="0.01"
+                                        min="0"
+                                        inputmode="decimal"
+                                        value="{{ form.salario_base if form else '' }}"
+                                        aria-describedby="salario_base_help"
+                                    >
+                                </div>
+                                <small id="salario_base_help" class="tools-insal-help">30% sobre o salário base (Art. 193 CLT).</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tools-insal-actions tools-insal-no-print">
+                        <button type="submit" class="tools-insal-btn tools-insal-btn--primary">
+                            <i class="fas fa-calculator" aria-hidden="true"></i>
+                            <span>Calcular</span>
+                        </button>
+                        <a href="{{ PREFIX }}/tools/insalubridade" class="tools-insal-btn tools-insal-btn--ghost">
+                            <i class="fas fa-eraser" aria-hidden="true"></i>
+                            <span>Limpar</span>
+                        </a>
+                    </div>
+                </form>
+            </div>
+
+            {% if resultado %}
+            <div class="tools-insal-col" id="resultado">
+                <article class="tools-insal-result" aria-labelledby="tools-insal-result-title">
+                    <header class="tools-insal-result-header">
+                        <h2 id="tools-insal-result-title" class="tools-insal-result-title">
+                            <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                            <span>Resultado — {{ resultado.tipo_label }}</span>
+                        </h2>
+                        <button type="button" class="tools-insal-print-btn tools-insal-no-print" data-tools-insal-print>
+                            <i class="fas fa-print" aria-hidden="true"></i>
+                            <span>Imprimir</span>
+                        </button>
+                    </header>
+
+                    <div class="tools-insal-table-wrapper">
+                        <table class="tools-insal-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Verba</th>
+                                    <th scope="col">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Base de cálculo</th>
+                                    <td>R$ {{ "%.2f"|format(resultado.base_calculo) }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Grau / percentual: {{ resultado.grau_label }}</th>
+                                    <td>{{ resultado.percentual }}%</td>
+                                </tr>
+                                <tr class="tools-insal-table-highlight">
+                                    <th scope="row">Adicional mensal</th>
+                                    <td>R$ {{ "%.2f"|format(resultado.valor_mensal) }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Reflexo no 13º salário (mensal)</th>
+                                    <td>R$ {{ "%.2f"|format(resultado.reflexo_13) }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Reflexo em férias + 1/3 (mensal)</th>
+                                    <td>R$ {{ "%.2f"|format(resultado.reflexo_ferias) }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Reflexo no FGTS (8%)</th>
+                                    <td>R$ {{ "%.2f"|format(resultado.reflexo_fgts) }}</td>
+                                </tr>
+                                <tr class="tools-insal-table-total">
+                                    <th scope="row">Custo anual estimado (12 meses + 13º + férias)</th>
+                                    <td>R$ {{ "%.2f"|format(resultado.total_anual_estimado) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <footer class="tools-insal-result-footer">
+                        <h3 class="tools-insal-legal-title">
+                            <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                            <span>Fundamentação legal</span>
+                        </h3>
+                        <ul class="tools-insal-legal-list">
+                            <li><strong>CLT Art. 192</strong> — Insalubridade: 10%, 20% ou 40% sobre o salário mínimo</li>
+                            <li><strong>CLT Art. 193</strong> — Periculosidade: 30% sobre o salário base</li>
+                            <li><strong>CLT Art. 193, § 2º</strong> — Não cumulatividade: trabalhador opta pelo mais vantajoso</li>
+                            <li><strong>Súmula 228 TST</strong> — Base de cálculo da insalubridade</li>
+                            <li><strong>NR-15 / NR-16</strong> — Normas regulamentadoras do MTE</li>
+                        </ul>
+                        <p class="tools-insal-note" role="note">
+                            <i class="fas fa-info-circle tools-insal-note-icon" aria-hidden="true"></i>
+                            <span>O grau de insalubridade deve ser atestado por perito (Art. 195 CLT). Convenção coletiva pode alterar a base de cálculo.</span>
+                        </p>
+                    </footer>
+                </article>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    var toggle = document.querySelector('[data-tools-insal-toggle]');
+    var groups = document.querySelectorAll('[data-tools-insal-group]');
+
+    function apply() {
+        if (!toggle) return;
+        var value = toggle.value;
+        groups.forEach(function (group) {
+            var active = group.getAttribute('data-tools-insal-group') === value;
+            group.hidden = !active;
+        });
+    }
+
+    if (toggle) {
+        toggle.addEventListener('change', apply);
+        apply();
+    }
+
+    var printBtn = document.querySelector('[data-tools-insal-print]');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () { window.print(); });
+    }
+
+    var resultEl = document.getElementById('resultado');
+    if (resultEl && window.innerWidth < 960) {
+        resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+})();
+</script>
+{% endblock %}

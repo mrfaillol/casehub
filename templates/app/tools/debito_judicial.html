@@ -1,0 +1,269 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Debito_Judicial · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tools-debito-judicial.css">
+{% endblock %}
+{% block content %}
+<div class="tools-dj-main" aria-labelledby="tools-dj-title">
+    <header class="tools-dj-header tools-dj-no-print">
+        <div class="tools-dj-heading">
+            <h1 id="tools-dj-title" class="tools-dj-title">
+                <i class="fas fa-file-contract" aria-hidden="true"></i>
+                <span>Atualização de Débito Judicial</span>
+            </h1>
+            <p class="tools-dj-subtitle">CPC Art. 523-524</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-dj-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="tools-dj-alert" role="alert">
+        <i class="fas fa-exclamation-triangle tools-dj-alert-icon" aria-hidden="true"></i>
+        <p class="tools-dj-alert-message">{{ error }}</p>
+        <button type="button"
+                class="tools-dj-alert-close"
+                onclick="this.closest('.tools-dj-alert').remove()"
+                aria-label="Fechar alerta">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="tools-dj-grid{% if resultado %} tools-dj-grid--with-result{% endif %}">
+        <div class="tools-dj-column">
+            <form method="POST"
+                  action="{{ PREFIX }}/tools/debito-judicial/calcular"
+                  class="tools-dj-form"
+                  aria-labelledby="tools-dj-form-title">
+                <section class="tools-dj-card" aria-labelledby="tools-dj-form-title">
+                    <header class="tools-dj-card-header">
+                        <h2 id="tools-dj-form-title" class="tools-dj-card-title">
+                            <i class="fas fa-calculator" aria-hidden="true"></i>
+                            <span>Parâmetros do Cálculo</span>
+                        </h2>
+                    </header>
+                    <div class="tools-dj-card-body">
+                        <fieldset class="tools-dj-fieldset">
+                            <legend class="tools-dj-legend">Dados da Condenação</legend>
+
+                            <div class="tools-dj-field">
+                                <label class="tools-dj-label" for="valor_condenacao">Valor da Condenação (R$)</label>
+                                <div class="tools-dj-input-group">
+                                    <span class="tools-dj-addon" aria-hidden="true">R$</span>
+                                    <input type="number"
+                                           class="tools-dj-input"
+                                           id="valor_condenacao"
+                                           name="valor_condenacao"
+                                           step="0.01"
+                                           min="0"
+                                           inputmode="decimal"
+                                           value="{{ form.valor_condenacao if form else '' }}"
+                                           required>
+                                </div>
+                            </div>
+
+                            <div class="tools-dj-field-row">
+                                <div class="tools-dj-field">
+                                    <label class="tools-dj-label" for="data_sentenca">Data da Sentença</label>
+                                    <input type="date"
+                                           class="tools-dj-input"
+                                           id="data_sentenca"
+                                           name="data_sentenca"
+                                           value="{{ form.data_sentenca if form else '' }}"
+                                           required>
+                                </div>
+                                <div class="tools-dj-field">
+                                    <label class="tools-dj-label" for="data_atual">Data de Cálculo (hoje)</label>
+                                    <input type="date"
+                                           class="tools-dj-input"
+                                           id="data_atual"
+                                           name="data_atual"
+                                           value="{{ form.data_atual if form else '' }}"
+                                           required>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="tools-dj-fieldset">
+                            <legend class="tools-dj-legend">Correção e Juros</legend>
+
+                            <div class="tools-dj-field-row">
+                                <div class="tools-dj-field">
+                                    <label class="tools-dj-label" for="indice">Índice de Correção</label>
+                                    <select class="tools-dj-select" id="indice" name="indice">
+                                        <option value="ipca" {% if form and form.indice == 'ipca' %}selected{% endif %}>IPCA (~6%/ano)</option>
+                                        <option value="inpc" {% if form and form.indice == 'inpc' %}selected{% endif %}>INPC (~5,5%/ano)</option>
+                                        <option value="igpm" {% if form and form.indice == 'igpm' %}selected{% endif %}>IGP-M (~7%/ano)</option>
+                                        <option value="selic" {% if form and form.indice == 'selic' %}selected{% endif %}>Selic (~13,75%/ano)</option>
+                                        <option value="tr" {% if form and form.indice == 'tr' %}selected{% endif %}>TR (~2%/ano)</option>
+                                    </select>
+                                </div>
+                                <div class="tools-dj-field">
+                                    <label class="tools-dj-label" for="taxa_juros_mensal">Juros de Mora (% ao mês)</label>
+                                    <div class="tools-dj-input-group">
+                                        <input type="number"
+                                               class="tools-dj-input"
+                                               id="taxa_juros_mensal"
+                                               name="taxa_juros_mensal"
+                                               step="0.01"
+                                               min="0"
+                                               inputmode="decimal"
+                                               value="{{ form.taxa_juros_mensal if form else '1.0' }}">
+                                        <span class="tools-dj-addon" aria-hidden="true">%/mês</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="tools-dj-fieldset">
+                            <legend class="tools-dj-legend">Multa Art. 523 CPC</legend>
+
+                            <div class="tools-dj-check">
+                                <input type="checkbox"
+                                       class="tools-dj-checkbox"
+                                       id="tem_multa_523"
+                                       name="tem_multa_523"
+                                       value="true"
+                                       aria-describedby="tools-dj-multa-hint"
+                                       {% if form and form.tem_multa_523 %}checked{% endif %}>
+                                <label class="tools-dj-check-label" for="tem_multa_523">
+                                    Devedor não pagou em 15 dias
+                                    <span id="tools-dj-multa-hint" class="tools-dj-check-hint">
+                                        Aplica multa 10% + honorários 10% automáticos (Art. 523 §1º CPC)
+                                    </span>
+                                </label>
+                            </div>
+                        </fieldset>
+                    </div>
+                </section>
+
+                <div class="tools-dj-actions tools-dj-no-print">
+                    <button type="submit" class="tools-dj-btn tools-dj-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/debito-judicial" class="tools-dj-btn">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <div class="tools-dj-column" id="resultado">
+            <section class="tools-dj-card" aria-labelledby="tools-dj-result-title">
+                <header class="tools-dj-card-header tools-dj-card-header--accent">
+                    <h2 id="tools-dj-result-title" class="tools-dj-card-title">
+                        <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+                        <span>Resultado — Débito Judicial Atualizado</span>
+                    </h2>
+                    <button type="button"
+                            class="tools-dj-btn tools-dj-btn--ghost tools-dj-btn--sm tools-dj-no-print"
+                            onclick="window.print()"
+                            aria-label="Imprimir resultado">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+                <div class="tools-dj-card-body tools-dj-card-body--flush">
+                    <div class="tools-dj-table-wrap">
+                        <table class="tools-dj-table">
+                            <caption class="tools-dj-sr-only">Decomposição do débito judicial atualizado</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Item</th>
+                                    <th scope="col">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Valor da Condenação</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.valor_condenacao) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Período</td>
+                                    <td>{{ resultado.data_sentenca }} a {{ resultado.data_atual }} ({{ resultado.meses }} meses)</td>
+                                </tr>
+                                <tr>
+                                    <td>Índice de Correção</td>
+                                    <td>{{ resultado.indice_label }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Fator de Correção</td>
+                                    <td>{{ resultado.fator_correcao }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Correção Monetária</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.correcao) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Valor Corrigido</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.valor_corrigido) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Juros de Mora ({{ resultado.taxa_juros_mensal }}%/mês × {{ resultado.meses }} meses)</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.juros_mora) }}</td>
+                                </tr>
+                                <tr class="tools-dj-row--subtotal">
+                                    <td>Subtotal (Corrigido + Juros)</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.subtotal) }}</td>
+                                </tr>
+                                {% if resultado.tem_multa_523 %}
+                                <tr class="tools-dj-row--warning">
+                                    <td>Multa 10% (Art. 523 §1º CPC)</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.multa_10) }}</td>
+                                </tr>
+                                <tr class="tools-dj-row--warning">
+                                    <td>Honorários 10% (Art. 523 §1º CPC)</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.honorarios_10) }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr class="tools-dj-row--total">
+                                    <td>Total Devido</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.total) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <footer class="tools-dj-card-footer">
+                    <h3 class="tools-dj-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-dj-legal-list">
+                        <li><strong>CPC Art. 523</strong> — Cumprimento de sentença: intimação para pagamento em 15 dias</li>
+                        <li><strong>CPC Art. 523 §1º</strong> — Não pagamento: multa 10% + honorários 10% automáticos</li>
+                        <li><strong>CPC Art. 524</strong> — Demonstrativo discriminado e atualizado do crédito</li>
+                        <li><strong>CC Art. 406</strong> — Juros moratórios na taxa legal</li>
+                    </ul>
+                    <p class="tools-dj-legal-warning" role="note">
+                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        <span>Cálculo simplificado (MVP). Para cálculos judiciais precisos, consultar tabelas do tribunal (TJ/TRF).</span>
+                    </p>
+                </footer>
+            </section>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 992) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

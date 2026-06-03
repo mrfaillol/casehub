@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Documents - Immigration Law Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2c5aa0;
+            --secondary: #1a3d6e;
+            --success: #28a745;
+            --warning: #ffc107;
+            --danger: #dc3545;
+        }
+        body { background: #f8f9fa; }
+        .header {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+            color: white;
+            padding: 2rem 0;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        .doc-item {
+            border-left: 4px solid #dee2e6;
+            transition: all 0.2s;
+        }
+        .doc-item:hover {
+            transform: translateX(5px);
+        }
+        .doc-item.approved { border-left-color: var(--success); }
+        .doc-item.pending { border-left-color: var(--warning); }
+        .doc-item.rejected { border-left-color: var(--danger); }
+        .status-approved { color: var(--success); }
+        .status-pending { color: var(--warning); }
+        .status-rejected { color: var(--danger); }
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        .btn-primary:hover {
+            background: var(--secondary);
+            border-color: var(--secondary);
+        }
+        .upload-zone {
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(44, 90, 160, 0.05);
+        }
+        .stat-card {
+            text-align: center;
+            padding: 1rem;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .nav-tabs .nav-link {
+            color: var(--secondary);
+        }
+        .nav-tabs .nav-link.active {
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .file-icon {
+            font-size: 2rem;
+            opacity: 0.8;
+        }
+        .file-icon.pdf { color: #dc3545; }
+        .file-icon.image { color: #28a745; }
+        .file-icon.doc { color: #0d6efd; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="mb-1">
+                        <i class="fas fa-balance-scale me-2"></i>
+                        Immigration Law Center
+                    </h4>
+                    <h2 class="mb-0">My Documents</h2>
+                    <p class="mb-0 opacity-75">{{ package.first_name }} {{ package.last_name }}</p>
+                </div>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <a href="{{ PREFIX }}/{{ package.package_id }}?token={{ token }}" class="btn btn-light btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Forms
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container py-4">
+        {% if error %}
+        <div class="alert alert-danger alert-dismissible fade show mb-4">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            {{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        {% if request.query_params.get('success') %}
+        <div class="alert alert-success alert-dismissible fade show mb-4">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>Document uploaded successfully!</strong>
+            Your document is pending review by our team.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-number text-primary">{{ stats.total }}</div>
+                    <small class="text-muted">Total Documents</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-number text-warning">{{ stats.pending }}</div>
+                    <small class="text-muted">Pending Review</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-number text-success">{{ stats.approved }}</div>
+                    <small class="text-muted">Approved</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-number text-danger">{{ stats.rejected }}</div>
+                    <small class="text-muted">Needs Attention</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-cloud-upload-alt me-2 text-primary"></i>
+                    Upload New Document
+                </h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ PREFIX }}/{{ package.package_id }}/documents/upload" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <input type="hidden" name="token" value="{{ token }}">
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Document Type <span class="text-danger">*</span></label>
+                            <select name="doc_type" class="form-select" required>
+                                <option value="">Select type...</option>
+                                <optgroup label="Personal Documents">
+                                    <option value="Passport">Passport</option>
+                                    <option value="I-94 Travel Record">I-94 Travel Record</option>
+                                    <option value="Visa">Visa</option>
+                                    <option value="EAD Card">EAD Card</option>
+                                    <option value="Green Card">Green Card</option>
+                                    <option value="Birth Certificate">Birth Certificate</option>
+                                    <option value="Marriage Certificate">Marriage Certificate</option>
+                                    <option value="Photo">Photo</option>
+                                </optgroup>
+                                <optgroup label="Educational">
+                                    <option value="Diploma">Diploma</option>
+                                    <option value="Academic Transcript">Academic Transcript</option>
+                                </optgroup>
+                                <optgroup label="Professional">
+                                    <option value="Letter of Recommendation">Letter of Recommendation</option>
+                                    <option value="Resume/CV">Resume/CV</option>
+                                    <option value="Employment Letter">Employment Letter</option>
+                                    <option value="Employment Contract">Employment Contract</option>
+                                    <option value="Award/Recognition">Award/Recognition</option>
+                                    <option value="Professional Membership">Professional Membership</option>
+                                    <option value="Publication">Publication</option>
+                                    <option value="Portfolio/Work Samples">Portfolio/Work Samples</option>
+                                </optgroup>
+                                <optgroup label="Financial">
+                                    <option value="Tax Return">Tax Return</option>
+                                    <option value="Financial Statement">Financial Statement</option>
+                                    <option value="Pay Stub">Pay Stub</option>
+                                </optgroup>
+                                <optgroup label="Immigration">
+                                    <option value="USCIS Form">USCIS Form</option>
+                                    <option value="Supporting Evidence">Supporting Evidence</option>
+                                    <option value="Personal Statement">Personal Statement</option>
+                                </optgroup>
+                                <optgroup label="Other">
+                                    <option value="Medical Records">Medical Records</option>
+                                    <option value="Police Certificate">Police Certificate</option>
+                                    <option value="Other Document">Other Document</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Description (optional)</label>
+                            <input type="text" name="description" class="form-control"
+                                   placeholder="e.g., Brazilian Passport, W-2 2024">
+                        </div>
+                    </div>
+
+                    <div class="upload-zone mb-3" id="dropZone">
+                        <i class="fas fa-file-upload fa-3x text-muted mb-3"></i>
+                        <p class="mb-2">Drag and drop your file here, or click to browse</p>
+                        <small class="text-muted">PDF, JPG, PNG, or DOCX (max 25MB)</small>
+                        <input type="file" name="file" id="fileInput" class="d-none"
+                               accept=".pdf,.jpg,.jpeg,.png,.docx,.doc" required>
+                    </div>
+                    <div id="filePreview" class="d-none mb-3">
+                        <div class="alert alert-info d-flex align-items-center">
+                            <i class="fas fa-file me-3 fa-2x"></i>
+                            <div>
+                                <strong id="fileName"></strong>
+                                <br><small id="fileSize" class="text-muted"></small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-auto" id="removeFile">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                        <i class="fas fa-upload me-2"></i>Upload Document
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Documents List -->
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-folder-open me-2 text-primary"></i>
+                    My Documents
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if documents %}
+                <div class="list-group list-group-flush">
+                    {% for doc in documents %}
+                    <div class="list-group-item doc-item {{ 'approved' if doc.status == 'APPROVED' else 'pending' if doc.status == 'PENDING_APPROVAL' else 'rejected' }}">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3">
+                                {% if doc.mime_type and 'pdf' in doc.mime_type %}
+                                <i class="fas fa-file-pdf file-icon pdf"></i>
+                                {% elif doc.mime_type and 'image' in doc.mime_type %}
+                                <i class="fas fa-file-image file-icon image"></i>
+                                {% else %}
+                                <i class="fas fa-file-word file-icon doc"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ doc.name }}</h6>
+                                <small class="text-muted">
+                                    {{ get_type_label(doc.doc_type) }}
+                                    {% if doc.file_size %}
+                                    &middot; {{ (doc.file_size / 1024 / 1024)|round(1) }} MB
+                                    {% endif %}
+                                    &middot; {{ doc.created_at.strftime('%b %d, %Y') if doc.created_at else 'N/A' }}
+                                </small>
+                                {% if doc.status == 'REJECTED' and doc.rejection_reason %}
+                                <div class="mt-1">
+                                    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectionModal{{ doc.id }}">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>View Feedback
+                                    </button>
+                                </div>
+                                {% endif %}
+                                {% if doc.llm_classified and doc.classification_confidence and doc.classification_confidence > 0.9 %}
+                                <div class="mt-1">
+                                    <span class="badge bg-light text-dark border" title="AI-classified with {{ (doc.classification_confidence * 100)|int }}% confidence">
+                                        <i class="fas fa-robot me-1"></i>AI Classified
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                {% if doc.status == 'APPROVED' %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>Approved
+                                </span>
+                                {% elif doc.status == 'PENDING_APPROVAL' %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-clock me-1"></i>Pending Review
+                                </span>
+                                {% elif doc.status == 'REJECTED' %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times me-1"></i>Needs Resubmission
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary">
+                                    {{ doc.status }}
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-folder-open fa-4x mb-3"></i>
+                    <h5>No documents uploaded yet</h5>
+                    <p>Upload your first document using the form above.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="text-center mt-4 text-muted small">
+            <p>
+                <i class="fas fa-lock me-1"></i>
+                Your documents are secure and encrypted.
+            </p>
+            <p>Questions? Contact <a href="mailto:info@casehub.app">info@casehub.app</a></p>
+        </div>
+    </div>
+
+    <!-- Rejection Reason Modals -->
+    {% for doc in documents %}
+    {% if doc.status == 'REJECTED' and doc.rejection_reason %}
+    <div class="modal fade" id="rejectionModal{{ doc.id }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Document Needs Resubmission
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning mb-3">
+                        <strong>Document:</strong> {{ doc.name }}
+                    </div>
+                    <h6 class="mb-2">Feedback from our team:</h6>
+                    <div class="bg-light p-3 rounded border-start border-danger border-4">
+                        {{ doc.rejection_reason }}
+                    </div>
+                    <div class="mt-3 text-muted small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Please review the feedback and upload a corrected version using the upload form above.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="document.getElementById('dropZone').scrollIntoView({behavior: 'smooth'})">
+                        <i class="fas fa-upload me-1"></i>Upload Corrected Document
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const filePreview = document.getElementById('filePreview');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const removeFile = document.getElementById('removeFile');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Click to upload
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                showPreview(e.dataTransfer.files[0]);
+            }
+        });
+
+        // File selected
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                showPreview(e.target.files[0]);
+            }
+        });
+
+        // Show preview
+        function showPreview(file) {
+            fileName.textContent = file.name;
+            const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+            fileSize.textContent = `${sizeMB} MB`;
+
+            dropZone.classList.add('d-none');
+            filePreview.classList.remove('d-none');
+            submitBtn.disabled = false;
+        }
+
+        // Remove file
+        removeFile.addEventListener('click', () => {
+            fileInput.value = '';
+            filePreview.classList.add('d-none');
+            dropZone.classList.remove('d-none');
+            submitBtn.disabled = true;
+        });
+
+        // Form submission loading state
+        document.getElementById('uploadForm').addEventListener('submit', function() {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,646 @@
+{% extends "app/base.html" %}
+{% set active_module = 'controladoria' %}
+{% block title %}Controladoria · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+.ch-datajud{margin-bottom:var(--space-5);padding:0;overflow:hidden;border-left:3px solid var(--c-blue,#6D9EEB)}
+.ch-datajud__head{display:flex;align-items:center;gap:var(--space-3);width:100%;padding:var(--space-4) var(--space-5);background:none;border:0;cursor:pointer;text-align:left;color:var(--fg-default)}
+.ch-datajud__title{font-size:var(--fs-md);font-weight:700;white-space:nowrap}
+.ch-datajud__tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--c-blue,#6D9EEB) 16%,transparent);color:var(--c-blue,#6D9EEB);font-size:var(--fs-xs);font-weight:700}
+.ch-datajud__hint{flex:1 1 auto;min-width:0;color:var(--fg-muted);font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-datajud__chevron{flex:0 0 auto;transition:transform .18s ease;font-size:18px;color:var(--fg-muted)}
+.ch-datajud[data-open] .ch-datajud__chevron{transform:rotate(180deg)}
+.ch-datajud__body{padding:0 var(--space-5) var(--space-4)}
+.ch-datajud__form{display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;margin-bottom:var(--space-3)}
+.ch-datajud__form select,.ch-datajud__form input{padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-app);color:var(--fg-default);font-size:var(--fs-sm)}
+.ch-datajud__form input{flex:1 1 240px;min-width:0}
+.ch-datajud__results{display:grid;gap:var(--space-2)}
+.ch-datajud__proc{padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-app)}
+.ch-datajud__proc b{display:block;color:var(--fg-default);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+.ch-datajud__proc span{display:block;margin-top:3px;color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.4}
+.ch-datajud__msg{color:var(--fg-muted);font-size:var(--fs-sm);padding:6px 0}
+@media (max-width:520px){.ch-datajud__hint{display:none}}
+.ch-controladoria-productivity{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--space-3);margin-bottom:var(--space-5)}
+.ch-controladoria-sector{display:grid;gap:var(--space-3);padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-card);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs)}
+.ch-controladoria-sector__head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3)}
+.ch-controladoria-sector strong{display:block;color:var(--fg-default);font-size:var(--fs-sm)}
+.ch-controladoria-sector__badge{display:inline-flex;align-items:center;min-height:24px;padding:0 9px;border-radius:999px;background:color-mix(in srgb,var(--c-green) 14%,transparent);color:var(--c-green);font-size:var(--fs-xs);font-weight:700}
+.ch-controladoria-sector.is-danger .ch-controladoria-sector__badge{background:color-mix(in srgb,var(--c-danger) 14%,transparent);color:var(--c-danger)}
+.ch-controladoria-sector__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ch-controladoria-sector__metric{padding:10px;border:1px solid color-mix(in srgb,var(--line) 80%,transparent);border-radius:var(--radius-sm);background:var(--surface-app)}
+.ch-controladoria-sector__metric b{display:block;color:var(--fg-default);font-size:var(--fs-lg);line-height:1}
+.ch-controladoria-sector__metric span{display:block;margin-top:6px;color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.25}
+.ch-controladoria-sector__foot{display:flex;justify-content:space-between;gap:var(--space-2);color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.5}
+.ch-prazo-actions{display:inline-flex;gap:6px;justify-content:flex-end}
+.ch-prazo-actions button{width:32px;height:32px;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-app);color:var(--fg-muted);cursor:pointer}
+.ch-prazo-actions button:hover{color:var(--fg-default);border-color:color-mix(in srgb,var(--c-navy) 30%,var(--line))}
+.ch-table tr[data-prazo-row]{cursor:default}
+.ch-table tr.is-dragging{opacity:.52}
+.ch-table tr.is-drop-target{outline:2px solid color-mix(in srgb,var(--c-green) 70%,transparent);outline-offset:-2px}
+.ch-row-grip-col{width:44px;text-align:center}
+.ch-row-grip-cell{width:44px;text-align:center;vertical-align:middle}
+.ch-row-grip{width:32px;height:32px;display:inline-grid;place-items:center;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--fg-muted);cursor:grab}
+.ch-row-grip:hover,.ch-row-grip:focus-visible{color:var(--fg-default);border-color:color-mix(in srgb,var(--c-navy) 28%,var(--line));background:var(--surface-app)}
+.ch-row-grip:active{cursor:grabbing}
+.ch-dialog{width:min(720px,calc(100vw - 32px));border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-card);color:var(--fg-default);box-shadow:0 24px 80px rgba(0,0,0,.22);padding:0}
+.ch-dialog::backdrop{background:rgba(0,31,62,.28);backdrop-filter:blur(3px)}
+.ch-dialog__head,.ch-dialog__foot{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);border-bottom:1px solid var(--line)}
+.ch-dialog__foot{border-top:1px solid var(--line);border-bottom:0;justify-content:flex-end}
+.ch-dialog__body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);padding:var(--space-4)}
+.ch-dialog__body .is-full{grid-column:1/-1}
+@media(max-width:720px){.ch-dialog__body{grid-template-columns:1fr}.ch-table--responsive td[data-label="Observação"]{white-space:normal}}
+/* Produtividade Mensal — pie (conic-gradient, sem lib) + meta. Portado da VS-prod ([parceiro] 29/05) */
+.ch-prod-mensal{margin-bottom:var(--space-5)}
+.ch-prod-mensal__head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)}
+.ch-prod-mensal__controls{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.ch-prod-meta{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:var(--radius-pill);font-size:var(--fs-sm);font-weight:600;background:color-mix(in srgb,var(--c-warn,#d97706) 16%,transparent);color:var(--c-warn,#92400e)}
+.ch-prod-meta.is-hit{background:color-mix(in srgb,var(--c-green,#059669) 18%,transparent);color:var(--c-green-d)}
+.ch-prod-mensal__body{display:flex;gap:var(--space-5);align-items:center;flex-wrap:wrap}
+.ch-prod-pie{width:156px;height:156px;border-radius:50%;flex:0 0 156px;box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm);background:var(--surface-card-2,#ececec)}
+.ch-prod-legend{flex:1 1 200px;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;min-width:170px}
+.ch-prod-legend li{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm)}
+.ch-prod-legend b{margin-left:auto}
+.ch-prod-dot{width:12px;height:12px;border-radius:3px;flex:0 0 12px}
+.ch-prod-legend__empty{color:var(--fg-muted)}
+@media(max-width:520px){.ch-prod-pie{width:120px;height:120px;flex-basis:120px}}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Controladoria · Prazos processuais</span>
+    <h1>Sua <em>controladoria</em>, em ordem.</h1>
+    <p class="ch-page-head__sub">Todos os prazos com urgência calculada — fatal hoje, vencidos, próximos 7 dias.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <button type="button" class="ch-btn ch-btn--primary" data-prazo-open>
+      <span data-icon="plus"></span> Novo prazo
+    </button>
+  </div>
+</section>
+
+{# DataJud / Consulta CNJ removido ([parceiro] 02/06: "não funciona, não puxa prazos" → retirado a pedido).
+   Reativar via PDPJ quando a integração estiver pronta. JS inline abaixo dá early-return (guarda null). #}
+
+{# KPI stats #}
+{% set s = stats|default({}) %}
+<section class="ch-grid ch-grid--4" style="margin-bottom: var(--space-6);">
+  <article class="ch-kpi ch-kpi--hero">
+    <span class="ch-kpi__label">Total ativos</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">{{ s.total|default(0) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Prazos cadastrados na controladoria</span>
+  </article>
+  <article class="ch-kpi {% if s.fatais_hoje and s.fatais_hoje > 0 %}is-danger{% endif %}">
+    <span class="ch-kpi__label">Fatais HOJE</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">{{ s.fatais_hoje|default(0) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Vencem hoje — atenção máxima</span>
+  </article>
+  <article class="ch-kpi {% if s.vencidos and s.vencidos > 0 %}is-danger{% endif %}">
+    <span class="ch-kpi__label">Vencidos</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">{{ s.vencidos|default(0) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Já passaram do prazo</span>
+  </article>
+  <article class="ch-kpi {% if s.proximos and s.proximos > 0 %}is-warn{% endif %}">
+    <span class="ch-kpi__label">Próximos 7 dias</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">{{ s.proximos|default(0) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Vencem dentro de uma semana</span>
+  </article>
+</section>
+
+{% if produtividade_setores %}
+<section class="ch-controladoria-productivity" aria-label="Eficiência e produtividade por responsável">
+  {% for item in produtividade_setores %}
+  <article class="ch-controladoria-sector {% if item.vencidos > 0 %}is-danger{% endif %}">
+    <div class="ch-controladoria-sector__head">
+      <strong>{{ item.setor }}</strong>
+      <span class="ch-controladoria-sector__badge">{{ item.status_label }}</span>
+    </div>
+    <div class="ch-controladoria-sector__grid" aria-label="Resumo de prazos de {{ item.setor }}">
+      <span class="ch-controladoria-sector__metric"><b>{{ item.total }}</b><span>Total</span></span>
+      <span class="ch-controladoria-sector__metric"><b>{{ item.pendentes }}</b><span>Pendentes</span></span>
+      <span class="ch-controladoria-sector__metric"><b>{{ item.concluidos }}</b><span>Concluídos</span></span>
+      <span class="ch-controladoria-sector__metric"><b>{{ item.vencidos }}</b><span>Vencidos</span></span>
+      <span class="ch-controladoria-sector__metric"><b>{{ item.proximos }}</b><span>Próx. 7 dias</span></span>
+      <span class="ch-controladoria-sector__metric"><b>{{ item.eficiencia }}%</b><span>Eficiência</span></span>
+    </div>
+    <div class="ch-controladoria-sector__foot">
+      <span>{{ item.em_dia }} em dia</span>
+      <span>Produtividade {{ item.produtividade }}</span>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# Produtividade Mensal: petições concluídas por TIPO no mês + meta. O endpoint
+   /api/produtividade já existia; widget portado da VS-prod a pedido do [parceiro] (29/05). #}
+<section class="ch-card ch-card--compact ch-prod-mensal" aria-label="Produtividade mensal da controladoria">
+  <div class="ch-prod-mensal__head">
+    <h3 class="ch-card__title" style="margin:0;">Produtividade Mensal</h3>
+    <div class="ch-prod-mensal__controls">
+      <select class="ch-select" id="prodMesSelect" aria-label="Mês" style="width:auto">
+        {% set meses_prod = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'] %}
+        {% for m in range(1, 13) %}
+        <option value="2026-{{ '%02d'|format(m) }}">{{ meses_prod[m-1] }} 2026</option>
+        {% endfor %}
+      </select>
+      <span class="ch-prod-meta is-miss" id="prodMetaBadge"><b id="prodTotal">0</b>/<span id="prodMetaTarget">100</span> · <span id="prodMetaText">meta</span></span>
+    </div>
+  </div>
+  <div class="ch-prod-mensal__body">
+    <div class="ch-prod-pie" id="prodPie" role="img" aria-label="Distribuição de petições concluídas por tipo"></div>
+    <ul class="ch-prod-legend" id="prodLegend"><li class="ch-prod-legend__empty">Carregando…</li></ul>
+  </div>
+</section>
+
+{% if prazos_vencidos and prazos_vencidos|length > 0 %}
+<div class="ch-card ch-card--compact" style="margin-bottom: var(--space-5); border-left: 4px solid var(--c-danger);">
+  <p style="margin: 0; font-size: var(--fs-sm); color: var(--fg-default);">
+    <strong style="color: var(--c-danger);">{{ prazos_vencidos|length }} prazo(s) vencido(s).</strong>
+    Reveja e marque como concluído ou perdido o quanto antes.
+  </p>
+</div>
+{% endif %}
+
+{# Filtros #}
+<form class="ch-card ch-card--compact" method="get" action="{{ PREFIX }}/controladoria" style="display:flex; gap: var(--space-3); align-items:flex-end; flex-wrap: wrap; margin-bottom: var(--space-5);">
+  <div class="ch-field" style="flex: 1 1 240px; margin-bottom: 0;">
+    <label class="ch-field__label" for="search">Buscar</label>
+    <input class="ch-input" id="search" name="search" value="{{ search|default('') }}" placeholder="Processo, cliente ou responsável…" />
+  </div>
+  <div class="ch-field" style="flex: 0 0 180px; margin-bottom: 0;">
+    <label class="ch-field__label" for="status">Status</label>
+    <select class="ch-select" id="status" name="status">
+      <option value="">Ativos</option>
+      <option value="pendente" {% if status_filter == 'pendente' %}selected{% endif %}>Pendente</option>
+      <option value="em_andamento" {% if status_filter == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+      <option value="concluido" {% if status_filter == 'concluido' %}selected{% endif %}>Concluído</option>
+      <option value="perdido" {% if status_filter == 'perdido' %}selected{% endif %}>Perdido</option>
+    </select>
+  </div>
+  {% if tribunais_disponiveis and tribunais_disponiveis|length > 0 %}
+  <div class="ch-field" style="flex: 0 0 160px; margin-bottom: 0;">
+    <label class="ch-field__label" for="tribunal">Tribunal</label>
+    <select class="ch-select" id="tribunal" name="tribunal">
+      <option value="">Todos</option>
+      {% for t in tribunais_disponiveis %}
+      <option value="{{ t }}" {% if tribunal_filter == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <button type="submit" class="ch-btn"><span data-icon="search"></span> Filtrar</button>
+</form>
+
+{% if prazos and prazos|length > 0 %}
+<section class="ch-card ch-card--bleed">
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th class="ch-row-grip-col"><span class="sr-only">Reordenar</span></th>
+          <th>Urgência</th>
+          <th>Processo</th>
+          <th>Cliente</th>
+          <th>Tipo</th>
+          <th>Observação</th>
+          <th>Vencimento</th>
+          <th>Responsável</th>
+          <th>Status</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in prazos %}
+        <tr data-prazo-row="{{ p.id }}"
+            class="ch-prazo-row ch-prazo-row--{{ p.urgencia }}"
+            data-id="{{ p.id }}"
+            data-tipo="{{ p.tipo|e }}"
+            data-processo="{{ p.processo|e }}"
+            data-cliente="{{ p.cliente|e if p.cliente != '—' else '' }}"
+            data-data="{{ p.data_intimacao.isoformat() if p.data_intimacao else '' }}"
+            data-dias="{{ p.dias_prazo or '' }}"
+            data-responsavel="{{ p.responsavel|e if p.responsavel != '—' else '' }}"
+            data-uf="{{ p.uf or 'MG' }}"
+            data-dobro="{{ '1' if p.dobro else '0' }}"
+            data-descricao="{{ p.descricao|e }}"
+            data-status="{{ p.status }}">
+          <td class="ch-row-grip-cell" data-label="Reordenar">
+            <button class="ch-row-grip" type="button" draggable="true" data-prazo-handle aria-label="Arrastar prazo para reordenar">
+              <span data-icon="grip" data-icon-size="16"></span>
+            </button>
+          </td>
+          <td data-label="Urgência">
+            {% if p.urgencia == 'fatal' %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>FATAL</span>
+            {% elif p.urgencia == 'vencido' %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>Vencido</span>
+            {% elif p.urgencia == 'amarelo' %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ p.dias_restantes }}d</span>
+            {% elif p.urgencia == 'verde' %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ p.dias_restantes }}d</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>{{ p.urgencia }}</span>
+            {% endif %}
+          </td>
+          <td data-label="Processo" class="ch-mono ch-cell-edit" data-edit-field="processo" data-edit-id="{{ p.id }}" data-edit-current="{{ p.processo|e }}" title="Clique para editar" style="font-size: var(--fs-xs); cursor: text;">{{ p.processo }}</td>
+          <td data-label="Cliente" class="ch-cell-edit" data-edit-field="cliente" data-edit-id="{{ p.id }}" data-edit-current="{{ p.cliente|e }}" title="Clique para editar" style="cursor: text;">{{ p.cliente }}</td>
+          <td data-label="Tipo" class="ch-cell-edit" data-edit-field="tipo" data-edit-id="{{ p.id }}" data-edit-current="{{ p.tipo|e }}" title="Clique para editar" style="cursor: text;">
+            <strong style="display: block; color: var(--fg-default); font-size: var(--fs-sm);">{{ p.tipo or '—' }}</strong>
+            {% if p.tipo_peticao %}<span style="color: var(--fg-muted); font-size: var(--fs-xs);">{{ p.tipo_peticao }}</span>{% endif %}
+          </td>
+          <td data-label="Observação" class="ch-cell-edit" data-edit-field="descricao" data-edit-id="{{ p.id }}" data-edit-current="{{ p.descricao|e }}" title="Clique para editar" style="font-size: var(--fs-xs); color: var(--fg-muted); max-width: 260px; cursor: text;">
+            {{ p.descricao or '—' }}
+          </td>
+          <td data-label="Vencimento" class="ch-mono" style="font-size: var(--fs-xs);">
+            {{ p.data_vencimento.strftime('%d/%m/%Y') if p.data_vencimento else '—' }}
+          </td>
+          <td data-label="Responsável" class="ch-cell-edit" data-edit-field="responsavel" data-edit-id="{{ p.id }}" data-edit-current="{{ p.responsavel|e }}" title="Clique para editar" style="font-size: var(--fs-sm); cursor: text;">{{ p.responsavel }}</td>
+          <td data-label="Status">
+            <select class="ch-select" data-prazo-status="{{ p.id }}" aria-label="Status do prazo" style="min-width:132px;">
+              <option value="pendente" {% if p.status == 'pendente' %}selected{% endif %}>Pendente</option>
+              <option value="em_andamento" {% if p.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+              <option value="concluido" {% if p.status == 'concluido' %}selected{% endif %}>Concluído</option>
+              <option value="perdido" {% if p.status == 'perdido' %}selected{% endif %}>Perdido</option>
+            </select>
+          </td>
+          <td data-label="Ações" style="text-align: right;">
+            <span class="ch-prazo-actions">
+              <button type="button" data-prazo-done="{{ p.id }}" aria-label="Concluir"><span data-icon="check"></span></button>
+              <button type="button" data-prazo-edit="{{ p.id }}" aria-label="Editar"><span data-icon="edit"></span></button>
+              <button type="button" data-prazo-delete="{{ p.id }}" aria-label="Excluir"><span data-icon="trash"></span></button>
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<div class="ch-card">
+  <div class="ch-empty">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="controladoria"></span></span>
+    <h3>{% if search or status_filter or tribunal_filter %}Sem resultados{% else %}Nenhum prazo cadastrado{% endif %}</h3>
+    <p>
+      {% if search or status_filter or tribunal_filter %}
+        Tente outros filtros ou limpe para ver tudo.
+      {% else %}
+        Cadastre seu primeiro prazo processual — a controladoria fica viva quando recebe dados.
+      {% endif %}
+    </p>
+    <button type="button" class="ch-btn ch-btn--primary" data-prazo-open style="margin-top: var(--space-3);">
+      <span data-icon="plus"></span> Cadastrar prazo
+    </button>
+  </div>
+</div>
+{% endif %}
+
+<div class="ch-overlay" id="ch-prazo-modal" hidden>
+  <div class="ch-modal" role="dialog" aria-labelledby="ch-prazo-title" aria-modal="true">
+    <header class="ch-modal__header">
+      <div>
+        <span class="ch-card__eyebrow">Controladoria</span>
+        <h2 class="ch-card__title" id="ch-prazo-title">Novo prazo processual</h2>
+      </div>
+      <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" data-prazo-close aria-label="Fechar">
+        <span data-icon="x"></span>
+      </button>
+    </header>
+    <form id="ch-prazo-form" method="post" action="{{ PREFIX }}/controladoria/novo-prazo" class="ch-modal__body" style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div class="ch-grid ch-grid--2">
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-case">Processo</label>
+          <select class="ch-select" id="prazo-case" name="case_id">
+            <option value="">Sem processo vinculado</option>
+            <option value="__manual__">Digitar número manualmente</option>
+            {% for case in cases %}
+            <option value="{{ case.id }}">{{ case.case_number or case.case_name or ('Processo ' ~ case.id) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-processo-manual">Número manual</label>
+          <input class="ch-input" id="prazo-processo-manual" name="processo_manual" placeholder="Ex: 0000000-00.2026.5.03.0000" />
+        </div>
+      </div>
+
+      <div class="ch-grid ch-grid--2">
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-tipo">Tipo <span style="color: var(--c-danger);">*</span></label>
+          <select class="ch-select" id="prazo-tipo" name="tipo" required>
+            <option value="">Selecione</option>
+            {% for key, p in prazos_comuns.items() %}
+            <option value="{{ key }}" data-dias="{{ p.dias }}">{{ p.descricao }} ({{ p.dias }} dias)</option>
+            {% endfor %}
+            <option value="Prazo manual">Prazo manual</option>
+          </select>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-dias">Dias do prazo</label>
+          <input class="ch-input" id="prazo-dias" name="dias_prazo" type="number" min="1" max="365" value="15" />
+        </div>
+      </div>
+
+      <div class="ch-grid ch-grid--3">
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-intimacao">Data da intimação <span style="color: var(--c-danger);">*</span></label>
+          <input class="ch-input" id="prazo-intimacao" name="data_intimacao" type="date" required />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-uf">UF</label>
+          <select class="ch-select" id="prazo-uf" name="uf">
+            {% for uf in ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
+            <option value="{{ uf }}" {% if uf == 'MG' %}selected{% endif %}>{{ uf }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-responsavel">Responsável</label>
+          <select class="ch-select" id="prazo-responsavel" name="responsavel">
+            <option value="">A definir</option>
+            {% for person in org_users %}
+            <option value="{{ person.name }}">{{ person.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <label class="ch-chip" style="align-self: flex-start; cursor: pointer;">
+        <input type="checkbox" name="dobro" style="accent-color: var(--c-green-d); margin-right: 6px;" />
+        Prazo em dobro
+      </label>
+
+      <div class="ch-field">
+        <label class="ch-field__label" for="prazo-descricao">Observações</label>
+        <textarea class="ch-textarea" id="prazo-descricao" name="descricao" rows="3" placeholder="Despacho, publicação, origem ou anotação interna"></textarea>
+      </div>
+    </form>
+    <footer class="ch-modal__footer" style="display: flex; justify-content: flex-end; gap: var(--space-2);">
+      <button type="button" class="ch-btn ch-btn--ghost" data-prazo-close>Cancelar</button>
+      <button type="submit" form="ch-prazo-form" class="ch-btn ch-btn--primary">
+        <span data-icon="check"></span> Salvar prazo
+      </button>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+  if (window.__casehubPrazoModalBound) return;
+  window.__casehubPrazoModalBound = true;
+
+  function todayIso() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  function openPrazoModal() {
+    var modal = document.getElementById('ch-prazo-modal');
+    var dateInput = document.getElementById('prazo-intimacao');
+    if (dateInput && !dateInput.value) dateInput.value = todayIso();
+    if (modal) {
+      modal.hidden = false;
+      modal.setAttribute('data-open', 'true');
+    }
+    var typeInput = document.getElementById('prazo-tipo');
+    if (typeInput) typeInput.focus();
+  }
+
+  function closePrazoModal() {
+    var modal = document.getElementById('ch-prazo-modal');
+    if (modal) {
+      modal.removeAttribute('data-open');
+      modal.hidden = true;
+    }
+  }
+
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-prazo-open]')) {
+      event.preventDefault();
+      openPrazoModal();
+      return;
+    }
+    if (event.target.closest('[data-prazo-close]')) {
+      event.preventDefault();
+      closePrazoModal();
+      return;
+    }
+    var modal = document.getElementById('ch-prazo-modal');
+    if (modal && event.target === modal) closePrazoModal();
+  });
+
+  document.addEventListener('change', function (event) {
+    if (!event.target.matches('#prazo-tipo')) return;
+    var selected = event.target.options[event.target.selectedIndex];
+    var days = selected && selected.getAttribute('data-dias');
+    var daysInput = document.getElementById('prazo-dias');
+    if (days && daysInput) daysInput.value = days;
+  });
+
+  // --- Ações de linha: concluir / status / excluir / editar (backlog 2026-05-28) ---
+  // Antes os botões data-prazo-* não tinham handler — cliques eram no-op.
+  var PREFIX = "{{ PREFIX }}";
+  // --- Produtividade Mensal (pizza por tipo + meta) — usa /controladoria/api/produtividade ([parceiro] 29/05) ---
+  var PROD_COLORS = ['#1C2447','#6D9EEB','#059669','#d97706','#dc2626','#7c3aed','#db2777','#0891b2','#65a30d','#94a3b8'];
+  function _escProd(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  async function loadProdutividade(mes){
+    var pie=document.getElementById('prodPie'),legend=document.getElementById('prodLegend');
+    if(!pie||!legend)return;
+    try{
+      var resp=await fetch(PREFIX+'/controladoria/api/produtividade?mes='+encodeURIComponent(mes),{credentials:'same-origin'});
+      if(!resp.ok)throw new Error('http '+resp.status);
+      var data=await resp.json();
+      var totalEl=document.getElementById('prodTotal');if(totalEl)totalEl.textContent=data.total||0;
+      var tgtEl=document.getElementById('prodMetaTarget');if(tgtEl)tgtEl.textContent=data.meta||100;
+      var badge=document.getElementById('prodMetaBadge'),txt=document.getElementById('prodMetaText');
+      if(badge){badge.classList.toggle('is-hit',!!data.meta_batida);badge.classList.toggle('is-miss',!data.meta_batida);}
+      if(txt)txt.textContent=data.meta_batida?'meta batida ✓':'meta';
+      var tipos=data.tipos||{},labels=Object.keys(tipos),values=labels.map(function(k){return tipos[k]||0;});
+      if(!labels.length){pie.style.background='var(--surface-card-2,#ececec)';legend.innerHTML='<li class="ch-prod-legend__empty">Nenhuma petição concluída neste mês.</li>';return;}
+      var total=values.reduce(function(a,b){return a+b;},0)||1,acc=0,stops=[],leg='';
+      labels.forEach(function(l,i){var c=PROD_COLORS[i%PROD_COLORS.length],pct=values[i]/total*100;stops.push(c+' '+acc.toFixed(2)+'% '+(acc+pct).toFixed(2)+'%');acc+=pct;leg+='<li><span class="ch-prod-dot" style="background:'+c+'"></span>'+_escProd(l)+' <b>'+values[i]+'</b></li>';});
+      pie.style.background='conic-gradient('+stops.join(',')+')';
+      legend.innerHTML=leg;
+    }catch(e){if(legend)legend.innerHTML='<li class="ch-prod-legend__empty">Não foi possível carregar.</li>';}
+  }
+  (function initProd(){
+    var sel=document.getElementById('prodMesSelect');if(!sel)return;
+    var now=new Date(),cur=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    if(Array.prototype.some.call(sel.options,function(o){return o.value===cur;}))sel.value=cur;
+    loadProdutividade(sel.value);
+    sel.addEventListener('change',function(){loadProdutividade(sel.value);});
+  })();
+  // --- DataJud embutido: painel retrátil + busca pública no CNJ ([parceiro] 29/05) ---
+  (function initDataJud(){
+    var root=document.querySelector('[data-datajud]');if(!root)return;
+    var toggle=root.querySelector('[data-datajud-toggle]');
+    var body=root.querySelector('[data-datajud-body]');
+    var form=root.querySelector('[data-datajud-form]');
+    var results=root.querySelector('[data-datajud-results]');
+    var tipoSel=root.querySelector('[data-datajud-tipo]');
+    var qInput=root.querySelector('[data-datajud-q]');
+    var tribSel=root.querySelector('[data-datajud-tribunal]');
+    function setOpen(open){root.toggleAttribute('data-open',open);if(body)body.hidden=!open;if(toggle)toggle.setAttribute('aria-expanded',open?'true':'false');}
+    if(toggle)toggle.addEventListener('click',function(){setOpen(!root.hasAttribute('data-open'));});
+    var PLACE={numero:'Ex.: 0001234-56.2024.8.13.0024',oab:'Ex.: MG123456 (ou só 123456)',nome:'Ex.: Maria Pacheco'};
+    if(tipoSel&&qInput)tipoSel.addEventListener('change',function(){qInput.placeholder=PLACE[tipoSel.value]||'';});
+    function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+    function fmtData(s){if(!s)return '';try{return new Date(s).toLocaleDateString('pt-BR');}catch(e){return s;}}
+    if(form)form.addEventListener('submit',async function(e){
+      e.preventDefault();
+      var q=(qInput.value||'').trim();if(!q){results.innerHTML='<div class="ch-datajud__msg">Digite um termo pra buscar.</div>';return;}
+      results.innerHTML='<div class="ch-datajud__msg">Consultando o CNJ…</div>';
+      try{
+        var u=PREFIX+'/controladoria/api/datajud?tipo='+encodeURIComponent(tipoSel.value)+'&q='+encodeURIComponent(q)+'&tribunal='+encodeURIComponent(tribSel.value);
+        var resp=await fetch(u,{credentials:'same-origin'});
+        var data=await resp.json();
+        if(!data.ok){results.innerHTML='<div class="ch-datajud__msg">'+esc(data.error||'Falha na consulta.')+'</div>';return;}
+        if(!data.results||!data.results.length){results.innerHTML='<div class="ch-datajud__msg">Nenhum processo encontrado pra esse termo neste tribunal. Tente outro tribunal.</div>';return;}
+        results.innerHTML=data.results.map(function(p){
+          return '<div class="ch-datajud__proc"><b>'+esc(p.numero||'—')+'</b>'+
+            '<span>'+esc(p.classe||'')+(p.assunto?' · '+esc(p.assunto):'')+'</span>'+
+            '<span>'+esc(p.orgao||p.tribunal||'')+(p.data_ajuizamento?' · ajuizado '+fmtData(p.data_ajuizamento):'')+'</span>'+
+            (p.ultimo_movimento?'<span>Último: '+esc(p.ultimo_movimento)+(p.ultimo_movimento_data?' ('+fmtData(p.ultimo_movimento_data)+')':'')+'</span>':'')+
+          '</div>';
+        }).join('')+'<div class="ch-datajud__msg">'+data.count+' resultado(s) · fonte: '+esc(data.source||'DataJud (CNJ)')+'</div>';
+      }catch(err){results.innerHTML='<div class="ch-datajud__msg">Não foi possível consultar agora. Tente de novo.</div>';}
+    });
+  })();
+  function postPrazo(id, path, body) {
+    return fetch(PREFIX + '/controladoria/' + id + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : '{}'
+    });
+  }
+  document.addEventListener('click', function (ev) {
+    var done = ev.target.closest('[data-prazo-done]');
+    if (done) {
+      ev.preventDefault();
+      postPrazo(done.getAttribute('data-prazo-done'), '/update', { field: 'status', value: 'concluido' })
+        .then(function (r) { r.ok ? location.reload() : alert('Falha ao concluir prazo'); });
+      return;
+    }
+    var del = ev.target.closest('[data-prazo-delete]');
+    if (del) {
+      ev.preventDefault();
+      if (!confirm('Excluir este prazo?')) return;
+      postPrazo(del.getAttribute('data-prazo-delete'), '/excluir')
+        .then(function (r) { r.ok ? location.reload() : alert('Falha ao excluir prazo'); });
+      return;
+    }
+    var edit = ev.target.closest('[data-prazo-edit]');
+    if (edit) {
+      ev.preventDefault();
+      var row = edit.closest('tr');
+      var atual = row ? (row.getAttribute('data-descricao') || '') : '';
+      var novo = prompt('Editar observação do prazo:', atual);
+      if (novo === null) return;
+      postPrazo(edit.getAttribute('data-prazo-edit'), '/update', { field: 'descricao', value: novo })
+        .then(function (r) { r.ok ? location.reload() : alert('Falha ao editar prazo'); });
+      return;
+    }
+  });
+  document.addEventListener('change', function (ev) {
+    var sel = ev.target.closest('[data-prazo-status]');
+    if (!sel) return;
+    postPrazo(sel.getAttribute('data-prazo-status'), '/update', { field: 'status', value: sel.value })
+      .then(function (r) { if (r.ok) { location.reload(); } else { alert('Falha ao mudar status'); } });
+  });
+
+  // Opções dos dropdowns Cliente/Processo (inline-edit) — tenant-isoladas, vindas do route.
+  var CH_PREFIX = '{{ PREFIX }}';
+  var CH_CLIENTES = {{ clientes_opc | tojson }};
+  var CH_PROCESSOS = {{ processos_opc | tojson }};
+
+  // --- Inline-edit de célula na LISTA (29/05 Victor): clicar célula → editar ali, sem popup ---
+  document.addEventListener('click', function (ev) {
+    var cell = ev.target.closest('.ch-cell-edit');
+    if (!cell || cell.querySelector('input.ch-inline-input')) return;
+    var field = cell.getAttribute('data-edit-field');
+    var id = cell.getAttribute('data-edit-id');
+    var cur = cell.getAttribute('data-edit-current') || '';
+    var orig = cell.innerHTML;
+
+    // Cliente/Processo: dropdown de seleção (existentes, tenant-isolado) + "cadastrar
+    // novo" → vai pra database de clientes/processos (29/05 Victor). Demais campos = texto.
+    if (field === 'cliente' || field === 'processo') {
+      var opts = (field === 'cliente') ? (CH_CLIENTES || []) : (CH_PROCESSOS || []);
+      var sel = document.createElement('select');
+      sel.className = 'ch-inline-input';
+      sel.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f);cursor:pointer';
+      var ph = document.createElement('option');
+      ph.value = '__keep__'; ph.textContent = cur ? (cur + ' (manter)') : '— selecionar —';
+      sel.appendChild(ph);
+      opts.forEach(function (o) {
+        var label = (field === 'cliente') ? o.name : o.label;
+        if (!label) return;
+        var op = document.createElement('option');
+        op.value = label; op.textContent = label;
+        if (label === cur) op.selected = true;
+        sel.appendChild(op);
+      });
+      var novo = document.createElement('option');
+      novo.value = '__novo__';
+      novo.textContent = (field === 'cliente') ? '➕ Cadastrar novo cliente…' : '➕ Cadastrar novo processo…';
+      sel.appendChild(novo);
+      cell.innerHTML = ''; cell.appendChild(sel);
+      try { sel.focus(); } catch (e) {}
+      var selDone = false;
+      function finishSel(commit) {
+        if (selDone) return;
+        var v = sel.value;
+        if (v === '__novo__') {
+          selDone = true;
+          window.location.href = CH_PREFIX + (field === 'cliente' ? '/clients/new' : '/cases/new');
+          return;
+        }
+        if (!commit || v === '__keep__' || v === cur) { selDone = true; cell.innerHTML = orig; return; }
+        selDone = true;
+        postPrazo(id, '/update', { field: field, value: v })
+          .then(function (r) { if (r.ok) { location.reload(); } else { alert('Falha ao salvar'); cell.innerHTML = orig; } });
+      }
+      sel.addEventListener('change', function () { finishSel(true); });
+      sel.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); finishSel(false); } });
+      sel.addEventListener('blur', function () { finishSel(true); });
+      ev.stopPropagation();
+      return;
+    }
+
+    var inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'ch-inline-input'; inp.value = cur;
+    inp.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f)';
+    cell.innerHTML = ''; cell.appendChild(inp); inp.focus(); inp.select();
+    var done = false;
+    function finish(save) {
+      if (done) return; done = true;
+      if (!save || inp.value === cur) { cell.innerHTML = orig; return; }
+      postPrazo(id, '/update', { field: field, value: inp.value })
+        .then(function (r) { if (r.ok) { location.reload(); } else { alert('Falha ao salvar'); cell.innerHTML = orig; } });
+    }
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', function () { finish(true); });
+    ev.stopPropagation();
+  });
+})();
+</script>
+{% endblock %}

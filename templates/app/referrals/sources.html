@@ -1,0 +1,105 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% block title %}Referrals · Sources · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/referrals-sources.css">
+{% endblock %}
+{% block content %}
+<section class="referrals-sources-main" aria-labelledby="referrals-sources-title">
+    <header class="referrals-sources-header">
+        <div class="referrals-sources-header-leading">
+            <a href="{{ PREFIX }}/referrals" class="referrals-sources-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Voltar para Indicações{% else %}Back to Referrals{% endif %}</span>
+            </a>
+            <h1 id="referrals-sources-title" class="referrals-sources-title">
+                <i class="fas fa-sitemap" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Origens de Indicação{% else %}Referral Sources{% endif %}</span>
+            </h1>
+        </div>
+
+        <div class="referrals-sources-actions">
+            <a href="{{ PREFIX }}/referrals/sources/new" class="referrals-sources-cta">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Nova Origem{% else %}New Source{% endif %}</span>
+            </a>
+        </div>
+    </header>
+
+    {% if sources %}
+    <div class="referrals-sources-card">
+        <div class="referrals-sources-tablewrap">
+            <table class="referrals-sources-table">
+                <caption>{% if product == "lite" %}Lista de origens de indicação com tipo, contato, comissão, total de indicações, conversões e valores pagos.{% else %}List of referral sources with type, contact, commission, referral count, conversions, and amount paid.{% endif %}</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Nome{% else %}Name{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Contato{% else %}Contact{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Comissão{% else %}Commission{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Indicações{% else %}Referrals{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Conversões{% else %}Conversions{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Pago{% else %}Paid{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for source in sources %}
+                    <tr>
+                        <th scope="row">
+                            <span class="referrals-sources-name">{{ source.name }}</span>
+                            {% if source.company %}
+                            <span class="referrals-sources-company">{{ source.company }}</span>
+                            {% endif %}
+                        </th>
+                        <td>
+                            <span class="referrals-sources-badge">{{ source.source_type }}</span>
+                        </td>
+                        <td>
+                            {% if source.contact_email %}
+                            <a href="mailto:{{ source.contact_email }}" class="referrals-sources-contact-link">{{ source.contact_name or source.contact_email }}</a>
+                            {% elif source.contact_name %}
+                            {{ source.contact_name }}
+                            {% else %}
+                            <span class="referrals-sources-placeholder" aria-label="{% if product == 'lite' %}Sem contato{% else %}No contact{% endif %}">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if source.commission_type == 'percentage' %}
+                            <span class="referrals-sources-numeric">{{ source.commission_rate }}%</span>
+                            {% else %}
+                            <span class="referrals-sources-numeric">{{ (source.commission_rate or 0)|format_currency(org_currency|default('USD')) }}</span>
+                            <span class="referrals-sources-commission-suffix">{% if product == "lite" %}fixo{% else %}flat{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="referrals-sources-numeric">{{ source.referral_count or 0 }}</span></td>
+                        <td>
+                            <span class="referrals-sources-numeric">{{ source.converted_count or 0 }}</span>
+                            {% if source.referral_count and source.referral_count > 0 %}
+                            <span class="referrals-sources-conversion-rate">({{ ((source.converted_count or 0) / source.referral_count * 100)|round|int }}%)</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="referrals-sources-numeric">{{ (source.total_commission_paid or 0)|format_currency(org_currency|default('USD')) }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="referrals-sources-card">
+        <div class="referrals-sources-empty">
+            <i class="fas fa-sitemap referrals-sources-empty-icon" aria-hidden="true"></i>
+            <h2 class="referrals-sources-empty-title">{% if product == "lite" %}Sem Origens de Indicação{% else %}No Referral Sources{% endif %}</h2>
+            <p class="referrals-sources-empty-text">{% if product == "lite" %}Crie origens de indicação para rastrear de onde vêm os clientes.{% else %}Create referral sources to track where clients come from.{% endif %}</p>
+            <a href="{{ PREFIX }}/referrals/sources/new" class="referrals-sources-cta">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Adicionar Origem{% else %}Add Source{% endif %}</span>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

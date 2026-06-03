@@ -1,0 +1,142 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Checklists · List · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/checklists-list.css">
+{% endblock %}
+{% block content %}
+<section class="checklists-list-main" aria-labelledby="checklists-list-title">
+    <header class="checklists-list-header">
+        <div class="checklists-list-header-leading">
+            <h1 id="checklists-list-title" class="checklists-list-title">
+                <i class="fas fa-clipboard-check" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Checklists de Documentos{% else %}Document Checklists{% endif %}</span>
+            </h1>
+        </div>
+
+        <div class="checklists-list-actions">
+            <a href="{{ PREFIX }}/checklists/new" class="checklists-list-action checklists-list-action--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Novo Checklist{% else %}New Checklist{% endif %}</span>
+            </a>
+        </div>
+    </header>
+
+    <section class="checklists-list-filters" aria-label="{% if product == 'lite' %}Filtros{% else %}Filters{% endif %}">
+        <form method="get" class="checklists-list-filter-form{% if product == 'lite' %} checklists-list-filter-form--three{% endif %}">
+            <div class="checklists-list-filter-field">
+                <label for="checklists-list-filter-search" class="checklists-list-filter-label">{% if product == "lite" %}Buscar{% else %}Search{% endif %}</label>
+                <input type="text" id="checklists-list-filter-search" name="search" class="checklists-list-input" placeholder="{% if product == 'lite' %}Processo ou cliente...{% else %}Case or client...{% endif %}" value="{{ search }}">
+            </div>
+            {% if product != "lite" %}
+            <div class="checklists-list-filter-field">
+                <label for="checklists-list-filter-visa" class="checklists-list-filter-label">Visa Type</label>
+                <select id="checklists-list-filter-visa" name="visa_type" class="checklists-list-select">
+                    <option value="">All Visa Types</option>
+                    {% for vt in supported_visa_types %}
+                    <option value="{{ vt.key }}" {% if visa_type == vt.key %}selected{% endif %}>{{ vt.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="checklists-list-filter-field">
+                <label for="checklists-list-filter-progress" class="checklists-list-filter-label">{% if product == "lite" %}Progresso{% else %}Progress{% endif %}</label>
+                <select id="checklists-list-filter-progress" name="progress_status" class="checklists-list-select">
+                    <option value="">{% if product == "lite" %}Todos{% else %}All Progress{% endif %}</option>
+                    <option value="not_started" {% if progress_status == "not_started" %}selected{% endif %}>{% if product == "lite" %}Não Iniciado (0%){% else %}Not Started (0%){% endif %}</option>
+                    <option value="in_progress" {% if progress_status == "in_progress" %}selected{% endif %}>{% if product == "lite" %}Em Andamento{% else %}In Progress{% endif %}</option>
+                    <option value="complete" {% if progress_status == "complete" %}selected{% endif %}>{% if product == "lite" %}Completo (100%){% else %}Complete (100%){% endif %}</option>
+                </select>
+            </div>
+            <div class="checklists-list-filter-field">
+                <button type="submit" class="checklists-list-filter-submit">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Filtrar{% else %}Filter{% endif %}</span>
+                </button>
+            </div>
+        </form>
+    </section>
+
+    <div class="checklists-list-card">
+        <div class="checklists-list-card-header">
+            <span class="checklists-list-card-header-count">{{ total }}</span>
+            <span>{% if product == "lite" %}checklists encontrados{% else %}checklists found{% endif %}</span>
+        </div>
+        {% if checklists %}
+        <div class="checklists-list-tablewrap">
+            <table class="checklists-list-table">
+                <caption>{% if product == "lite" %}Lista de checklists com processo, cliente, progresso, status e última atualização.{% else %}List of checklists with case, client, progress, status, and last updated date.{% endif %}</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Processo{% else %}Case{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</th>
+                        {% if product != "lite" %}<th scope="col">Visa Type</th>{% endif %}
+                        <th scope="col">{% if product == "lite" %}Progresso{% else %}Progress{% endif %}</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">{% if product == "lite" %}Atualizado{% else %}Last Updated{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in checklists %}
+                    <tr>
+                        <td>
+                            <a href="{{ PREFIX }}/cases/{{ item.case.id }}/checklist" class="checklists-list-case">
+                                {{ item.case.case_number or item.case.case_name or "-" }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if item.client %}
+                                {{ item.client.first_name }} {{ item.client.last_name }}
+                            {% else %}
+                                <span class="checklists-list-placeholder" aria-label="{% if product == 'lite' %}Sem cliente{% else %}No client{% endif %}">—</span>
+                            {% endif %}
+                        </td>
+                        {% if product != "lite" %}<td>{{ item.visa_label }}</td>{% endif %}
+                        <td class="checklists-list-progress-cell">
+                            <div class="checklists-list-progress-wrap">
+                                <div class="checklists-list-progress-bar" role="progressbar" aria-valuenow="{{ item.progress_percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="{% if product == 'lite' %}Progresso{% else %}Progress{% endif %}: {{ item.progress_percent }}%">
+                                    <span class="checklists-list-progress-fill {% if item.progress_percent >= 80 %}checklists-list-progress-fill--high{% elif item.progress_percent >= 50 %}checklists-list-progress-fill--mid{% else %}checklists-list-progress-fill--low{% endif %}" style="--progress: {{ item.progress_percent }}%;"></span>
+                                </div>
+                                <span class="checklists-list-progress-count">{{ item.total_present }}/{{ item.total_required }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if item.status == "complete" %}
+                                <span class="checklists-list-status checklists-list-status--complete">{% if product == "lite" %}Completo{% else %}Complete{% endif %}</span>
+                            {% elif item.status == "in_progress" %}
+                                <span class="checklists-list-status checklists-list-status--in-progress">{% if product == "lite" %}Em Andamento{% else %}In Progress{% endif %}</span>
+                            {% else %}
+                                <span class="checklists-list-status checklists-list-status--not-started">{% if product == "lite" %}Não Iniciado{% else %}Not Started{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.last_updated %}
+                                <span class="checklists-list-date">{{ item.last_updated.strftime("%Y-%m-%d") }}</span>
+                            {% else %}
+                                <span class="checklists-list-placeholder" aria-label="{% if product == 'lite' %}Sem data{% else %}No date{% endif %}">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="checklists-list-empty">
+            <i class="fas fa-clipboard-check checklists-list-empty-icon" aria-hidden="true"></i>
+            <h2 class="checklists-list-empty-title">{% if product == "lite" %}Nenhum checklist encontrado{% else %}No checklists found{% endif %}</h2>
+            <p class="checklists-list-empty-text">
+                {% if product == "lite" %}
+                Crie um novo checklist para começar a acompanhar documentos de processos.
+                {% else %}
+                Only cases with supported visa types (EB-1A, EB-2 NIW, O-1A) have checklists.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

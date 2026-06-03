@@ -1,0 +1,217 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Numeração · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Configurações · Formatos</span>
+    <h1>Numeração de <em>processos</em> & clientes.</h1>
+    <p class="ch-page-head__sub">Prefixos, contadores e séries do escritório.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/settings">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+{% if request.query_params.get('saved') %}
+<section class="ch-card ch-card--compact" role="status" style="border-color: var(--c-green-d); margin-bottom: var(--space-4); display: flex; gap: var(--space-2); align-items: center; justify-content: space-between;">
+  <div style="display: flex; gap: var(--space-2); align-items: center;">
+    <span data-icon="check" data-icon-size="18" style="color: var(--c-green-d);"></span>
+    <span>{% if product == "lite" %}Configurações salvas com sucesso!{% else %}Settings saved successfully!{% endif %}</span>
+  </div>
+</section>
+{% endif %}
+
+<form method="POST" action="{{ PREFIX }}/settings/numbering" class="ch-grid" style="grid-template-columns: 1fr; gap: var(--space-5);">
+
+  {# ─── Numeração de processos ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Processos</span>
+        <h2 class="ch-card__title">{% if product == "lite" %}Numeração de processos{% else %}Case numbering{% endif %}</h2>
+      </div>
+      <span data-icon="folder" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="caseFormat">{% if product == "lite" %}Formato do número{% else %}Case number format{% endif %}</label>
+      <input type="text" name="case_format" class="ch-input ch-mono" id="caseFormat"
+             value="{{ settings.case_format }}" placeholder="CASE-{YYYY}-{####}" />
+      <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono);">
+        {% if product == "lite" %}Contador atual:{% else %}Current counter:{% endif %} {{ settings.case_counter }}
+      </small>
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="casePreview">{% if product == "lite" %}Pré-visualização{% else %}Preview{% endif %}</label>
+      <input type="text" class="ch-input ch-mono" id="casePreview" readonly
+             value="{{ preview_case }}"
+             aria-label="{% if product == 'lite' %}Pré-visualização do formato de processo{% else %}Case format preview{% endif %}" />
+    </div>
+    <label class="ch-checkbox" style="margin-top: var(--space-2);">
+      <input type="checkbox" name="reset_case_counter" id="resetCaseCounter" value="true" />
+      <span style="color: var(--c-danger);">
+        {% if product == "lite" %}Reiniciar contador de processos para 1{% else %}Reset case counter to 1{% endif %}
+      </span>
+    </label>
+  </article>
+
+  {# ─── Numeração de clientes ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Clientes</span>
+        <h2 class="ch-card__title">{% if product == "lite" %}Numeração de clientes{% else %}Client numbering{% endif %}</h2>
+      </div>
+      <span data-icon="clients" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="clientFormat">{% if product == "lite" %}Formato do número{% else %}Client number format{% endif %}</label>
+      <input type="text" name="client_format" class="ch-input ch-mono" id="clientFormat"
+             value="{{ settings.client_format }}" placeholder="CLT-{YYYY}-{####}" />
+      <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono);">
+        {% if product == "lite" %}Contador atual:{% else %}Current counter:{% endif %} {{ settings.client_counter }}
+      </small>
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="clientPreview">{% if product == "lite" %}Pré-visualização{% else %}Preview{% endif %}</label>
+      <input type="text" class="ch-input ch-mono" id="clientPreview" readonly
+             value="{{ preview_client }}"
+             aria-label="{% if product == 'lite' %}Pré-visualização do formato de cliente{% else %}Client format preview{% endif %}" />
+    </div>
+    <label class="ch-checkbox" style="margin-top: var(--space-2);">
+      <input type="checkbox" name="reset_client_counter" id="resetClientCounter" value="true" />
+      <span style="color: var(--c-danger);">
+        {% if product == "lite" %}Reiniciar contador de clientes para 1{% else %}Reset client counter to 1{% endif %}
+      </span>
+    </label>
+  </article>
+
+  {# ─── Opções gerais ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Opções</span>
+        <h2 class="ch-card__title">{% if product == "lite" %}Opções gerais{% else %}General options{% endif %}</h2>
+      </div>
+      <span data-icon="settings" data-icon-size="20" style="color: var(--fg-muted);"></span>
+    </header>
+    <label class="ch-checkbox">
+      <input type="checkbox" name="reset_annually" id="resetAnnually" value="true"
+             {% if settings.reset_annually %}checked{% endif %} />
+      <span>
+        <strong>{% if product == "lite" %}Reiniciar contadores anualmente{% else %}Reset counters annually{% endif %}</strong>
+        <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">
+          {% if product == "lite" %}Os contadores serão reiniciados para 1 em 1º de janeiro de cada ano.{% else %}Counter will reset to 1 on January 1st each year.{% endif %}
+        </small>
+      </span>
+    </label>
+  </article>
+
+  {# ─── Referência de placeholders ─── #}
+  <article class="ch-card ch-card--bleed">
+    <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+      <div>
+        <span class="ch-card__eyebrow">Referência</span>
+        <h2 class="ch-card__title">{% if product == "lite" %}Variáveis disponíveis{% else %}Available placeholders{% endif %}</h2>
+      </div>
+    </header>
+    <div class="ch-table-wrap">
+      <table class="ch-table ch-table--responsive">
+        <thead>
+          <tr>
+            <th>{% if product == "lite" %}Variável{% else %}Placeholder{% endif %}</th>
+            <th>{% if product == "lite" %}Resultado{% else %}Output{% endif %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td data-label="Variável" class="ch-mono">{YYYY}</td><td data-label="Resultado">{% if product == "lite" %}Ano 4 dígitos (2026){% else %}4-digit year (2026){% endif %}</td></tr>
+          <tr><td data-label="Variável" class="ch-mono">{YY}</td><td data-label="Resultado">{% if product == "lite" %}Ano 2 dígitos (26){% else %}2-digit year (26){% endif %}</td></tr>
+          <tr><td data-label="Variável" class="ch-mono">{MM}</td><td data-label="Resultado">{% if product == "lite" %}Mês 2 dígitos (01-12){% else %}2-digit month (01-12){% endif %}</td></tr>
+          <tr><td data-label="Variável" class="ch-mono">{DD}</td><td data-label="Resultado">{% if product == "lite" %}Dia 2 dígitos (01-31){% else %}2-digit day (01-31){% endif %}</td></tr>
+          <tr><td data-label="Variável" class="ch-mono">{##}</td><td data-label="Resultado">{% if product == "lite" %}Contador (2 dígitos){% else %}Counter (2 digits){% endif %}</td></tr>
+          <tr><td data-label="Variável" class="ch-mono">{###}</td><td data-label="Resultado">{% if product == "lite" %}Contador (3 dígitos){% else %}Counter (3 digits){% endif %}</td></tr>
+          <tr><td data-label="Variável" class="ch-mono">{####}</td><td data-label="Resultado">{% if product == "lite" %}Contador (4 dígitos){% else %}Counter (4 digits){% endif %}</td></tr>
+          <tr><td data-label="Variável" class="ch-mono">{#####}</td><td data-label="Resultado">{% if product == "lite" %}Contador (5 dígitos){% else %}Counter (5 digits){% endif %}</td></tr>
+          {% if product != "lite" %}
+          <tr><td data-label="Placeholder" class="ch-mono">{TYPE}</td><td data-label="Output">Visa type code (cases only)</td></tr>
+          {% endif %}
+          <tr><td data-label="Variável" class="ch-mono">{DEPT}</td><td data-label="Resultado">{% if product == "lite" %}Código do departamento{% else %}Department code{% endif %}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="padding: var(--space-4) var(--space-5);">
+      <span class="ch-card__eyebrow">{% if product == "lite" %}Exemplos{% else %}Examples{% endif %}</span>
+      <ul style="list-style: none; padding: 0; margin: var(--space-3) 0 0; display: flex; flex-direction: column; gap: var(--space-2);">
+        {% if product == "lite" %}
+        <li style="display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); font-size: var(--fs-sm);">
+          <code>PROC-{YYYY}-{####}</code> <span aria-hidden="true">→</span> <strong>PROC-2026-0001</strong>
+        </li>
+        <li style="display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); font-size: var(--fs-sm);">
+          <code>{YY}{MM}-{####}</code> <span aria-hidden="true">→</span> <strong>2601-0001</strong>
+        </li>
+        <li style="display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); font-size: var(--fs-sm);">
+          <code>CLT-{YYYY}-{###}</code> <span aria-hidden="true">→</span> <strong>CLT-2026-001</strong>
+        </li>
+        <li style="display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); font-size: var(--fs-sm);">
+          <code>C{YYYY}{MM}{DD}-{##}</code> <span aria-hidden="true">→</span> <strong>C20260113-01</strong>
+        </li>
+        {% else %}
+        <li style="display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); font-size: var(--fs-sm);">
+          <code>CASE-{YYYY}-{####}</code> <span aria-hidden="true">→</span> <strong>CASE-2026-0001</strong>
+        </li>
+        <li style="display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); font-size: var(--fs-sm);">
+          <code>{YY}{MM}-{####}</code> <span aria-hidden="true">→</span> <strong>2601-0001</strong>
+        </li>
+        <li style="display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); font-size: var(--fs-sm);">
+          <code>{PREFIX}-{TYPE}-{###}</code> <span aria-hidden="true">→</span> <strong>CH-EB1A-001</strong>
+        </li>
+        <li style="display: flex; gap: var(--space-2); align-items: center; font-family: var(--mono); font-size: var(--fs-sm);">
+          <code>C{YYYY}{MM}{DD}-{##}</code> <span aria-hidden="true">→</span> <strong>C20260113-01</strong>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </article>
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-2); justify-content: flex-end; flex-wrap: wrap;">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/settings">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</a>
+    <button class="ch-btn ch-btn--primary" type="submit">
+      <span data-icon="check"></span>
+      {% if product == "lite" %}Salvar configurações{% else %}Save settings{% endif %}
+    </button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  async function updateNumberingPreview(formatInput, previewInput, type) {
+    var format = formatInput.value;
+    try {
+      var response = await fetch('{{ PREFIX }}/settings/numbering/preview?format=' + encodeURIComponent(format) + '&type=' + type);
+      var data = await response.json();
+      previewInput.value = data.preview;
+    } catch (e) {
+      previewInput.value = '{% if product == "lite" %}Erro{% else %}Error{% endif %}';
+    }
+  }
+
+  var caseFormat = document.getElementById('caseFormat');
+  var casePreview = document.getElementById('casePreview');
+  if (caseFormat && casePreview) {
+    caseFormat.addEventListener('input', function () { updateNumberingPreview(caseFormat, casePreview, 'case'); });
+  }
+
+  var clientFormat = document.getElementById('clientFormat');
+  var clientPreview = document.getElementById('clientPreview');
+  if (clientFormat && clientPreview) {
+    clientFormat.addEventListener('input', function () { updateNumberingPreview(clientFormat, clientPreview, 'client'); });
+  }
+})();
+</script>
+{% endblock %}

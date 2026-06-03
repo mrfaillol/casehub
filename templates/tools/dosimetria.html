@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+
+{% block title %}Dosimetria da Pena - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-dosimetria.css">
+{% endblock %}
+
+{% block content %}
+<div class="dosimetria-main" aria-labelledby="dosimetria-title">
+    <header class="dosimetria-header dosimetria-no-print">
+        <div class="dosimetria-heading">
+            <h1 id="dosimetria-title" class="dosimetria-title">
+                <i class="fas fa-gavel dosimetria-title-icon" aria-hidden="true"></i>
+                <span>Dosimetria da Pena</span>
+            </h1>
+            <p class="dosimetria-subtitle">Cálculo trifásico conforme Art. 68 do Código Penal</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="dosimetria-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="dosimetria-alert" role="alert">
+        <i class="fas fa-exclamation-circle dosimetria-alert-icon" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <div class="dosimetria-grid {% if resultado %}dosimetria-grid--split{% endif %}">
+        <form method="POST" action="{{ PREFIX }}/tools/dosimetria/calcular" class="dosimetria-form">
+            <section class="dosimetria-card" aria-labelledby="dosimetria-section-crime">
+                <h2 id="dosimetria-section-crime" class="dosimetria-card-title">Tipo Penal</h2>
+
+                <div class="dosimetria-field">
+                    <label for="dosimetria-crime" class="dosimetria-label">Crime / Artigo</label>
+                    <input type="text" id="dosimetria-crime" name="crime" class="dosimetria-input"
+                           value="{{ form.crime if form else '' }}"
+                           placeholder="Ex: Furto simples (Art. 155 CP)">
+                </div>
+
+                <div class="dosimetria-field-row">
+                    <div class="dosimetria-field">
+                        <span class="dosimetria-label" id="dosimetria-pena-minima-label">Pena Mínima</span>
+                        <div class="dosimetria-field-split" role="group" aria-labelledby="dosimetria-pena-minima-label">
+                            <div class="dosimetria-input-group">
+                                <input type="number" id="dosimetria-pena-minima-anos" name="pena_minima_anos"
+                                       class="dosimetria-input"
+                                       value="{{ form.pena_minima_anos if form else 0 }}" min="0" required
+                                       aria-label="Pena mínima em anos">
+                                <span class="dosimetria-input-addon">anos</span>
+                            </div>
+                            <div class="dosimetria-input-group">
+                                <input type="number" id="dosimetria-pena-minima-meses" name="pena_minima_meses"
+                                       class="dosimetria-input"
+                                       value="{{ form.pena_minima_meses if form else 0 }}" min="0" max="11"
+                                       aria-label="Pena mínima em meses">
+                                <span class="dosimetria-input-addon">meses</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dosimetria-field">
+                        <span class="dosimetria-label" id="dosimetria-pena-maxima-label">Pena Máxima</span>
+                        <div class="dosimetria-field-split" role="group" aria-labelledby="dosimetria-pena-maxima-label">
+                            <div class="dosimetria-input-group">
+                                <input type="number" id="dosimetria-pena-maxima-anos" name="pena_maxima_anos"
+                                       class="dosimetria-input"
+                                       value="{{ form.pena_maxima_anos if form else 0 }}" min="0" required
+                                       aria-label="Pena máxima em anos">
+                                <span class="dosimetria-input-addon">anos</span>
+                            </div>
+                            <div class="dosimetria-input-group">
+                                <input type="number" id="dosimetria-pena-maxima-meses" name="pena_maxima_meses"
+                                       class="dosimetria-input"
+                                       value="{{ form.pena_maxima_meses if form else 0 }}" min="0" max="11"
+                                       aria-label="Pena máxima em meses">
+                                <span class="dosimetria-input-addon">meses</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="dosimetria-card" aria-labelledby="dosimetria-section-fase1">
+                <h2 id="dosimetria-section-fase1" class="dosimetria-card-title">
+                    <span class="dosimetria-phase-badge dosimetria-phase-badge--1">1ª Fase</span>
+                    <span>Circunstâncias Judiciais (Art. 59 CP)</span>
+                </h2>
+                <p class="dosimetria-card-hint">
+                    8 circunstâncias: culpabilidade, antecedentes, conduta social, personalidade,
+                    motivos, circunstâncias do crime, consequências, comportamento da vítima.
+                    Cada desfavorável aumenta 1/8 do intervalo entre mínimo e máximo.
+                </p>
+                <div class="dosimetria-field">
+                    <label for="dosimetria-circunstancias" class="dosimetria-label">
+                        Circunstâncias Desfavoráveis (0 a 8)
+                    </label>
+                    <div class="dosimetria-range-wrapper">
+                        <input type="range" id="dosimetria-circunstancias" name="circunstancias"
+                               class="dosimetria-range"
+                               min="0" max="8" step="1"
+                               value="{{ form.circunstancias if form else 0 }}"
+                               aria-valuemin="0" aria-valuemax="8"
+                               aria-valuenow="{{ form.circunstancias if form else 0 }}"
+                               aria-describedby="dosimetria-circunstancias-value">
+                        <output id="dosimetria-circunstancias-value" for="dosimetria-circunstancias"
+                                class="dosimetria-range-value">{{ form.circunstancias if form else 0 }}</output>
+                    </div>
+                </div>
+            </section>
+
+            <section class="dosimetria-card" aria-labelledby="dosimetria-section-fase2">
+                <h2 id="dosimetria-section-fase2" class="dosimetria-card-title">
+                    <span class="dosimetria-phase-badge dosimetria-phase-badge--2">2ª Fase</span>
+                    <span>Agravantes e Atenuantes (Art. 61-66 CP)</span>
+                </h2>
+                <p class="dosimetria-card-hint">
+                    Cada agravante/atenuante altera em 1/6. Não pode ultrapassar mínimo/máximo.
+                </p>
+
+                <div class="dosimetria-columns">
+                    <fieldset class="dosimetria-fieldset">
+                        <legend class="dosimetria-column-title dosimetria-column-title--danger">
+                            <i class="fas fa-arrow-up" aria-hidden="true"></i>
+                            <span>Agravantes (Art. 61-62)</span>
+                        </legend>
+                        <label class="dosimetria-check" for="dosimetria-ag-reincidencia">
+                            <input type="checkbox" id="dosimetria-ag-reincidencia" name="ag_reincidencia"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.ag_reincidencia else '' }}>
+                            <span>Reincidência (Art. 61, I)</span>
+                        </label>
+                        <label class="dosimetria-check" for="dosimetria-ag-futil">
+                            <input type="checkbox" id="dosimetria-ag-futil" name="ag_motivo_futil"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.ag_motivo_futil else '' }}>
+                            <span>Motivo fútil/torpe (Art. 61, II, a)</span>
+                        </label>
+                        <label class="dosimetria-check" for="dosimetria-ag-cruel">
+                            <input type="checkbox" id="dosimetria-ag-cruel" name="ag_meio_cruel"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.ag_meio_cruel else '' }}>
+                            <span>Meio cruel/insidioso (Art. 61, II, d)</span>
+                        </label>
+                        <label class="dosimetria-check" for="dosimetria-ag-outro">
+                            <input type="checkbox" id="dosimetria-ag-outro" name="ag_outro"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.ag_outro else '' }}>
+                            <span>Outra agravante</span>
+                        </label>
+                        <input type="text" id="dosimetria-ag-outro-nome" name="ag_outro_nome"
+                               class="dosimetria-input dosimetria-check-extra"
+                               value="{{ form.ag_outro_nome if form else '' }}"
+                               placeholder="Descreva a agravante"
+                               aria-label="Descrição da outra agravante">
+                    </fieldset>
+
+                    <fieldset class="dosimetria-fieldset">
+                        <legend class="dosimetria-column-title dosimetria-column-title--success">
+                            <i class="fas fa-arrow-down" aria-hidden="true"></i>
+                            <span>Atenuantes (Art. 65-66)</span>
+                        </legend>
+                        <label class="dosimetria-check" for="dosimetria-at-confissao">
+                            <input type="checkbox" id="dosimetria-at-confissao" name="at_confissao"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.at_confissao else '' }}>
+                            <span>Confissão espontânea (Art. 65, III, d)</span>
+                        </label>
+                        <label class="dosimetria-check" for="dosimetria-at-menoridade">
+                            <input type="checkbox" id="dosimetria-at-menoridade" name="at_menoridade"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.at_menoridade else '' }}>
+                            <span>Menor de 21 anos (Art. 65, I)</span>
+                        </label>
+                        <label class="dosimetria-check" for="dosimetria-at-outro">
+                            <input type="checkbox" id="dosimetria-at-outro" name="at_outro"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.at_outro else '' }}>
+                            <span>Outra atenuante</span>
+                        </label>
+                        <input type="text" id="dosimetria-at-outro-nome" name="at_outro_nome"
+                               class="dosimetria-input dosimetria-check-extra"
+                               value="{{ form.at_outro_nome if form else '' }}"
+                               placeholder="Descreva a atenuante"
+                               aria-label="Descrição da outra atenuante">
+                    </fieldset>
+                </div>
+            </section>
+
+            <section class="dosimetria-card" aria-labelledby="dosimetria-section-fase3">
+                <h2 id="dosimetria-section-fase3" class="dosimetria-card-title">
+                    <span class="dosimetria-phase-badge dosimetria-phase-badge--3">3ª Fase</span>
+                    <span>Causas de Aumento e Diminuição</span>
+                </h2>
+                <p class="dosimetria-card-hint">
+                    Frações específicas previstas em lei. PODE ultrapassar mínimo/máximo.
+                </p>
+
+                <div class="dosimetria-columns">
+                    <fieldset class="dosimetria-fieldset">
+                        <legend class="dosimetria-column-title dosimetria-column-title--danger">
+                            <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                            <span>Causa de Aumento</span>
+                        </legend>
+                        <label class="dosimetria-check" for="dosimetria-ca-aplicar">
+                            <input type="checkbox" id="dosimetria-ca-aplicar" name="ca_aplicar"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.ca_aplicar else '' }}>
+                            <span>Aplicar causa de aumento</span>
+                        </label>
+                        <input type="text" id="dosimetria-ca-nome" name="ca_nome"
+                               class="dosimetria-input dosimetria-check-extra"
+                               value="{{ form.ca_nome if form else '' }}"
+                               placeholder="Ex: Repouso noturno (Art. 155, §1º)"
+                               aria-label="Descrição da causa de aumento">
+                        <div class="dosimetria-input-group dosimetria-input-group--fraction"
+                             role="group" aria-label="Fração da causa de aumento">
+                            <span class="dosimetria-input-addon">Fração</span>
+                            <input type="number" id="dosimetria-ca-num" name="ca_fracao_num"
+                                   class="dosimetria-input"
+                                   value="{{ form.ca_fracao_num if form else 1 }}" min="1" max="9"
+                                   aria-label="Numerador">
+                            <span class="dosimetria-input-addon dosimetria-input-addon--mid" aria-hidden="true">/</span>
+                            <input type="number" id="dosimetria-ca-den" name="ca_fracao_den"
+                                   class="dosimetria-input"
+                                   value="{{ form.ca_fracao_den if form else 3 }}" min="1" max="9"
+                                   aria-label="Denominador">
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="dosimetria-fieldset">
+                        <legend class="dosimetria-column-title dosimetria-column-title--success">
+                            <i class="fas fa-minus-circle" aria-hidden="true"></i>
+                            <span>Causa de Diminuição</span>
+                        </legend>
+                        <label class="dosimetria-check" for="dosimetria-cd-aplicar">
+                            <input type="checkbox" id="dosimetria-cd-aplicar" name="cd_aplicar"
+                                   value="true" class="dosimetria-check-input"
+                                   {{ 'checked' if form and form.cd_aplicar else '' }}>
+                            <span>Aplicar causa de diminuição</span>
+                        </label>
+                        <input type="text" id="dosimetria-cd-nome" name="cd_nome"
+                               class="dosimetria-input dosimetria-check-extra"
+                               value="{{ form.cd_nome if form else '' }}"
+                               placeholder="Ex: Tentativa (Art. 14, II)"
+                               aria-label="Descrição da causa de diminuição">
+                        <div class="dosimetria-input-group dosimetria-input-group--fraction"
+                             role="group" aria-label="Fração da causa de diminuição">
+                            <span class="dosimetria-input-addon">Fração</span>
+                            <input type="number" id="dosimetria-cd-num" name="cd_fracao_num"
+                                   class="dosimetria-input"
+                                   value="{{ form.cd_fracao_num if form else 1 }}" min="1" max="9"
+                                   aria-label="Numerador">
+                            <span class="dosimetria-input-addon dosimetria-input-addon--mid" aria-hidden="true">/</span>
+                            <input type="number" id="dosimetria-cd-den" name="cd_fracao_den"
+                                   class="dosimetria-input"
+                                   value="{{ form.cd_fracao_den if form else 3 }}" min="1" max="9"
+                                   aria-label="Denominador">
+                        </div>
+                    </fieldset>
+                </div>
+            </section>
+
+            <button type="submit" class="dosimetria-submit">
+                <i class="fas fa-calculator" aria-hidden="true"></i>
+                <span>Calcular Dosimetria</span>
+            </button>
+        </form>
+
+        {% if resultado %}
+        <section class="dosimetria-result" aria-labelledby="dosimetria-result-title">
+            <header class="dosimetria-result-header">
+                <h2 id="dosimetria-result-title" class="dosimetria-result-header-title">
+                    <i class="fas fa-file-alt" aria-hidden="true"></i>
+                    <span>Resultado da Dosimetria</span>
+                </h2>
+                <button type="button" class="dosimetria-print-btn dosimetria-no-print"
+                        data-dosimetria-print>
+                    <i class="fas fa-print" aria-hidden="true"></i>
+                    <span>Imprimir</span>
+                </button>
+            </header>
+            <div class="dosimetria-result-body">
+                {% if resultado.crime %}
+                <p class="dosimetria-result-crime"><strong>Crime:</strong> {{ resultado.crime }}</p>
+                {% endif %}
+
+                <dl class="dosimetria-result-meta">
+                    <div>
+                        <dt class="dosimetria-result-meta-label">Pena Mínima</dt>
+                        <dd class="dosimetria-result-meta-value">{{ resultado.pena_minima }}</dd>
+                    </div>
+                    <div>
+                        <dt class="dosimetria-result-meta-label">Pena Máxima</dt>
+                        <dd class="dosimetria-result-meta-value">{{ resultado.pena_maxima }}</dd>
+                    </div>
+                </dl>
+
+                <table class="dosimetria-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Fase</th>
+                            <th scope="col">Descrição</th>
+                            <th scope="col">Cálculo</th>
+                            <th scope="col">Resultado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in resultado.detalhes %}
+                        <tr>
+                            <td>
+                                {% if '1a Fase' in d.fase or '1ª Fase' in d.fase %}
+                                <span class="dosimetria-phase-badge dosimetria-phase-badge--1">1ª</span>
+                                {% elif '2a Fase' in d.fase or '2ª Fase' in d.fase %}
+                                <span class="dosimetria-phase-badge dosimetria-phase-badge--2">2ª</span>
+                                {% else %}
+                                <span class="dosimetria-phase-badge dosimetria-phase-badge--3">3ª</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ d.descricao }}</td>
+                            <td class="dosimetria-table-calc">{{ d.calculo }}</td>
+                            <td class="dosimetria-table-result">{{ d.resultado }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="dosimetria-table-total">
+                            <td colspan="3">Pena Final Dosimetrada</td>
+                            <td class="dosimetria-table-result">{{ resultado.pena_final }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="dosimetria-regime" role="note">
+                    <i class="fas fa-balance-scale dosimetria-regime-icon" aria-hidden="true"></i>
+                    <div class="dosimetria-regime-body">
+                        <span><strong>Regime Inicial Sugerido:</strong> {{ resultado.regime_sugerido }}</span>
+                        <span class="dosimetria-regime-hint">
+                            Art. 33 CP: Fechado (&gt;8 anos), Semiaberto (&gt;4 anos), Aberto (até 4 anos)
+                        </span>
+                    </div>
+                </div>
+
+                <div class="dosimetria-legal">
+                    <h3 class="dosimetria-legal-title">
+                        <i class="fas fa-book" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="dosimetria-legal-list">
+                        <li><strong>Art. 59 CP</strong> — Circunstâncias judiciais (pena base)</li>
+                        <li><strong>Art. 61-62 CP</strong> — Agravantes genéricas</li>
+                        <li><strong>Art. 65-66 CP</strong> — Atenuantes genéricas</li>
+                        <li><strong>Art. 68 CP</strong> — Cálculo trifásico da pena</li>
+                        <li><strong>Art. 33 CP</strong> — Regimes de cumprimento</li>
+                        <li><strong>Súmula 231 STJ</strong> — Atenuante não pode reduzir pena abaixo do mínimo</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var range = document.getElementById('dosimetria-circunstancias');
+    var output = document.getElementById('dosimetria-circunstancias-value');
+    if (range && output) {
+        range.addEventListener('input', function () {
+            output.textContent = range.value;
+            range.setAttribute('aria-valuenow', range.value);
+        });
+    }
+    var printBtn = document.querySelector('[data-dosimetria-print]');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () { window.print(); });
+    }
+})();
+</script>
+{% endblock %}

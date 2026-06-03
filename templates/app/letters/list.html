@@ -1,0 +1,111 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Letters · List · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/letters-list.css">
+{% endblock %}
+{% block content %}
+<section class="letters-list-main" aria-labelledby="letters-list-title">
+    <header class="letters-list-header">
+        <h1 id="letters-list-title" class="letters-list-title">
+            <i class="fas fa-file-alt" aria-hidden="true"></i>
+            <span>Letter Templates</span>
+        </h1>
+
+        <div class="letters-list-actions">
+            <a href="{{ PREFIX }}/letters/new" class="letters-list-cta">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>New Template</span>
+            </a>
+        </div>
+    </header>
+
+    {% if categories %}
+    <div class="letters-list-chips" aria-label="Available categories">
+        <span class="letters-list-chips-label">Categories:</span>
+        {% for cat in categories %}
+        <span class="letters-list-chip">{{ cat }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="letters-list-card">
+        <div class="letters-list-tablewrap">
+            <table class="letters-list-table">
+                <caption>List of letter templates with category, variables, usage count, status, and per-row actions.</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Category</th>
+                        <th scope="col">Variables</th>
+                        <th scope="col">Used</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="letters-list-cell-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lt in letter_templates %}
+                    <tr>
+                        <th scope="row">
+                            <a href="{{ PREFIX }}/letters/{{ lt.id }}" class="letters-list-name">{{ lt.name }}</a>
+                            {% if lt.description %}
+                            <small class="letters-list-description">{{ lt.description[:50] }}{% if lt.description|length > 50 %}...{% endif %}</small>
+                            {% endif %}
+                        </th>
+                        <td>
+                            {% if lt.category %}
+                            <span class="letters-list-badge letters-list-badge--category">{{ lt.category }}</span>
+                            {% else %}
+                            <span class="letters-list-placeholder" aria-label="No category">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if lt.variables_list %}
+                            {% set vars_str = lt.variables_list|join(', ') %}
+                            <span class="letters-list-vars" title="{{ vars_str }}">{{ vars_str|truncate(30, True, '...') }}</span>
+                            {% else %}
+                            <span class="letters-list-placeholder" aria-label="No variables">—</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="letters-list-count">{{ lt.use_count }} times</span></td>
+                        <td>
+                            {% if lt.is_active %}
+                            <span class="letters-list-badge letters-list-badge--active">Active</span>
+                            {% else %}
+                            <span class="letters-list-badge letters-list-badge--inactive">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="letters-list-cell-actions">
+                            <div class="letters-list-row-actions">
+                                <a href="{{ PREFIX }}/letters/{{ lt.id }}/generate" class="letters-list-action-btn letters-list-action-btn--success" aria-label="Generate letter from template: {{ lt.name }}">
+                                    <i class="fas fa-magic" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/letters/{{ lt.id }}" class="letters-list-action-btn" aria-label="View template: {{ lt.name }}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/letters/{{ lt.id }}/edit" class="letters-list-action-btn" aria-label="Edit template: {{ lt.name }}">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6">
+                            <div class="letters-list-empty">
+                                <i class="fas fa-file-alt letters-list-empty-icon" aria-hidden="true"></i>
+                                <p class="letters-list-empty-text">No templates yet.</p>
+                                <a href="{{ PREFIX }}/letters/new" class="letters-list-empty-link">Create one</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

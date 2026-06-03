@@ -1,0 +1,254 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Bpc_Loas · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tools-bpc-loas.css">
+{% endblock %}
+{% block content %}
+<div class="bpc-main" aria-labelledby="bpc-title">
+    <div class="bpc-container">
+        <header class="bpc-header no-print">
+            <div class="bpc-header-text">
+                <h1 id="bpc-title" class="bpc-title">
+                    <i class="fas fa-hand-holding-heart bpc-title-icon" aria-hidden="true"></i>
+                    <span>BPC/LOAS — Análise de Elegibilidade</span>
+                </h1>
+                <p class="bpc-subtitle">Lei 8.742/93 (LOAS), Art. 20-21</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="bpc-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        {% if error %}
+        <div class="bpc-alert" role="alert">
+            <div>
+                <i class="fas fa-exclamation-triangle bpc-alert-icon" aria-hidden="true"></i>
+                <span>{{ error }}</span>
+            </div>
+            <button type="button" class="bpc-alert-close no-print" aria-label="Fechar alerta" onclick="this.closest('.bpc-alert').remove()">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        {% endif %}
+
+        <div class="bpc-layout {% if resultado %}bpc-layout--with-result{% else %}bpc-layout--form-only{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/bpc-loas/calcular" class="bpc-form">
+                <div class="bpc-card">
+                    <div class="bpc-card-body">
+                        <section class="bpc-section" aria-labelledby="bpc-section-requerente">
+                            <h2 id="bpc-section-requerente" class="bpc-section-title">Dados do Requerente</h2>
+                            <div class="bpc-grid">
+                                <div class="bpc-field">
+                                    <label for="idade" class="bpc-label">Idade do Requerente</label>
+                                    <input type="number" class="bpc-input" id="idade" name="idade"
+                                           min="0" max="120" value="{{ form.idade if form else '' }}" required aria-required="true">
+                                </div>
+                                <div class="bpc-field">
+                                    <label for="possui_deficiencia" class="bpc-label">Possui Deficiência?</label>
+                                    <select class="bpc-select" id="possui_deficiencia" name="possui_deficiencia" required aria-required="true">
+                                        <option value="nao" {% if form and form.possui_deficiencia == 'nao' %}selected{% endif %}>Não</option>
+                                        <option value="sim" {% if form and form.possui_deficiencia == 'sim' %}selected{% endif %}>Sim</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="bpc-section" aria-labelledby="bpc-section-familia">
+                            <h2 id="bpc-section-familia" class="bpc-section-title">Dados Familiares</h2>
+                            <div class="bpc-grid">
+                                <div class="bpc-field">
+                                    <label for="renda_familiar" class="bpc-label">Renda Familiar Total (R$)</label>
+                                    <div class="bpc-input-group">
+                                        <span class="bpc-input-group-text" aria-hidden="true">R$</span>
+                                        <input type="number" class="bpc-input" id="renda_familiar" name="renda_familiar"
+                                               step="0.01" min="0" value="{{ form.renda_familiar if form else '' }}" required aria-required="true"
+                                               aria-describedby="bpc-hint-renda">
+                                    </div>
+                                    <span id="bpc-hint-renda" class="bpc-hint">Soma da renda de todos os membros</span>
+                                </div>
+                                <div class="bpc-field">
+                                    <label for="num_membros" class="bpc-label">Número de Membros da Família</label>
+                                    <input type="number" class="bpc-input" id="num_membros" name="num_membros"
+                                           min="1" value="{{ form.num_membros if form else '' }}" required aria-required="true"
+                                           aria-describedby="bpc-hint-membros">
+                                    <span id="bpc-hint-membros" class="bpc-hint">Incluindo o requerente</span>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <div class="bpc-actions no-print">
+                    <button type="submit" class="bpc-btn bpc-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Analisar</span>
+                    </button>
+                    <button type="button" class="bpc-btn bpc-btn--ghost" onclick="window.location.href='{{ PREFIX }}/tools/bpc-loas'">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </button>
+                </div>
+            </form>
+
+            {% if resultado %}
+            <section class="bpc-result" id="resultado" aria-labelledby="bpc-result-title">
+                <article class="bpc-card">
+                    <header class="bpc-card-header {% if resultado.elegivel %}bpc-card-header--success{% else %}bpc-card-header--danger{% endif %}">
+                        <h2 id="bpc-result-title" class="bpc-card-title">
+                            <i class="fas {% if resultado.elegivel %}fa-check-circle{% else %}fa-times-circle{% endif %}" aria-hidden="true"></i>
+                            <span>Resultado — BPC/LOAS</span>
+                        </h2>
+                        <button type="button" class="bpc-btn bpc-btn--ghost bpc-btn--sm no-print" onclick="window.print()">
+                            <i class="fas fa-print" aria-hidden="true"></i>
+                            <span>Imprimir</span>
+                        </button>
+                    </header>
+                    <div class="bpc-card-body">
+                        <div class="bpc-status">
+                            {% if resultado.elegivel %}
+                            <span class="bpc-status-badge bpc-status-badge--success"
+                                  role="status"
+                                  aria-label="Status de elegibilidade: elegível ao BPC/LOAS">
+                                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                                <span>ELEGÍVEL AO BPC/LOAS</span>
+                            </span>
+                            <p class="bpc-status-value">
+                                Valor do Benefício: <strong>R$ {{ "%.2f"|format(resultado.valor_beneficio) }}</strong>
+                            </p>
+                            <p class="bpc-status-hint">(1 salário mínimo)</p>
+                            {% else %}
+                            <span class="bpc-status-badge bpc-status-badge--danger"
+                                  role="status"
+                                  aria-label="Status de elegibilidade: não elegível">
+                                <i class="fas fa-times-circle" aria-hidden="true"></i>
+                                <span>NÃO ELEGÍVEL</span>
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <table class="bpc-table" aria-label="Critérios de elegibilidade BPC/LOAS">
+                            <tbody>
+                                <tr>
+                                    <td>Renda Familiar Total</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.renda_familiar) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Membros da Família</td>
+                                    <td>{{ resultado.num_membros }}</td>
+                                </tr>
+                                <tr class="bpc-row--total">
+                                    <td>Renda Per Capita</td>
+                                    <td><strong>R$ {{ "%.2f"|format(resultado.renda_per_capita) }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Limite (1/4 SM)</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.limite_renda) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Critério de Renda</td>
+                                    <td>
+                                        {% if resultado.criterio_renda %}
+                                        <span class="bpc-badge bpc-badge--success" aria-label="Critério de renda atendido">
+                                            <i class="fas fa-check" aria-hidden="true"></i>
+                                            <span>Atendido</span>
+                                        </span>
+                                        {% else %}
+                                        <span class="bpc-badge bpc-badge--danger" aria-label="Critério de renda não atendido">
+                                            <i class="fas fa-times" aria-hidden="true"></i>
+                                            <span>Não atendido</span>
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Idade do Requerente</td>
+                                    <td>{{ resultado.idade }} anos</td>
+                                </tr>
+                                <tr>
+                                    <td>Critério de Idade (≥ 65)</td>
+                                    <td>
+                                        {% if resultado.criterio_idade %}
+                                        <span class="bpc-badge bpc-badge--success" aria-label="Critério de idade atendido">
+                                            <i class="fas fa-check" aria-hidden="true"></i>
+                                            <span>Atendido</span>
+                                        </span>
+                                        {% else %}
+                                        <span class="bpc-badge bpc-badge--muted" aria-label="Critério de idade não atendido">
+                                            <i class="fas fa-minus" aria-hidden="true"></i>
+                                            <span>Não atendido</span>
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Deficiência</td>
+                                    <td>
+                                        {% if resultado.criterio_deficiencia %}
+                                        <span class="bpc-badge bpc-badge--success" aria-label="Deficiência: sim">
+                                            <i class="fas fa-check" aria-hidden="true"></i>
+                                            <span>Sim</span>
+                                        </span>
+                                        {% else %}
+                                        <span class="bpc-badge bpc-badge--muted" aria-label="Deficiência: não">
+                                            <i class="fas fa-minus" aria-hidden="true"></i>
+                                            <span>Não</span>
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        {% if resultado.motivos_inelegibilidade %}
+                        <div class="bpc-notice" role="note">
+                            <p class="bpc-notice-title">
+                                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                                <span>Motivos de Inelegibilidade:</span>
+                            </p>
+                            <ul class="bpc-notice-list">
+                                {% for motivo in resultado.motivos_inelegibilidade %}
+                                <li>{{ motivo }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="bpc-card-footer">
+                        <p class="bpc-legal-title">
+                            <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </p>
+                        <ul class="bpc-legal-list">
+                            <li><strong>Lei 8.742/93, Art. 20</strong> — Direito ao BPC: idoso (65+) ou deficiente com renda per capita ≤ 1/4 SM</li>
+                            <li><strong>Lei 8.742/93, Art. 21</strong> — Valor: 1 salário mínimo (R$ {{ "%.2f"|format(resultado.salario_minimo) }})</li>
+                            <li><strong>CF Art. 203, V</strong> — Garantia constitucional de assistência social</li>
+                            <li><strong>Decreto 6.214/2007</strong> — Regulamentação do BPC</li>
+                        </ul>
+                        <p class="bpc-legal-disclaimer">
+                            <i class="fas fa-info-circle" aria-hidden="true"></i>
+                            <span>Análise preliminar. A concessão depende de avaliação social e médica (se deficiência) pelo INSS. Decisões judiciais podem flexibilizar o critério de renda.</span>
+                        </p>
+                    </div>
+                </article>
+            </section>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 992) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

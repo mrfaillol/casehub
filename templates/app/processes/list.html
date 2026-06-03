@@ -1,0 +1,88 @@
+{% extends "app/base.html" %}
+{% set active_module = 'processes' %}
+{% block title %}Modelos de Processo · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/processes-list.css">
+{% endblock %}
+{% block content %}
+<main class="processes-list-main" role="main" aria-labelledby="processes-list-title">
+    <header class="processes-list-header">
+        <h1 id="processes-list-title" class="processes-list-title">
+            <i class="fas fa-project-diagram" aria-hidden="true"></i>
+            <span>Modelos de Processo</span>
+        </h1>
+        <a href="{{ PREFIX }}/processes/new" class="processes-list-btn processes-list-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Novo Processo</span>
+        </a>
+    </header>
+
+    <section class="processes-list-card" aria-label="Modelos de processo">
+        <div class="processes-list-table-wrapper">
+            <table class="processes-list-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Nome</th>
+                        <th scope="col">Área de atuação</th>
+                        <th scope="col">Etapas</th>
+                        <th scope="col">Processos usando</th>
+                        <th scope="col">Dias estimados</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="processes-list-actions-cell">
+                            <span class="processes-list-visually-hidden">Ações</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for process in processes %}
+                    <tr class="processes-list-row">
+                        <td>
+                            <a href="{{ PREFIX }}/processes/{{ process.id }}" class="processes-list-name-link">
+                                {{ process.name }}
+                            </a>
+                            {% if process.description %}
+                            <small class="processes-list-description">{{ process.description[:60] }}{% if process.description|length > 60 %}...{% endif %}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ process.area_of_practice or '-' }}</td>
+                        <td>
+                            <span class="processes-list-badge processes-list-badge--neutral">{{ process.step_count }} etapas</span>
+                        </td>
+                        <td class="processes-list-numeric">{{ process.cases_using }} processos</td>
+                        <td class="processes-list-numeric">{{ process.estimated_days or '-' }} dias</td>
+                        <td>
+                            {% if process.enabled %}
+                            <span class="processes-list-badge processes-list-badge--active">Ativo</span>
+                            {% else %}
+                            <span class="processes-list-badge processes-list-badge--disabled">Desativado</span>
+                            {% endif %}
+                        </td>
+                        <td class="processes-list-actions-cell">
+                            <div class="processes-list-actions">
+                                <a href="{{ PREFIX }}/processes/{{ process.id }}" class="processes-list-icon-btn" aria-label="Ver {{ process.name }}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/processes/{{ process.id }}/edit" class="processes-list-icon-btn" aria-label="Editar {{ process.name }}">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="processes-list-empty">
+                            <i class="fas fa-folder-open processes-list-empty-icon" aria-hidden="true"></i>
+                            <span>Nenhum modelo de processo ainda.</span>
+                            <a href="{{ PREFIX }}/processes/new" class="processes-list-empty-link">Criar modelo</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

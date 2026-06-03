@@ -1,0 +1,145 @@
+/* ==========================================================================
+   Dock Apps Nav — arquitetura limpa sem herança .sidebar legacy
+   Referência: codepen-references/dynamic-gsap-dock-navigation-macos-style
+   Proposta UI/UX: flex natural, sem display:contents, sem !important wars.
+   ========================================================================== */
+
+/* Wrapper = cápsula glass (mantém tokens visuais herdados de .os-dock-bubble) */
+body.view-os .os-dock-bubble.os-dock-apps.dock-apps-nav {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  width: auto;
+  max-width: 70vw;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+body.view-os .dock-apps-nav::-webkit-scrollbar { display: none; }
+
+/* Nav UL real flex container (não mais display:contents) */
+body.view-os .dock-apps-nav > ul.nav.flex-column,
+body.view-os .dock-apps-nav ul.nav {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--dock-gap-inner, 4px);
+  width: max-content;
+  height: 100%;
+  margin: 0;
+  padding: 0 var(--sp-3, 12px);
+  list-style: none;
+}
+
+/* Items: flex 0 0 auto — largura natural do nav-link */
+body.view-os .dock-apps-nav .nav-item {
+  flex: 0 0 auto;
+  margin: 0;
+  list-style: none;
+}
+
+/* nav-links: ícone-only em desktop (texto só no tooltip hover).
+   18 links com texto inflariam width natural pra ~1800px, bem > max-width 70vw.
+   Ícone-only: ~44×44 cada = 18 × 44 = ~790px (cabe dentro de 70vw). */
+body.view-os .dock-apps-nav .nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: none;
+  border-radius: 10px;
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              background-color 120ms linear;
+  white-space: nowrap;
+  font-size: 0; /* esconde label textual */
+  position: relative;
+}
+
+/* Texto do link escondido visualmente (só filhos <span>, preserva <i>) */
+body.view-os .dock-apps-nav .nav-link > span:not(.fas):not(.far):not(.fa-solid) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+body.view-os .dock-apps-nav .nav-link i {
+  font-size: 18px;
+  line-height: 1;
+  width: 1em;
+  text-align: center;
+}
+
+/* Tooltip nativo via [title] do browser; ou usar data-tooltip se já existe JS */
+body.view-os .dock-apps-nav .nav-link[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: rgba(30, 30, 34, 0.95);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms, transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 10;
+}
+
+body.view-os .dock-apps-nav .nav-link[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (hover: hover) {
+  body.view-os .dock-apps-nav .nav-link:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translate3d(0, -2px, 0) scale(1.04);
+  }
+}
+
+body.view-os .dock-apps-nav .nav-link:active {
+  transform: translate3d(0, 0, 0) scale(0.96);
+}
+
+/* Indicator: janela aberta */
+body.view-os .dock-apps-nav .nav-link.has-window {
+  color: rgba(0, 122, 255, 0.95);
+}
+body.view-os .dock-apps-nav .nav-link.has-window-active {
+  background: rgba(0, 122, 255, 0.18);
+}
+
+/* Light theme */
+html[data-theme="light"] body.view-os .dock-apps-nav .nav-link {
+  color: rgba(0, 0, 0, 0.78);
+}
+html[data-theme="light"] body.view-os .dock-apps-nav .nav-link:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* Density compact: esconde texto, só ícones (container queries via data-density) */
+body.view-os .ui-os-dock-wrapper[data-density="compact"] .dock-apps-nav .nav-link span {
+  display: none;
+}
+
+/* Wrapper usa fit-content também — encolhe até caber, scroll só se necessário */
+body.view-os .ui-os-dock-wrapper {
+  width: fit-content;
+  max-width: 95vw;
+}

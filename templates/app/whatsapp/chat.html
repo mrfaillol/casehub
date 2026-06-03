@@ -1,0 +1,643 @@
+{% extends "app/base.html" %}
+{% set active_module = 'whatsapp' %}
+{% block title %}Whatsapp · Chat · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="{{ asset_url('css/templates/whatsapp-chat.css') }}">
+<link rel="stylesheet" href="{{ asset_url('css/templates/whatsapp-crm.css') }}">
+{% endblock %}
+{% block content %}
+<div class="wa-shell-module">
+<div class="wa-standalone-header">
+    <div class="wa-standalone-logo">
+        <i class="fab fa-whatsapp" aria-hidden="true"></i>
+        <span>{{ org_name|default('CaseHub') }}</span>
+    </div>
+    <span class="wa-standalone-badge">Módulo CaseHub</span>
+</div>
+
+<div class="wa-app" role="application" aria-label="WhatsApp Chat">
+    <button class="wa-toggle-sidebar" type="button" onclick="toggleMobileSidebar()" aria-label="Mostrar/ocultar lista de conversas">
+        <i class="fas fa-comments" aria-hidden="true"></i>
+    </button>
+
+    <header class="wa-header" role="banner">
+        <div class="wa-header-left">
+            <span class="wa-logo">WhatsApp Chat</span>
+            <div class="wa-status {{ 'connected' if bot_status and bot_status.get('connected') else 'disconnected' }}" id="statusBadge" role="status" aria-live="polite">
+                <span class="wa-status-dot" aria-hidden="true"></span>
+                <span id="statusText">{{ 'Conectado' if bot_status and bot_status.get('connected') else 'Conectando...' }}</span>
+                <button id="reconnectBtn" type="button" class="wa-reconnect-btn" onclick="forceReconnect()">Reconectar</button>
+            </div>
+            <nav class="wa-tabs" role="tablist" aria-label="Navegação principal">
+                <button class="wa-tab active" type="button" onclick="switchTab('chat')" id="tabChat" role="tab" aria-selected="true" aria-controls="tabContentChat">
+                    <i class="fas fa-comments" aria-hidden="true"></i> <span>Chat</span>
+                </button>
+                <button class="wa-tab" type="button" onclick="switchTab('settings')" id="tabSettings" role="tab" aria-selected="false" aria-controls="tabContentSettings">
+                    <i class="fas fa-cog" aria-hidden="true"></i> <span>Configurações</span>
+                </button>
+                <button class="wa-tab" type="button" onclick="switchTab('templates')" id="tabTemplates" role="tab" aria-selected="false" aria-controls="tabContentTemplates">
+                    <i class="fas fa-file-alt" aria-hidden="true"></i> <span>Modelos</span>
+                </button>
+            </nav>
+        </div>
+        <a href="{{ PREFIX }}/integrations" class="btn btn-sm btn-outline-secondary">Integrações</a>
+    </header>
+
+    <main class="wa-main" id="tabContentChat" role="tabpanel" aria-labelledby="tabChat">
+        <aside class="wa-sidebar" aria-label="Lista de conversas">
+            <div class="wa-search">
+                <div class="wa-search-wrapper">
+                    <i class="fas fa-search wa-search-icon" aria-hidden="true"></i>
+                    <label for="searchInput" class="sr-only">Buscar conversas</label>
+                    <input type="search" class="wa-search-input" placeholder="Buscar conversas..." id="searchInput" oninput="filterConversations()" aria-label="Buscar conversas">
+                </div>
+            </div>
+            <div class="wa-filters-bar" id="filtersBar" role="toolbar" aria-label="Filtros de conversa">
+                <button class="wa-filter-chip active" type="button" data-filter="all" onclick="applyFilter('all')" aria-pressed="true">
+                    <i class="fas fa-inbox" aria-hidden="true"></i> Todas
+                </button>
+                <button class="wa-filter-chip" type="button" data-filter="unread" onclick="applyFilter('unread')" aria-pressed="false">
+                    <i class="fas fa-envelope" aria-hidden="true"></i> Não lidas
+                </button>
+                <button class="wa-filter-chip" type="button" data-filter="needs-response" onclick="applyFilter('needs-response')" aria-pressed="false">
+                    <i class="fas fa-clock" aria-hidden="true"></i> Aguardando
+                </button>
+                <button class="wa-filter-chip" type="button" data-filter="human" onclick="applyFilter('human')" aria-pressed="false">
+                    <i class="fas fa-user" aria-hidden="true"></i> Humano
+                </button>
+                <button class="wa-filter-chip" type="button" data-filter="urgent" onclick="applyFilter('urgent')" aria-pressed="false">
+                    <i class="fas fa-exclamation" aria-hidden="true"></i> Urgente
+                </button>
+            </div>
+            <div class="wa-conversations" id="conversationsList" role="list" aria-live="polite" aria-busy="true">
+                <div class="wa-loading">
+                    <div class="wa-spinner" aria-hidden="true"></div>
+                    Carregando...
+                </div>
+            </div>
+        </aside>
+
+        <section class="wa-chat" id="chatArea" aria-label="Conversa ativa">
+            <div class="wa-chat-empty" id="emptyState">
+                <div class="wa-chat-empty-icon" aria-hidden="true">
+                    <i class="fab fa-whatsapp"></i>
+                </div>
+                <h3>WhatsApp Chat</h3>
+                <p>Selecione uma conversa para começar.</p>
+            </div>
+
+            <div class="wa-qr-container" id="qrState" hidden>
+                <h3>Conectar WhatsApp</h3>
+                <p>Escolha QR Code ou código por telefone. A sessão fica salva depois da autenticação.</p>
+                <details style="max-width: 560px; margin: 0 auto var(--space-3, 12px); text-align: left;">
+                    <summary style="cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-lock" aria-hidden="true"></i>
+                        <span>Privacidade & LGPD — o que o CaseHub acessa do meu WhatsApp?</span>
+                    </summary>
+                    <p style="margin: 10px 0 0; line-height: 1.55; font-size: 0.9rem;">
+                        Ao escanear o QR, você vincula uma sessão multi-dispositivo do WhatsApp Web ao
+                        CaseHub deste escritório. O CaseHub passa a ler/enviar mensagens em seu nome
+                        (apenas dentro do seu escritório — multi-tenant: nada compartilhado entre orgs).
+                        Você pode revogar a qualquer momento em <em>WhatsApp do celular → Aparelhos
+                        conectados → Sair</em>. Conforme LGPD, ver
+                        <a href="{{ PREFIX }}/legal/privacy">Termos completos</a>.
+                    </p>
+                </details>
+                <div class="wa-qr-warning" role="alert" id="waQrWarning" style="background: var(--surface-warning, #fff8e1); border: 1px solid var(--c-warn, #f0c97a); color: var(--text-warning, #7a5a00); padding: 12px 16px; border-radius: 8px; margin: 12px auto; max-width: 560px; font-size: 0.9rem; line-height: 1.4; text-align: left;">
+                    <strong><i class="fas fa-exclamation-triangle" aria-hidden="true"></i> Atenção:</strong>
+                    escanear este QR Code vai desconectar o WhatsApp Web atual do seu celular.
+                    Você pode reconectar depois em <a href="https://web.whatsapp.com" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline;">web.whatsapp.com</a>.
+                    <div style="margin-top: 10px;">
+                        <button type="button" class="wa-btn wa-btn-primary" id="waQrAckBtn" onclick="acknowledgeQrWarning()" style="padding: 6px 14px; font-size: 0.85rem;">
+                            Entendi, mostrar QR
+                        </button>
+                    </div>
+                </div>
+                <div class="wa-connect-mode" id="waConnectMode" role="tablist" aria-label="Modo de conexão WhatsApp" hidden>
+                    <button class="wa-connect-mode__btn active" type="button" id="waQrModeBtn" onclick="showQrConnect()" aria-pressed="true">
+                        <i class="fas fa-qrcode" aria-hidden="true"></i> QR Code
+                    </button>
+                    <button class="wa-connect-mode__btn" type="button" id="waPhoneModeBtn" onclick="showPhoneConnect()" aria-pressed="false">
+                        <i class="fas fa-mobile-screen-button" aria-hidden="true"></i> Telefone
+                    </button>
+                </div>
+                <div class="wa-qr-code" id="qrCode" hidden>
+                    <div class="wa-loading">
+                        <div class="wa-spinner" aria-hidden="true"></div>
+                    </div>
+                </div>
+                <div class="wa-phone-pairing" id="phonePairing" hidden>
+                    <label class="wa-phone-pairing__label" for="pairingPhone">Número do WhatsApp</label>
+                    <div class="wa-phone-pairing__row">
+                        <input class="wa-phone-pairing__input" id="pairingPhone" type="tel" inputmode="tel" placeholder="+55 32 99999-9999">
+                        <button class="wa-btn wa-btn-primary" type="button" id="pairingCodeBtn" onclick="requestPairingCode()">
+                            Gerar código
+                        </button>
+                    </div>
+                    <div class="wa-pairing-result" id="pairingResult" role="status" aria-live="polite"></div>
+                    <p class="wa-phone-pairing__hint">No celular: WhatsApp &gt; Aparelhos conectados &gt; Conectar com número de telefone.</p>
+                </div>
+                <div class="wa-qr-refresh" id="qrRefreshHint">Abra o WhatsApp no celular &gt; Aparelhos conectados &gt; Conectar aparelho.</div>
+            </div>
+
+            <div id="activeChat" hidden>
+                <header class="wa-chat-header">
+                    <div class="wa-chat-header-left">
+                        <div class="wa-avatar" id="chatAvatar" aria-hidden="true">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="wa-chat-header-info">
+                            <div class="wa-chat-header-name" id="chatName">Contact</div>
+                            <div class="wa-chat-header-status" id="chatStatus"></div>
+                        </div>
+                    </div>
+                    <div class="wa-chat-header-actions">
+                        <button class="wa-header-action-btn" type="button" id="btnSearchMessages" onclick="toggleSearchMessages()" aria-label="Buscar na conversa (Ctrl+F)" title="Buscar na conversa (Ctrl+F)">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                        </button>
+                        <button class="wa-header-action-btn" type="button" id="btnUrgent" onclick="toggleUrgent()" aria-label="Marcar como urgente" title="Marcar como urgente">
+                            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        </button>
+                        <button class="wa-header-action-btn" type="button" id="btnClientInfo" onclick="toggleClientInfo()" aria-label="Info do cliente" title="Info do cliente">
+                            <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        </button>
+                        <button class="wa-header-action-btn" type="button" data-wac-action="open-crm-panel" aria-label="Abrir CRM do contato" title="Abrir CRM do contato">
+                            <i class="fas fa-address-card" aria-hidden="true"></i>
+                        </button>
+                        <button class="wa-header-action-btn" type="button" data-wac-action="open-pipeline" aria-label="Abrir funil CRM" title="Abrir funil CRM">
+                            <i class="fas fa-columns" aria-hidden="true"></i>
+                        </button>
+                        <button class="wa-header-action-btn" type="button" id="btnArchive" onclick="archiveConversation()" aria-label="Arquivar conversa" title="Arquivar conversa">
+                            <i class="fas fa-archive" aria-hidden="true"></i>
+                        </button>
+                        <button class="wa-bot-toggle bot-active" type="button" id="botToggle" onclick="toggleBot()" aria-pressed="true">
+                            <i class="fas fa-robot" aria-hidden="true"></i>
+                            <span id="botToggleText">Bot</span>
+                        </button>
+                        <button class="wa-never-contact" type="button" id="neverContactToggle" onclick="toggleNeverContact()" aria-pressed="false">
+                            <i class="fas fa-ban" aria-hidden="true"></i>
+                            <span id="neverContactText">Bloquear Bot</span>
+                        </button>
+                        <button class="wa-followup-btn" type="button" id="followupBtn" onclick="toggleFollowup()" aria-label="Marcar para follow-up automático" title="Marcar para follow-up automático" aria-pressed="false">
+                            <i class="fas fa-clock" aria-hidden="true"></i>
+                            <span id="followupBtnText">Follow-up</span>
+                        </button>
+                    </div>
+                </header>
+
+                <div class="wa-search-messages" id="searchMessagesBar" role="search">
+                    <label for="searchMessagesInput" class="sr-only">Buscar nas mensagens</label>
+                    <input type="search" id="searchMessagesInput" placeholder="Buscar nas mensagens..." oninput="searchInMessages()" aria-label="Buscar nas mensagens">
+                    <span class="wa-search-count" id="searchMessagesCount" aria-live="polite">0/0</span>
+                    <div class="wa-search-nav">
+                        <button type="button" onclick="navigateSearchResult(-1)" aria-label="Resultado anterior" title="Anterior"><i class="fas fa-chevron-up" aria-hidden="true"></i></button>
+                        <button type="button" onclick="navigateSearchResult(1)" aria-label="Próximo resultado" title="Próximo"><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
+                    </div>
+                    <button class="wa-header-action-btn" type="button" onclick="toggleSearchMessages()" aria-label="Fechar busca"><i class="fas fa-times" aria-hidden="true"></i></button>
+                </div>
+
+                <aside class="wa-client-info-panel" id="clientInfoPanel" aria-label="Informações do cliente" hidden>
+                    <div class="wa-client-info-header">
+                        <span class="wa-client-info-title">Informações do Cliente</span>
+                        <button class="wa-client-info-close" type="button" onclick="toggleClientInfo()" aria-label="Fechar">&times;</button>
+                    </div>
+                    <div class="wa-client-info-avatar" id="infoAvatarSection"></div>
+                    <div class="wa-client-info-avatar-name" id="infoAvatarName">-</div>
+                    <div id="infoLinksSection" class="wa-client-info-avatar-name"></div>
+                    <div class="wa-client-info-divider"></div>
+                    <div class="wa-client-info-row">
+                        <span class="wa-client-info-label">Nome:</span>
+                        <span class="wa-client-info-value" id="infoClientName">-</span>
+                    </div>
+                    <div class="wa-client-info-row">
+                        <span class="wa-client-info-label">Telefone:</span>
+                        <span class="wa-client-info-value" id="infoClientPhone">-</span>
+                    </div>
+                    <div class="wa-client-info-row">
+                        <span class="wa-client-info-label">Email:</span>
+                        <span class="wa-client-info-value" id="infoClientEmail">-</span>
+                    </div>
+                    <div class="wa-client-info-row">
+                        <span class="wa-client-info-label">Interesse:</span>
+                        <span class="wa-client-info-value" id="infoClientInterest">-</span>
+                    </div>
+                    <div class="wa-client-info-row">
+                        <span class="wa-client-info-label">Primeiro contato:</span>
+                        <span class="wa-client-info-value" id="infoClientFirstContact">-</span>
+                    </div>
+                    <div class="wa-client-info-row">
+                        <span class="wa-client-info-label">Total mensagens:</span>
+                        <span class="wa-client-info-value" id="infoClientMsgCount">-</span>
+                    </div>
+                </aside>
+                <aside class="wa-client-info-panel" id="wacPanelHost" aria-label="CRM do contato" hidden></aside>
+                <aside class="wa-client-info-panel" id="wacPipelineHost" aria-label="Funil CRM" hidden></aside>
+
+                <div class="wa-quick-action" id="quickAction" role="status">
+                    <div class="wa-quick-action-text">
+                        <span class="wa-quick-icon" aria-hidden="true">👋</span>
+                        Cliente aguardando resposta da equipe
+                    </div>
+                    <button class="wa-quick-action-btn" type="button" id="quickActionBtn" onclick="sendQuickGreeting()">
+                        Enviar Saudação
+                    </button>
+                </div>
+
+                <section class="wa-conversation-context" id="conversationContext" aria-label="Resumo da conversa">
+                    <div class="wa-context-header" onclick="toggleSummaryCollapse()">
+                        <span class="wa-context-icon" aria-hidden="true">📋</span>
+                        <span>Resumo da Conversa</span>
+                        <button class="wa-summary-refresh" type="button" onclick="event.stopPropagation(); loadConversationSummary()" aria-label="Atualizar resumo" title="Atualizar resumo">
+                            <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                        </button>
+                        <button class="wa-context-toggle" type="button" aria-label="Expandir/recolher" title="Expandir/Recolher">
+                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="wa-context-body" id="summaryContent">
+                        <div class="wa-context-item">
+                            <span class="wa-context-label">Estágio:</span>
+                            <span class="wa-context-value" id="ctxStage">-</span>
+                        </div>
+                        <div class="wa-context-item">
+                            <span class="wa-context-label">Interesse:</span>
+                            <span class="wa-context-value" id="ctxInterest">-</span>
+                        </div>
+                        <div class="wa-context-item">
+                            <span class="wa-context-label">Score:</span>
+                            <span class="wa-context-value" id="ctxScore">-</span>
+                        </div>
+
+                        <div class="wa-summary-section" id="summaryCurrentSection" hidden>
+                            <div class="wa-summary-title">Situação Atual</div>
+                            <div class="wa-summary-text" id="summaryCurrentSituation">-</div>
+                        </div>
+
+                        <div class="wa-summary-section" id="summaryHistorySection" hidden>
+                            <div class="wa-summary-title">Histórico</div>
+                            <div class="wa-summary-history" id="summaryHistory"></div>
+                        </div>
+
+                        <div class="wa-summary-section" id="summaryNextStepsSection" hidden>
+                            <div class="wa-summary-title">Próximos Passos</div>
+                            <div class="wa-summary-next-steps" id="summaryNextSteps"></div>
+                        </div>
+
+                        <div class="wa-summary-section" id="summaryPendingSection" hidden>
+                            <div class="wa-summary-title">⚠️ Dúvidas Pendentes</div>
+                            <div class="wa-summary-pending" id="summaryPending"></div>
+                        </div>
+
+                        <div class="wa-summary-status" id="summaryStatusSection" hidden>
+                            <span class="wa-summary-status-badge" id="summaryStatusBadge">-</span>
+                            <span id="summaryTimeAgo">-</span>
+                        </div>
+                    </div>
+                    <div class="wa-summary-loading" id="summaryLoading" hidden>
+                        <i class="fas fa-spinner" aria-hidden="true"></i> Carregando resumo...
+                    </div>
+                </section>
+
+                <div class="wa-messages" id="messagesContainer" role="log" aria-live="polite" aria-label="Mensagens da conversa">
+                    <div class="wa-loading">
+                        <div class="wa-spinner" aria-hidden="true"></div>
+                        Loading messages...
+                    </div>
+                </div>
+
+                <div class="wa-ai-suggestion" id="aiSuggestion" role="status">
+                    <div class="wa-ai-label">AI Suggestion</div>
+                    <div class="wa-ai-text" id="aiText" onclick="useSuggestion()"></div>
+                </div>
+
+                <div class="wa-typing-indicator" id="typingIndicator" aria-live="polite">
+                    <div class="wa-typing-dots" aria-hidden="true">
+                        <div class="wa-typing-dot"></div>
+                        <div class="wa-typing-dot"></div>
+                        <div class="wa-typing-dot"></div>
+                    </div>
+                    <span id="typingText">Cliente digitando...</span>
+                </div>
+
+                <button class="wa-scroll-bottom" type="button" id="scrollBottomBtn" onclick="scrollToBottom()" aria-label="Rolar para o final">
+                    <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                    <span class="unread-count" id="newMsgCount" hidden>0</span>
+                </button>
+
+                <div class="wa-input-area">
+                    <div class="wa-input-toolbar" role="toolbar" aria-label="Anexar conteúdo">
+                        <button class="wa-toolbar-btn" type="button" onclick="toggleEmojiPicker()" aria-label="Emojis" title="Emojis">
+                            <i class="fas fa-smile" aria-hidden="true"></i>
+                        </button>
+                        <button class="wa-toolbar-btn" type="button" onclick="triggerFileUpload()" aria-label="Anexar arquivo" title="Anexar arquivo">
+                            <i class="fas fa-paperclip" aria-hidden="true"></i>
+                        </button>
+                        <input type="file" id="fileInput" class="wa-file-input" accept="image/*,.pdf,.doc,.docx" onchange="handleFileSelect(event)" aria-label="Selecionar arquivo">
+                        <button class="wa-toolbar-btn" type="button" onclick="toggleTemplates()" aria-label="Templates" title="Templates (T)">
+                            <i class="fas fa-bolt" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="wa-input-wrapper">
+                        <div class="wa-emoji-picker" id="emojiPicker" role="dialog" aria-label="Selecionar emoji">
+                            <div class="wa-emoji-grid" id="emojiGrid"></div>
+                        </div>
+                        <div class="wa-templates-menu" id="templatesMenu" role="dialog" aria-label="Templates de mensagem">
+                            <div class="wa-templates-header">
+                                <label for="templateSearch" class="sr-only">Buscar templates</label>
+                                <input type="search" class="wa-templates-search" placeholder="Buscar templates..." id="templateSearch" oninput="filterTemplates()" aria-label="Buscar templates">
+                            </div>
+                            <div id="templatesList"></div>
+                        </div>
+                        <label for="messageInput" class="sr-only">Digite uma mensagem</label>
+                        <textarea class="wa-input" id="messageInput" placeholder="Digite uma mensagem..." rows="1" onkeydown="handleInputKey(event)" aria-label="Digite uma mensagem"></textarea>
+                    </div>
+                    <button class="wa-send-btn" type="button" id="sendBtn" onclick="sendMessage()" aria-label="Enviar mensagem">
+                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <section class="wa-tab-content" id="tabContentSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+        <div class="wa-stats-grid">
+            <div class="wa-stat-card">
+                <div class="wa-stat-value" id="statTotalLeads">--</div>
+                <div class="wa-stat-label">Total de Leads</div>
+            </div>
+            <div class="wa-stat-card">
+                <div class="wa-stat-value" id="statActiveConvs">--</div>
+                <div class="wa-stat-label">Conversas Ativas</div>
+            </div>
+            <div class="wa-stat-card">
+                <div class="wa-stat-value" id="statBotResponses">--</div>
+                <div class="wa-stat-label">Respostas do Bot (hoje)</div>
+            </div>
+            <div class="wa-stat-card">
+                <div class="wa-stat-value" id="statHumanHandoffs">--</div>
+                <div class="wa-stat-label">Handoffs Humanos</div>
+            </div>
+        </div>
+
+        <div class="wa-settings-section">
+            <h3><i class="fas fa-robot" aria-hidden="true"></i> Configurações do Bot</h3>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <div class="wa-setting-label" id="globalBotLabel">Bot Ativo Globalmente</div>
+                    <div class="wa-setting-desc">Ativar/desativar respostas automáticas para todas as conversas</div>
+                </div>
+                <button class="wa-toggle-switch active" type="button" id="globalBotToggle" onclick="toggleGlobalBot()" role="switch" aria-checked="true" aria-labelledby="globalBotLabel"></button>
+            </div>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <div class="wa-setting-label">Horário de Funcionamento</div>
+                    <div class="wa-setting-desc">Bot responde apenas neste horário (fuso: Brasília)</div>
+                </div>
+                <div class="wa-work-hours">
+                    <label for="workHoursStart" class="sr-only">Início</label>
+                    <input type="time" class="wa-input-setting" id="workHoursStart" value="08:00">
+                    <span>até</span>
+                    <label for="workHoursEnd" class="sr-only">Fim</label>
+                    <input type="time" class="wa-input-setting" id="workHoursEnd" value="20:00">
+                </div>
+            </div>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <label class="wa-setting-label" for="humanTimeout">Timeout para Humano (minutos)</label>
+                    <div class="wa-setting-desc">Tempo sem resposta antes de transferir para humano</div>
+                </div>
+                <input type="number" class="wa-input-setting" id="humanTimeout" value="5" min="1" max="60">
+            </div>
+        </div>
+
+        <div class="wa-settings-section">
+            <h3><i class="fas fa-link" aria-hidden="true"></i> Links e URLs</h3>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <label class="wa-setting-label" for="calendlyFree">Calendly - Reunião Gratuita (15min)</label>
+                    <div class="wa-setting-desc">Link para agendamento de reunião gratuita</div>
+                </div>
+                <input type="url" class="wa-input-setting" id="calendlyFree" value="CALENDLY_FREE_URL">
+            </div>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <label class="wa-setting-label" for="calendlyPaid">Calendly - Consulta Paga ($99)</label>
+                    <div class="wa-setting-desc">Link para agendamento de consulta com advogado</div>
+                </div>
+                <input type="url" class="wa-input-setting" id="calendlyPaid" value="CALENDLY_PAID_URL">
+            </div>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <label class="wa-setting-label" for="stripePayment">Stripe - Pagamento Consulta ($99)</label>
+                    <div class="wa-setting-desc">Link direto para pagamento da consulta</div>
+                </div>
+                <input type="url" class="wa-input-setting" id="stripePayment" value="https://buy.stripe.com/3cI5kD1I4aZC5mHeOkdjO2q">
+            </div>
+        </div>
+
+        <div class="wa-settings-section">
+            <h3><i class="fas fa-bell" aria-hidden="true"></i> Notificações</h3>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <div class="wa-setting-label" id="notifyNewMsgLabel">Notificar Novas Mensagens</div>
+                    <div class="wa-setting-desc">Receber notificação do navegador para novas mensagens</div>
+                </div>
+                <button class="wa-toggle-switch" type="button" id="notifyNewMsg" onclick="toggleNotifyNewMsg()" role="switch" aria-checked="false" aria-labelledby="notifyNewMsgLabel"></button>
+            </div>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <div class="wa-setting-label" id="notifySoundLabel">Som de Notificação</div>
+                    <div class="wa-setting-desc">Tocar som ao receber nova mensagem</div>
+                </div>
+                <button class="wa-toggle-switch active" type="button" id="notifySound" onclick="toggleNotifySound()" role="switch" aria-checked="true" aria-labelledby="notifySoundLabel"></button>
+            </div>
+        </div>
+
+        <div class="wa-settings-section">
+            <h3><i class="fas fa-database" aria-hidden="true"></i> Conexão WhatsApp</h3>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <div class="wa-setting-label">Conectar novo aparelho</div>
+                    <div class="wa-setting-desc">Use QR Code ou número de telefone. O código aparece na tela de chat.</div>
+                </div>
+                <div class="wa-setting-actions-inline">
+                    <button class="wa-btn wa-btn-secondary" type="button" onclick="showQrConnect(); switchTab('chat')">
+                        <i class="fas fa-qrcode" aria-hidden="true"></i> QR
+                    </button>
+                    <button class="wa-btn wa-btn-secondary" type="button" onclick="showPhoneConnect(); switchTab('chat')">
+                        <i class="fas fa-mobile-screen-button" aria-hidden="true"></i> Telefone
+                    </button>
+                </div>
+            </div>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <div class="wa-setting-label">Status da Conexão</div>
+                    <div class="wa-setting-desc" id="connectionStatus">Verificando...</div>
+                </div>
+                <button class="wa-btn wa-btn-secondary" type="button" onclick="checkWhatsAppStatus()">
+                    <i class="fas fa-sync-alt" aria-hidden="true"></i> Verificar
+                </button>
+            </div>
+            <div class="wa-setting-row">
+                <div class="wa-setting-info">
+                    <div class="wa-setting-label">Reiniciar Conexão</div>
+                    <div class="wa-setting-desc">Desconecta e reconecta o WhatsApp (requer novo QR)</div>
+                </div>
+                <button class="wa-btn wa-btn-danger" type="button" onclick="restartWhatsApp()">
+                    <i class="fas fa-power-off" aria-hidden="true"></i> Reiniciar
+                </button>
+            </div>
+        </div>
+
+        <div class="wa-settings-actions">
+            <button class="wa-btn wa-btn-primary" type="button" onclick="saveSettings()">
+                <i class="fas fa-save" aria-hidden="true"></i> Salvar Configurações
+            </button>
+        </div>
+    </section>
+
+    <section class="wa-tab-content" id="tabContentTemplates" role="tabpanel" aria-labelledby="tabTemplates" hidden>
+        <div class="wa-templates-toolbar">
+            <div class="wa-templates-filter" role="toolbar" aria-label="Filtrar por categoria">
+                <button class="wa-filter-btn active" type="button" onclick="filterTemplatesByCategory('all')" data-cat="all" aria-pressed="true">Todos</button>
+                <button class="wa-filter-btn" type="button" onclick="filterTemplatesByCategory('Greeting')" data-cat="Greeting" aria-pressed="false">Saudação</button>
+                <button class="wa-filter-btn" type="button" onclick="filterTemplatesByCategory('Agenda')" data-cat="Agenda" aria-pressed="false">Agenda</button>
+                <button class="wa-filter-btn" type="button" onclick="filterTemplatesByCategory('Pagamento')" data-cat="Pagamento" aria-pressed="false">Pagamento</button>
+                <button class="wa-filter-btn" type="button" onclick="filterTemplatesByCategory('Vistos')" data-cat="Vistos" aria-pressed="false">Vistos</button>
+                <button class="wa-filter-btn" type="button" onclick="filterTemplatesByCategory('Follow-up')" data-cat="Follow-up" aria-pressed="false">Follow-up</button>
+                <button class="wa-filter-btn" type="button" onclick="filterTemplatesByCategory('Onboarding')" data-cat="Onboarding" aria-pressed="false">Onboarding</button>
+            </div>
+            <button class="wa-btn wa-btn-primary" type="button" onclick="openAddTemplateModal()">
+                <i class="fas fa-plus" aria-hidden="true"></i> Novo Template
+            </button>
+        </div>
+
+        <div class="wa-templates-grid" id="templatesGrid"></div>
+    </section>
+
+    <div class="wa-context-menu" id="messageContextMenu" role="menu" aria-label="Ações da mensagem">
+        <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="copyMessageText()">
+            <i class="fas fa-copy" aria-hidden="true"></i> Copiar texto
+        </div>
+        <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="replyToMessage()">
+            <i class="fas fa-reply" aria-hidden="true"></i> Responder
+        </div>
+        <div class="wa-context-menu-divider" role="separator"></div>
+        <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="markMessageImportant()">
+            <i class="fas fa-star" aria-hidden="true"></i> Marcar importante
+        </div>
+        <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="forwardMessage()">
+            <i class="fas fa-share" aria-hidden="true"></i> Encaminhar
+        </div>
+    </div>
+
+    <div class="wa-modal-overlay" id="templateModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="wa-modal">
+            <div class="wa-modal-header">
+                <h3 class="wa-modal-title" id="modalTitle">Editar Template</h3>
+                <button class="wa-modal-close" type="button" onclick="closeEditTemplateModal()" aria-label="Fechar">&times;</button>
+            </div>
+            <div class="wa-modal-body">
+                <input type="hidden" id="editTemplateId">
+                <div class="wa-form-group">
+                    <label class="wa-form-label" for="editTemplateName">Nome do Template</label>
+                    <input type="text" class="wa-form-input" id="editTemplateName" placeholder="Ex: Saudação Inicial">
+                </div>
+                <div class="wa-form-group">
+                    <label class="wa-form-label" for="editTemplateCategory">Categoria</label>
+                    <select class="wa-form-select" id="editTemplateCategory">
+                        <option value="Greeting">Saudação</option>
+                        <option value="Agenda">Agenda</option>
+                        <option value="Pagamento">Pagamento</option>
+                        <option value="Onboarding">Onboarding</option>
+                        <option value="Vistos">Vistos</option>
+                        <option value="Follow-up">Follow-up</option>
+                        <option value="Handoff">Handoff</option>
+                        <option value="Final">Encerramento</option>
+                        <option value="Consulta">Consulta</option>
+                        <option value="Urgente">Urgente</option>
+                        <option value="Interno">Interno</option>
+                    </select>
+                </div>
+                <div class="wa-form-group">
+                    <label class="wa-form-label" for="editTemplateText">Texto do Template</label>
+                    <textarea class="wa-form-textarea" id="editTemplateText" placeholder="Digite o texto do template aqui..."></textarea>
+                </div>
+                <div class="wa-form-hint">
+                    <strong>Variáveis disponíveis:</strong> [NOME], [DATA], [HORARIO], [LINK], [VALOR], [SERVICO]
+                </div>
+            </div>
+            <div class="wa-modal-footer">
+                <button class="wa-btn wa-btn-secondary" type="button" onclick="closeEditTemplateModal()">Cancelar</button>
+                <button class="wa-btn wa-btn-primary" type="button" onclick="saveTemplate()">
+                    <i class="fas fa-save" aria-hidden="true"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+    var CASEHUB_PREFIX = "{{ PREFIX }}";
+    var WA_API_BASE = "{{ PREFIX }}{{ wa_router_prefix | default('/whatsapp-chat') }}";
+    window.WA_API_BASE = WA_API_BASE;
+
+    // QR warning gate — defensive UX: only reveal QR after user acknowledges
+    // that scanning will disconnect their existing WhatsApp Web session.
+    window.acknowledgeQrWarning = function () {
+        var warning = document.getElementById("waQrWarning");
+        var connectMode = document.getElementById("waConnectMode");
+        var qrCode = document.getElementById("qrCode");
+        if (warning) { warning.hidden = true; }
+        if (connectMode) { connectMode.hidden = false; }
+        if (qrCode) { qrCode.hidden = false; }
+    };
+</script>
+<script defer src="{{ asset_url('js/chat.js') }}"></script>
+<script defer src="{{ asset_url('js/whatsapp-crm.js') }}"></script>
+<!--
+  Multi-tenant QR shim (PR #645): sobrescreve window.loadQRCode pra ler
+  os campos novos (isReady, connected, status) que o bot /api/qr passou
+  a enviar 2026-05-28. Sem este shim, mesmo com o backend corrigido o
+  usuario continua vendo "QR indisponivel" durante cold-start ou quando
+  ja conectado. Defer garante ordem de execucao apos chat.js.
+-->
+<script defer src="{{ asset_url('js/whatsapp-qr-shim.js') }}"></script>
+
+<div class="wa-modal-overlay wa-modal--legal-advice" id="legalAdviceModal" role="dialog" aria-modal="true" aria-labelledby="legalAdviceTitle">
+    <div class="wa-modal">
+        <div class="wa-modal-header">
+            <h3 class="wa-modal-title" id="legalAdviceTitle">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i> Legal Advice Detectado
+            </h3>
+            <button class="wa-modal-close" type="button" onclick="closeLegalAdviceModal()" aria-label="Fechar">&times;</button>
+        </div>
+        <div class="wa-modal-body">
+            <p class="wa-legal-advice-intro">
+                A mensagem contém termos que podem configurar <strong>aconselhamento jurídico</strong>:
+            </p>
+            <p class="wa-legal-advice-terms" id="legalAdviceTerms"></p>
+            <p class="wa-legal-advice-explain">
+                Dar legal advice para leads é <strong>estritamente proibido</strong> e pode resultar em consequências legais.
+                Edite a mensagem ou confirme que NÃO se trata de legal advice.
+            </p>
+        </div>
+        <div class="wa-modal-footer">
+            <button class="wa-template-modal-btn cancel" type="button" onclick="closeLegalAdviceModal()">
+                <i class="fas fa-edit" aria-hidden="true"></i> Editar Mensagem
+            </button>
+            <button class="wa-template-modal-btn danger" type="button" onclick="confirmSendDespiteWarning()">
+                <i class="fas fa-paper-plane" aria-hidden="true"></i> Enviar Mesmo Assim
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="wa-lightbox" id="imageLightbox" onclick="closeLightbox()" role="dialog" aria-label="Visualização de imagem">
+    <button class="wa-lightbox-close" type="button" onclick="closeLightbox()" aria-label="Fechar">&times;</button>
+    <img id="lightboxImage" src="" alt="">
+</div>
+{% endblock %}

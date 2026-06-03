@@ -1,0 +1,186 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Configurar E-mail SMTP · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Integrações · E-mail</span>
+    <h1>Conectar sua <em>caixa de e-mail</em>.</h1>
+    <p class="ch-page-head__sub">3 passos para enviar e receber e-mails do escritório direto no CaseHub. Funciona com Gmail, Outlook, iCloud, Hostinger e qualquer servidor IMAP/SMTP.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/integrations">
+      <span data-icon="arrow-left"></span> Voltar
+    </a>
+  </div>
+</section>
+
+{% if current.smtp_configured %}
+<section class="ch-card ch-card--compact" style="border-color: var(--c-green-d); margin-bottom: var(--space-5);" role="status">
+  <strong>✓ SMTP já configurado.</strong>
+  <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+    Conta ativa: <span class="ch-mono">{{ current.smtp_user }}</span> em <span class="ch-mono">{{ current.smtp_host }}:{{ current.smtp_port }}</span>. Para trocar, atualize os campos abaixo.
+  </p>
+</section>
+{% endif %}
+
+{# LGPD disclosure (P1.6 audit) — escopos + revogação + isolation #}
+<details class="ch-card ch-card--compact" style="margin-bottom: var(--space-5); border-color: var(--c-info);">
+  <summary style="cursor: pointer; display: flex; align-items: center; gap: var(--space-2); font-weight: 600;">
+    <span data-icon="shield" data-icon-size="14"></span>
+    <strong>Privacidade & LGPD — o que o CaseHub faz com a senha de app?</strong>
+  </summary>
+  <p style="margin: var(--space-3) 0 0; color: var(--fg-default); font-size: var(--fs-sm); line-height: var(--lh-snug);">
+    Ao salvar, a senha de app fica armazenada no <code>.env</code> do servidor deste escritório
+    (multi-tenant — outros escritórios não acessam). O CaseHub usa a senha apenas para enviar e
+    receber e-mails em seu nome (SMTP/IMAP); nada é compartilhado entre orgs nem enviado a
+    terceiros. Você pode revogar a senha de app a qualquer momento na conta Google/Outlook/iCloud,
+    sem afetar a senha principal. Conforme LGPD, <a href="{{ PREFIX }}/legal/privacy">ver Termos completos</a>.
+  </p>
+</details>
+
+<section id="tutorial" class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <h2 class="ch-card__title">Tutorial passo-a-passo</h2>
+  </header>
+  <div class="ch-card__body">
+    <ol style="line-height: 1.7; padding-left: var(--space-5);">
+      <li>
+        <strong>Ative a verificação em duas etapas (2FA)</strong> na sua conta de e-mail.
+        Gmail/Outlook/iCloud exigem isso para emitir senhas de app.
+      </li>
+      <li>
+        <strong>Crie uma "senha de app" dedicada ao CaseHub.</strong>
+        Não use a senha principal da conta — uma senha de app é um token de 16 caracteres que você pode revogar a qualquer momento sem afetar o resto.
+        <ul style="margin-top: var(--space-2);">
+          <li><strong>Gmail:</strong> <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a> → escolha "Outro" → "CaseHub" → copie a senha.</li>
+          <li><strong>Outlook/Microsoft 365:</strong> <a href="https://account.live.com/proofs/AppPassword" target="_blank" rel="noopener">account.live.com/proofs/AppPassword</a></li>
+          <li><strong>iCloud:</strong> <a href="https://appleid.apple.com/account/manage" target="_blank" rel="noopener">appleid.apple.com</a> → Segurança → Senhas específicas do app.</li>
+          <li><strong>Hostinger/cPanel:</strong> Painel → E-mail → senha da própria conta funciona (sem 2FA).</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Preencha o formulário abaixo</strong> com host, porta, usuário e a senha de app. Use um dos presets para acelerar.
+      </li>
+      <li>
+        <strong>Salve e envie um e-mail de teste</strong> a partir de qualquer template do CaseHub. Se chegar, está pronto.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <h2 class="ch-card__title">Presets rápidos (clique e ajuste)</h2>
+  </header>
+  <div class="ch-card__body">
+    <div class="ch-grid ch-grid--3" style="gap: var(--space-3);">
+      <button type="button" class="ch-btn ch-btn--ghost" onclick="applyPreset('gmail')">
+        <strong>Gmail</strong><br>
+        <span class="ch-mono" style="font-size: var(--fs-xs);">smtp.gmail.com : 587</span>
+      </button>
+      <button type="button" class="ch-btn ch-btn--ghost" onclick="applyPreset('outlook')">
+        <strong>Outlook / Microsoft 365</strong><br>
+        <span class="ch-mono" style="font-size: var(--fs-xs);">smtp.office365.com : 587</span>
+      </button>
+      <button type="button" class="ch-btn ch-btn--ghost" onclick="applyPreset('icloud')">
+        <strong>iCloud</strong><br>
+        <span class="ch-mono" style="font-size: var(--fs-xs);">smtp.mail.me.com : 587</span>
+      </button>
+      <button type="button" class="ch-btn ch-btn--ghost" onclick="applyPreset('hostinger')">
+        <strong>Hostinger</strong><br>
+        <span class="ch-mono" style="font-size: var(--fs-xs);">smtp.hostinger.com : 465</span>
+      </button>
+      <button type="button" class="ch-btn ch-btn--ghost" onclick="applyPreset('uol')">
+        <strong>UOL Host</strong><br>
+        <span class="ch-mono" style="font-size: var(--fs-xs);">smtps.uhserver.com : 465</span>
+      </button>
+      <button type="button" class="ch-btn ch-btn--ghost" onclick="applyPreset('custom')">
+        <strong>Outro / Customizado</strong><br>
+        <span class="ch-mono" style="font-size: var(--fs-xs);">Limpar campos</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<section class="ch-card">
+  <header class="ch-card__header">
+    <h2 class="ch-card__title">Configuração SMTP</h2>
+    <p class="ch-card__subtitle">Variáveis de ambiente persistidas no servidor. Pós-salvamento, restart automático.</p>
+  </header>
+  <form class="ch-card__body" id="smtp-form" onsubmit="return submitSmtp(event)">
+    <div class="ch-form-row">
+      <label for="smtp_host">Servidor SMTP (host)</label>
+      <input type="text" id="smtp_host" name="smtp_host" required value="{{ current.smtp_host }}" placeholder="ex.: smtp.gmail.com" autocomplete="off">
+    </div>
+    <div class="ch-form-row">
+      <label for="smtp_port">Porta</label>
+      <input type="number" id="smtp_port" name="smtp_port" required value="{{ current.smtp_port }}" min="1" max="65535">
+      <small style="color: var(--fg-muted);">587 (STARTTLS) ou 465 (SSL/TLS implícito)</small>
+    </div>
+    <div class="ch-form-row">
+      <label for="smtp_user">Usuário (e-mail completo)</label>
+      <input type="email" id="smtp_user" name="smtp_user" required value="{{ current.smtp_user }}" placeholder="seu-email@dominio.com" autocomplete="off">
+    </div>
+    <div class="ch-form-row">
+      <label for="smtp_password">Senha de app</label>
+      <input type="password" id="smtp_password" name="smtp_password" placeholder="{{ '••• já configurado' if current.smtp_configured else 'cole sua senha de app aqui' }}" autocomplete="off">
+      <small style="color: var(--fg-muted);">Não é a senha principal — é o token de 16 caracteres gerado no provedor.</small>
+    </div>
+    <div class="ch-form-actions" style="margin-top: var(--space-5);">
+      <button type="submit" class="ch-btn ch-btn--primary">Salvar e testar conexão</button>
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/integrations">Cancelar</a>
+    </div>
+    <div id="smtp-status" style="margin-top: var(--space-3);" aria-live="polite"></div>
+  </form>
+</section>
+
+<section class="ch-card ch-card--compact" style="margin-top: var(--space-5); border-color: var(--c-info);" role="note">
+  <strong>Sobre Gmail OAuth (login 1-clique sem senha de app)</strong>
+  <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+    OAuth Gmail está em <strong>fase 2 multi-tenant</strong> — pós-alpha 30/05. A diferença prática é zero: SMTP com senha de app envia e recebe exatamente como OAuth. Continue com SMTP por enquanto.
+  </p>
+</section>
+
+<script>
+const PRESETS = {
+  gmail:     { host: 'smtp.gmail.com',    port: 587 },
+  outlook:   { host: 'smtp.office365.com', port: 587 },
+  icloud:    { host: 'smtp.mail.me.com',  port: 587 },
+  hostinger: { host: 'smtp.hostinger.com', port: 465 },
+  uol:       { host: 'smtps.uhserver.com', port: 465 },
+  custom:    { host: '', port: 587 },
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  document.getElementById('smtp_host').value = p.host;
+  document.getElementById('smtp_port').value = p.port;
+  document.getElementById('smtp_user').focus();
+}
+
+function submitSmtp(e) {
+  e.preventDefault();
+  const status = document.getElementById('smtp-status');
+  status.innerHTML = '<span style="color: var(--c-info);">Testando conexão…</span>';
+  const data = new FormData(e.target);
+  fetch('{{ PREFIX }}/integrations/email/smtp-test', {
+    method: 'POST',
+    body: data,
+    credentials: 'include',
+  }).then(r => r.json()).then(j => {
+    if (j.success) {
+      status.innerHTML = '<span style="color: var(--c-green-d);">✓ ' + (j.message || 'SMTP configurado e validado.') + '</span>';
+    } else {
+      status.innerHTML = '<span style="color: var(--c-danger);">✗ ' + (j.error || 'Falha ao validar SMTP.') + '</span>';
+    }
+  }).catch(err => {
+    status.innerHTML = '<span style="color: var(--c-danger);">✗ Erro de rede: ' + err.message + '</span>';
+  });
+  return false;
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,329 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Efiling · Create · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/efiling-create.css">
+{% endblock %}
+{% block content %}
+<section class="efiling-create-main" aria-labelledby="efiling-create-title">
+    <div class="efiling-create-container">
+        <header class="efiling-create-header">
+            <a href="{{ PREFIX }}/efiling" class="efiling-create-btn efiling-create-btn--ghost efiling-create-back-btn">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Dashboard</span>
+            </a>
+            <h1 id="efiling-create-title" class="efiling-create-title">
+                <i class="fas fa-paper-plane efiling-create-title-icon" aria-hidden="true"></i>
+                <span>New E-Filing Submission</span>
+            </h1>
+        </header>
+
+        <form method="POST" action="{{ PREFIX }}/efiling/create" id="efilingForm" class="efiling-create-grid">
+            <div class="efiling-create-column">
+                <!-- Case Selection -->
+                <section class="efiling-create-card" aria-labelledby="efiling-create-case-heading">
+                    <header class="efiling-create-card-header">
+                        <h2 id="efiling-create-case-heading" class="efiling-create-card-title">
+                            <i class="fas fa-briefcase efiling-create-card-title-icon" aria-hidden="true"></i>
+                            <span>Select Case</span>
+                        </h2>
+                    </header>
+                    <div class="efiling-create-card-body">
+                        <div class="efiling-create-field">
+                            <label for="efiling-create-case" class="efiling-create-label">
+                                Case
+                                <span class="efiling-create-required" aria-hidden="true">*</span>
+                            </label>
+                            <select id="efiling-create-case" name="case_id" class="efiling-create-select" required aria-required="true" onchange="loadCaseData()">
+                                <option value="">-- Select a Case --</option>
+                                {% for case in cases %}
+                                <option value="{{ case.id }}"
+                                        data-visa="{{ case.visa_type }}"
+                                        {% if selected_case and selected_case.id == case.id %}selected{% endif %}>
+                                    {{ case.case_number }} - {{ case.case_name }} ({{ case.visa_type }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        {% if selected_case and client %}
+                        <dl class="efiling-create-summary" aria-label="Selected case summary">
+                            <div class="efiling-create-summary-item">
+                                <dt class="efiling-create-summary-label">Client</dt>
+                                <dd>{{ client.first_name }} {{ client.last_name }}</dd>
+                            </div>
+                            <div class="efiling-create-summary-item">
+                                <dt class="efiling-create-summary-label">Visa Type</dt>
+                                <dd>{{ selected_case.visa_type }}</dd>
+                            </div>
+                        </dl>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <!-- Filing Details -->
+                <section class="efiling-create-card" aria-labelledby="efiling-create-details-heading">
+                    <header class="efiling-create-card-header">
+                        <h2 id="efiling-create-details-heading" class="efiling-create-card-title">
+                            <i class="fas fa-file-alt efiling-create-card-title-icon" aria-hidden="true"></i>
+                            <span>Filing Details</span>
+                        </h2>
+                    </header>
+                    <div class="efiling-create-card-body">
+                        <div class="efiling-create-row">
+                            <div class="efiling-create-field">
+                                <label for="efiling-create-form" class="efiling-create-label">
+                                    Form Number
+                                    <span class="efiling-create-required" aria-hidden="true">*</span>
+                                </label>
+                                <select id="efiling-create-form" name="form_number" class="efiling-create-select" required aria-required="true" onchange="updateFees()">
+                                    <option value="">-- Select Form --</option>
+                                    <option value="I-129">I-129 - Petition for Nonimmigrant Worker</option>
+                                    <option value="I-140">I-140 - Immigrant Petition for Alien Workers</option>
+                                    <option value="I-485">I-485 - Adjustment of Status</option>
+                                    <option value="I-765">I-765 - Employment Authorization</option>
+                                    <option value="I-131">I-131 - Travel Document</option>
+                                    <option value="I-130">I-130 - Petition for Alien Relative</option>
+                                    <option value="I-539">I-539 - Extend/Change Status</option>
+                                    <option value="I-751">I-751 - Remove Conditions</option>
+                                    <option value="N-400">N-400 - Naturalization</option>
+                                </select>
+                            </div>
+                            <div class="efiling-create-field">
+                                <label for="efiling-create-filing-type" class="efiling-create-label">Filing Type</label>
+                                <select id="efiling-create-filing-type" name="filing_type" class="efiling-create-select">
+                                    {% for key, value in filing_types.items() %}
+                                    <option value="{{ key }}">{{ value }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="efiling-create-row">
+                            <div class="efiling-create-field">
+                                <label for="efiling-create-service-center" class="efiling-create-label">Service Center</label>
+                                <select id="efiling-create-service-center" name="service_center" class="efiling-create-select">
+                                    <option value="">-- Select Service Center --</option>
+                                    {% for code, center in service_centers.items() %}
+                                    <option value="{{ code }}">{{ center.name }} ({{ code }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="efiling-create-field">
+                                <label class="efiling-create-check" for="efiling-create-premium">
+                                    <input id="efiling-create-premium" type="checkbox" name="premium_processing" value="true" class="efiling-create-check-input" onchange="updateFees()">
+                                    <span class="efiling-create-check-text">
+                                        <i class="fas fa-bolt efiling-create-check-icon" aria-hidden="true"></i>
+                                        Premium Processing
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="efiling-create-field">
+                            <label for="efiling-create-notes" class="efiling-create-label">Notes</label>
+                            <textarea id="efiling-create-notes" name="notes" class="efiling-create-textarea" rows="3" placeholder="Any special instructions or notes..."></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Document Selection -->
+                {% if documents %}
+                <section class="efiling-create-card" aria-labelledby="efiling-create-docs-heading">
+                    <header class="efiling-create-card-header">
+                        <h2 id="efiling-create-docs-heading" class="efiling-create-card-title">
+                            <i class="fas fa-paperclip efiling-create-card-title-icon" aria-hidden="true"></i>
+                            <span>Attach Documents</span>
+                        </h2>
+                        <span class="efiling-create-badge" id="docCount" aria-live="polite">0 selected</span>
+                    </header>
+                    <div class="efiling-create-card-body">
+                        <ul class="efiling-create-doc-list" role="list">
+                            {% for doc in documents %}
+                            <li>
+                                <label class="efiling-create-doc-item" for="efiling-create-doc-{{ doc.id }}">
+                                    <input id="efiling-create-doc-{{ doc.id }}" type="checkbox" class="efiling-create-check-input doc-checkbox" value="{{ doc.id }}">
+                                    <span class="efiling-create-doc-meta">
+                                        <span class="efiling-create-doc-name">{{ doc.name }}</span>
+                                        <span class="efiling-create-doc-type">{{ doc.type or 'Document' }}</span>
+                                    </span>
+                                    <i class="fas fa-file efiling-create-doc-icon" aria-hidden="true"></i>
+                                </label>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        <input type="hidden" name="document_ids" id="documentIds" value="[]">
+                    </div>
+                </section>
+                {% endif %}
+            </div>
+
+            <aside class="efiling-create-column" aria-label="Submission summary">
+                <!-- Fee Summary -->
+                <section class="efiling-create-card" aria-labelledby="efiling-create-fees-heading">
+                    <header class="efiling-create-card-header">
+                        <h2 id="efiling-create-fees-heading" class="efiling-create-card-title">
+                            <i class="fas fa-dollar-sign efiling-create-card-title-icon" aria-hidden="true"></i>
+                            <span>Fee Summary</span>
+                        </h2>
+                    </header>
+                    <div class="efiling-create-card-body">
+                        <table class="efiling-create-fees" aria-describedby="efiling-create-fees-heading">
+                            <tbody>
+                                <tr>
+                                    <td>Base Filing Fee</td>
+                                    <td class="efiling-create-fees-amount" id="baseFee">$0</td>
+                                </tr>
+                                <tr id="premiumRow" class="efiling-create-fees-row--hidden">
+                                    <td>Premium Processing</td>
+                                    <td class="efiling-create-fees-amount efiling-create-fees-amount--warning" id="premiumFee">$0</td>
+                                </tr>
+                                <tr>
+                                    <td>Biometric Fee</td>
+                                    <td class="efiling-create-fees-amount" id="bioFee">$85</td>
+                                </tr>
+                                <tr class="efiling-create-fees-total">
+                                    <td>Total</td>
+                                    <td class="efiling-create-fees-amount" id="totalFee">$85</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Processing Time -->
+                <section class="efiling-create-card" aria-labelledby="efiling-create-time-heading">
+                    <header class="efiling-create-card-header">
+                        <h2 id="efiling-create-time-heading" class="efiling-create-card-title">
+                            <i class="fas fa-clock efiling-create-card-title-icon" aria-hidden="true"></i>
+                            <span>Processing Time</span>
+                        </h2>
+                    </header>
+                    <div class="efiling-create-card-body">
+                        <div id="processingTime" class="efiling-create-processing efiling-create-processing-empty" aria-live="polite">
+                            Select a form to see processing times
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Submit -->
+                <div class="efiling-create-actions">
+                    <button type="submit" class="efiling-create-btn efiling-create-btn--primary">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Create Submission</span>
+                    </button>
+                    <a href="{{ PREFIX }}/efiling" class="efiling-create-btn efiling-create-btn--ghost">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                        <span>Cancel</span>
+                    </a>
+                </div>
+            </aside>
+        </form>
+    </div>
+</section>
+
+<script>
+const PREFIX = '{{ PREFIX }}';
+
+const fees = {
+    'I-129': {base: 460, premium: 2805},
+    'I-140': {base: 700, premium: 2805},
+    'I-485': {base: 1225, premium: 0},
+    'I-130': {base: 625, premium: 0},
+    'I-765': {base: 410, premium: 0},
+    'I-131': {base: 630, premium: 0},
+    'I-539': {base: 370, premium: 1965},
+    'N-400': {base: 760, premium: 0},
+    'I-751': {base: 750, premium: 0}
+};
+
+const processingTimes = {
+    'I-129': {min: 2, max: 6, premium: '15 days'},
+    'I-140': {min: 6, max: 12, premium: '15 days'},
+    'I-485': {min: 12, max: 36, premium: null},
+    'I-130': {min: 12, max: 24, premium: null},
+    'I-765': {min: 3, max: 6, premium: null},
+    'I-131': {min: 3, max: 6, premium: null},
+    'I-539': {min: 3, max: 12, premium: '30 days'},
+    'N-400': {min: 8, max: 14, premium: null},
+    'I-751': {min: 12, max: 24, premium: null}
+};
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[ch]));
+}
+
+function updateFees() {
+    const form = document.getElementById('efiling-create-form').value;
+    const premiumCheckbox = document.getElementById('efiling-create-premium');
+    const premium = premiumCheckbox.checked;
+    const processingEl = document.getElementById('processingTime');
+
+    if (form && fees[form]) {
+        const f = fees[form];
+        const baseFee = f.base;
+        const premiumFee = premium ? f.premium : 0;
+        const bioFee = 85;
+        const total = baseFee + premiumFee + bioFee;
+
+        document.getElementById('baseFee').textContent = '$' + baseFee;
+        document.getElementById('premiumFee').textContent = '$' + f.premium;
+        document.getElementById('premiumRow').classList.toggle('efiling-create-fees-row--hidden', !(premium && f.premium > 0));
+        document.getElementById('totalFee').textContent = '$' + total;
+
+        const pt = processingTimes[form];
+        if (pt) {
+            processingEl.classList.remove('efiling-create-processing-empty');
+            let html = `
+                <div class="efiling-create-processing-block">
+                    <span class="efiling-create-processing-value">${escapeHtml(pt.min)}-${escapeHtml(pt.max)} months</span>
+                    <span class="efiling-create-processing-label">Standard Processing</span>
+                </div>`;
+            if (pt.premium) {
+                html += `
+                <hr class="efiling-create-processing-divider">
+                <div class="efiling-create-processing-block">
+                    <span class="efiling-create-processing-value efiling-create-processing-value--warning">${escapeHtml(pt.premium)}</span>
+                    <span class="efiling-create-processing-label">Premium Processing</span>
+                </div>`;
+            }
+            processingEl.innerHTML = html;
+        }
+
+        premiumCheckbox.disabled = f.premium === 0;
+    } else {
+        document.getElementById('baseFee').textContent = '$0';
+        document.getElementById('totalFee').textContent = '$85';
+        document.getElementById('premiumRow').classList.add('efiling-create-fees-row--hidden');
+        processingEl.classList.add('efiling-create-processing-empty');
+        processingEl.textContent = 'Select a form to see processing times';
+    }
+}
+
+function loadCaseData() {
+    const caseId = document.getElementById('efiling-create-case').value;
+    if (caseId) {
+        window.location.href = `${PREFIX}/efiling/new?case_id=${encodeURIComponent(caseId)}`;
+    }
+}
+
+document.querySelectorAll('.doc-checkbox').forEach(cb => {
+    cb.addEventListener('change', updateDocumentIds);
+});
+
+function updateDocumentIds() {
+    const ids = Array.from(document.querySelectorAll('.doc-checkbox:checked')).map(cb => parseInt(cb.value, 10));
+    document.getElementById('documentIds').value = JSON.stringify(ids);
+    document.getElementById('docCount').textContent = ids.length + ' selected';
+}
+
+updateFees();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

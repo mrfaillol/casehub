@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Archived Cases - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/cases-archived-list.css">
+{% endblock %}
+
+{% block content %}
+<main class="cases-archived-main" role="main" aria-labelledby="cases-archived-title">
+    <header class="cases-archived-header">
+        <a href="{{ PREFIX }}/cases" class="cases-archived-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Cases</span>
+        </a>
+        <h1 id="cases-archived-title" class="cases-archived-title">
+            <i class="fas fa-archive cases-archived-title-icon" aria-hidden="true"></i>
+            <span>Archived Cases</span>
+        </h1>
+    </header>
+
+    <section class="cases-archived-card" aria-labelledby="cases-archived-count-label">
+        <header class="cases-archived-card-header">
+            <h2 id="cases-archived-count-label" class="cases-archived-count">
+                {{ cases|length }} Archived Case{% if cases|length != 1 %}s{% endif %}
+            </h2>
+            <a href="{{ PREFIX }}/case-archive/closed" class="cases-archived-cross-nav">
+                <i class="fas fa-times-circle" aria-hidden="true"></i>
+                <span>View Closed Cases</span>
+            </a>
+        </header>
+
+        {% if cases %}
+        <div class="cases-archived-table-wrap">
+            <table class="cases-archived-table">
+                <caption class="visually-hidden">List of archived cases with restore and history actions.</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Case Number</th>
+                        <th scope="col">Case Name</th>
+                        <th scope="col">Client</th>
+                        <th scope="col">Archive Reason</th>
+                        <th scope="col">Archived Date</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for case in cases %}
+                    <tr>
+                        <td>
+                            {% if case.case_number %}
+                            <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-archived-case-number">{{ case.case_number }}</a>
+                            {% else %}
+                            <span class="cases-archived-empty-value" aria-label="No case number">—</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ case.case_name or '—' }}</td>
+                        <td>{{ case.first_name }} {{ case.last_name }}</td>
+                        <td>
+                            {% set reason_match = namespace(found=false) %}
+                            {% for r in archive_reasons %}
+                                {% if r.id == case.archived_reason %}
+                                {% set reason_match.found = true %}
+                                <span class="cases-archived-badge" data-color="{{ r.color }}">
+                                    <i class="fas {{ r.icon }}" aria-hidden="true"></i>
+                                    <span>{{ r.label }}</span>
+                                </span>
+                                {% endif %}
+                            {% endfor %}
+                            {% if not case.archived_reason or not reason_match.found %}
+                            <span class="cases-archived-empty-value" aria-label="No archive reason">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if case.archived_at %}
+                            <time class="cases-archived-date" datetime="{{ case.archived_at.isoformat() }}">{{ case.archived_at.strftime('%Y-%m-%d') }}</time>
+                            {% else %}
+                            <span class="cases-archived-empty-value" aria-label="No archived date">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="cases-archived-actions">
+                                <form method="POST"
+                                      action="{{ PREFIX }}/case-archive/reopen/{{ case.id }}"
+                                      class="cases-archived-action-form"
+                                      data-restore-form
+                                      data-case-label="{{ case.case_number or case.case_name or 'this case' }}">
+                                    <button type="submit" class="cases-archived-btn cases-archived-btn--success">
+                                        <i class="fas fa-undo cases-archived-btn-icon" aria-hidden="true"></i>
+                                        <span>Restore</span>
+                                    </button>
+                                </form>
+                                <a href="{{ PREFIX }}/case-archive/history/{{ case.id }}"
+                                   class="cases-archived-btn cases-archived-btn--icon"
+                                   aria-label="View archive history for {{ case.case_number or case.case_name or 'case' }}">
+                                    <i class="fas fa-history cases-archived-btn-icon" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="cases-archived-empty" role="status">
+            <div class="cases-archived-empty-icon" aria-hidden="true">
+                <i class="fas fa-archive"></i>
+            </div>
+            <h3 class="cases-archived-empty-title">No Archived Cases</h3>
+            <p class="cases-archived-empty-detail">Cases that are archived will appear here.</p>
+        </div>
+        {% endif %}
+    </section>
+</main>
+
+<dialog id="cases-archived-restore-dialog"
+        class="cases-archived-dialog"
+        aria-labelledby="cases-archived-restore-title"
+        aria-describedby="cases-archived-restore-detail">
+    <form method="dialog" class="cases-archived-dialog-body">
+        <h2 id="cases-archived-restore-title" class="cases-archived-dialog-title">Restore archived case?</h2>
+        <p id="cases-archived-restore-detail" class="cases-archived-dialog-detail">
+            <span data-restore-case-label>This case</span> will be reopened and returned to the active cases list. You can archive it again at any time.
+        </p>
+        <div class="cases-archived-dialog-actions">
+            <button type="submit" value="cancel" class="cases-archived-btn">Cancel</button>
+            <button type="submit" value="confirm" class="cases-archived-btn cases-archived-dialog-btn--primary" data-restore-confirm>
+                <i class="fas fa-undo cases-archived-btn-icon" aria-hidden="true"></i>
+                <span>Restore case</span>
+            </button>
+        </div>
+    </form>
+</dialog>
+
+<script>
+(function () {
+    var dialog = document.getElementById('cases-archived-restore-dialog');
+    if (!dialog) { return; }
+
+    var labelTarget = dialog.querySelector('[data-restore-case-label]');
+    var pendingForm = null;
+
+    document.querySelectorAll('form[data-restore-form]').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            if (form.dataset.confirmed === 'true') { return; }
+            event.preventDefault();
+            pendingForm = form;
+            if (labelTarget) {
+                labelTarget.textContent = form.dataset.caseLabel || 'This case';
+            }
+            if (typeof dialog.showModal === 'function') {
+                dialog.showModal();
+            } else {
+                if (window.confirm('Reopen this case?')) {
+                    form.dataset.confirmed = 'true';
+                    form.submit();
+                }
+            }
+        });
+    });
+
+    dialog.addEventListener('close', function () {
+        if (dialog.returnValue === 'confirm' && pendingForm) {
+            pendingForm.dataset.confirmed = 'true';
+            pendingForm.submit();
+        }
+        pendingForm = null;
+    });
+})();
+</script>
+{% endblock %}

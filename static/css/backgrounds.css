@@ -1,0 +1,71 @@
+/*
+  backgrounds.css — CaseHub
+  Substitui static/js/liquid-glass-bg.js (Three.js/WebGL, Tier C, ~120MB VRAM, 24-30fps mobile)
+  Técnica: radial-gradients + conic-gradient + animação CSS em background-position
+  Budget: <1MB VRAM, 60fps, FCP <50ms, respeita prefers-reduced-motion
+  Paleta original preservada: #e8e4df → #b8d8d8 → #1C2447 → #1a6670 + HSL 170-218 teal/cyan
+*/
+
+.liquid-glass-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 30%, hsla(170, 55%, 50%, .35), transparent 60%),
+    radial-gradient(ellipse 50% 45% at 75% 60%, hsla(194, 55%, 50%, .32), transparent 60%),
+    radial-gradient(ellipse 55% 50% at 50% 85%, hsla(218, 50%, 45%, .30), transparent 65%),
+    linear-gradient(135deg, #e8e4df 0%, #b8d8d8 30%, #1C2447 65%, #1a6670 100%);
+  background-size: 140% 140%, 130% 130%, 150% 150%, 100% 100%;
+  background-position: 0% 0%, 100% 100%, 50% 100%, 0% 0%;
+  animation: liquid-drift 42s ease-in-out infinite alternate;
+  will-change: background-position;
+}
+
+.liquid-glass-bg::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background:
+    conic-gradient(from 220deg at 40% 40%,
+      hsla(175, 60%, 55%, .18),
+      hsla(200, 55%, 50%, .12),
+      hsla(220, 50%, 45%, .10),
+      hsla(175, 60%, 55%, .18));
+  filter: blur(34px);
+  opacity: .55;
+  animation: liquid-rotate 70s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.liquid-glass-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(.5px);
+  background: linear-gradient(180deg, transparent 0%, rgba(28,36,71,.08) 100%);
+}
+
+@keyframes liquid-drift {
+  0%   { background-position: 0% 0%, 100% 100%, 50% 100%, 0% 0%; }
+  100% { background-position: 20% 15%, 80% 85%, 40% 90%, 10% 5%; }
+}
+
+@keyframes liquid-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liquid-glass-bg,
+  .liquid-glass-bg::before {
+    animation: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .liquid-glass-bg::before {
+    filter: blur(20px);
+    animation-duration: 100s;
+  }
+}

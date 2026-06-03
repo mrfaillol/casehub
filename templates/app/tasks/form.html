@@ -1,0 +1,282 @@
+{% extends "app/base.html" %}
+{% set active_module = 'kanban' %}
+{% set is_edit = task is defined and task and task.id %}
+{% block title %}{% if is_edit %}Editar tarefa · {{ task.title }}{% else %}Nova tarefa{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Tarefas ·
+      {% if is_edit %}Editando #{{ task.id }}{% else %}Novo cadastro{% endif %}
+    </span>
+    <h1>
+      {% if is_edit %}
+        Editar <em>{{ task.title }}</em>
+      {% else %}
+        Nova <em>tarefa</em>
+      {% endif %}
+    </h1>
+    <p class="ch-page-head__sub">
+      Campos com <span style="color: var(--c-danger);">*</span> são obrigatórios. Vincule cliente e processo para manter o contexto rastreável.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<form method="post"
+      action="{% if is_edit %}{{ PREFIX }}/tasks/{{ task.id }}/edit{% else %}{{ PREFIX }}/tasks/new{% endif %}"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  {# ─── Identificação da tarefa ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Detalhes</span>
+        <h2 class="ch-card__title">O que precisa ser feito</h2>
+      </div>
+      <span data-icon="tasks" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="title">Título <span style="color: var(--c-danger);">*</span></label>
+      <input class="ch-input" id="title" name="title" type="text" required minlength="2"
+             value="{{ task.title if task else '' }}" autocomplete="off" />
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="description">Descrição</label>
+      <textarea class="ch-textarea" id="description" name="description" rows="4"
+                placeholder="Contexto, passos, critério de conclusão…">{{ task.description if task else '' }}</textarea>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="task_type">Tipo de tarefa</label>
+        <select class="ch-select" id="task_type" name="task_type">
+          <option value="">Selecione o tipo</option>
+          <option value="document_collection" {% if task and task.task_type == 'document_collection' %}selected{% endif %}>Coleta de documentos</option>
+          <option value="form_preparation" {% if task and task.task_type == 'form_preparation' %}selected{% endif %}>Preparação de peça</option>
+          <option value="review" {% if task and task.task_type == 'review' %}selected{% endif %}>Revisão</option>
+          <option value="filing" {% if task and task.task_type == 'filing' %}selected{% endif %}>Protocolo</option>
+          <option value="follow_up" {% if task and task.task_type == 'follow_up' %}selected{% endif %}>Acompanhamento</option>
+          <option value="communication" {% if task and task.task_type == 'communication' %}selected{% endif %}>Comunicação</option>
+          <option value="meeting" {% if task and task.task_type == 'meeting' %}selected{% endif %}>Reunião</option>
+          <option value="reminder" {% if task and task.task_type == 'reminder' %}selected{% endif %}>Lembrete</option>
+          <option value="other" {% if task and task.task_type == 'other' %}selected{% endif %}>Outro</option>
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="assigned_to">Responsável</label>
+        <select class="ch-select" id="assigned_to" name="assigned_to">
+          <option value="">Não atribuído</option>
+          {% for u in users %}
+          <option value="{{ u.id }}" {% if task and task.assigned_to == u.id %}selected{% endif %}>{{ u.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="tags">Tags <span style="color: var(--fg-faint); text-transform: none; letter-spacing: 0;">(separadas por vírgula)</span></label>
+        <input class="ch-input" id="tags" name="tags" type="text"
+               value="{{ task.tags if task and task.tags else '' }}" placeholder="ex: urgente, documentos, prazo" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="estimated_hours">Horas estimadas</label>
+        <input class="ch-input ch-mono" id="estimated_hours" name="estimated_hours" type="number" step="0.5" min="0"
+               value="{{ task.estimated_hours if task and task.estimated_hours else '' }}" placeholder="0" inputmode="decimal" />
+      </div>
+    </div>
+  </article>
+
+  {# ─── Status & Prioridade ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Classificação</span>
+        <h2 class="ch-card__title">Status & prioridade</h2>
+      </div>
+      <span data-icon="flame" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="status">Status <span style="color: var(--c-danger);">*</span></label>
+        <select class="ch-select" id="status" name="status" required>
+          <option value="pending" {% if not task or task.status == 'pending' %}selected{% endif %}>Pendente</option>
+          <option value="in_progress" {% if task and task.status == 'in_progress' %}selected{% endif %}>Em andamento</option>
+          <option value="completed" {% if task and task.status == 'completed' %}selected{% endif %}>Concluída</option>
+          <option value="blocked" {% if task and task.status == 'blocked' %}selected{% endif %}>Bloqueada</option>
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="priority">Prioridade</label>
+        <select class="ch-select" id="priority" name="priority">
+          <option value="low" {% if task and task.priority == 'low' %}selected{% endif %}>Baixa</option>
+          <option value="medium" {% if not task or task.priority == 'medium' %}selected{% endif %}>Média</option>
+          <option value="high" {% if task and task.priority == 'high' %}selected{% endif %}>Alta</option>
+          <option value="urgent" {% if task and task.priority == 'urgent' %}selected{% endif %}>Urgente</option>
+        </select>
+      </div>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="due_date">Data de vencimento</label>
+        <input class="ch-input ch-mono" id="due_date" name="due_date" type="date"
+               value="{{ task.due_date.strftime('%Y-%m-%d') if task and task.due_date else '' }}" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="reminder_date">Data do lembrete</label>
+        <input class="ch-input ch-mono" id="reminder_date" name="reminder_date" type="date"
+               value="{{ task.reminder_date.strftime('%Y-%m-%d') if task and task.reminder_date else '' }}" />
+      </div>
+    </div>
+  </article>
+
+  {# ─── Vínculos ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Vínculos</span>
+        <h2 class="ch-card__title">Cliente & processo</h2>
+      </div>
+      <span data-icon="folder" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="client_id">Cliente</label>
+        <select class="ch-select" id="client_id" name="client_id">
+          <option value="">Nenhum cliente</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}" {% if (task and task.client_id == c.id) or selected_client_id == c.id %}selected{% endif %}>{{ c.first_name }} {{ c.last_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="case_id">Processo</label>
+        <select class="ch-select" id="case_id" name="case_id">
+          <option value="">Nenhum processo</option>
+          {% for cs in cases %}
+          <option value="{{ cs.id }}" {% if (task and task.case_id == cs.id) or selected_case_id == cs.id %}selected{% endif %}>{{ cs.case_number or cs.case_name or ('Processo #' + cs.id|string) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </article>
+
+  {# ─── Subtarefas (apenas em edição) ─── #}
+  {% if is_edit %}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Decomposição</span>
+        <h2 class="ch-card__title">Subtarefas</h2>
+      </div>
+      <button type="button" class="ch-btn ch-btn--sm" id="btn-add-subtask">
+        <span data-icon="plus" data-icon-size="14"></span> Adicionar subtarefa
+      </button>
+    </header>
+    <div id="subtasks-container" style="display: flex; flex-direction: column; gap: var(--space-2);">
+      {% if subtasks is defined and subtasks %}
+        {% for sub in subtasks %}
+        <div class="subtask-row" data-index="{{ loop.index0 }}"
+             style="display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-2); align-items: center;">
+          <input type="hidden" name="subtask_id[]" value="{{ sub.id }}">
+          <label class="ch-checkbox" style="margin: 0;">
+            <input type="checkbox" name="subtask_done[]" value="{{ loop.index0 }}" {% if sub.status == 'completed' %}checked{% endif %}>
+          </label>
+          <input type="text" class="ch-input" name="subtask_title[]" value="{{ sub.title }}" placeholder="Título da subtarefa">
+          <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm remove-subtask" title="Remover" aria-label="Remover subtarefa" style="color: var(--c-danger);">
+            <span data-icon="x" data-icon-size="14"></span>
+          </button>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <div id="subtasks-empty" {% if subtasks is defined and subtasks %}style="display:none;"{% endif %}
+         style="text-align: center; padding: var(--space-4) 0; color: var(--fg-muted);">
+      <span data-icon="inbox" data-icon-size="24" style="display: inline-block; opacity: 0.5;"></span>
+      <p style="margin: var(--space-2) 0 0; font-size: var(--fs-sm);">Nenhuma subtarefa adicionada</p>
+    </div>
+  </article>
+  {% endif %}
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      {% if is_edit %}
+        Atualizando tarefa #{{ task.id }}
+      {% else %}
+        Nova tarefa
+      {% endif %}
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks">Cancelar</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span>
+        {% if is_edit %}Salvar alterações{% else %}Criar tarefa{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+{% if is_edit %}
+<script>
+(function() {
+    const container = document.getElementById('subtasks-container');
+    const emptyState = document.getElementById('subtasks-empty');
+    const btnAdd = document.getElementById('btn-add-subtask');
+    if (!container || !btnAdd) return;
+
+    let subtaskIndex = container.querySelectorAll('.subtask-row').length;
+
+    function updateEmptyState() {
+        const rows = container.querySelectorAll('.subtask-row');
+        emptyState.style.display = rows.length > 0 ? 'none' : 'block';
+    }
+
+    btnAdd.addEventListener('click', function() {
+        const idx = subtaskIndex++;
+        const row = document.createElement('div');
+        row.className = 'subtask-row';
+        row.dataset.index = idx;
+        row.style.cssText = 'display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-2); align-items: center;';
+        row.innerHTML = `
+            <input type="hidden" name="subtask_id[]" value="">
+            <label class="ch-checkbox" style="margin: 0;">
+              <input type="checkbox" name="subtask_done[]" value="${idx}">
+            </label>
+            <input type="text" class="ch-input" name="subtask_title[]" value="" placeholder="Título da subtarefa" autofocus>
+            <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm remove-subtask" title="Remover" aria-label="Remover subtarefa" style="color: var(--c-danger);">
+              <span data-icon="x" data-icon-size="14"></span>
+            </button>
+        `;
+        container.appendChild(row);
+        const titleInput = row.querySelector('input[type="text"]');
+        if (titleInput) titleInput.focus();
+        updateEmptyState();
+    });
+
+    container.addEventListener('click', function(e) {
+        const btn = e.target.closest('.remove-subtask');
+        if (btn) {
+            btn.closest('.subtask-row').remove();
+            updateEmptyState();
+        }
+    });
+
+    container.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target.name === 'subtask_title[]') {
+            e.preventDefault();
+            btnAdd.click();
+        }
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

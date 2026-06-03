@@ -1,0 +1,118 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Design Editor · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+{# Theme stylesheets consumed by preview components — kept side-by-side with the new app CSS bundle. #}
+<link rel="stylesheet" href="/static/css/themes/_tokens.css" />
+<link rel="stylesheet" href="/static/css/liquid-glass.css" />
+<link rel="stylesheet" href="/static/css/casehub-neuromorphic.css" />
+<link rel="stylesheet" href="/static/css/design-system.css" />
+<link rel="stylesheet" href="/static/css/templates/admin-design-editor.css" />
+<style>
+  /* Wide layout: this editor needs more width than the default .ch-shell. */
+  .de-page { display: grid; grid-template-rows: auto 1fr; gap: var(--space-4); min-height: calc(100vh - var(--topbar-h) - 120px); }
+  .de-main-grid { display: grid; grid-template-columns: 220px 1fr 280px; gap: var(--space-3); min-height: 560px; }
+  @media (max-width: 1100px) { .de-main-grid { grid-template-columns: 1fr; } }
+  .de-pane { background: var(--surface-card); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3); overflow: auto; }
+</style>
+{% endblock %}
+
+{# Hide bottom-nav on this editor surface (it is a workspace, not a feed). #}
+{% block bottomnav %}{% endblock %}
+
+{% block content %}
+<a href="#de-preview-main" class="ch-skip">Skip to preview</a>
+
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Admin · Design</span>
+    <h1>Design <em>Editor</em>.</h1>
+    <p class="ch-page-head__sub">Edite tokens, alterne tema/modo e visualize componentes lado-a-lado antes de salvar.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/admin">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Back to Admin
+    </a>
+  </div>
+</section>
+
+<section class="ch-card ch-card--compact" style="display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-bottom: var(--space-4);" role="banner" aria-label="Design Editor toolbar">
+  <button type="button" class="ch-btn ch-btn--sm" id="de-toggle-theme" aria-pressed="false">
+    Theme: <span id="de-label-theme" style="margin-left: var(--space-1); font-weight: 700;">Glass</span>
+  </button>
+  <button type="button" class="ch-btn ch-btn--sm" id="de-toggle-mode" aria-pressed="false">
+    Mode: <span id="de-label-mode" style="margin-left: var(--space-1); font-weight: 700;">Dark</span>
+  </button>
+  <button type="button" class="ch-btn ch-btn--sm" id="de-toggle-viewport" aria-label="Viewport size" aria-pressed="false">
+    Viewport: <span id="de-label-viewport" style="margin-left: var(--space-1); font-weight: 700;">Desktop</span>
+  </button>
+  <button type="button" class="ch-btn ch-btn--sm" id="de-toggle-sbs" aria-pressed="false">
+    Side-by-Side
+  </button>
+
+  <span aria-hidden="true" style="display: inline-block; width: 1px; height: 22px; background: var(--line); margin: 0 var(--space-2);"></span>
+
+  <button type="button" class="ch-btn ch-btn--sm" id="de-reset">
+    <span data-icon="x" data-icon-size="14"></span> Reset
+  </button>
+  <button type="button" class="ch-btn ch-btn--sm" id="de-export">
+    <span data-icon="docs" data-icon-size="14"></span> Export JSON
+  </button>
+  <button type="button" class="ch-btn ch-btn--sm ch-btn--primary" id="de-save">
+    <span data-icon="check" data-icon-size="14"></span> Save to Org
+  </button>
+</section>
+
+<div class="de-page" data-prefix="{{ PREFIX }}">
+  <div class="de-main-grid">
+    <nav class="de-pane" id="de-tree" aria-label="Component tree"></nav>
+
+    <main class="de-pane" id="de-preview-main" tabindex="-1" aria-label="Component preview"
+          style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div class="de-preview-wrap" id="de-preview-wrap" style="flex: 1; display: flex; gap: var(--space-3); min-height: 480px;">
+        <div class="de-preview-area" id="de-preview" data-theme="dark" style="flex: 1; min-height: 480px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--space-3); overflow: auto;"></div>
+        <div class="de-preview-area" id="de-preview-b" data-theme="dark" style="display: none; flex: 1; min-height: 480px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--space-3); overflow: auto;"></div>
+      </div>
+      <div id="de-preview-status" style="position: absolute; left: -9999px;" role="status" aria-live="polite"></div>
+    </main>
+
+    <aside class="de-pane" id="de-controls" role="complementary" aria-label="Component controls">
+      <p style="color: var(--fg-muted); font-size: var(--fs-sm); margin: 0;">Select a component category to see editable variables.</p>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/design-editor.js"></script>
+<script>
+  // Keep aria-pressed in sync for toolbar toggles so assistive tech reflects
+  // the real state. design-editor.js owns the visual state (is-active, label text);
+  // this listener mirrors it into aria-pressed.
+  (function () {
+    var toggles = document.querySelectorAll(
+      '#de-toggle-theme, #de-toggle-mode, #de-toggle-viewport, #de-toggle-sbs'
+    );
+    toggles.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        requestAnimationFrame(function () {
+          var pressed = btn.classList.contains('is-active') ||
+                        btn.getAttribute('aria-pressed') === 'false';
+          btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+        });
+      });
+    });
+
+    var preview = document.getElementById('de-preview');
+    var status = document.getElementById('de-preview-status');
+    if (preview && status && 'MutationObserver' in window) {
+      var observer = new MutationObserver(function () {
+        var label = document.getElementById('de-label-theme');
+        status.textContent = label ? ('Loaded ' + label.textContent + ' preview') : 'Preview updated';
+      });
+      observer.observe(preview, { childList: true });
+    }
+  })();
+</script>
+{% endblock %}

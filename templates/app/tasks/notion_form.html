@@ -1,0 +1,189 @@
+{% extends "app/base.html" %}
+{% set active_module = 'kanban' %}
+{% block title %}Tasks · Notion_Form · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="fab fa-notion me-2"></i>{{ action }} Task no Notion</h2>
+        <p class="text-muted mb-0">A task sera criada diretamente no Notion</p>
+    </div>
+    <a href="{{ PREFIX }}/tasks/notion" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Voltar
+    </a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card glass-card">
+            <div class="card-body">
+                <form method="POST" action="{{ PREFIX }}/tasks/notion/create">
+                    <!-- Database Selection -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Database de Destino *</label>
+                        <div class="btn-group w-100" role="group">
+                            {% for key, db in databases.items() %}
+                            <input type="radio" class="btn-check" name="source" id="source_{{ key }}"
+                                   value="{{ key }}" {% if selected_source == key %}checked{% endif %} required>
+                            <label class="btn btn-outline-{% if key == 'juliana' %}danger{% else %}warning{% endif %}" for="source_{{ key }}">
+                                <i class="fas fa-circle me-1" style="font-size:8px"></i> {{ db.name }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Task Title -->
+                    <div class="mb-3">
+                        <label class="form-label">Título da Task *</label>
+                        <input type="text" class="form-control glass-input" name="title"
+                               value="{{ task.title if task else '' }}" required
+                               placeholder="Ex: Coletar documentos, Revisar LOR, etc.">
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-3">
+                        <label class="form-label">Descrição</label>
+                        <textarea class="form-control glass-input" name="description" rows="3"
+                                  placeholder="Descrição detalhada da task...">{{ task.description if task else '' }}</textarea>
+                    </div>
+
+                    <!-- Client -->
+                    <div class="mb-3">
+                        <label class="form-label">Cliente(s)</label>
+                        <select class="form-select glass-input" name="client_names" id="clientSelect">
+                            <option value="">Selecione um cliente...</option>
+                            {% for c in all_clients %}
+                            <option value="{{ c }}">{{ c }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Ou digite um novo nome de cliente</small>
+                    </div>
+
+                    <!-- Row: Visa Type + Status -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Visa Type</label>
+                            <select class="form-select glass-input" name="visa_type">
+                                <option value="">Selecione...</option>
+                                {% for v in all_visa_types %}
+                                <option value="{{ v }}">{{ v }}</option>
+                                {% endfor %}
+                                <option value="EB-1A">EB-1A</option>
+                                <option value="EB-2 NIW">EB-2 NIW</option>
+                                <option value="B-1/B-2">B-1/B-2</option>
+                                <option value="H-1B">H-1B</option>
+                                <option value="L-1">L-1</option>
+                                <option value="O-1">O-1</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Status</label>
+                            <select class="form-select glass-input" name="status">
+                                <option value="To Do" selected>To Do</option>
+                                <option value="Doing">Doing</option>
+                                <option value="Done">Done</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Row: Priority + Due Date -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Prioridade</label>
+                            <select class="form-select glass-input" name="priority">
+                                <option value="">Selecione...</option>
+                                <option value="Urgente">Urgente</option>
+                                <option value="Alta">Alta</option>
+                                <option value="Normal" selected>Normal</option>
+                                <option value="Baixa">Baixa</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Due Date</label>
+                            <input type="date" class="form-control glass-input" name="due_date">
+                        </div>
+                    </div>
+
+                    <!-- Case Step -->
+                    <div class="mb-3">
+                        <label class="form-label">Case Step</label>
+                        <select class="form-select glass-input" name="case_step">
+                            <option value="">Selecione...</option>
+                            {% for step in all_case_steps %}
+                            <option value="{{ step }}">{{ step }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Document URL -->
+                    <div class="mb-3">
+                        <label class="form-label">Document URL</label>
+                        <input type="url" class="form-control glass-input" name="document_url"
+                               placeholder="https://drive.google.com/...">
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ PREFIX }}/tasks/notion" class="btn btn-outline-secondary">
+                            <i class="fas fa-times me-1"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
+                            <i class="fab fa-notion me-1"></i> {{ action }} no Notion
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>Informações
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-3">
+                    A task sera criada diretamente no Notion e ficara disponível para a equipe.
+                </p>
+
+                <h6>Databases Disponiveis:</h6>
+                <ul class="list-unstyled small">
+                    {% for key, db in databases.items() %}
+                    <li class="mb-2">
+                        <i class="fas fa-circle me-1 text-{% if key == 'juliana' %}danger{% else %}warning{% endif %}" style="font-size:8px"></i>
+                        <strong>{{ db.name }}</strong>
+                    </li>
+                    {% endfor %}
+                </ul>
+
+                <hr>
+
+                <h6>Campos Disponiveis:</h6>
+                <ul class="list-unstyled small text-muted">
+                    <li><i class="fas fa-check me-1"></i> Task (título)</li>
+                    <li><i class="fas fa-check me-1"></i> Description</li>
+                    <li><i class="fas fa-check me-1"></i> Client</li>
+                    <li><i class="fas fa-check me-1"></i> Visa Type</li>
+                    <li><i class="fas fa-check me-1"></i> Status</li>
+                    <li><i class="fas fa-check me-1"></i> Priority</li>
+                    <li><i class="fas fa-check me-1"></i> Due Date</li>
+                    <li><i class="fas fa-check me-1"></i> Case Step</li>
+                    <li><i class="fas fa-check me-1"></i> Document URL</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

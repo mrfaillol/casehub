@@ -1,0 +1,152 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Invoices · View · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-file-invoice-dollar me-2"></i>{% if product == "lite" %}Fatura{% else %}Invoice{% endif %} {{ invoice_number }}</h2>
+    <div>
+        <a href="{{ PREFIX }}/invoices/{{ invoice_number }}/pdf" class="btn btn-outline-primary glass-btn glass-btn--ghost"><i class="fas fa-file-pdf me-1"></i> PDF</a>
+        <a href="{{ PREFIX }}/invoices/{{ invoice_number }}/print" class="btn btn-outline-secondary" target="_blank">
+            <i class="fas fa-print me-1"></i> {% if product == "lite" %}Imprimir{% else %}Print{% endif %}
+        </a>
+        {% if status != 'paid' %}
+        <button type="button" class="btn btn-outline-success" onclick="sendInvoice()">
+            <i class="fas fa-envelope me-1"></i> {% if product == "lite" %}Enviar{% else %}Email{% endif %}
+        </button>
+        <form method="POST" action="{{ PREFIX }}/invoices/{{ invoice_number }}/mark-paid" style="display: inline;">
+            <button type="submit" class="btn btn-success glass-btn glass-btn--success">
+                <i class="fas fa-check me-1"></i> {% if product == "lite" %}Marcar como Pago{% else %}Mark Paid{% endif %}
+            </button>
+        </form>
+        {% endif %}
+        <a href="{{ PREFIX }}/invoices" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> {% if product == "lite" %}Voltar{% else %}Back{% endif %}
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card glass-card">
+            <div class="card-header d-flex justify-content-between">
+                <span>{% if product == "lite" %}Detalhes da Fatura{% else %}Invoice Details{% endif %}</span>
+                {% if status == 'paid' %}
+                <span class="badge bg-success">{% if product == "lite" %}PAGO{% else %}PAID{% endif %}</span>
+                {% else %}
+                <span class="badge bg-warning text-dark">{% if product == "lite" %}PENDENTE{% else %}PENDING{% endif %}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>{% if product == "lite" %}Descrição{% else %}Description{% endif %}</th>
+                                <th>{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                                <th class="text-end">{% if product == "lite" %}Valor{% else %}Amount{% endif %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                            <tr>
+                                <td>{{ item.description }}</td>
+                                <td><span class="badge bg-secondary">{{ item.item_type or 'fee' }}</span></td>
+                                <td class="text-end">{{ item.amount|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-light">
+                                <th colspan="2">Subtotal</th>
+                                <th class="text-end">{{ subtotal|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</th>
+                            </tr>
+                            <tr class="table-primary">
+                                <th colspan="2">{% if product == "lite" %}Total a Pagar{% else %}Total Due{% endif %}</th>
+                                <th class="text-end">{{ total|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="fas fa-user me-2"></i>{% if product == "lite" %}Cliente{% else %}Client{% endif %}
+            </div>
+            <div class="card-body">
+                {% if client %}
+                <h5>{{ client.first_name }} {{ client.last_name }}</h5>
+                <p class="text-muted mb-1">{{ client.email or (product == "lite" and "Sem e-mail" or "No email") }}</p>
+                <p class="text-muted mb-0">{{ client.phone or (product == "lite" and "Sem telefone" or "No phone") }}</p>
+                {% else %}
+                <p class="text-muted mb-0">{% if product == "lite" %}Informações do cliente não disponiveis{% else %}Client info not available{% endif %}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="fas fa-folder me-2"></i>{% if product == "lite" %}Processo{% else %}Case{% endif %}
+            </div>
+            <div class="card-body">
+                {% if case %}
+                <h6>{{ case.case_name or case.case_number or "Case #" ~ case.id }}</h6>
+                <p class="text-muted mb-0">{{ case.visa_type or 'N/A' }}</p>
+                <a href="{{ PREFIX }}/cases/{{ case.id }}" class="btn btn-sm btn-outline-primary mt-2">{% if product == "lite" %}Ver Processo{% else %}View Case{% endif %}</a>
+                {% else %}
+                <p class="text-muted mb-0">{% if product == "lite" %}Informações do processo não disponiveis{% else %}Case info not available{% endif %}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-calendar me-2"></i>{% if product == "lite" %}Datas{% else %}Dates{% endif %}
+            </div>
+            <div class="card-body">
+                <dl class="mb-0">
+                    <dt>{% if product == "lite" %}Data da Fatura{% else %}Invoice Date{% endif %}</dt>
+                    <dd>{% if product == "lite" %}{{ items[0].created_at.strftime('%d de %B de %Y') if items else '-' }}{% else %}{{ items[0].created_at.strftime('%B %d, %Y') if items else '-' }}{% endif %}</dd>
+                    {% if due_date %}
+                    <dt>{% if product == "lite" %}Data de Vencimento{% else %}Due Date{% endif %}</dt>
+                    <dd>{% if product == "lite" %}{{ due_date.strftime('%d/%m/%Y') }}{% else %}{{ due_date.strftime('%B %d, %Y') }}{% endif %}</dd>
+                    {% endif %}
+                    {% if status == 'paid' and items[0].paid_date %}
+                    <dt>{% if product == "lite" %}Data do Pagamento{% else %}Paid Date{% endif %}</dt>
+                    <dd class="text-success">{% if product == "lite" %}{{ items[0].paid_date.strftime('%d/%m/%Y') }}{% else %}{{ items[0].paid_date.strftime('%B %d, %Y') }}{% endif %}</dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+async function sendInvoice() {
+    if (!confirm('{% if product == "lite" %}Enviar fatura para o cliente por e-mail?{% else %}Send invoice to client via email?{% endif %}')) return;
+
+    try {
+        const response = await fetch('{{ PREFIX }}/invoices/{{ invoice_number }}/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message || '{% if product == "lite" %}Fatura enviada!{% else %}Invoice sent!{% endif %}');
+        } else {
+            alert('{% if product == "lite" %}Erro{% else %}Error{% endif %}: ' + (data.detail || '{% if product == "lite" %}Falha ao enviar fatura{% else %}Failed to send invoice{% endif %}'));
+        }
+    } catch (error) {
+        alert('{% if product == "lite" %}Erro{% else %}Error{% endif %}: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

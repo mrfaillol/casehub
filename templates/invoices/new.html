@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Nova Fatura{% else %}New Invoice{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center gap-3 mb-4 invoice-form-header">
+    <h2><i class="fas fa-file-invoice-dollar me-2"></i>{% if product == "lite" %}Criar Fatura{% else %}Create Invoice{% endif %}</h2>
+    <a href="{{ PREFIX }}/invoices" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> {% if product == "lite" %}Voltar{% else %}Back{% endif %}
+    </a>
+</div>
+
+<div class="row invoice-form-layout">
+    <div class="col-md-8">
+        <div class="card glass-card">
+            <div class="card-body">
+                <form method="POST" action="{{ PREFIX }}/invoices/new">
+                    <div class="row mb-3 invoice-field-row">
+                        <div class="col-md-6">
+                            <label class="form-label">{% if product == "lite" %}Número da Fatura{% else %}Invoice Number{% endif %}</label>
+                            <input type="text" class="form-control glass-input" name="invoice_number" value="{{ invoice_number }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">{% if product == "lite" %}Data de Vencimento{% else %}Due Date{% endif %}</label>
+                            <input type="date" class="form-control glass-input" name="due_date">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Processo{% else %}Case{% endif %}</label>
+                        <select class="form-select glass-input" name="case_id" id="caseSelect" required>
+                            <option value="">{% if product == "lite" %}Selecione um processo...{% else %}Select a case...{% endif %}</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}" {% if selected_case and selected_case.id == case.id %}selected{% endif %}>
+                                {{ case.case_name or case.case_number or "Case #" ~ case.id }} - {{ case.visa_type or 'N/A' }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {% if unbilled_items %}
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Selecionar Itens de Cobrança{% else %}Select Billing Items{% endif %}</label>
+                        <div class="border rounded p-3">
+                            {% for item in unbilled_items %}
+                            <div class="form-check">
+                                <input class="form-check-input item-checkbox" type="checkbox" value="{{ item.id }}" id="item{{ item.id }}" checked>
+                                <label class="form-check-label d-flex justify-content-between w-100" for="item{{ item.id }}">
+                                    <span>{{ item.description }}</span>
+                                    <strong>{{ item.amount|format_currency(org_currency|default('BRL' if product == 'lite' else 'USD')) }}</strong>
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <input type="hidden" name="item_ids" id="itemIds">
+                    </div>
+                    {% endif %}
+
+                    {% if unbilled_time %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="include_time" id="includeTime">
+                            <label class="form-check-label" for="includeTime">
+                                {% if product == "lite" %}Incluir Horas Trabalhadas ({{ unbilled_time|length }} registros, {{ unbilled_time|sum(attribute='hours') }} horas totais){% else %}Include Time Entries ({{ unbilled_time|length }} entries, {{ unbilled_time|sum(attribute='hours') }} total hours){% endif %}
+                            </label>
+                        </div>
+                        <div class="mt-2" id="timeRateDiv" style="display: none;">
+                            <label class="form-label">{% if product == "lite" %}Valor por Hora{% else %}Hourly Rate{% endif %}</label>
+                            <div class="input-group" style="max-width: 200px;">
+                                <span class="input-group-text">{% if product == "lite" %}R${% else %}{{ currency_symbol(org_currency|default('USD')) }}{% endif %}</span>
+                                <input type="number" class="form-control glass-input" name="time_rate" value="{% if product == 'lite' %}250{% else %}350{% endif %}" step="0.01">
+                                <span class="input-group-text">/hr</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label">{% if product == "lite" %}Observações (opcional){% else %}Notes (optional){% endif %}</label>
+                        <textarea class="form-control glass-input" name="notes" rows="2"></textarea>
+                    </div>
+
+                    <div class="d-flex justify-content-between gap-2 invoice-form-actions">
+                        <a href="{{ PREFIX }}/invoices" class="btn btn-secondary">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</a>
+                        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
+                            <i class="fas fa-file-invoice me-1"></i> {% if product == "lite" %}Criar Fatura{% else %}Create Invoice{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>{% if product == "lite" %}Resumo da Fatura{% else %}Invoice Summary{% endif %}
+            </div>
+            <div class="card-body">
+                <p class="text-muted">{% if product == "lite" %}Selecione um processo para ver os itens cobraveis.{% else %}Select a case to see billable items.{% endif %}</p>
+                {% if selected_case %}
+                <dl>
+                    <dt>{% if product == "lite" %}Processo{% else %}Case{% endif %}</dt>
+                    <dd>{{ selected_case.case_name or selected_case.case_number }}</dd>
+                    <dt>{% if product == "lite" %}Itens{% else %}Items{% endif %}</dt>
+                    <dd>{{ unbilled_items|length }} {% if product == "lite" %}item(ns) pendente(s){% else %}pending item(s){% endif %}</dd>
+                    <dt>{% if product == "lite" %}Horas Trabalhadas{% else %}Time Entries{% endif %}</dt>
+                    <dd>{{ unbilled_time|length }} {% if product == "lite" %}registros não faturados{% else %}unbilled entries{% endif %}</dd>
+                </dl>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Update hidden field with selected item IDs
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.item-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateItemIds);
+    });
+    updateItemIds();
+});
+
+function updateItemIds() {
+    const itemIds = document.getElementById('itemIds');
+    if (!itemIds) return;
+
+    const ids = Array.from(document.querySelectorAll('.item-checkbox:checked')).map(cb => cb.value);
+    itemIds.value = ids.join(',');
+}
+
+// Toggle time rate input
+document.getElementById('includeTime')?.addEventListener('change', function() {
+    const timeRateDiv = document.getElementById('timeRateDiv');
+    if (timeRateDiv) timeRateDiv.style.display = this.checked ? 'block' : 'none';
+});
+
+// Reload page when case changes to load its billing items
+document.getElementById('caseSelect')?.addEventListener('change', function() {
+    if (this.value) {
+        window.location.href = '{{ PREFIX }}/invoices/new?case_id=' + this.value;
+    }
+});
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media (max-width: 767.98px) {
+        .invoice-form-header,
+        .invoice-form-actions {
+            align-items: stretch !important;
+            flex-direction: column;
+        }
+        .invoice-form-header .btn,
+        .invoice-form-actions .btn {
+            min-height: 44px;
+            width: 100%;
+        }
+        .invoice-form-layout,
+        .invoice-field-row {
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .invoice-form-layout > [class*="col-"],
+        .invoice-field-row > [class*="col-"] {
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .invoice-field-row {
+            row-gap: 0.75rem;
+        }
+    }
+</style>
+{% endblock %}

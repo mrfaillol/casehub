@@ -1,0 +1,1151 @@
+/* CaseHub App · Shell (topbar + bottom-nav pílula sticky + main)
+ * Topbar: landing-style neumorphic pill ao topo.
+ * Bottom-nav: pílula sticky horizontal-scroll snap, mesma DNA do .nav.neu-raised-sm da landing.
+ */
+
+* { box-sizing: border-box; min-width: 0; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--surface-app);
+  color: var(--fg-default);
+  font-family: var(--sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Prevent horizontal bleed without creating a scroll container that breaks sticky/fixed shell layers on iOS. */
+  overflow-x: clip;
+  max-width: 100vw;
+}
+html { color-scheme: light dark; }
+[data-theme="dark"] html, html[data-theme="dark"] { color-scheme: dark; }
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+img, svg { display: block; max-width: 100%; }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
+
+/* ─────────── Neu primitives (mirror landing) ─────────── */
+.neu-raised     { background: var(--surface-app); box-shadow: var(--shadow-dark), var(--shadow-light); }
+.neu-raised-sm  { background: var(--surface-app); box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm); }
+.neu-raised-xs  { background: var(--surface-app); box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs); }
+.neu-pressed    { background: var(--surface-app); box-shadow: inset var(--shadow-dark-sm), inset var(--shadow-light-sm); }
+.neu-pressed-xs { background: var(--surface-app); box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs); }
+
+.ch-eyebrow {
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--accent-fg); font-weight: 700;
+}
+.ch-display {
+  font-family: var(--display); font-weight: 700;
+  letter-spacing: -0.03em; line-height: var(--lh-tight); color: var(--fg-default);
+}
+.ch-mono { font-family: var(--mono); }
+
+/* ─────────── App shell ─────────── */
+/* 4 rows: header / tabs (desktop) / main (1fr) / bottomnav (mobile).
+   Antes era `auto 1fr auto` (3 rows) e tabs-wrap caía no 1fr, criando
+   gap gigante entre tabs e content em desktop. */
+.ch-app {
+  --topbar-sticky-h: 94px;
+  --tabs-sticky-h: 48px;
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  background: var(--surface-app);
+  min-width: 0;
+  max-width: 100vw;
+  overflow-x: clip;
+  padding-top: var(--topbar-sticky-h);
+}
+
+.ch-shell {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 0 var(--content-pad-x);
+  min-width: 0;
+}
+
+/* ─────────── Topbar (landing-style pill) ─────────── */
+.ch-topbar-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  inset-block-start: 0;
+  z-index: calc(var(--z-topbar) + 10);
+  padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) 0 var(--space-2);
+  /* F45 fix: era linear-gradient com 30% transparent no fim — criava
+     faixa esbranquiçada/transparente entre topbar pílula e nav-tabs.
+     Sólido var(--surface-app) elimina o gap visual em light + dark. */
+  background: var(--surface-app);
+}
+.ch-topbar {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: 10px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+}
+.ch-topbar__brand {
+  display: flex; align-items: center; gap: var(--space-2);
+  min-height: 44px;
+  padding: 4px 8px;
+  font-family: var(--display); font-weight: 700; font-size: var(--fs-lg);
+  letter-spacing: -0.02em; color: var(--fg-default);
+}
+.ch-topbar__brand .c1 { color: var(--c-blue); }
+.ch-topbar__brand .c2 { color: var(--c-green-d); }
+.ch-topbar__brand-cube { width: 28px; height: 28px; flex: 0 0 28px; }
+.ch-topbar__brand-full {
+  width: 180px;
+  height: 42px;
+  flex: 0 0 auto;
+  position: relative;
+  display: block;
+}
+.ch-topbar__brand-full::before,
+.ch-topbar__brand-full::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: none;
+}
+.ch-topbar__brand-full::before {
+  left: 0;
+  width: 38px;
+  height: 38px;
+  background-image: url("/static/brand-kit/logo/casehub-logo-login-mark-blue.svg");
+  background-size: contain;
+}
+.ch-topbar__brand-full::after {
+  left: 48px;
+  width: 128px;
+  height: 30px;
+  background-image: url("/static/brand-kit/logo/casehub-wordmark-navy.svg");
+  background-size: contain;
+}
+[data-theme="dark"] .ch-topbar__brand-full::before {
+  background-image: url("/static/brand-kit/logo/casehub-logo-login-mark-lightgreen.svg");
+  filter:
+    drop-shadow(0 0 8px rgba(111, 190, 84, 0.35))
+    drop-shadow(0 0 14px rgba(78, 211, 138, 0.18));
+}
+[data-theme="dark"] .ch-topbar__brand-full::after {
+  background-image: url("/static/brand-kit/logo/casehub-wordmark-white.svg");
+  filter:
+    drop-shadow(0 0 8px rgba(255, 255, 255, 0.16))
+    drop-shadow(0 0 14px rgba(78, 211, 138, 0.12));
+}
+
+.ch-topbar__slug {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 6px 12px; border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em;
+  color: var(--accent-fg); font-weight: 700;
+  text-transform: uppercase;
+}
+.ch-topbar__slug .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--c-green); box-shadow: 0 0 0 4px rgba(111, 190, 84, 0.20);
+}
+
+.ch-topbar__spacer { flex: 1; }
+
+.ch-topbar__search {
+  display: none; flex: 1; max-width: 320px;
+  align-items: center; gap: var(--space-2);
+  padding: 8px 14px; border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  font-size: var(--fs-sm); color: var(--fg-muted);
+  cursor: pointer;
+  transition: box-shadow var(--motion-fast) var(--ease-out);
+}
+.ch-topbar__search:hover { box-shadow: inset var(--shadow-dark-sm), inset var(--shadow-light-sm); }
+.ch-topbar__search kbd {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 10px;
+  padding: 2px 6px; border-radius: 4px;
+  /* pipeline-polish 2026-05-27: --fg-faint failed AA (3.20:1) → --fg-muted gives 6.35:1 */
+  background: var(--surface-card-2); color: var(--fg-muted);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.ch-topbar__actions {
+  display: flex; align-items: center; gap: var(--space-2);
+}
+
+.ch-icon-btn {
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: var(--surface-app);
+  border-radius: 50%;
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  color: var(--fg-default);
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+}
+@media (min-width: 880px) {
+  /* Desktop pode usar 38px (densidade) */
+  .ch-icon-btn { width: 38px; height: 38px; }
+}
+.ch-icon-btn:hover { transform: translateY(-1px); }
+.ch-icon-btn:active,
+.ch-icon-btn[aria-pressed="true"] {
+  transform: none;
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  color: var(--c-green-d);
+}
+.ch-icon-btn svg { width: 18px; height: 18px; }
+.ch-icon-btn__badge {
+  position: absolute; top: 4px; right: 4px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--c-danger); color: #fff;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  line-height: 1; transform: translate(2px, -2px);
+}
+.ch-icon-btn { position: relative; }
+
+.ch-topbar__avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--c-navy); color: var(--c-paper);
+  font-family: var(--display); font-weight: 700; font-size: 14px;
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  border: none; cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+[data-theme="dark"] .ch-topbar__avatar { background: var(--c-pollen); color: var(--fg-on-pollen); }
+.ch-topbar__avatar:hover { transform: scale(1.05); }
+.ch-topbar__avatar:focus-visible { box-shadow: var(--focus-ring), var(--shadow-dark-xs); }
+
+/* ─────────── Topbar dropdown (user menu) ─────────── */
+.ch-menu {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  min-width: 240px;
+  padding: var(--space-2);
+  background: var(--surface-card); color: var(--fg-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+  border: 1px solid var(--line);
+  opacity: 0; pointer-events: none; visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity var(--motion-fast) var(--ease-out),
+              visibility var(--motion-fast) var(--ease-out),
+              transform var(--motion-fast) var(--ease-out);
+  z-index: var(--z-overlay);
+}
+.ch-menu[data-open="true"] {
+  opacity: 1; pointer-events: auto; visibility: visible; transform: none;
+}
+.ch-menu__header {
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-2);
+}
+.ch-menu__header strong { display: block; font-size: var(--fs-base); }
+.ch-menu__header small { display: block; color: var(--fg-muted); font-size: var(--fs-xs); }
+.ch-menu__meta {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+  letter-spacing: 0;
+}
+.ch-menu__item {
+  display: flex; align-items: center; gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm); color: var(--fg-default);
+  transition: background var(--motion-fast) var(--ease-out);
+  cursor: pointer; border: none; background: none; width: 100%; text-align: left;
+}
+.ch-menu__item:hover { background: var(--surface-card-2); }
+.ch-menu__item svg { width: 16px; height: 16px; color: var(--fg-muted); flex: 0 0 16px; }
+.ch-menu__item.is-danger { color: var(--c-danger); }
+.ch-menu__divider { height: 1px; background: var(--line); margin: var(--space-2) 0; }
+
+.ch-notifications-menu-wrap {
+  position: relative;
+}
+
+.ch-menu--notifications {
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(560px, calc(100vh - 112px));
+  overflow: auto;
+}
+
+.ch-notifications-menu__header {
+  display: grid;
+  gap: 2px;
+}
+
+.ch-notifications-menu__list {
+  display: grid;
+  gap: 4px;
+}
+
+.ch-notifications-menu__item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--fg-default);
+}
+
+.ch-notifications-menu__item:hover {
+  background: var(--surface-card-2);
+}
+
+.ch-notifications-menu__dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--fg-faint);
+}
+
+.ch-notifications-menu__item[data-unread="true"] .ch-notifications-menu__dot {
+  background: var(--c-green-d);
+}
+
+.ch-notifications-menu__body {
+  min-width: 0;
+}
+
+.ch-notifications-menu__title {
+  display: block;
+  overflow: hidden;
+  color: var(--fg-default);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: var(--lh-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ch-notifications-menu__message {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ch-notifications-menu__time,
+.ch-notifications-menu__empty {
+  margin-top: 4px;
+  color: var(--fg-faint);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.ch-notifications-menu__empty {
+  padding: var(--space-3);
+}
+
+.ch-menu--bottom-more {
+  position: fixed;
+  top: auto;
+  right: max(var(--content-pad-x), calc((100vw - var(--content-max)) / 2 + var(--content-pad-x)));
+  bottom: calc(var(--bottomnav-h) + var(--space-8) + env(safe-area-inset-bottom, 0px));
+  width: min(340px, calc(100vw - 32px));
+  max-height: min(520px, calc(100vh - 160px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ch-menu--bottom-more .ch-menu__scroll {
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+  min-height: 0;
+}
+
+/* ─────────── Desktop tabs (neumorphic rail, sticky below topbar) ───────────
+ * Estética neumórfica (mesma DNA da topbar/bottom-nav): trilho .neu-raised-sm,
+ * pílulas arredondadas, aba ativa "pressed" (inset). Abas são draggable e têm
+ * botão fechar (×) injetado por nav-tabs.js (exceto data-pinned). A bolha "Mais"
+ * (.ch-tabs-more) vive FORA do trilho. */
+.ch-tabs-wrap {
+  position: fixed;
+  top: var(--topbar-sticky-h);
+  left: 0;
+  right: 0;
+  inset-block-start: var(--topbar-sticky-h);
+  z-index: var(--z-topbar);
+  padding: 0 0 var(--space-2);
+  background: var(--surface-app);
+  display: none;
+}
+@media (min-width: 880px) {
+  .ch-app {
+    /* trilho mais alto que o antigo 48px por causa do padding do neu-raised
+       (rail ~50px + padding-bottom do wrap 8px) */
+    --tabs-sticky-h: 66px;
+    padding-top: calc(var(--topbar-sticky-h) + var(--tabs-sticky-h));
+  }
+  .ch-tabs-wrap { display: block; }
+}
+/* Shell row: trilho de abas (1fr, com scroll) + bolha "Mais" fixa à direita */
+.ch-tabs-shell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ch-tabs {
+  display: flex; flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 6px 8px;
+  scrollbar-width: none;
+  border-radius: var(--radius-xl);
+  background: var(--surface-app);
+  /* neu-raised-sm também aplicado via classe no HTML; mantido aqui p/ no-JS */
+}
+.ch-tabs::-webkit-scrollbar { display: none; }
+.ch-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  min-height: 38px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm); font-weight: 600;
+  color: var(--fg-muted); white-space: nowrap;
+  text-decoration: none;
+  position: relative;
+  background: transparent;
+  border: none;
+  transition: color var(--motion-fast) var(--ease-out),
+              background var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out),
+              transform var(--motion-fast) var(--ease-out),
+              opacity var(--motion-fast) var(--ease-out);
+  flex: 0 0 auto;
+  -webkit-user-select: none; user-select: none;
+}
+.ch-tab:hover {
+  color: var(--fg-default);
+  background: var(--surface-card-2);
+  transform: translateY(-1px);
+}
+.ch-tab svg { width: 15px; height: 15px; flex: 0 0 15px; }
+/* Brand SVGs (WhatsApp etc.) — paths sem fill explícito caíam no default preto,
+   ficando invisíveis no tema dark. fill:currentColor faz o ícone herdar a cor do
+   token (--ch-brand-whatsapp) e adaptar ao tema. Sem filtro/inner-shadow. */
+.ch-brand-icon { fill: currentColor; }
+.ch-brand-icon path { fill: currentColor; }
+.ch-brand-icon--whatsapp {
+  /* Verde da marca WhatsApp no claro; clareia no dark p/ contraste AA. */
+  --ch-brand-whatsapp: #25D366;
+  color: var(--ch-brand-whatsapp);
+}
+[data-theme="dark"] .ch-brand-icon--whatsapp { --ch-brand-whatsapp: #4ED38A; }
+.ch-tab.is-active {
+  /* Ativa = pressed neumórfico (inset) — substitui a "folder tab" antiga.
+   * --accent-fg garante AA (5.14:1 on bone; AAA no dark). */
+  color: var(--accent-fg);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  transform: none;
+  z-index: 1;
+}
+[data-theme="dark"] .ch-tab.is-active { color: var(--c-pollen); }
+
+/* Close button (× ) injetado por nav-tabs.js. data-pinned (Painel) não recebe. */
+.ch-tab__close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  margin: 0 -4px 0 2px;
+  padding: 0;
+  border: none; background: transparent;
+  border-radius: 50%;
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0.55;
+  flex: 0 0 18px;
+  transition: opacity var(--motion-fast) var(--ease-out),
+              background var(--motion-fast) var(--ease-out),
+              color var(--motion-fast) var(--ease-out);
+}
+.ch-tab__close svg { width: 12px; height: 12px; flex: 0 0 12px; }
+.ch-tab:hover .ch-tab__close { opacity: 0.85; }
+.ch-tab__close:hover {
+  opacity: 1;
+  background: var(--surface-card-2);
+  color: var(--c-danger);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ch-tab.is-active .ch-tab__close:hover { background: var(--surface-card); }
+
+/* Drag & drop (HTML5 DnD) reorder states */
+.ch-tab[draggable="true"] { cursor: grab; }
+.ch-tab.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+}
+.ch-tab.is-drop-before { box-shadow: inset 2px 0 0 0 var(--accent-fg); }
+.ch-tab.is-drop-after  { box-shadow: inset -2px 0 0 0 var(--accent-fg); }
+.ch-tabs.is-reordering .ch-tab { transition: none; }
+
+/* ── "Mais…" bubble — separate from the nav rail ── */
+.ch-tabs-more { position: relative; flex: 0 0 auto; }
+.ch-tabs-more__bubble {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  color: var(--fg-default);
+  font-family: var(--sans); font-size: var(--fs-sm); font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out),
+              color var(--motion-fast) var(--ease-out);
+}
+.ch-tabs-more__bubble svg { width: 16px; height: 16px; flex: 0 0 16px; }
+.ch-tabs-more__bubble:hover { transform: translateY(-1px); }
+.ch-tabs-more__bubble[aria-expanded="true"],
+.ch-tabs-more__bubble.is-active {
+  color: var(--accent-fg);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  transform: none;
+}
+[data-theme="dark"] .ch-tabs-more__bubble.is-active { color: var(--c-pollen); }
+
+.ch-menu--tabs-more {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  left: auto;
+  width: min(300px, calc(100vw - 32px));
+  max-height: min(60vh, 520px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ch-menu--tabs-more .ch-menu__scroll {
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+  max-height: 100%;
+}
+.ch-menu__item--route-map { color: var(--accent-fg); font-weight: 700; }
+[data-theme="dark"] .ch-menu__item--route-map { color: var(--c-pollen); }
+
+/* ─────────── Bottom-nav pílula (fixed bottom · horizontal scroll snap) ─────────── */
+.ch-bottomnav-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-bottomnav);
+  padding: var(--space-3) 0 var(--space-4);
+  background: transparent;
+  pointer-events: none;
+  /* Account for iOS safe area */
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+}
+/* Hide bottom-nav on desktop by default (tabs replace it).
+   Toggle [data-bottomnav-desktop="true"] on <html> to force-show. */
+@media (min-width: 880px) {
+  .ch-bottomnav-wrap { display: none; }
+  html[data-bottomnav-desktop="true"] .ch-bottomnav-wrap { display: block; }
+}
+
+/* Row: pílula (flex:1) + bolha "Mais" separada (mobile). No desktop forçado a
+   bolha some e o scroller único carrega tudo. */
+.ch-bottomnav-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  pointer-events: none; /* filhos reativam */
+}
+.ch-bottomnav-row > .ch-bottomnav { flex: 1 1 auto; min-width: 0; }
+
+/* Bolha redonda separada do "Mais" — espelha a ideia da .ch-tabs-more do desktop.
+   Só aparece no mobile; no desktop forçado o botão --more interno do scroller manda. */
+.ch-bottomnav-more {
+  display: none; /* mobile media query liga */
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  width: var(--bottomnav-h);
+  min-width: var(--bottomnav-h);
+  border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+  border-radius: 50%;
+  background: var(--surface-app);
+  background-clip: padding-box;
+  color: var(--fg-muted);
+  font-size: clamp(10px, 2.55vw, 12px);
+  font-weight: 600;
+  line-height: 1.05;
+  --ch-pill-highlight: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 14px 34px rgba(0, 31, 62, 0.12), 0 2px 8px var(--ch-pill-highlight) inset;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out),
+              color var(--motion-fast) var(--ease-out);
+}
+.ch-bottomnav-more svg { width: 19px; height: 19px; flex: 0 0 19px; }
+.ch-bottomnav-more__label { font-size: clamp(9px, 2.3vw, 11px); }
+.ch-bottomnav-more:hover { color: var(--fg-default); transform: translateY(-1px); }
+.ch-bottomnav-more[aria-expanded="true"],
+.ch-bottomnav-more.is-active {
+  color: var(--accent-fg);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  transform: none;
+}
+[data-theme="dark"] .ch-bottomnav-more.is-active,
+[data-theme="dark"] .ch-bottomnav-more[aria-expanded="true"] { color: var(--c-pollen); }
+
+.ch-bottomnav {
+  position: relative;
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+  border-radius: calc((var(--bottomnav-h) + 18px) / 2);
+  background: var(--surface-app);
+  background-clip: padding-box;
+  /* Realce neumórfico no topo da pílula. No dark o branco 58% virava uma "inner-shadow
+     branca estranha" (feedback Victor) → token theme-aware bem mais sutil no escuro. */
+  --ch-pill-highlight: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 14px 34px rgba(0, 31, 62, 0.12), 0 2px 8px var(--ch-pill-highlight) inset;
+  isolation: isolate;
+  overflow: hidden;
+  pointer-events: auto;
+}
+/* Dark: realce de topo bem sutil (alinhado a --shadow-light-sm do dark) + sombra de
+   profundidade preta, em vez do branco forte que parecia uma inner-shadow esquisita. */
+[data-theme="dark"] .ch-bottomnav,
+[data-theme="dark"] .ch-bottomnav-more {
+  --ch-pill-highlight: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45), 0 1px 1px var(--ch-pill-highlight) inset;
+}
+.ch-bottomnav__scroller {
+  display: flex; align-items: stretch; gap: var(--space-1);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+  padding: 0 8px;
+}
+.ch-bottomnav__scroller::-webkit-scrollbar { display: none; }
+.ch-bottomnav__item {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  /* Fitts: ≥44px touch target em ambas dimensões */
+  min-width: 44px; min-height: 44px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm); font-weight: 600;
+  color: var(--fg-muted); white-space: nowrap;
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  border: none; background: transparent;
+  transition: color var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out),
+              transform var(--motion-fast) var(--ease-out);
+  cursor: pointer;
+  text-decoration: none;
+}
+.ch-bottomnav__item:hover { color: var(--fg-default); transform: translateY(-1px); }
+.ch-bottomnav__item svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.ch-bottomnav__label { display: inline; min-width: 0; }
+.ch-bottomnav__item.is-active {
+  color: var(--accent-fg);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  background: var(--surface-app);
+  transform: none;
+}
+.ch-bottomnav__item.is-active::after {
+  content: ""; position: absolute; bottom: 6px; left: 50%;
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--c-pollen);
+  transform: translateX(-50%);
+}
+.ch-bottomnav__item { position: relative; }
+
+/* Mobile: abas dinâmicas (29/05 Victor) — preenchem a largura, × claro pra fechar,
+   arrastar pra baixo/fora pra fechar (estilo chat-head do Messenger). Painel é fixo. */
+.ch-nav-remove {
+  position: absolute;
+  top: -4px; right: -4px;
+  width: 20px; height: 20px;
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1; font-weight: 700;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--c-danger, #d64545);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  z-index: 4;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.ch-nav-remove::after { content: ''; position: absolute; inset: -9px; } /* área de toque ~38px (Fitts) */
+.ch-nav-remove:hover, .ch-nav-remove:focus-visible { transform: scale(1.18); outline: none; }
+.ch-bottomnav__item.ch-nav-dragging {
+  z-index: 6; cursor: grabbing;
+  box-shadow: 0 18px 40px rgba(0, 31, 62, 0.24);
+  transition: none;
+}
+.ch-bottomnav__item.ch-nav-will-close {
+  box-shadow: 0 0 0 2px var(--c-danger, #d64545), 0 18px 40px rgba(214, 69, 69, 0.32);
+}
+[data-nav-add-section] { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 4px; }
+@media (max-width: 879px) {
+  /* abas abertas dividem a largura igualmente (1 aba ocupa tudo; N dividem);
+     rótulo encolhe com reticências; touch-action liga o arrastar-pra-fechar. */
+  .ch-bottomnav__item.ch-nav-pinned { flex: 1 1 0 !important; min-width: 0; touch-action: none; }
+  .ch-bottomnav__item.ch-nav-pinned .ch-bottomnav__label {
+    overflow: hidden; text-overflow: ellipsis; min-width: 0;
+  }
+  .ch-bottomnav__item.ch-nav-pinned:not(.ch-bottomnav__item--more) .ch-nav-remove { display: inline-flex; }
+}
+
+/* Edge fades (overflow indicator) */
+.ch-bottomnav::before,
+.ch-bottomnav::after {
+  content: ""; position: absolute; top: 1px; bottom: 1px; width: 28px;
+  pointer-events: none; z-index: 2;
+  border-radius: 0;
+  opacity: 0; transition: opacity var(--motion-fast) var(--ease-out);
+}
+.ch-bottomnav::before {
+  left: 0; background: linear-gradient(to right, var(--surface-app), transparent);
+}
+.ch-bottomnav::after {
+  right: 0; background: linear-gradient(to left, var(--surface-app), transparent);
+}
+.ch-bottomnav[data-overflow-start="true"]::before { opacity: 1; }
+.ch-bottomnav[data-overflow-end="true"]::after { opacity: 1; }
+
+@media (max-width: 879.98px) {
+  /* Mobile: a pílula carrega só os ≤4 itens primários (grid 4 col). O "Mais" vira
+     bolha redonda separada (.ch-bottomnav-more) — ver bloco acima. O botão --more
+     interno do scroller é escondido aqui (a bolha o substitui). */
+  .ch-bottomnav {
+    border-radius: calc((var(--bottomnav-h) + 10px) / 2);
+  }
+
+  .ch-bottomnav-more { display: inline-flex; }
+
+  .ch-bottomnav__scroller {
+    display: grid;
+    /* Colunas = nº REAL de abas abertas (não fixo em 4). Cada aba vira uma coluna
+       1fr → 1 aba ocupa tudo, N dividem igual e PREENCHEM a nav. (29/05 Victor:
+       "uma aba só aberta preenchendo a nav bar"). Antes: repeat(4,1fr) deixava
+       1 aba ocupando só 1/4. Itens display:none não criam coluna. */
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 4px;
+    overflow: visible;
+    padding: 0;
+    scroll-snap-type: none;
+  }
+
+  .ch-bottomnav__item {
+    min-width: 0;
+    justify-content: center;
+    flex-direction: column;
+    gap: 3px;
+    padding: 7px 3px;
+    overflow: hidden;
+    font-size: clamp(10px, 2.55vw, 12px);
+    line-height: 1.05;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .ch-bottomnav__item svg {
+    width: 19px;
+    height: 19px;
+    flex-basis: 19px;
+  }
+
+  /* Labels: por padrão podem quebrar (Controladoria usa <wbr>). "WhatsApp" não pode
+     quebrar em 2 linhas (feedback Victor) → nowrap + ellipsis. */
+  .ch-bottomnav__label {
+    display: block;
+    max-width: 100%;
+  }
+  .ch-bottomnav__label--nowrap {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Esconde no mobile: itens não-primários, o swap inativo, e o botão --more interno
+     (substituído pela bolha separada). */
+  .ch-bottomnav__item:not(.ch-bottomnav__item--mobile-primary):not(.is-active),
+  .ch-bottomnav__item--more,
+  .ch-bottomnav.ch-bottomnav--has-active-extra .ch-bottomnav__item--mobile-swap:not(.is-active) {
+    display: none;
+  }
+
+  .ch-bottomnav::before,
+  .ch-bottomnav::after {
+    display: none;
+  }
+}
+
+/* ─────────── Main content area ─────────── */
+/* Top padding kept minimal — page header + content carry their own rhythm.
+   Excess top-padding was creating a huge empty gap under the tabs/topbar. */
+.ch-main {
+  flex: 1;
+  padding: 0 0 calc(104px + env(safe-area-inset-bottom, 0px));
+}
+.ch-main--bleed { padding: 0; }
+.ch-main > .ch-shell {
+  /* Espaço mínimo entre tabs e primeiro elemento (em vez do antigo space-4) */
+  padding-top: var(--space-2);
+}
+
+@media (min-width: 880px) {
+  .ch-main { padding: 0 0 var(--space-8); }
+  /* O trilho de abas agora flutua (neumórfico), separado do card de conteúdo.
+     Antes o card tinha border-top:0 + cantos só embaixo p/ "colar" na aba ativa
+     estilo pasta. Com o trilho solto, o card vira um cartão arredondado completo
+     (todos os cantos), coerente com a estética neu. */
+  .ch-main > .ch-shell {
+    padding-top: var(--space-5);
+    padding-bottom: var(--space-6);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface-card) 72%, var(--surface-app));
+    box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  }
+}
+
+/* ─────────── Page header pattern ─────────── */
+.ch-page-head {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.ch-page-head h1 {
+  margin: 0;
+  font-family: var(--display); font-size: var(--fs-2xl); font-weight: 700;
+  letter-spacing: -0.025em; line-height: var(--lh-tight); color: var(--fg-default);
+}
+.ch-page-head h1 em {
+  font-family: var(--serif); font-style: italic; font-weight: 500;
+  color: var(--c-green-d);
+}
+.ch-page-head .ch-eyebrow { display: block; margin-bottom: var(--space-2); }
+.ch-page-head__sub {
+  margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);
+  max-width: 60ch;
+}
+.ch-page-head__actions { display: flex; gap: var(--space-2); align-items: center; }
+
+/* ─────────── Buttons ─────────── */
+.ch-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-5);
+  border: none; border-radius: var(--radius-pill);
+  background: var(--surface-app); color: var(--fg-default);
+  font-family: var(--sans); font-size: var(--fs-sm); font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+  transition: transform var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+  text-decoration: none;
+}
+.ch-btn:hover { transform: translateY(-1px); }
+.ch-btn:active { transform: none; box-shadow: inset var(--shadow-dark-sm), inset var(--shadow-light-sm); }
+.ch-btn svg { width: 16px; height: 16px; }
+.ch-btn--primary { background: var(--c-navy); color: var(--c-paper); }
+.ch-btn--primary:active { background: var(--c-ink); }
+[data-theme="dark"] .ch-btn--primary { background: var(--c-pollen); color: var(--fg-on-pollen); }
+.ch-btn--ghost {
+  background: transparent; box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg-default);
+}
+.ch-btn--ghost:hover { background: var(--surface-card-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.ch-btn--sm { min-width: 44px; min-height: 32px; padding: 0 var(--space-3); font-size: var(--fs-xs); }
+.ch-btn--lg { min-height: 48px; padding: 0 var(--space-6); font-size: var(--fs-md); }
+
+.form-select.glass-input {
+  min-height: 44px;
+}
+
+/* ─────────── Route map ─────────── */
+.ch-route-map {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.ch-route-map__links {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-4);
+}
+.ch-route-map__link {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--fg-default);
+  background: var(--surface-app);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+}
+.ch-route-map__link:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-card-2);
+}
+.ch-route-map__link svg {
+  width: 16px;
+  height: 16px;
+  color: var(--fg-muted);
+}
+
+/* ─────────── Responsive ─────────── */
+@media (min-width: 720px) {
+  .ch-topbar__search { display: inline-flex; }
+  /* FR-5 pré-[parceiro] 30/05: lupa mobile some no desktop (pill já mostra) */
+  .ch-icon-btn--search-mobile { display: none; }
+}
+/* Mobile (<720px): pill some, lupa fica como acesso ao palette */
+@media (max-width: 719.98px) {
+  .ch-icon-btn--search-mobile { display: inline-flex; }
+}
+@media (max-width: 720px) {
+  .ch-app {
+    --topbar-sticky-h: calc(120px + env(safe-area-inset-top, 0px));
+  }
+  :root {
+    --content-pad-x: var(--space-4);
+    --topbar-h: 56px;
+  }
+  /* Mobile: header flutua transparente igual à nav bar inferior (29/05 Victor).
+     Só a pílula .ch-topbar carrega bg + sombra; o wrap não pinta faixa sólida.
+     (No desktop o wrap continua var(--surface-app) — fix F45 do gap topbar↔tabs.) */
+  .ch-topbar-wrap { background: transparent; }
+  .ch-topbar {
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .ch-topbar__brand {
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: 44px;
+    overflow: visible;
+    padding: 0;
+  }
+  /* Mobile (≥401px): ícone + wordmark "CaseHub" compacto ao lado. Em ≤400px
+     (bloco no fim do arquivo) volta a só-ícone, pra a lupa não encostar no
+     texto. (29/05 Victor — "mostrar CaseHub quando couber"). */
+  .ch-topbar__brand-full {
+    width: 108px;
+    height: 38px;
+  }
+  .ch-topbar__brand-full::before {
+    width: 32px;
+    height: 32px;
+  }
+  .ch-topbar__brand-full::after {
+    display: block;
+    left: 36px;
+    width: 70px;
+    height: 18px;
+  }
+  .ch-topbar__actions {
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+  .ch-icon-btn,
+  .ch-topbar__avatar {
+    width: 44px;
+    height: 44px;
+  }
+  .ch-btn,
+  .ch-btn--sm {
+    min-height: 44px;
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+  .ch-page-head h1 { font-size: var(--fs-xl); }
+  .ch-route-map { grid-template-columns: 1fr; }
+  .ch-topbar .ch-menu {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 76px);
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+}
+@media (max-width: 480px) {
+  .ch-topbar { gap: 4px; padding: 6px 8px; }
+  .ch-topbar__slug { display: none; }
+  /* 361–480px: o wordmark "CaseHub" CONTINUA (a regra ≤720 com width:108px manda);
+     aqui só apertamos as ações. Só-ícone fica pra ≤360px. (29/05 Victor: mostrar
+     CaseHub nos celulares; antes este bloco forçava só-ícone e escondia o wordmark.) */
+  /* FR (29/05 Victor): @320px as ações (lupa/dark/leaf/sino/avatar) saíam pela
+     direita. Aperta ícones + gap pra TODOS caberem sem cortar/sobrepor.
+     5×36 + 4×4 (gaps) + brand 34 + paddings ≈ cabe em 320px. */
+  .ch-topbar__actions { gap: 4px; }
+  .ch-icon-btn,
+  .ch-topbar__avatar {
+    width: 36px;
+    height: 36px;
+  }
+  .ch-icon-btn svg { width: 17px; height: 17px; }
+  .ch-topbar__actions .ch-icon-btn[data-mobile-hide] { display: none; }
+}
+/* @≤360px (inclui 320px): aperto final — ícones 32px + gap 3px garantem que as 5
+   ações + ícone da marca caibam sem overflow horizontal. */
+@media (max-width: 360px) {
+  .ch-topbar { gap: 3px; padding: 6px; }
+  .ch-topbar__actions { gap: 3px; }
+  .ch-icon-btn,
+  .ch-topbar__avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .ch-icon-btn svg { width: 16px; height: 16px; }
+  .ch-topbar__avatar { font-size: 12px; }
+  .ch-topbar__brand-full { width: 30px; height: 30px; }
+  .ch-topbar__brand-full::before { width: 26px; height: 26px; }
+  .ch-topbar__brand-full::after { display: none; } /* ≤360px: só-ícone, lupa não encosta no texto */
+}
+
+/* ─────────── Mobile route-tab "drag out of nav bar" to close ───────────
+ * FR-5 (29/05 Victor): no mobile a bottom-nav É o sistema de abas por rota.
+ * Fechar uma route-tab = arrastar o item ativo (não-fixo) pra fora da barra.
+ * nav-tabs.js seta data-dragging-out + --drag-dy via pointer events; aqui só
+ * o feedback visual (sobe/esmaece) e a "boca" de descarte. GPU-only (transform/
+ * opacity), ≤220ms. */
+@media (max-width: 879.98px) {
+  .ch-bottomnav__item[data-dragging-out] {
+    transform: translateY(calc(var(--drag-dy, 0px) * -1)) scale(0.94);
+    opacity: clamp(0.25, calc(1 - var(--drag-progress, 0) * 0.85), 1);
+    z-index: 3;
+    transition: none;
+  }
+  /* "Solte para fechar" — boca de descarte acima da nav durante o drag */
+  .ch-bottomnav-wrap[data-close-hint="true"]::after {
+    content: "Solte para fechar";
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% - 6px);
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-card);
+    color: var(--c-danger);
+    font-size: var(--fs-xs); font-weight: 700;
+    box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+    border: 1px dashed color-mix(in srgb, var(--c-danger) 50%, transparent);
+    pointer-events: none;
+    white-space: nowrap;
+    animation: ch-close-hint-in var(--motion-mid) var(--ease-out);
+  }
+  .ch-bottomnav-wrap[data-close-armed="true"]::after {
+    background: color-mix(in srgb, var(--c-danger) 14%, var(--surface-card));
+    transform: translateX(-50%) scale(1.04);
+  }
+  @keyframes ch-close-hint-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+}
+[data-eco="true"] .ch-bottomnav-wrap[data-close-hint="true"]::after { animation: none; }
+
+/* ─────────── Mobile search bar (docked to bottom edge) ───────────
+ * FR-6 (29/05 Victor): lupa do topbar (mobile) abre esta barra presa embaixo.
+ * Sobe acima da bottom-nav; o input encaminha pro command palette. */
+.ch-mobile-search {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 0;
+  z-index: calc(var(--z-bottomnav) + 4);
+  padding: var(--space-3) var(--content-pad-x)
+           calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+.ch-mobile-search[hidden] { display: none; }
+.ch-mobile-search__bar {
+  display: flex; align-items: center; gap: var(--space-2);
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 8px 8px 8px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  pointer-events: auto;
+  transform: translateY(0);
+  transition: transform var(--motion-mid) var(--ease-out),
+              opacity var(--motion-mid) var(--ease-out);
+}
+/* enter/leave: desliza de baixo (JS aplica is-entering por 1 frame) */
+.ch-mobile-search.is-entering .ch-mobile-search__bar {
+  transform: translateY(120%);
+  opacity: 0;
+}
+.ch-mobile-search__icon { color: var(--fg-muted); flex: 0 0 auto; display: inline-flex; }
+.ch-mobile-search__input {
+  flex: 1 1 auto; min-width: 0;
+  border: none; background: transparent;
+  font-family: var(--sans); font-size: var(--fs-base); color: var(--fg-default);
+  min-height: 36px;
+}
+.ch-mobile-search__input::placeholder { color: var(--fg-muted); }
+.ch-mobile-search__input:focus { outline: none; }
+.ch-mobile-search__close {
+  width: 40px; height: 40px; flex: 0 0 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  background: var(--surface-app); color: var(--fg-default);
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+}
+.ch-mobile-search__close svg { width: 16px; height: 16px; }
+.ch-mobile-search__close:active {
+  transform: none;
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+/* Desktop nunca mostra a barra mobile (lupa some ≥720px) */
+@media (min-width: 720px) {
+  .ch-mobile-search { display: none !important; }
+}
+[data-eco="true"] .ch-mobile-search__bar { transition: none; }
+[data-eco="true"] .ch-mobile-search.is-entering .ch-mobile-search__bar {
+  transform: none; opacity: 1;
+}
+

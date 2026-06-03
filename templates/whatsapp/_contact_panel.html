@@ -1,0 +1,277 @@
+{#
+  _contact_panel.html — WhatsApp Web clone CRM contact-info side panel (WS-D).
+
+  Rendered as a STANDALONE FRAGMENT by routes/whatsapp_crm.py
+  (GET <prefix>/crm/contact-panel/{phone}) and injected into chat.html by
+  static/js/whatsapp-crm.js — chat.html itself is never edited.
+
+  No {% extends %}: this is a partial. Styling lives in
+  static/css/templates/whatsapp-crm.css (semantic tokens only).
+
+  Context: phone, contact (the _contact_crm_payload dict or None),
+  lead_stages, lead_stage_labels.
+#}
+<div class="wac-panel" data-phone="{{ phone }}"
+     data-stage="{{ (contact.lead_stage if contact else 'novo') }}">
+  <header class="wac-panel__header">
+    <span class="wac-panel__title">
+      <i class="fas fa-id-card" aria-hidden="true"></i> Painel CRM
+    </span>
+    <button type="button" class="wac-panel__close" data-wac-close
+            aria-label="Fechar painel CRM">&times;</button>
+  </header>
+
+  <div class="wac-panel__body">
+    {# ── Identity ─────────────────────────────────────────── #}
+    <section class="wac-section wac-identity">
+      <div class="wac-identity__avatar" aria-hidden="true">
+        {% if contact and contact.profile_pic_url %}
+          <img src="{{ contact.profile_pic_url }}" alt="" loading="lazy">
+        {% else %}
+          <span class="wac-identity__initial">
+            {{ (contact.display_name[0]|upper if contact and contact.display_name else '?') }}
+          </span>
+        {% endif %}
+      </div>
+      <div class="wac-identity__meta">
+        <span class="wac-identity__name" id="wacName">
+          {{ contact.display_name if contact else phone }}
+        </span>
+        <span class="wac-identity__phone">{{ phone }}</span>
+        {% if contact and contact.is_business %}
+          <span class="wac-badge wac-badge--info">Conta comercial</span>
+        {% endif %}
+        {% if contact and contact.is_group %}
+          <span class="wac-badge wac-badge--info">Grupo</span>
+        {% endif %}
+      </div>
+    </section>
+
+    {# ── Aviso de possível duplicata (preenchido por whatsapp-crm.js) ── #}
+    <div class="wac-dup-warning" id="wacDupWarning" hidden></div>
+
+    {# ── Lead stage ───────────────────────────────────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Estágio do lead</h4>
+      <div class="wac-stage-picker" role="radiogroup" aria-label="Estágio do lead">
+        {% for s in lead_stages %}
+          <button type="button"
+                  class="wac-stage wac-stage--{{ s }}{{ ' is-active' if contact and contact.lead_stage == s else ('' if contact else (' is-active' if s == 'novo' else '')) }}"
+                  data-wac-stage="{{ s }}"
+                  role="radio"
+                  aria-checked="{{ 'true' if contact and contact.lead_stage == s else ('true' if (not contact and s == 'novo') else 'false') }}">
+            {{ lead_stage_labels[s] }}
+          </button>
+        {% endfor %}
+      </div>
+    </section>
+
+    {# ── Pontuação do lead (PR6, materializada) ───────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Pontuação do lead</h4>
+      <div class="wac-score" title="Engajamento + intenção + estágio + vínculo">
+        <div class="wac-score__bar">
+          <div class="wac-score__fill" style="width:{{ contact.lead_score if contact and contact.lead_score else 0 }}%"></div>
+        </div>
+        <span class="wac-score__num">{{ contact.lead_score if contact and contact.lead_score else 0 }}/100</span>
+      </div>
+      {% if contact and contact.suggested_stage and contact.suggested_stage != contact.lead_stage %}
+      <p class="wac-suggest">💡 Sugestão: avançar para <strong>{{ lead_stage_labels[contact.suggested_stage] }}</strong></p>
+      {% endif %}
+    </section>
+
+    {# ── Dono do contato (owner-tag) ──────────────────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Dono do contato</h4>
+      <div class="wac-owner">
+        <select class="wac-owner__select" id="wacOwner"
+                data-current="{{ contact.owner.user_id if contact and contact.owner else '' }}"
+                aria-label="Dono do contato">
+          <option value="">Sem dono</option>
+        </select>
+        <span class="wac-owner__badge" id="wacOwnerBadge"
+              {% if contact and contact.owner %}style="background:{{ contact.owner.color }}"{% endif %}>{{ contact.owner.name if contact and contact.owner else '' }}</span>
+      </div>
+    </section>
+
+    {# ── Follow-up (PR7) ──────────────────────────────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Follow-up</h4>
+      <div class="wac-followup">
+        <input type="date" class="wac-followup__date" id="wacFollowUpDate"
+               value="{{ contact.follow_up_date if contact and contact.follow_up_date else '' }}"
+               aria-label="Data do follow-up">
+        <input type="text" class="wac-followup__note" id="wacFollowUpNote" maxlength="1000"
+               placeholder="Motivo (opcional)"
+               value="{{ contact.follow_up_note if contact and contact.follow_up_note else '' }}">
+        <div class="wac-followup__actions">
+          <button type="button" class="wac-btn wac-btn--sm" id="wacFollowUpSave">Agendar</button>
+          <button type="button" class="wac-btn wac-btn--ghost wac-btn--sm" id="wacFollowUpClear">Limpar</button>
+        </div>
+      </div>
+    </section>
+
+    {# ── CaseHub link (Client / Case) ─────────────────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Vínculo CaseHub</h4>
+      <div class="wac-link" id="wacLink">
+        {% if contact and contact.client %}
+          <div class="wac-link__client" data-client-id="{{ contact.client.id }}">
+            <span class="wac-link__client-name">
+              <i class="fas fa-user-tie" aria-hidden="true"></i>
+              {{ contact.client.name }}
+            </span>
+            {% if contact.client.email %}
+              <span class="wac-link__client-sub">{{ contact.client.email }}</span>
+            {% endif %}
+            <button type="button" class="wac-btn wac-btn--ghost wac-btn--sm"
+                    data-wac-unlink>Desvincular</button>
+          </div>
+          {% if contact.cases %}
+            <ul class="wac-cases">
+              {% for c in contact.cases %}
+                <li class="wac-cases__item">
+                  <span class="wac-cases__num">{{ c.case_number or ('#' ~ c.id) }}</span>
+                  <span class="wac-cases__name">{{ c.case_name or c.visa_type or '—' }}</span>
+                  <span class="wac-badge wac-badge--neutral">{{ c.status or '—' }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="wac-empty wac-empty--sm">Sem processos cadastrados.</p>
+          {% endif %}
+        {% else %}
+          <p class="wac-empty wac-empty--sm">Contato não vinculado a um cliente.</p>
+          <button type="button" class="wac-btn wac-btn--primary wac-btn--sm"
+                  data-wac-open-link>
+            <i class="fas fa-link" aria-hidden="true"></i> Vincular cliente
+          </button>
+        {% endif %}
+      </div>
+      {# Inline client picker — hidden until "Vincular cliente" #}
+      <div class="wac-picker" id="wacClientPicker" hidden>
+        <label for="wacClientSearch" class="sr-only">Buscar cliente</label>
+        <input type="search" id="wacClientSearch" class="wac-input"
+               placeholder="Buscar cliente por nome ou e-mail…"
+               autocomplete="off">
+        <ul class="wac-picker__results" id="wacClientResults" role="listbox"></ul>
+      </div>
+    </section>
+
+    {# ── Tags ─────────────────────────────────────────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Tags</h4>
+      <div class="wac-tags" id="wacTags" aria-label="Tags do contato">
+        {% if contact and contact.tags %}
+          {% for tag in contact.tags %}
+            <span class="wac-tag" data-tag="{{ tag }}">
+              {{ tag }}
+              <button type="button" class="wac-tag__remove"
+                      data-wac-tag-remove="{{ tag }}"
+                      aria-label="Remover tag {{ tag }}">&times;</button>
+            </span>
+          {% endfor %}
+        {% endif %}
+      </div>
+      <form class="wac-tag-add" id="wacTagForm">
+        <label for="wacTagInput" class="sr-only">Nova tag</label>
+        <input type="text" id="wacTagInput" class="wac-input wac-input--sm"
+               placeholder="Adicionar tag…" maxlength="48" autocomplete="off">
+        <button type="submit" class="wac-btn wac-btn--ghost wac-btn--sm"
+                aria-label="Adicionar tag">
+          <i class="fas fa-plus" aria-hidden="true"></i>
+        </button>
+      </form>
+    </section>
+
+    {# ── Automation hooks (bot / human takeover) ──────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Automação</h4>
+      <div class="wac-toggle-row">
+        <span class="wac-toggle-row__label">Assistente automático</span>
+        <button type="button" class="wac-switch{{ ' is-on' if not contact or contact.stats.bot_enabled else '' }}"
+                id="wacBotSwitch" role="switch"
+                aria-checked="{{ 'true' if (not contact or contact.stats.bot_enabled) else 'false' }}"
+                aria-label="Ativar/desativar assistente para este contato">
+          <span class="wac-switch__knob" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="wac-toggle-row">
+        <span class="wac-toggle-row__label">Atendimento humano</span>
+        <button type="button" class="wac-switch{{ ' is-on' if contact and contact.stats.human_takeover else '' }}"
+                id="wacTakeoverSwitch" role="switch"
+                aria-checked="{{ 'true' if (contact and contact.stats.human_takeover) else 'false' }}"
+                aria-label="Marcar atendimento humano para este contato">
+          <span class="wac-switch__knob" aria-hidden="true"></span>
+        </button>
+      </div>
+      <button type="button" class="wac-btn wac-btn--ghost wac-btn--block"
+              id="wacFollowupBtn">
+        <i class="fas fa-bell" aria-hidden="true"></i> Marcar para follow-up
+      </button>
+    </section>
+
+    {# ── AI assist (ephemeral) ────────────────────────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">
+        Assistente IA
+        <span class="wac-badge wac-badge--neutral" title="Sugestões geradas ao vivo, nada é salvo">efêmero</span>
+      </h4>
+      <div class="wac-ai-actions">
+        <button type="button" class="wac-btn wac-btn--ghost wac-btn--sm" id="wacAiSuggest">
+          <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i> Sugerir resposta
+        </button>
+        <button type="button" class="wac-btn wac-btn--ghost wac-btn--sm" id="wacAiSummary">
+          <i class="fas fa-list-check" aria-hidden="true"></i> Resumir conversa
+        </button>
+      </div>
+      <div class="wac-ai-out" id="wacAiOut" hidden aria-live="polite"></div>
+      <p class="wac-ai-note">A IA é consultada ao vivo. Nenhuma sugestão é
+        armazenada como dado de treino.</p>
+    </section>
+
+    {# ── Quick stats ──────────────────────────────────────── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Estatísticas</h4>
+      <dl class="wac-stats">
+        <div class="wac-stats__row">
+          <dt>Mensagens</dt>
+          <dd>{{ contact.stats.message_count if contact else 0 }}</dd>
+        </div>
+        <div class="wac-stats__row">
+          <dt>Não lidas</dt>
+          <dd>{{ contact.stats.unread if contact else 0 }}</dd>
+        </div>
+        <div class="wac-stats__row">
+          <dt>Primeiro contato</dt>
+          <dd id="wacFirstContact"
+              data-iso="{{ contact.stats.first_contact_at if contact else '' }}">—</dd>
+        </div>
+        <div class="wac-stats__row">
+          <dt>Última mensagem</dt>
+          <dd id="wacLastMsg"
+              data-iso="{{ contact.stats.last_message_at if contact else '' }}">—</dd>
+        </div>
+      </dl>
+    </section>
+
+    {# ── Notas do contato (CRM, org-scoped — hidratadas por whatsapp-crm.js) ── #}
+    <section class="wac-section">
+      <h4 class="wac-section__title">Notas</h4>
+      <ul class="wac-notes" id="wacNotes" aria-live="polite">
+        <li class="wac-empty wac-empty--sm" data-notes-empty>Sem notas ainda.</li>
+      </ul>
+      <form class="wac-note-form" id="wacNoteForm">
+        <textarea class="wac-note-input" id="wacNoteInput" rows="2" maxlength="5000"
+                  placeholder="Escreva uma nota sobre este contato…"></textarea>
+        <button type="submit" class="wac-btn wac-btn--sm wac-note-add">Adicionar nota</button>
+      </form>
+      {% if contact and contact.client %}
+        <p class="wac-empty wac-empty--sm" style="margin-top:8px">
+          Ficha completa do cliente:
+          <a class="wac-link-inline" href="{{ PREFIX }}/clients/{{ contact.client.id }}">Abrir ficha</a>
+        </p>
+      {% endif %}
+    </section>
+  </div>
+</div>

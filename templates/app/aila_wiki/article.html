@@ -1,0 +1,217 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Aila_Wiki · Article · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a href="{{ PREFIX }}/aila-wiki"><i class="fas fa-book me-1"></i> AILA Wiki</a>
+        </li>
+        {% if article.category %}
+        <li class="breadcrumb-item">
+            <a href="{{ PREFIX }}/aila-wiki?category={{ article.category | urlencode }}">{{ article.category }}</a>
+        </li>
+        {% endif %}
+        <li class="breadcrumb-item active" aria-current="page">{{ article.title[:40] }}{% if article.title | length > 40 %}...{% endif %}</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <!-- Main Content -->
+    <div class="col-lg-8">
+        <article class="card glass-card">
+            <div class="card-header">
+                <h2 class="card-title mb-2">{{ article.title }}</h2>
+                <div class="d-flex gap-2 flex-wrap mb-2">
+                    {% if article.category %}
+                    <span class="badge bg-primary">{{ article.category }}</span>
+                    {% endif %}
+                    {% for tag in article.tags %}
+                    <span class="badge bg-secondary">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                <small class="text-muted">
+                    <i class="fas fa-clock me-1"></i>
+                    Atualizado: {{ article.last_updated[:10] if article.last_updated else 'N/A' }}
+                </small>
+            </div>
+            <div class="card-body wiki-content">
+                {% if article.summary %}
+                <div class="alert alert-secondary mb-4">
+                    <i class="fas fa-info-circle me-2"></i>
+                    {{ article.summary }}
+                </div>
+                {% endif %}
+
+                {{ article.content | safe }}
+
+                {% if not article.content %}
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-file-alt fa-3x mb-3 opacity-50"></i>
+                    <p>Este artigo ainda não tem conteudo.</p>
+                    <a href="{{ article.url }}" target="_blank" class="btn btn-primary glass-btn glass-btn--primary">
+                        <i class="fas fa-edit me-1"></i> Editar no Notion
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer d-flex justify-content-between">
+                <a href="{{ PREFIX }}/aila-wiki" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left me-1"></i> Voltar para Wiki
+                </a>
+                <a href="{{ article.url }}" target="_blank" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-sm">
+                    <i class="fas fa-edit me-1"></i> Editar no Notion
+                </a>
+            </div>
+        </article>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- AILA Context -->
+        {% if aila_context %}
+        <div class="card mb-3">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-graduation-cap me-1"></i> Referencia AILA
+            </div>
+            <div class="card-body small" style="max-height: 300px; overflow-y: auto;">
+                {{ aila_context | truncate(500) }}
+            </div>
+            <div class="card-footer">
+                <a href="{{ PREFIX }}/aila-wiki/search?q={{ article.tags[0] | urlencode if article.tags else '' }}&source=aila"
+                   class="btn btn-sm btn-outline-info w-100">
+                    <i class="fas fa-search me-1"></i> Buscar mais nos docs AILA
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Related Articles -->
+        {% if related_articles %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="fas fa-link me-1"></i> Artigos Relacionados
+            </div>
+            <div class="list-group list-group-flush">
+                {% for related in related_articles[:5] %}
+                <a href="{{ PREFIX }}/aila-wiki/article/{{ related.slug }}"
+                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <span>{{ related.title[:35] }}{% if related.title | length > 35 %}...{% endif %}</span>
+                    <i class="fas fa-chevron-right text-muted"></i>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tags -->
+        {% if article.tags %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="fas fa-tags me-1"></i> Tags
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for tag in article.tags %}
+                    <a href="{{ PREFIX }}/aila-wiki?tag={{ tag | urlencode }}"
+                       class="badge bg-secondary text-decoration-none">
+                        {{ tag }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Links -->
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-external-link-alt me-1"></i> Links Rapidos
+            </div>
+            <div class="list-group list-group-flush">
+                <a href="{{ PREFIX }}/aila-wiki/search?q={{ article.title | urlencode }}&source=aila"
+                   class="list-group-item list-group-item-action">
+                    <i class="fas fa-search me-2 text-primary"></i> Buscar no AILA
+                </a>
+                {% if article.tags and article.tags[0] in ['H-1B', 'EB-1A', 'EB-2 NIW', 'O-1A', 'L-1A', 'TN'] %}
+                <a href="{{ PREFIX }}/api/aila/requirements/{{ article.tags[0] }}"
+                   class="list-group-item list-group-item-action" target="_blank">
+                    <i class="fas fa-list me-2 text-success"></i> Ver requisitos {{ article.tags[0] }}
+                </a>
+                {% endif %}
+                <a href="{{ article.url }}" target="_blank"
+                   class="list-group-item list-group-item-action">
+                    <i class="fab fa-notion me-2"></i> Abrir no Notion
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.wiki-content h2 {
+    font-size: 1.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #333;
+}
+.wiki-content h3 {
+    font-size: 1.25rem;
+    margin-top: 1.25rem;
+    margin-bottom: 0.75rem;
+}
+.wiki-content h4 {
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+.wiki-content p {
+    margin-bottom: 1rem;
+    line-height: 1.7;
+}
+.wiki-content ul, .wiki-content ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+.wiki-content li {
+    margin-bottom: 0.5rem;
+}
+.wiki-content blockquote {
+    border-left: 4px solid #4a90d9;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: #aaa;
+}
+.wiki-content pre {
+    background: #0f0f1a;
+    padding: 1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+}
+.wiki-content code {
+    background: #252540;
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+.wiki-content pre code {
+    background: none;
+    padding: 0;
+}
+.wiki-content hr {
+    border-color: #333;
+    margin: 2rem 0;
+}
+.wiki-content .alert {
+    margin: 1rem 0;
+}
+</style>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

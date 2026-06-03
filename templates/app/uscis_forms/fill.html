@@ -1,0 +1,457 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Uscis_Forms · Fill · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/uscis-forms-fill.css">
+{% endblock %}
+{% block content %}
+<div class="uscis-fill-main" aria-labelledby="uscis-fill-title">
+    <header class="uscis-fill-header">
+        <a href="{{ PREFIX }}/uscis-forms" class="uscis-fill-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Library</span>
+        </a>
+        <h1 id="uscis-fill-title" class="uscis-fill-title">
+            <i class="fas fa-pen-fancy" aria-hidden="true"></i>
+            <span>Fill Form {{ form.form_number }}</span>
+            {% if form.has_auto_fill %}
+            <span class="uscis-fill-badge uscis-fill-badge--success">
+                <i class="fas fa-magic" aria-hidden="true"></i>
+                <span>Auto-Fill Available</span>
+            </span>
+            {% endif %}
+        </h1>
+        <p class="uscis-fill-subtitle">{{ form.name }}</p>
+    </header>
+
+    <div class="uscis-fill-grid">
+        <div class="uscis-fill-column">
+            <!-- Progress Indicator -->
+            <section class="uscis-fill-card" aria-label="Form progress">
+                <div class="uscis-fill-card-body uscis-fill-card-body--compact">
+                    <div class="uscis-fill-progress">
+                        <ol class="uscis-fill-progress-steps">
+                            <li class="uscis-fill-step {{ 'uscis-fill-step--complete' if selected_case else 'uscis-fill-step--active' }}">
+                                <i class="fas {{ 'fa-check' if selected_case else 'fa-circle' }}" aria-hidden="true"></i>
+                                <span>1. Select Case</span>
+                            </li>
+                            <li class="uscis-fill-step-sep" aria-hidden="true">
+                                <i class="fas fa-chevron-right"></i>
+                            </li>
+                            <li class="uscis-fill-step {{ 'uscis-fill-step--complete' if (populated_data and populated_data.populated_fields) else ('uscis-fill-step--active' if selected_case else '') }}">
+                                <i class="fas {{ 'fa-check' if (populated_data and populated_data.populated_fields) else 'fa-circle' }}" aria-hidden="true"></i>
+                                <span>2. Pre-Fill Data</span>
+                            </li>
+                            <li class="uscis-fill-step-sep" aria-hidden="true">
+                                <i class="fas fa-chevron-right"></i>
+                            </li>
+                            <li class="uscis-fill-step">
+                                <i class="fas fa-circle" aria-hidden="true"></i>
+                                <span>3. Review &amp; Save</span>
+                            </li>
+                        </ol>
+                        <div class="uscis-fill-autosave" id="autoSaveStatus" role="status" aria-live="polite">
+                            <i class="fas fa-cloud" aria-hidden="true"></i>
+                            <span>Ready</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 1: Case Selection -->
+            <section class="uscis-fill-card" aria-labelledby="uscis-fill-step1-title">
+                <header class="uscis-fill-card-header">
+                    <h2 id="uscis-fill-step1-title" class="uscis-fill-card-title">
+                        <i class="fas fa-briefcase" aria-hidden="true"></i>
+                        <span>Step 1: Select Case for Pre-Population</span>
+                    </h2>
+                </header>
+                <div class="uscis-fill-card-body">
+                    <form method="GET" class="uscis-fill-field-grid">
+                        <div class="uscis-fill-field uscis-fill-field--8">
+                            <label for="uscis-fill-case-select" class="uscis-fill-sr-only">Case</label>
+                            <select id="uscis-fill-case-select" name="case_id" class="uscis-fill-select" onchange="this.form.submit()">
+                                <option value="">-- Select a Case --</option>
+                                {% for case in cases %}
+                                <option value="{{ case.id }}" {% if selected_case and selected_case.id == case.id %}selected{% endif %}>
+                                    {{ case.case_number }} - {{ case.case_name }} ({{ case.visa_type }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--4">
+                            <button type="submit" class="uscis-fill-btn uscis-fill-btn--primary uscis-fill-btn--block uscis-fill-btn--lg">
+                                <i class="fas fa-magic" aria-hidden="true"></i>
+                                <span>Pre-Fill from Client</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            {% if selected_case and client %}
+            <!-- Step 2: Client Data -->
+            <section class="uscis-fill-card" aria-labelledby="uscis-fill-step2-title">
+                <header class="uscis-fill-card-header">
+                    <h2 id="uscis-fill-step2-title" class="uscis-fill-card-title uscis-fill-card-title--success">
+                        <i class="fas fa-user" aria-hidden="true"></i>
+                        <span>Step 2: Client Data</span>
+                    </h2>
+                    <span class="uscis-fill-badge uscis-fill-badge--success">
+                        <i class="fas fa-check" aria-hidden="true"></i>
+                        <span>Loaded from {{ client.full_name }}</span>
+                    </span>
+                </header>
+                <div class="uscis-fill-card-body">
+                    <div class="uscis-fill-field-grid">
+                        <div class="uscis-fill-field uscis-fill-field--4">
+                            <label for="uscis-fill-last-name" class="uscis-fill-label">Family Name (Last)</label>
+                            <input type="text" id="uscis-fill-last-name" class="uscis-fill-input uscis-fill-input--auto-filled" readonly
+                                   value="{{ client.last_name or '' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--4">
+                            <label for="uscis-fill-first-name" class="uscis-fill-label">Given Name (First)</label>
+                            <input type="text" id="uscis-fill-first-name" class="uscis-fill-input uscis-fill-input--auto-filled" readonly
+                                   value="{{ client.first_name or '' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--4">
+                            <label for="uscis-fill-middle-name" class="uscis-fill-label">Middle Name</label>
+                            <input type="text" id="uscis-fill-middle-name" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.middle_name else '' }}" readonly
+                                   value="{{ client.middle_name or 'N/A' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--3">
+                            <label for="uscis-fill-dob" class="uscis-fill-label">Date of Birth</label>
+                            <input type="text" id="uscis-fill-dob" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.date_of_birth else '' }}" readonly
+                                   value="{{ client.date_of_birth or 'Not provided' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--3">
+                            <label for="uscis-fill-country" class="uscis-fill-label">Country of Origin</label>
+                            <input type="text" id="uscis-fill-country" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.country_of_origin else '' }}" readonly
+                                   value="{{ client.country_of_origin or 'Not provided' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--3">
+                            <label for="uscis-fill-anumber" class="uscis-fill-label">A-Number</label>
+                            <input type="text" id="uscis-fill-anumber" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.alien_number else '' }}" readonly
+                                   value="{{ client.alien_number or 'Not provided' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--3">
+                            <label for="uscis-fill-ssn" class="uscis-fill-label">SSN</label>
+                            <input type="text" id="uscis-fill-ssn" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.ssn else '' }}" readonly
+                                   value="{{ client.ssn or 'Not provided' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--3">
+                            <label for="uscis-fill-passport" class="uscis-fill-label">Passport Number</label>
+                            <input type="text" id="uscis-fill-passport" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.passport_number else '' }}" readonly
+                                   value="{{ client.passport_number or 'Not provided' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--3">
+                            <label for="uscis-fill-phone" class="uscis-fill-label">Phone</label>
+                            <input type="text" id="uscis-fill-phone" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.phone else '' }}" readonly
+                                   value="{{ client.phone or 'Not provided' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--3">
+                            <label for="uscis-fill-email" class="uscis-fill-label">Email</label>
+                            <input type="text" id="uscis-fill-email" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.email else '' }}" readonly
+                                   value="{{ client.email or 'Not provided' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--3">
+                            <label for="uscis-fill-zip" class="uscis-fill-label">ZIP Code</label>
+                            <input type="text" id="uscis-fill-zip" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.zip_code else '' }}" readonly
+                                   value="{{ client.zip_code or 'Not provided' }}">
+                        </div>
+                        <div class="uscis-fill-field uscis-fill-field--12">
+                            <label for="uscis-fill-address" class="uscis-fill-label">Address</label>
+                            <input type="text" id="uscis-fill-address" class="uscis-fill-input {{ 'uscis-fill-input--auto-filled' if client.address else '' }}" readonly
+                                   value="{{ [client.address, client.city, client.state, client.zip_code]|select|join(', ') or 'Not provided' }}">
+                        </div>
+                    </div>
+                    <p class="uscis-fill-hint">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Fields highlighted in blue were auto-filled from client data.</span>
+                    </p>
+                </div>
+            </section>
+
+            <!-- Pre-Populated Field Mappings -->
+            {% if populated_data and populated_data.populated_fields %}
+            <section class="uscis-fill-card" aria-labelledby="uscis-fill-mappings-title">
+                <header class="uscis-fill-card-header">
+                    <h2 id="uscis-fill-mappings-title" class="uscis-fill-card-title uscis-fill-card-title--info">
+                        <i class="fas fa-exchange-alt" aria-hidden="true"></i>
+                        <span>Form Field Mappings</span>
+                    </h2>
+                    <span class="uscis-fill-badge uscis-fill-badge--info">
+                        {{ populated_data.populated_fields|length }} fields mapped
+                    </span>
+                </header>
+                <div class="uscis-fill-card-body uscis-fill-card-body--flush">
+                    <div class="uscis-fill-table-wrap">
+                        <table class="uscis-fill-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Form Field</th>
+                                    <th scope="col">Value</th>
+                                    <th scope="col" class="uscis-fill-table-status">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for field_name, value in populated_data.populated_fields.items() %}
+                                <tr>
+                                    <td><code class="uscis-fill-table-code">{{ field_name }}</code></td>
+                                    <td class="uscis-fill-table-value">{{ value }}</td>
+                                    <td class="uscis-fill-table-status">
+                                        <span class="uscis-fill-badge uscis-fill-badge--success" aria-label="Mapped">
+                                            <i class="fas fa-check" aria-hidden="true"></i>
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Step 3: Review & Save -->
+            <section class="uscis-fill-card" aria-labelledby="uscis-fill-step3-title">
+                <header class="uscis-fill-card-header">
+                    <h2 id="uscis-fill-step3-title" class="uscis-fill-card-title">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Step 3: Review &amp; Save</span>
+                    </h2>
+                </header>
+                <div class="uscis-fill-card-body">
+                    <form method="POST" action="{{ PREFIX }}/uscis-forms/{{ form.form_number }}/save" id="formSaveForm" class="uscis-fill-form">
+                        <input type="hidden" name="case_id" value="{{ selected_case.id }}">
+
+                        <div class="uscis-fill-field-grid">
+                            <div class="uscis-fill-field uscis-fill-field--6">
+                                <label for="formStatus" class="uscis-fill-label uscis-fill-label--strong">Status</label>
+                                <select name="status" id="formStatus" class="uscis-fill-select">
+                                    <option value="draft">Draft</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="ready">Ready for Review</option>
+                                    <option value="submitted">Submitted to USCIS</option>
+                                </select>
+                            </div>
+                            <div class="uscis-fill-field uscis-fill-field--6">
+                                <label for="receiptNumber" class="uscis-fill-label uscis-fill-label--strong">Receipt Number (if submitted)</label>
+                                <input type="text" name="receipt_number" id="receiptNumber" class="uscis-fill-input"
+                                       placeholder="e.g., WAC-XX-XXX-XXXXX">
+                            </div>
+                            <div class="uscis-fill-field uscis-fill-field--12">
+                                <label for="formNotes" class="uscis-fill-label uscis-fill-label--strong">Notes</label>
+                                <textarea name="notes" id="formNotes" class="uscis-fill-textarea" rows="3"
+                                          placeholder="Any notes about this form submission..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="uscis-fill-save-actions">
+                            <div class="uscis-fill-save-actions-group">
+                                <a href="{{ PREFIX }}/uscis-forms/{{ form.form_number }}/summary-pdf?case_id={{ selected_case.id }}"
+                                   class="uscis-fill-btn uscis-fill-btn--danger-outline" target="_blank" rel="noopener">
+                                    <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                                    <span>Download Summary PDF</span>
+                                </a>
+                                <a href="https://www.uscis.gov/sites/default/files/document/forms/{{ form.form_number|lower }}.pdf"
+                                   class="uscis-fill-btn" target="_blank" rel="noopener">
+                                    <i class="fas fa-download" aria-hidden="true"></i>
+                                    <span>Blank Form</span>
+                                </a>
+                            </div>
+                            <button type="submit" class="uscis-fill-btn uscis-fill-btn--success uscis-fill-btn--lg">
+                                <i class="fas fa-save" aria-hidden="true"></i>
+                                <span>Save Form Record</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+            {% else %}
+            <section class="uscis-fill-card" aria-labelledby="uscis-fill-empty-title">
+                <div class="uscis-fill-card-body uscis-fill-card-body--empty">
+                    <i class="fas fa-hand-pointer uscis-fill-empty-icon" aria-hidden="true"></i>
+                    <h2 id="uscis-fill-empty-title" class="uscis-fill-empty-title">Select a Case to Begin</h2>
+                    <p class="uscis-fill-empty-text">
+                        Choose a case from the dropdown above to pre-populate form fields with client data.
+                    </p>
+                    {% if form.has_auto_fill %}
+                    <p class="uscis-fill-empty-text uscis-fill-empty-text--success">
+                        <i class="fas fa-magic" aria-hidden="true"></i>
+                        <span>This form supports auto-fill from client data.</span>
+                    </p>
+                    {% endif %}
+                </div>
+            </section>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <aside class="uscis-fill-column" aria-label="Form reference">
+            <section class="uscis-fill-card" aria-labelledby="uscis-fill-info-title">
+                <header class="uscis-fill-card-header">
+                    <h2 id="uscis-fill-info-title" class="uscis-fill-card-title">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Form Information</span>
+                    </h2>
+                </header>
+                <div class="uscis-fill-card-body uscis-fill-card-body--flush">
+                    <table class="uscis-fill-info">
+                        <tbody>
+                            <tr>
+                                <td class="uscis-fill-info-label">Form Number</td>
+                                <td class="uscis-fill-info-value">{{ form.form_number }}</td>
+                            </tr>
+                            <tr>
+                                <td class="uscis-fill-info-label">Category</td>
+                                <td class="uscis-fill-info-value">{{ form.category }}</td>
+                            </tr>
+                            <tr>
+                                <td class="uscis-fill-info-label">Filing Fee</td>
+                                <td class="uscis-fill-info-value uscis-fill-info-value--success">${{ '{:,.0f}'.format(form.fee) }}</td>
+                            </tr>
+                            {% if form.premium_fee %}
+                            <tr>
+                                <td class="uscis-fill-info-label">Premium Fee</td>
+                                <td class="uscis-fill-info-value uscis-fill-info-value--warning">${{ '{:,.0f}'.format(form.premium_fee) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td class="uscis-fill-info-label">Processing</td>
+                                <td class="uscis-fill-info-value">{{ form.processing_time }}</td>
+                            </tr>
+                            <tr>
+                                <td class="uscis-fill-info-label">Pages</td>
+                                <td class="uscis-fill-info-value">{{ form.pages }}</td>
+                            </tr>
+                            <tr>
+                                <td class="uscis-fill-info-label">Edition</td>
+                                <td class="uscis-fill-info-value">{{ form.edition }}</td>
+                            </tr>
+                            <tr>
+                                <td class="uscis-fill-info-label">Auto-Fill</td>
+                                <td>
+                                    {% if form.has_auto_fill %}
+                                    <span class="uscis-fill-badge uscis-fill-badge--success">Available</span>
+                                    {% else %}
+                                    <span class="uscis-fill-badge uscis-fill-badge--muted">Manual Only</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="uscis-fill-card" aria-labelledby="uscis-fill-resources-title">
+                <header class="uscis-fill-card-header">
+                    <h2 id="uscis-fill-resources-title" class="uscis-fill-card-title">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                        <span>Resources</span>
+                    </h2>
+                </header>
+                <nav class="uscis-fill-resources" aria-label="External resources">
+                    <a href="https://www.uscis.gov/sites/default/files/document/forms/{{ form.form_number|lower }}.pdf"
+                       target="_blank" rel="noopener" class="uscis-fill-resource">
+                        <i class="fas fa-file-pdf uscis-fill-resource-icon uscis-fill-resource-icon--danger" aria-hidden="true"></i>
+                        <span>Download Blank Form (PDF)</span>
+                    </a>
+                    <a href="https://www.uscis.gov/sites/default/files/document/forms/{{ form.form_number|lower }}instr.pdf"
+                       target="_blank" rel="noopener" class="uscis-fill-resource">
+                        <i class="fas fa-book uscis-fill-resource-icon uscis-fill-resource-icon--primary" aria-hidden="true"></i>
+                        <span>Form Instructions</span>
+                    </a>
+                    <a href="https://www.uscis.gov/{{ form.form_number|lower }}"
+                       target="_blank" rel="noopener" class="uscis-fill-resource">
+                        <i class="fas fa-globe uscis-fill-resource-icon uscis-fill-resource-icon--success" aria-hidden="true"></i>
+                        <span>Official USCIS Page</span>
+                    </a>
+                </nav>
+            </section>
+
+            <section class="uscis-fill-card" aria-labelledby="uscis-fill-tips-title">
+                <header class="uscis-fill-card-header uscis-fill-card-header--tips">
+                    <h2 id="uscis-fill-tips-title" class="uscis-fill-card-title uscis-fill-card-title--warning">
+                        <i class="fas fa-lightbulb" aria-hidden="true"></i>
+                        <span>Tips</span>
+                    </h2>
+                </header>
+                <div class="uscis-fill-card-body">
+                    <ul class="uscis-fill-tips">
+                        <li>Always verify auto-filled data matches the client's documents</li>
+                        <li>Use the most recent form edition from USCIS.gov</li>
+                        <li>Include all required supporting documents</li>
+                        <li>Sign and date where required before filing</li>
+                        <li>Keep copies of everything submitted</li>
+                    </ul>
+                </div>
+            </section>
+        </aside>
+    </div>
+</div>
+
+<script>
+(function() {
+    var autoSaveTimer;
+    var autoSaveFields = ['formStatus', 'receiptNumber', 'formNotes'];
+    var statusEl = document.getElementById('autoSaveStatus');
+    var formNumber = {{ form.form_number|tojson }};
+    var caseId = {{ (selected_case.id if selected_case else '') |tojson }};
+    var storageKey = 'uscis_draft_' + formNumber + '_' + (caseId || 'none');
+
+    function setStatus(variant, icon, text) {
+        if (!statusEl) return;
+        statusEl.className = 'uscis-fill-autosave' + (variant ? ' uscis-fill-autosave--' + variant : '');
+        statusEl.innerHTML = '<i class="fas ' + icon + '" aria-hidden="true"></i><span>' + text + '</span>';
+    }
+
+    function debounceAutoSave() {
+        clearTimeout(autoSaveTimer);
+        setStatus('saving', 'fa-spinner fa-spin', 'Saving...');
+        autoSaveTimer = setTimeout(function() {
+            var draft = {
+                form: formNumber,
+                case_id: caseId,
+                status: (document.getElementById('formStatus') || {}).value || '',
+                receipt_number: (document.getElementById('receiptNumber') || {}).value || '',
+                notes: (document.getElementById('formNotes') || {}).value || '',
+                saved_at: new Date().toISOString()
+            };
+            try {
+                localStorage.setItem(storageKey, JSON.stringify(draft));
+                setStatus('saved', 'fa-cloud-upload-alt', 'Draft saved');
+                setTimeout(function() { setStatus('', 'fa-cloud', 'Ready'); }, 2000);
+            } catch (e) {
+                setStatus('', 'fa-cloud', 'Ready');
+            }
+        }, 1000);
+    }
+
+    autoSaveFields.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', debounceAutoSave);
+            el.addEventListener('change', debounceAutoSave);
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var saved = localStorage.getItem(storageKey);
+        if (!saved) return;
+        try {
+            var draft = JSON.parse(saved);
+            var statusField = document.getElementById('formStatus');
+            var receiptField = document.getElementById('receiptNumber');
+            var notesField = document.getElementById('formNotes');
+            if (statusField && draft.status) statusField.value = draft.status;
+            if (receiptField && draft.receipt_number) receiptField.value = draft.receipt_number;
+            if (notesField && draft.notes) notesField.value = draft.notes;
+        } catch (e) {}
+    });
+})();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

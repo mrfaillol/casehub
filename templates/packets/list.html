@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block title %}Document Packets - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/packets-list.css">
+{% endblock %}
+
+{% block content %}
+<main class="packets-list-main" aria-labelledby="packets-list-title">
+    <header class="packets-list-header">
+        <div class="packets-list-heading">
+            <h1 id="packets-list-title" class="packets-list-title">
+                <i class="fas fa-file-archive packets-list-title-icon" aria-hidden="true"></i>
+                <span>Document Packets</span>
+            </h1>
+            <p class="packets-list-subtitle">Create and manage document packets for cases</p>
+        </div>
+        <a href="{{ PREFIX }}/packets/new" class="packets-list-cta">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Create Packet</span>
+        </a>
+    </header>
+
+    {% if packets %}
+    <section class="packets-list-card" aria-label="Document packets table">
+        <div class="packets-list-tablewrap">
+            <table class="packets-list-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Title</th>
+                        <th scope="col">Case</th>
+                        <th scope="col">Documents</th>
+                        <th scope="col">Pages</th>
+                        <th scope="col">Created</th>
+                        <th scope="col" class="packets-list-cell-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for packet in packets %}
+                    <tr>
+                        <td>
+                            <a href="{{ PREFIX }}/packets/{{ packet.packet_id }}" class="packets-list-link">
+                                <i class="fas fa-file-pdf packets-list-link-icon" aria-hidden="true"></i>
+                                <span>{{ packet.title }}</span>
+                            </a>
+                            {% if packet.include_toc %}
+                            <span class="packets-list-badge packets-list-badge--info" title="Includes Table of Contents">TOC</span>
+                            {% endif %}
+                            {% if packet.include_cover %}
+                            <span class="packets-list-badge packets-list-badge--neutral" title="Includes Cover Page">Cover</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if packet.case_number %}
+                            <a href="{{ PREFIX }}/cases/{{ packet.case_id }}" class="packets-list-case-link">
+                                {{ packet.case_number }} - {{ packet.case_name }}
+                            </a>
+                            {% else %}
+                            <span class="packets-list-placeholder" aria-hidden="true">—</span>
+                            <span class="packets-list-sr-only">No case</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="packets-list-badge packets-list-badge--accent">{{ packet.document_count }} docs</span>
+                        </td>
+                        <td>
+                            <span class="packets-list-pages">{{ packet.total_pages or 0 }} pages</span>
+                        </td>
+                        <td>
+                            {% if packet.created_at %}
+                            <time class="packets-list-date" datetime="{{ packet.created_at.isoformat() }}">{{ packet.created_at.strftime('%Y-%m-%d %H:%M') }}</time>
+                            {% else %}
+                            <span class="packets-list-placeholder" aria-hidden="true">—</span>
+                            <span class="packets-list-sr-only">No date</span>
+                            {% endif %}
+                        </td>
+                        <td class="packets-list-cell-actions">
+                            <div class="packets-list-actions-cell">
+                                <a href="{{ PREFIX }}/packets/{{ packet.packet_id }}"
+                                   class="packets-list-action-btn"
+                                   aria-label="View packet {{ packet.title }}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/packets/{{ packet.packet_id }}/download"
+                                   class="packets-list-action-btn packets-list-action-btn--success"
+                                   aria-label="Download packet {{ packet.title }}">
+                                    <i class="fas fa-download" aria-hidden="true"></i>
+                                </a>
+                                <button type="button"
+                                        class="packets-list-action-btn packets-list-action-btn--danger"
+                                        data-action="open-delete"
+                                        data-packet-id="{{ packet.packet_id }}"
+                                        data-packet-title="{{ packet.title }}"
+                                        aria-label="Delete packet {{ packet.title }}">
+                                    <i class="fas fa-trash" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% else %}
+    <section class="packets-list-empty" aria-labelledby="packets-list-empty-title">
+        <i class="fas fa-file-archive packets-list-empty-icon" aria-hidden="true"></i>
+        <h2 id="packets-list-empty-title" class="packets-list-empty-title">No Document Packets</h2>
+        <p class="packets-list-empty-text">Create your first document packet to combine multiple documents into a single PDF.</p>
+        <a href="{{ PREFIX }}/packets/new" class="packets-list-cta">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Create First Packet</span>
+        </a>
+    </section>
+    {% endif %}
+</main>
+
+<div id="packets-list-modal-backdrop" class="packets-list-modal-backdrop" data-open="false" hidden></div>
+
+<div id="packets-list-delete-modal"
+     class="packets-list-modal"
+     data-open="false"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="packets-list-delete-title"
+     aria-describedby="packets-list-delete-desc"
+     hidden>
+    <div class="packets-list-modal-dialog">
+        <header class="packets-list-modal-header">
+            <h2 id="packets-list-delete-title" class="packets-list-modal-title">
+                <i class="fas fa-exclamation-triangle packets-list-modal-title-icon" aria-hidden="true"></i>
+                <span>Delete Packet</span>
+            </h2>
+            <button type="button"
+                    class="packets-list-modal-close"
+                    data-action="close-modal"
+                    aria-label="Close">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="packets-list-modal-body" id="packets-list-delete-desc">
+            <p class="packets-list-modal-text">Are you sure you want to delete the packet "<strong id="packets-list-delete-name"></strong>"?</p>
+            <p class="packets-list-modal-warning">This action cannot be undone.</p>
+        </div>
+        <footer class="packets-list-modal-footer">
+            <button type="button"
+                    class="packets-list-btn-secondary"
+                    data-action="close-modal">Cancel</button>
+            <form id="packets-list-delete-form" method="POST" class="packets-list-modal-form">
+                <button type="submit" class="packets-list-btn-danger">
+                    <i class="fas fa-trash" aria-hidden="true"></i>
+                    <span>Delete</span>
+                </button>
+            </form>
+        </footer>
+    </div>
+</div>
+
+<script>
+(function () {
+    var PREFIX = '{{ PREFIX }}';
+    var modal = document.getElementById('packets-list-delete-modal');
+    var backdrop = document.getElementById('packets-list-modal-backdrop');
+    var form = document.getElementById('packets-list-delete-form');
+    var nameSlot = document.getElementById('packets-list-delete-name');
+    var lastTrigger = null;
+
+    function openDeleteModal(trigger) {
+        var packetId = trigger.getAttribute('data-packet-id');
+        var packetTitle = trigger.getAttribute('data-packet-title') || '';
+        lastTrigger = trigger;
+        nameSlot.textContent = packetTitle;
+        form.action = PREFIX + '/packets/' + encodeURIComponent(packetId) + '/delete';
+        modal.dataset.open = 'true';
+        modal.removeAttribute('hidden');
+        backdrop.dataset.open = 'true';
+        backdrop.removeAttribute('hidden');
+        var firstFocusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (firstFocusable) firstFocusable.focus();
+    }
+
+    function closeModal() {
+        modal.dataset.open = 'false';
+        modal.setAttribute('hidden', '');
+        backdrop.dataset.open = 'false';
+        backdrop.setAttribute('hidden', '');
+        if (lastTrigger && typeof lastTrigger.focus === 'function') {
+            lastTrigger.focus();
+        }
+        lastTrigger = null;
+    }
+
+    document.addEventListener('click', function (event) {
+        var trigger = event.target.closest('[data-action]');
+        if (!trigger) return;
+        var action = trigger.getAttribute('data-action');
+        if (action === 'open-delete') {
+            event.preventDefault();
+            openDeleteModal(trigger);
+        } else if (action === 'close-modal') {
+            event.preventDefault();
+            closeModal();
+        }
+    });
+
+    backdrop.addEventListener('click', closeModal);
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && modal.dataset.open === 'true') {
+            closeModal();
+        }
+    });
+})();
+</script>
+{% endblock %}

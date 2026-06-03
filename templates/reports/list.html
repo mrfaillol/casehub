@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Relatórios{% else %}Reports{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h2><i class="fas fa-chart-bar me-2"></i>{% if product == "lite" %}Relatórios{% else %}Reports{% endif %}</h2>
+    <p class="text-muted">{% if product == "lite" %}Relatórios e análises do escritório{% else %}Standard reports and system analytics{% endif %}</p>
+</div>
+
+{% if product == "lite" %}
+<!-- Lite: Quick stats bar -->
+<div class="row mb-4 reports-quickstats-row" id="quickStats">
+    <div class="col-md-3 col-6 mb-3">
+        <div class="glass-card p-3 text-center">
+            <div class="text-muted small mb-1">Processos Ativos</div>
+            <div class="h3 mb-0" id="qsProcessos">--</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="glass-card p-3 text-center">
+            <div class="text-muted small mb-1">Prazos Urgentes</div>
+            <div class="h3 mb-0 text-danger" id="qsPrazos">--</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="glass-card p-3 text-center">
+            <div class="text-muted small mb-1">Taxa de Conclusão</div>
+            <div class="h3 mb-0 text-success" id="qsTaxa">--</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="glass-card p-3 text-center">
+            <div class="text-muted small mb-1">Clientes Ativos</div>
+            <div class="h3 mb-0 text-info" id="qsClientes">--</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% for cat_id, category in categories.items() %}
+{% if category.reports %}
+<div class="{% if product == 'lite' %}glass-card{% else %}card{% endif %} mb-4">
+    <div class="{% if product == 'lite' %}glass-card-header{% else %}card-header{% endif %}">
+        <i class="fas fa-folder me-2"></i>{% if product == "lite" %}{{ category.name_pt }}{% else %}{{ category.name }}{% endif %}
+    </div>
+    <div class="{% if product == 'lite' %}glass-card-body{% else %}card-body{% endif %}">
+        <div class="row reports-card-row">
+            {% for report in category.reports %}
+            <div class="col-md-6 col-lg-4 mb-3">
+                <a href="{{ PREFIX }}/reports/{{ report.id }}" class="text-decoration-none">
+                    <div class="{% if product == 'lite' %}glass-card report-card-lite{% else %}card h-100 report-card{% endif %}">
+                        <div class="{% if product == 'lite' %}glass-card-body{% else %}card-body{% endif %}">
+                            <div class="d-flex align-items-start">
+                                <div class="report-icon me-3">
+                                    <i class="fas {{ report.icon }} fa-2x {% if product == 'lite' %}text-info{% else %}text-primary{% endif %}"></i>
+                                </div>
+                                <div>
+                                    <h6 class="card-title mb-1">{% if product == "lite" %}{{ report.name_pt }}{% else %}{{ report.name }}{% endif %}</h6>
+                                    <p class="card-text text-muted small mb-0">
+                                        {% if product == "lite" %}{{ report.description_pt }}{% else %}{{ report.description }}{% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        border: 1px solid #e0e0e0;
+    }
+    .report-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+        border-color: var(--primary);
+    }
+    .report-card-lite {
+        cursor: pointer;
+        min-height: 100px;
+    }
+    .report-card-lite .glass-card-body {
+        padding: 16px 20px;
+    }
+    .report-icon {
+        min-width: 40px;
+    }
+    #quickStats .glass-card {
+        min-height: 90px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    @media (max-width: 767.98px) {
+        .reports-quickstats-row,
+        .reports-card-row {
+            --bs-gutter-x: 0.75rem;
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .reports-quickstats-row > [class*="col-"],
+        .reports-card-row > [class*="col-"] {
+            padding-left: 0;
+            padding-right: 0;
+            min-width: 0;
+        }
+        .reports-quickstats-row .h3 {
+            font-size: 1.25rem;
+            overflow-wrap: anywhere;
+        }
+        .report-card-lite {
+            min-height: auto;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{% if product == "lite" %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load quick stats for the top bar
+    function loadQuickStat(type, elementId, field) {
+        fetch('{{ PREFIX }}/reports/quick/' + type)
+            .then(r => r.json())
+            .then(data => {
+                const el = document.getElementById(elementId);
+                if (el && data[field] !== undefined) {
+                    let val = data[field];
+                    if (typeof val === 'number' && field.includes('taxa')) {
+                        el.textContent = val.toFixed(1) + '%';
+                    } else {
+                        el.textContent = val;
+                    }
+                }
+            })
+            .catch(() => {});
+    }
+    loadQuickStat('processos_por_status', 'qsProcessos', 'total');
+    loadQuickStat('prazos', 'qsPrazos', 'urgentes_7dias');
+    loadQuickStat('produtividade', 'qsTaxa', 'taxa_conclusao');
+    loadQuickStat('clientes', 'qsClientes', 'ativos');
+
+    // Format taxa as percentage
+    setTimeout(() => {
+        const taxa = document.getElementById('qsTaxa');
+        if (taxa && taxa.textContent !== '--' && !taxa.textContent.includes('%')) {
+            taxa.textContent = taxa.textContent + '%';
+        }
+    }, 2000);
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% set is_edit = edit_user is defined and edit_user and edit_user.id %}
+{% block title %}{{ action }} {% if product == "lite" %}usuário{% else %}user{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Admin · Usuários ·
+      {% if is_edit %}Editando #{{ edit_user.id }}{% else %}Novo cadastro{% endif %}
+    </span>
+    <h1>
+      {% if is_edit %}
+        Editar <em>{{ edit_user.name }}</em>
+      {% else %}
+        {% if product == "lite" %}Novo <em>usuário</em>{% else %}New <em>user</em>{% endif %}
+      {% endif %}
+    </h1>
+    <p class="ch-page-head__sub">
+      Campos com <span style="color: var(--c-danger);">*</span> são obrigatórios.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/admin/users">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span>
+      {% if product == "lite" %}Voltar{% else %}Back{% endif %}
+    </a>
+  </div>
+</section>
+
+<form method="post"
+      action="{% if is_edit %}{{ PREFIX }}/admin/users/{{ edit_user.id }}/edit{% else %}{{ PREFIX }}/admin/users/new{% endif %}"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Dados</span>
+        <h2 class="ch-card__title">{% if product == "lite" %}Dados do usuário{% else %}User details{% endif %}</h2>
+      </div>
+      <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+
+    <div class="ch-field">
+      <label class="ch-field__label" for="admin-user-name">
+        {% if product == "lite" %}Nome{% else %}Name{% endif %} <span style="color: var(--c-danger);">*</span>
+      </label>
+      <input type="text" class="ch-input" id="admin-user-name" name="name" required
+             value="{{ edit_user.name if is_edit else '' }}" autocomplete="name" />
+    </div>
+
+    <div class="ch-field">
+      <label class="ch-field__label" for="admin-user-email">
+        E-mail <span style="color: var(--c-danger);">*</span>
+      </label>
+      <input type="email" class="ch-input" id="admin-user-email" name="email" required
+             value="{{ edit_user.email if is_edit else '' }}" autocomplete="email" />
+    </div>
+
+    <div class="ch-field">
+      <label class="ch-field__label" for="admin-user-password">
+        {% if product == "lite" %}Senha{% else %}Password{% endif %}{% if not is_edit %} <span style="color: var(--c-danger);">*</span>{% endif %}
+      </label>
+      <input type="password" class="ch-input" id="admin-user-password" name="password"
+             autocomplete="new-password"
+             placeholder="{% if is_edit %}{% if product == 'lite' %}Deixe em branco para manter a atual{% else %}Leave blank to keep current{% endif %}{% endif %}"
+             {% if not is_edit %}required{% endif %} />
+    </div>
+
+    <div class="ch-field">
+      <label class="ch-field__label" for="admin-user-type">
+        {% if product == "lite" %}Tipo de usuário{% else %}User type{% endif %}
+      </label>
+      <select id="admin-user-type" name="user_type" class="ch-select">
+        {% if product == "lite" %}
+        <option value="assistant" {% if is_edit and edit_user.user_type == 'assistant' %}selected{% endif %}>Assistente</option>
+        <option value="paralegal" {% if is_edit and edit_user.user_type == 'paralegal' %}selected{% endif %}>Estagiário</option>
+        <option value="attorney" {% if is_edit and edit_user.user_type == 'attorney' %}selected{% endif %}>Advogado</option>
+        <option value="admin" {% if is_edit and edit_user.user_type == 'admin' %}selected{% endif %}>Administrador</option>
+        {% if user and user.user_type == 'superadmin' %}
+        <option value="superadmin" {% if is_edit and edit_user.user_type == 'superadmin' %}selected{% endif %}>Superadmin</option>
+        {% endif %}
+        {% else %}
+        <option value="case_worker" {% if is_edit and edit_user.user_type == 'case_worker' %}selected{% endif %}>Case Worker</option>
+        <option value="paralegal" {% if is_edit and edit_user.user_type == 'paralegal' %}selected{% endif %}>Paralegal</option>
+        <option value="attorney" {% if is_edit and edit_user.user_type == 'attorney' %}selected{% endif %}>Attorney</option>
+        <option value="admin" {% if is_edit and edit_user.user_type == 'admin' %}selected{% endif %}>Admin</option>
+        {% endif %}
+      </select>
+    </div>
+
+    {% if is_edit %}
+    <div class="ch-field">
+      <input type="hidden" name="enabled" value="false" />
+      <label class="ch-checkbox">
+        <input type="checkbox" id="admin-user-enabled" name="enabled" value="true"
+               {% if edit_user.enabled %}checked{% endif %} />
+        <span><strong>{% if product == "lite" %}Conta ativa{% else %}Account enabled{% endif %}</strong></span>
+      </label>
+    </div>
+    {% endif %}
+  </article>
+
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      {% if is_edit %}Atualizando ID #{{ edit_user.id }}{% else %}Novo cadastro{% endif %}
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/admin/users">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span>
+        {{ action }} {% if product == "lite" %}usuário{% else %}user{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

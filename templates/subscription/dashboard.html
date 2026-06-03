@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Assinatura{% else %}Subscription{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-crown me-2"></i>{% if product == "lite" %}Assinatura{% else %}Subscription{% endif %}</h2>
+    {% if stripe_configured and org.get('stripe_customer_id') %}
+    <a href="{{ PREFIX }}/subscription/portal" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+        <i class="fas fa-external-link-alt me-1"></i> {% if product == "lite" %}Gerenciar no Stripe{% else %}Manage in Stripe{% endif %}
+    </a>
+    {% endif %}
+</div>
+
+<!-- Current Plan -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="number" style="color:#7c3aed">{{ plan_info.display_name }}</div>
+            <div class="label">{% if product == "lite" %}Plano Atual{% else %}Current Plan{% endif %}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="number" style="color:#22c55e">{{ (plan_info.price_monthly / 100)|format_currency(org_currency|default('USD')) }}/{% if product == "lite" %}mes{% else %}mo{% endif %}</div>
+            <div class="label">{% if product == "lite" %}Preco Mensal{% else %}Monthly Price{% endif %}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="number {% if subscription_status == 'active' %}text-success{% elif subscription_status == 'canceling' %}text-warning{% else %}text-danger{% endif %}">
+                {{ subscription_status|capitalize }}
+            </div>
+            <div class="label">
+                Status
+                {% if next_billing %}
+                 &mdash; {% if product == "lite" %}Proxima cobrança {{ next_billing.strftime('%d/%m/%Y') }}{% else %}Next billing {{ next_billing.strftime('%b %d, %Y') }}{% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Usage Bars -->
+<div class="card mb-4">
+    <div class="card-header"><i class="fas fa-chart-bar me-2"></i>{% if product == "lite" %}Uso{% else %}Usage{% endif %}</div>
+    <div class="card-body">
+        <!-- Users -->
+        <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+                <span>{% if product == "lite" %}Usuarios{% else %}Users{% endif %}</span>
+                <span>
+                    {{ user_count }}
+                    {% if max_users > 0 %} / {{ max_users }}{% else %} ({% if product == "lite" %}ilimitado{% else %}unlimited{% endif %}){% endif %}
+                </span>
+            </div>
+            {% if max_users > 0 %}
+            {% set user_pct = (user_count / max_users * 100)|int if max_users > 0 else 0 %}
+            <div class="progress" style="height:8px">
+                <div class="progress-bar {% if user_pct > 90 %}bg-danger{% elif user_pct > 70 %}bg-warning{% else %}bg-primary{% endif %}"
+                     role="progressbar" style="width:{{ user_pct }}%"></div>
+            </div>
+            {% else %}
+            <div class="progress" style="height:8px"><div class="progress-bar bg-success" style="width:15%"></div></div>
+            {% endif %}
+        </div>
+
+        <!-- Cases -->
+        <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+                <span>{% if product == "lite" %}Processos{% else %}Cases{% endif %}</span>
+                <span>
+                    {{ case_count }}
+                    {% if max_cases > 0 %} / {{ max_cases }}{% else %} ({% if product == "lite" %}ilimitado{% else %}unlimited{% endif %}){% endif %}
+                </span>
+            </div>
+            {% if max_cases > 0 %}
+            {% set case_pct = (case_count / max_cases * 100)|int if max_cases > 0 else 0 %}
+            <div class="progress" style="height:8px">
+                <div class="progress-bar {% if case_pct > 90 %}bg-danger{% elif case_pct > 70 %}bg-warning{% else %}bg-primary{% endif %}"
+                     role="progressbar" style="width:{{ case_pct }}%"></div>
+            </div>
+            {% else %}
+            <div class="progress" style="height:8px"><div class="progress-bar bg-success" style="width:15%"></div></div>
+            {% endif %}
+        </div>
+
+        <!-- Documents -->
+        <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+                <span>{% if product == "lite" %}Documentos{% else %}Documents{% endif %}</span>
+                <span>{{ doc_count }} ({% if product == "lite" %}ilimitado{% else %}unlimited{% endif %})</span>
+            </div>
+            <div class="progress" style="height:8px"><div class="progress-bar bg-info" style="width:15%"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Plan Comparison -->
+<div class="card mb-4">
+    <div class="card-header"><i class="fas fa-th-list me-2"></i>{% if product == "lite" %}Planos Disponiveis{% else %}Available Plans{% endif %}</div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>{% if product == "lite" %}Plano{% else %}Plan{% endif %}</th>
+                    <th>{% if product == "lite" %}Preco{% else %}Price{% endif %}</th>
+                    <th>{% if product == "lite" %}Usuarios{% else %}Users{% endif %}</th>
+                    <th>{% if product == "lite" %}Processos{% else %}Cases{% endif %}</th>
+                    <th>{% if product == "lite" %}Recursos{% else %}Key Features{% endif %}</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pname, pinfo in all_plans.items() %}
+                <tr {% if pname == plan_name %}class="table-active"{% endif %}>
+                    <td><strong>{{ pinfo.display_name }}</strong></td>
+                    <td>{{ (pinfo.price_monthly / 100)|format_currency(org_currency|default('USD')) }}/{% if product == "lite" %}mes{% else %}mo{% endif %}</td>
+                    <td>{% if pinfo.max_users > 0 %}{{ pinfo.max_users }}{% else %}{% if product == "lite" %}Ilimitado{% else %}Unlimited{% endif %}{% endif %}</td>
+                    <td>{% if pinfo.max_cases > 0 %}{{ pinfo.max_cases }}{% else %}{% if product == "lite" %}Ilimitado{% else %}Unlimited{% endif %}{% endif %}</td>
+                    <td>
+                        {% for f in pinfo.features[:6] %}
+                        <span class="badge bg-secondary me-1">{{ f }}</span>
+                        {% endfor %}
+                        {% if pinfo.features|length > 6 %}
+                        <span class="badge bg-dark">+{{ pinfo.features|length - 6 }} {% if product == "lite" %}mais{% else %}more{% endif %}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if pname == plan_name %}
+                        <span class="badge bg-success">{% if product == "lite" %}Atual{% else %}Current{% endif %}</span>
+                        {% elif stripe_configured %}
+                        <button class="btn btn-sm btn-primary btn-upgrade" data-plan="{{ pname }}">
+                            {% if product == "lite" %}Upgrade{% else %}Upgrade{% endif %}
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Cancel Subscription -->
+{% if subscription_status == 'active' and stripe_configured and org.get('stripe_subscription_id') %}
+<div class="card border-danger">
+    <div class="card-header text-danger"><i class="fas fa-exclamation-triangle me-2"></i>{% if product == "lite" %}Cancelar Assinatura{% else %}Cancel Subscription{% endif %}</div>
+    <div class="card-body">
+        <p>{% if product == "lite" %}O cancelamento mantera sua conta ativa ate o fim do período de cobrança atual, depois fara downgrade para o plano Starter.{% else %}Canceling will keep your account active until the end of the current billing period, then downgrade to the Starter plan.{% endif %}</p>
+        <button class="btn btn-outline-danger" id="btn-cancel-sub">{% if product == "lite" %}Cancelar Assinatura{% else %}Cancel Subscription{% endif %}</button>
+    </div>
+</div>
+{% endif %}
+
+<script>
+document.querySelectorAll('.btn-upgrade').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        try {
+            const resp = await fetch('{{ PREFIX }}/subscription/checkout', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({plan: btn.dataset.plan})
+            });
+            const data = await resp.json();
+            if (data.checkout_url) {
+                window.location.href = data.checkout_url;
+            } else {
+                alert(data.detail || '{% if product == "lite" %}Falha ao iniciar checkout{% else %}Failed to start checkout{% endif %}');
+                btn.disabled = false;
+                btn.innerHTML = 'Upgrade';
+            }
+        } catch (err) {
+            alert('{% if product == "lite" %}Erro{% else %}Error{% endif %}: ' + err.message);
+            btn.disabled = false;
+            btn.innerHTML = 'Upgrade';
+        }
+    });
+});
+
+const cancelBtn = document.getElementById('btn-cancel-sub');
+if (cancelBtn) {
+    cancelBtn.addEventListener('click', async () => {
+        if (!confirm('{% if product == "lite" %}Tem certeza que deseja cancelar sua assinatura?{% else %}Are you sure you want to cancel your subscription?{% endif %}')) return;
+        cancelBtn.disabled = true;
+        try {
+            const resp = await fetch('{{ PREFIX }}/subscription/cancel', {method: 'POST'});
+            const data = await resp.json();
+            alert(data.message || '{% if product == "lite" %}Assinatura cancelada{% else %}Subscription canceled{% endif %}');
+            location.reload();
+        } catch (err) {
+            alert('{% if product == "lite" %}Erro{% else %}Error{% endif %}: ' + err.message);
+            cancelBtn.disabled = false;
+        }
+    });
+}
+</script>
+{% endblock %}

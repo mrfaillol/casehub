@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Document Templates - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/doc-templates-list.css">
+{% endblock %}
+
+{% block content %}
+<section class="doc-templates-list-main" aria-labelledby="doc-templates-list-title">
+    <header class="doc-templates-list-header">
+        <h1 id="doc-templates-list-title" class="doc-templates-list-title">
+            <i class="fas fa-file-alt" aria-hidden="true"></i>
+            <span>Document Templates</span>
+        </h1>
+
+        <div class="doc-templates-list-actions">
+            <a href="{{ PREFIX }}/templates/generate" class="doc-templates-list-cta doc-templates-list-cta--success">
+                <i class="fas fa-magic" aria-hidden="true"></i>
+                <span>Generate Document</span>
+            </a>
+            <a href="{{ PREFIX }}/templates/new" class="doc-templates-list-cta">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>New Template</span>
+            </a>
+        </div>
+    </header>
+
+    {% if request.query_params.get('installed') %}
+    <div class="doc-templates-list-alert" role="alert">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <span class="doc-templates-list-alert-text">Default templates installed successfully!</span>
+        <button type="button" class="doc-templates-list-alert-dismiss" aria-label="Dismiss notification" onclick="this.closest('[role=alert]').remove()">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    {% endif %}
+
+    <nav class="doc-templates-list-filter" aria-label="Filter templates by category">
+        <span class="doc-templates-list-filter-label" id="doc-templates-list-filter-label">Filter:</span>
+        <ul class="doc-templates-list-filter-pills" aria-labelledby="doc-templates-list-filter-label">
+            <li>
+                <a href="{{ PREFIX }}/templates" class="doc-templates-list-filter-pill" {% if not selected_category %}aria-current="page"{% endif %}>All</a>
+            </li>
+            {% for cat in categories %}
+            <li>
+                <a href="{{ PREFIX }}/templates?category={{ cat }}" class="doc-templates-list-filter-pill" {% if selected_category == cat %}aria-current="page"{% endif %}>
+                    {{ cat|replace('_', ' ')|title }}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </nav>
+
+    <div class="doc-templates-list-grid">
+        <section class="doc-templates-list-card" aria-labelledby="doc-templates-list-custom-title">
+            <header class="doc-templates-list-card-header">
+                <h2 class="doc-templates-list-card-header-title" id="doc-templates-list-custom-title">
+                    <i class="fas fa-file-code" aria-hidden="true"></i>
+                    <span>Custom Templates</span>
+                </h2>
+            </header>
+            <div class="doc-templates-list-card-body">
+                {% if templates_list %}
+                <div class="doc-templates-list-tablewrap">
+                    <table class="doc-templates-list-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Name</th>
+                                <th scope="col">Category</th>
+                                <th scope="col">Description</th>
+                                <th scope="col" class="doc-templates-list-cell-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in templates_list %}
+                            <tr>
+                                <th scope="row"><span class="doc-templates-list-name">{{ t.name }}</span></th>
+                                <td><span class="doc-templates-list-badge">{{ t.category|replace('_', ' ')|title }}</span></td>
+                                <td class="doc-templates-list-description">{{ t.description or '—' }}</td>
+                                <td class="doc-templates-list-cell-actions">
+                                    <div class="doc-templates-list-row-actions">
+                                        <a href="{{ PREFIX }}/templates/generate?template_id={{ t.id }}" class="doc-templates-list-action-btn doc-templates-list-action-btn--success" aria-label="Generate document from template: {{ t.name }}">
+                                            <i class="fas fa-magic" aria-hidden="true"></i>
+                                        </a>
+                                        <a href="{{ PREFIX }}/templates/{{ t.id }}/edit" class="doc-templates-list-action-btn" aria-label="Edit template: {{ t.name }}">
+                                            <i class="fas fa-edit" aria-hidden="true"></i>
+                                        </a>
+                                        <form method="POST" action="{{ PREFIX }}/templates/{{ t.id }}/delete" onsubmit="return confirm('Delete this template?');">
+                                            <button type="submit" class="doc-templates-list-action-btn doc-templates-list-action-btn--danger" aria-label="Delete template: {{ t.name }}">
+                                                <i class="fas fa-trash" aria-hidden="true"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="doc-templates-list-empty">
+                    <i class="fas fa-file-alt doc-templates-list-empty-icon" aria-hidden="true"></i>
+                    <p class="doc-templates-list-empty-text">No custom templates yet</p>
+                    <a href="{{ PREFIX }}/templates/new" class="doc-templates-list-cta">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>Create First Template</span>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="doc-templates-list-card" aria-labelledby="doc-templates-list-defaults-title">
+            <header class="doc-templates-list-card-header">
+                <h2 class="doc-templates-list-card-header-title" id="doc-templates-list-defaults-title">
+                    <i class="fas fa-star" aria-hidden="true"></i>
+                    <span>Default Templates</span>
+                </h2>
+                <form method="POST" action="{{ PREFIX }}/templates/install-defaults" class="doc-templates-list-install-form">
+                    <button type="submit" class="doc-templates-list-install-btn">
+                        <i class="fas fa-download" aria-hidden="true"></i>
+                        <span>Install All</span>
+                    </button>
+                </form>
+            </header>
+            <ul class="doc-templates-list-defaults">
+                {% for t in default_templates %}
+                <li class="doc-templates-list-default-item">
+                    <div class="doc-templates-list-default-content">
+                        <h3 class="doc-templates-list-default-title">{{ t.name }}</h3>
+                        <small class="doc-templates-list-default-description">{{ t.description }}</small>
+                    </div>
+                    <a href="{{ PREFIX }}/templates/generate?default_template={{ t.name|urlencode }}" class="doc-templates-list-action-btn doc-templates-list-action-btn--success" aria-label="Generate document from default template: {{ t.name }}">
+                        <i class="fas fa-magic" aria-hidden="true"></i>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+    </div>
+</section>
+{% endblock %}

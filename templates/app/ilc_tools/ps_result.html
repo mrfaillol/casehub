@@ -1,0 +1,78 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Ilc_Tools · Ps_Result · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/ilc-tools/ps" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="fas fa-arrow-left me-1"></i> {{ 'Novo PS' if lang == 'pt-BR' else 'New PS' }}
+    </a>
+    <h2><i class="fas fa-check-circle text-success me-2"></i>{{ 'Personal Statement Gerado' if lang == 'pt-BR' else 'Personal Statement Generated' }}</h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-file-alt me-2"></i>Personal Statement</span>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="copyToClipboard()">
+                        <i class="fas fa-copy me-1"></i> {{ 'Copiar' if lang == 'pt-BR' else 'Copy' }}
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="psContent" class="p-3 bg-light rounded" style="white-space: pre-wrap; font-family: 'Times New Roman', serif; line-height: 1.8;">{{ result.content if result.content else result.statement if result.statement else 'No content generated' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>{{ 'Detalhes' if lang == 'pt-BR' else 'Details' }}
+            </div>
+            <div class="card-body">
+                <dl class="mb-0 small">
+                    <dt>{{ 'Nome' if lang == 'pt-BR' else 'Name' }}</dt>
+                    <dd>{{ ps_data.beneficiary_name }}</dd>
+
+                    <dt>{{ 'Área' if lang == 'pt-BR' else 'Field' }}</dt>
+                    <dd>{{ ps_data.field_of_expertise }}</dd>
+
+                    <dt>{{ 'País' if lang == 'pt-BR' else 'Country' }}</dt>
+                    <dd>{{ ps_data.country_of_origin }}</dd>
+
+                    {% if case_id %}
+                    <dt>{{ 'Vinculado ao Caso' if lang == 'pt-BR' else 'Linked to Case' }}</dt>
+                    <dd><a href="{{ PREFIX }}/cases/{{ case_id }}">Caso #{{ case_id }}</a></dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+
+        <div class="card glass-card">
+            <div class="card-body">
+                <a href="{{ PREFIX }}/ilc-tools/ps" class="btn btn-success glass-btn glass-btn--success w-100 mb-2">
+                    <i class="fas fa-plus me-1"></i> {{ 'Criar Outro PS' if lang == 'pt-BR' else 'Create Another PS' }}
+                </a>
+                <a href="{{ PREFIX }}/ilc-tools" class="btn btn-outline-secondary w-100">
+                    <i class="fas fa-tools me-1"></i> {{ 'Voltar às Ferramentas' if lang == 'pt-BR' else 'Back to Tools' }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function copyToClipboard() {
+    const content = document.getElementById('psContent').innerText;
+    navigator.clipboard.writeText(content).then(function() {
+        alert('{{ 'PS copiado para a área de transferência!' if lang == 'pt-BR' else 'PS copied to clipboard!' }}');
+    });
+}
+</script>
+{% endblock %}

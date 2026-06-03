@@ -1,0 +1,270 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Bulk · Cases · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/bulk-cases.css">
+{% endblock %}
+{% block content %}
+<main class="bulk-cases" aria-labelledby="bulk-cases-title">
+    <header class="bulk-cases-header">
+        <a href="{{ PREFIX }}/bulk" class="bulk-cases-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar{% else %}Back to Bulk{% endif %}</span>
+        </a>
+        <h1 id="bulk-cases-title" class="bulk-cases-title">
+            <i class="fas fa-briefcase bulk-cases-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Operações em Lote — Processos{% else %}Bulk Case Operations{% endif %}</span>
+        </h1>
+    </header>
+
+    {% if request.query_params.get('success') %}
+    <div class="bulk-cases-alert" role="status">
+        <i class="fas fa-check-circle bulk-cases-alert-icon" aria-hidden="true"></i>
+        <span class="bulk-cases-alert-message">
+            {% if product == "lite" %}
+            {{ request.query_params.get('success') }} registros atualizados com sucesso
+            {% else %}
+            {{ request.query_params.get('success') }} records updated successfully
+            {% endif %}
+            {% if request.query_params.get('failed') and request.query_params.get('failed') != '0' %}
+            ({{ request.query_params.get('failed') }} {% if product == "lite" %}falha(s){% else %}failed{% endif %})
+            {% endif %}
+        </span>
+        <button type="button" class="bulk-cases-alert-close" data-bulk-cases-dismiss
+                aria-label="{% if product == 'lite' %}Fechar aviso{% else %}Dismiss notice{% endif %}">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ PREFIX }}/bulk/cases/execute" id="bulkForm" class="bulk-cases-form">
+        <input type="hidden" name="case_ids" id="caseIds" value="[]">
+
+        <section class="bulk-cases-card" aria-labelledby="bulk-cases-operation-title">
+            <h2 id="bulk-cases-operation-title" class="bulk-cases-sr-only">
+                {% if product == "lite" %}Configurar operação{% else %}Configure operation{% endif %}
+            </h2>
+            <div class="bulk-cases-card-body">
+                <div class="bulk-cases-controls">
+                    <div class="bulk-cases-field">
+                        <label class="bulk-cases-label" for="operationSelect">
+                            {% if product == "lite" %}Operação{% else %}Operation{% endif %}
+                        </label>
+                        <select name="operation" id="operationSelect" class="bulk-cases-select"
+                                data-bulk-cases-operation>
+                            {% for op in operations %}
+                            <option value="{{ op.id }}">{{ op.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="bulk-cases-field" id="statusField" data-bulk-cases-status-field>
+                        <label class="bulk-cases-label" for="newStatusSelect">
+                            {% if product == "lite" %}Novo Status{% else %}New Status{% endif %}
+                        </label>
+                        <select name="new_status" id="newStatusSelect" class="bulk-cases-select">
+                            {% for st in status_options %}
+                            <option value="{{ st.value }}">{{ st.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="bulk-cases-field bulk-cases-field--hidden" id="assignField"
+                         data-bulk-cases-assign-field>
+                        <label class="bulk-cases-label" for="assignToSelect">
+                            {% if product == "lite" %}Atribuir a{% else %}Assign To{% endif %}
+                        </label>
+                        <select name="assign_to" id="assignToSelect" class="bulk-cases-select">
+                            <option value="">-- {% if product == "lite" %}Selecionar Usuário{% else %}Select User{% endif %} --</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="bulk-cases-field">
+                        <span class="bulk-cases-label" aria-hidden="true">&nbsp;</span>
+                        <button type="submit" class="bulk-cases-btn bulk-cases-btn--primary"
+                                id="executeBtn" disabled>
+                            <i class="fas fa-play" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Executar{% else %}Execute{% endif %}</span>
+                            <span aria-hidden="true">(<span id="selectedCount">0</span>)</span>
+                            <span class="bulk-cases-sr-only" id="selectedCountSr">
+                                {% if product == "lite" %}0 selecionados{% else %}0 selected{% endif %}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bulk-cases-card" aria-labelledby="bulk-cases-list-title">
+            <header class="bulk-cases-card-header">
+                <h2 id="bulk-cases-list-title" class="bulk-cases-card-title">
+                    {% if product == "lite" %}Selecionar Processos{% else %}Select Cases{% endif %}
+                </h2>
+                <div class="bulk-cases-card-actions">
+                    <button type="button" class="bulk-cases-btn bulk-cases-btn--ghost"
+                            data-bulk-cases-select-all>
+                        {% if product == "lite" %}Selecionar Todos{% else %}Select All{% endif %}
+                    </button>
+                    <button type="button" class="bulk-cases-btn bulk-cases-btn--ghost"
+                            data-bulk-cases-select-none>
+                        {% if product == "lite" %}Limpar{% else %}Clear{% endif %}
+                    </button>
+                </div>
+            </header>
+            <div class="bulk-cases-table-wrap">
+                {% if cases %}
+                <table class="bulk-cases-table">
+                    <thead>
+                        <tr>
+                            <th class="bulk-cases-table-th-check" scope="col">
+                                <label class="bulk-cases-sr-only" for="checkAll">
+                                    {% if product == "lite" %}Selecionar todos{% else %}Select all{% endif %}
+                                </label>
+                                <input type="checkbox" id="checkAll" class="bulk-cases-checkbox"
+                                       data-bulk-cases-check-all>
+                            </th>
+                            <th scope="col">{% if product == "lite" %}Número{% else %}Case Number{% endif %}</th>
+                            <th scope="col">{% if product == "lite" %}Nome do Processo{% else %}Case Name{% endif %}</th>
+                            <th scope="col">{% if product == "lite" %}Tipo{% else %}Visa Type{% endif %}</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">{% if product == "lite" %}Criado em{% else %}Created{% endif %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for case in cases %}
+                        <tr>
+                            <td class="bulk-cases-table-cell-check">
+                                <label class="bulk-cases-sr-only" for="case-{{ case.id }}">
+                                    {% if product == "lite" %}Selecionar{% else %}Select{% endif %} {{ case.case_name }}
+                                </label>
+                                <input type="checkbox" id="case-{{ case.id }}"
+                                       class="bulk-cases-checkbox" data-bulk-cases-row
+                                       value="{{ case.id }}">
+                            </td>
+                            <td class="bulk-cases-table-number">{{ case.case_number }}</td>
+                            <td>{{ case.case_name }}</td>
+                            <td>{{ case.visa_type or '—' }}</td>
+                            <td><span class="bulk-cases-badge">{{ case.status }}</span></td>
+                            <td class="bulk-cases-table-date">
+                                {% if product == "lite" %}{{ case.created_at.strftime('%d/%m/%Y') if case.created_at else '—' }}{% else %}{{ case.created_at.strftime('%Y-%m-%d') if case.created_at else '—' }}{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="bulk-cases-empty">
+                    <span class="bulk-cases-empty-icon" aria-hidden="true">
+                        <i class="fas fa-briefcase"></i>
+                    </span>
+                    <p class="bulk-cases-empty-title">
+                        {% if product == "lite" %}Nenhum processo disponível{% else %}No cases available{% endif %}
+                    </p>
+                    <p class="bulk-cases-empty-detail">
+                        {% if product == "lite" %}Cadastre processos para executar operações em lote.{% else %}Add cases to run bulk operations on them.{% endif %}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+    </form>
+</main>
+
+<script>
+(function() {
+    var form = document.getElementById('bulkForm');
+    if (!form) return;
+
+    var operationSelect = form.querySelector('[data-bulk-cases-operation]');
+    var statusField = form.querySelector('[data-bulk-cases-status-field]');
+    var assignField = form.querySelector('[data-bulk-cases-assign-field]');
+    var executeBtn = document.getElementById('executeBtn');
+    var caseIdsInput = document.getElementById('caseIds');
+    var selectedCount = document.getElementById('selectedCount');
+    var selectedCountSr = document.getElementById('selectedCountSr');
+    var checkAll = form.querySelector('[data-bulk-cases-check-all]');
+    var rowCheckboxes = function() {
+        return form.querySelectorAll('[data-bulk-cases-row]');
+    };
+
+    var labels = {
+        lite: {
+            sr: ' selecionados',
+            confirm: 'Tem certeza que deseja EXCLUIR __N__ processos? Esta ação não pode ser desfeita.'
+        },
+        full: {
+            sr: ' selected',
+            confirm: 'Are you sure you want to DELETE __N__ cases? This cannot be undone.'
+        }
+    };
+    var lang = {% if product == "lite" %}labels.lite{% else %}labels.full{% endif %};
+
+    function updateOperationFields() {
+        if (!operationSelect) return;
+        var op = operationSelect.value;
+        if (statusField) statusField.classList.toggle('bulk-cases-field--hidden', op !== 'update_status');
+        if (assignField) assignField.classList.toggle('bulk-cases-field--hidden', op !== 'assign_user');
+    }
+
+    function updateSelection() {
+        var selected = [];
+        rowCheckboxes().forEach(function(cb) {
+            if (cb.checked) selected.push(parseInt(cb.value, 10));
+        });
+        if (caseIdsInput) caseIdsInput.value = JSON.stringify(selected);
+        if (selectedCount) selectedCount.textContent = selected.length;
+        if (selectedCountSr) selectedCountSr.textContent = selected.length + lang.sr;
+        if (executeBtn) executeBtn.disabled = selected.length === 0;
+    }
+
+    function setAll(checked) {
+        rowCheckboxes().forEach(function(cb) { cb.checked = checked; });
+        if (checkAll) checkAll.checked = checked;
+        updateSelection();
+    }
+
+    if (operationSelect) {
+        operationSelect.addEventListener('change', updateOperationFields);
+        updateOperationFields();
+    }
+
+    rowCheckboxes().forEach(function(cb) {
+        cb.addEventListener('change', updateSelection);
+    });
+
+    if (checkAll) {
+        checkAll.addEventListener('change', function() { setAll(checkAll.checked); });
+    }
+
+    var selectAllBtn = document.querySelector('[data-bulk-cases-select-all]');
+    if (selectAllBtn) selectAllBtn.addEventListener('click', function() { setAll(true); });
+
+    var selectNoneBtn = document.querySelector('[data-bulk-cases-select-none]');
+    if (selectNoneBtn) selectNoneBtn.addEventListener('click', function() { setAll(false); });
+
+    form.addEventListener('submit', function(e) {
+        if (!operationSelect) return;
+        var op = operationSelect.value;
+        var count = selectedCount ? selectedCount.textContent : '0';
+        if (op === 'delete' && !window.confirm(lang.confirm.replace('__N__', count))) {
+            e.preventDefault();
+        }
+    });
+
+    document.querySelectorAll('[data-bulk-cases-dismiss]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var alert = btn.closest('.bulk-cases-alert');
+            if (alert) alert.remove();
+        });
+    });
+
+    updateSelection();
+})();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

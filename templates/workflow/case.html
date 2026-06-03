@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Case Workflow - {{ case.case_number }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/workflow-case.css">
+{% endblock %}
+
+{% block content %}
+{% set status_variant_map = {
+    'approved': 'success',
+    'denied': 'danger',
+    'closed': 'danger',
+    'rfe': 'warning',
+    'filed': 'info'
+} %}
+{% set status_variant = status_variant_map.get(case.status, 'neutral') %}
+
+<section class="workflow-case" aria-labelledby="workflow-case-title">
+    <header class="workflow-case-header">
+        <div class="workflow-case-heading">
+            <h1 id="workflow-case-title" class="workflow-case-title">
+                <i class="fas fa-project-diagram workflow-case-title-icon" aria-hidden="true"></i>
+                <span>Case Workflow</span>
+            </h1>
+            <p class="workflow-case-subtitle">
+                {{ case.case_name or case.case_number }} &mdash; {{ case.visa_type or 'Unknown' }}
+            </p>
+        </div>
+        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="workflow-case-btn workflow-case-btn--ghost">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Case</span>
+        </a>
+    </header>
+
+    <article class="workflow-case-card" aria-labelledby="workflow-case-progress-heading">
+        <div class="workflow-case-card-body">
+            <div class="workflow-case-progress">
+                <div class="workflow-case-progress-meta">
+                    <strong id="workflow-case-progress-heading" class="workflow-case-progress-name">{{ progress.workflow_name }}</strong>
+                    <span class="workflow-case-progress-badge">{{ progress.progress_percent }}% Complete</span>
+                </div>
+
+                <div class="workflow-case-progress-bar"
+                     role="progressbar"
+                     aria-valuenow="{{ progress.progress_percent }}"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     aria-label="Workflow progress">
+                    <div class="workflow-case-progress-bar-fill"
+                         style="--workflow-case-progress: {{ progress.progress_percent }}%;">
+                        Step {{ progress.current_index + 1 }} of {{ progress.total_steps }}
+                    </div>
+                </div>
+
+                <ol class="workflow-case-steps" aria-label="Workflow steps">
+                    {% for status in progress.statuses %}
+                    {% set is_completed = loop.index0 < progress.current_index %}
+                    {% set is_active = status == progress.current_status %}
+                    <li class="workflow-case-step{% if is_active %} workflow-case-step--current{% endif %}"
+                        {% if is_active %}aria-current="step"{% endif %}>
+                        <span class="workflow-case-step-circle{% if is_completed %} workflow-case-step-circle--completed{% elif is_active %} workflow-case-step-circle--active{% endif %}"
+                              aria-hidden="true">
+                            {% if is_completed %}
+                            <i class="fas fa-check"></i>
+                            {% else %}
+                            {{ loop.index }}
+                            {% endif %}
+                        </span>
+                        <span class="workflow-case-step-label">{{ status | replace('_', ' ') | title }}</span>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </div>
+        </div>
+    </article>
+
+    <div class="workflow-case-grid">
+        <article class="workflow-case-card" aria-labelledby="workflow-case-status-heading">
+            <header class="workflow-case-card-header">
+                <i class="fas fa-flag" aria-hidden="true"></i>
+                <span id="workflow-case-status-heading">Current Status</span>
+            </header>
+            <div class="workflow-case-card-body">
+                <div class="workflow-case-status-display">
+                    <span class="workflow-case-badge workflow-case-badge--{{ status_variant }}">
+                        {{ case.status | replace('_', ' ') | title }}
+                    </span>
+                </div>
+
+                {% if progress.allowed_transitions %}
+                <hr class="workflow-case-divider">
+                <form id="transitionForm" class="workflow-case-field" aria-labelledby="workflow-case-transitions-heading">
+                    <p id="workflow-case-transitions-heading" class="workflow-case-transitions-label">Available Transitions</p>
+                    <div class="workflow-case-transitions-buttons" role="group" aria-labelledby="workflow-case-transitions-heading">
+                        {% for next_status in progress.allowed_transitions %}
+                        {% if next_status == 'approved' %}
+                            {% set btn_variant = 'success' %}
+                        {% elif next_status in ['denied', 'closed'] %}
+                            {% set btn_variant = 'danger' %}
+                        {% elif next_status == 'rfe' %}
+                            {% set btn_variant = 'warning' %}
+                        {% else %}
+                            {% set btn_variant = 'primary' %}
+                        {% endif %}
+                        <button type="button"
+                                class="workflow-case-btn workflow-case-btn--{{ btn_variant }} transition-btn"
+                                data-status="{{ next_status }}">
+                            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                            <span>{{ next_status | replace('_', ' ') | title }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <div class="workflow-case-field">
+                        <label for="transitionNotes" class="workflow-case-field-label">Notes (optional)</label>
+                        <textarea id="transitionNotes"
+                                  class="workflow-case-textarea"
+                                  rows="2"
+                                  placeholder="Add notes about this status change..."></textarea>
+                    </div>
+                </form>
+                {% else %}
+                <p class="workflow-case-empty">No transitions available from this status.</p>
+                {% endif %}
+            </div>
+        </article>
+
+        <article class="workflow-case-card" aria-labelledby="workflow-case-history-heading">
+            <header class="workflow-case-card-header">
+                <i class="fas fa-history" aria-hidden="true"></i>
+                <span id="workflow-case-history-heading">Status History</span>
+            </header>
+            <div class="workflow-case-card-body">
+                <div class="workflow-case-history-scroll">
+                    {% if history %}
+                    <ul class="workflow-case-history-list">
+                        {% for h in history %}
+                        <li class="workflow-case-history-item">
+                            <div class="workflow-case-history-row">
+                                <strong class="workflow-case-history-title">{{ h.description }}</strong>
+                                {% if h.created_at %}
+                                <time class="workflow-case-history-time" datetime="{{ h.created_at[:16] }}">{{ h.created_at[:16] }}</time>
+                                {% else %}
+                                <span class="workflow-case-history-time" aria-hidden="true">&mdash;</span>
+                                {% endif %}
+                            </div>
+                            {% if h.details %}
+                            <span class="workflow-case-history-details">{{ h.details }}</span>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="workflow-case-empty">No status changes recorded yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </article>
+    </div>
+</section>
+
+<script>
+(function () {
+    var TRANSITION_URL = '{{ PREFIX }}/workflow/case/{{ case.id }}/transition';
+
+    document.querySelectorAll('.transition-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var newStatus = this.dataset.status;
+            var notesEl = document.getElementById('transitionNotes');
+            var notes = notesEl ? notesEl.value : '';
+            var label = newStatus.replace(/_/g, ' ');
+
+            if (!window.confirm('Are you sure you want to change status to "' + label + '"?')) {
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append('new_status', newStatus);
+            formData.append('notes', notes);
+
+            this.setAttribute('aria-busy', 'true');
+            this.disabled = true;
+
+            fetch(TRANSITION_URL, { method: 'POST', body: formData })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (data && data.success) {
+                        var msg = 'Status updated successfully!';
+                        if (data.tasks_created && data.tasks_created.length) {
+                            msg += '\n\nTasks created:\n- ' + data.tasks_created.join('\n- ');
+                        }
+                        window.alert(msg);
+                        window.location.reload();
+                    } else {
+                        window.alert('Error: ' + ((data && data.error) || 'Unknown error'));
+                    }
+                })
+                .catch(function (e) {
+                    window.alert('Error updating status: ' + (e && e.message ? e.message : e));
+                })
+                .then(function () {
+                    btn.removeAttribute('aria-busy');
+                    btn.disabled = false;
+                });
+        });
+    });
+})();
+</script>
+{% endblock %}

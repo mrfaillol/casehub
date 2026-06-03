@@ -1,0 +1,268 @@
+{% extends "app/base.html" %}
+{% set active_module = 'processes' %}
+{% block title %}Processos · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% set can_edit_deadlines = user and user.user_type in ['admin', 'attorney'] %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Processos · {{ total|default(0) }} em curso</span>
+    <h1>Seus <em>processos</em> ativos.</h1>
+    <p class="ch-page-head__sub">Cada processo agrega cliente, prazos, audiências e documentos. Clique em qualquer célula para editar na hora.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/cases/new">
+      <span data-icon="plus"></span> Novo processo
+    </a>
+  </div>
+</section>
+
+<form class="ch-card ch-card--compact" method="get" action="{{ PREFIX }}/cases" style="display:flex; gap: var(--space-3); align-items:flex-end; flex-wrap: wrap; margin-bottom: var(--space-5);">
+  <div class="ch-field" style="flex: 1 1 240px; margin-bottom: 0;">
+    <label class="ch-field__label" for="search">Buscar</label>
+    <input class="ch-input" id="search" name="search" value="{{ search|default('') }}" placeholder="Número, nome ou receipt…" />
+  </div>
+  <div class="ch-field" style="flex: 0 0 200px; margin-bottom: 0;">
+    <label class="ch-field__label" for="status">Status</label>
+    <select class="ch-select" id="status" name="status">
+      <option value="">Todos</option>
+      <option value="active" {% if status == 'active' %}selected{% endif %}>Ativo</option>
+      <option value="review" {% if status == 'review' %}selected{% endif %}>Em revisão</option>
+      <option value="closed" {% if status == 'closed' %}selected{% endif %}>Fechado</option>
+      <option value="approved" {% if status == 'approved' %}selected{% endif %}>Aprovado</option>
+      <option value="denied" {% if status == 'denied' %}selected{% endif %}>Negado</option>
+    </select>
+  </div>
+  <button type="submit" class="ch-btn">
+    <span data-icon="search"></span> Filtrar
+  </button>
+</form>
+
+{% if cases and cases|length > 0 %}
+<section class="ch-card ch-card--bleed">
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive ch-table--editable"
+           data-cases-table
+           data-patch-base="{{ PREFIX }}/cases"
+           data-can-edit-deadlines="{{ '1' if can_edit_deadlines else '0' }}">
+      <thead>
+        <tr>
+          <th>Processo</th>
+          <th>Cliente</th>
+          <th>Tipo</th>
+          <th>Status</th>
+          <th>Vencimento</th>
+          <th>Última atividade</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cases %}
+        <tr data-case-id="{{ c.id }}">
+          {# ── Processo: número interno (editável) + nome (editável) ── #}
+          <td data-label="Processo">
+            <span class="ch-cell ch-cell--strong"
+                  data-field="case_number"
+                  data-type="text"
+                  data-value="{{ c.case_number or '' }}"
+                  tabindex="0" role="button"
+                  title="Clique para editar o número interno">
+              {{ c.case_number or c.numero_processo or 'CASE-%04d'|format(c.id) }}
+            </span>
+            <span class="ch-cell ch-cell--sub"
+                  data-field="case_name"
+                  data-type="text"
+                  data-value="{{ c.case_name or '' }}"
+                  tabindex="0" role="button"
+                  title="Clique para editar o nome do processo">
+              {{ c.case_name or c.tipo_acao or '—' }}
+            </span>
+          </td>
+
+          {# ── Cliente: não editável inline (relação) ── #}
+          <td data-label="Cliente">
+            {% if c.client %}
+              <a href="{{ PREFIX }}/clients/{{ c.client.id }}" class="ch-cell-link">{{ c.client.full_name }}</a>
+            {% else %}—{% endif %}
+          </td>
+
+          {# ── Tipo: visa_type (immigration) ou tipo_acao via campo livre ── #}
+          <td data-label="Tipo">
+            <span class="ch-cell ch-mono ch-cell--muted"
+                  data-field="visa_type"
+                  data-type="text"
+                  data-value="{{ c.visa_type or '' }}"
+                  tabindex="0" role="button"
+                  title="Clique para editar o tipo">
+              {{ c.visa_type or c.tipo_acao or '—' }}
+            </span>
+          </td>
+
+          {# ── Status: select inline ── #}
+          <td data-label="Status">
+            {% set s = (c.status or 'active')|lower %}
+            <span class="ch-cell ch-cell--status"
+                  data-field="status"
+                  data-type="select"
+                  data-value="{{ c.status or '' }}"
+                  data-options="intake:Intake|document_collection:Coleta|drafting:Elaboração|review:Revisão|filed:Protocolado|rfe:RFE|approved:Aprovado|denied:Negado|closed:Fechado|active:Ativo"
+                  tabindex="0" role="button"
+                  title="Clique para alterar o status">
+              {% if s in ['closed', 'approved', 'denied', 'concluido', 'concluído', 'finalizado'] %}
+                <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ c.status }}</span>
+              {% elif s in ['review', 'rfe', 'revisao'] %}
+                <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ c.status }}</span>
+              {% else %}
+                <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ c.status or 'Ativo' }}</span>
+              {% endif %}
+            </span>
+          </td>
+
+          {# ── Vencimento (prazo): só ADMIN/ADVOGADO editam ── #}
+          <td data-label="Vencimento">
+            <span class="ch-cell ch-mono ch-cell--muted {% if not can_edit_deadlines %}ch-cell--locked{% endif %}"
+                  data-field="expiration_date"
+                  data-type="date"
+                  data-value="{{ c.expiration_date.strftime('%Y-%m-%d') if c.expiration_date else '' }}"
+                  data-deadline="1"
+                  {% if can_edit_deadlines %}tabindex="0" role="button" title="Clique para editar o vencimento"{% else %}title="Apenas administradores e advogados podem alterar prazos" aria-disabled="true"{% endif %}>
+              {{ c.expiration_date.strftime('%d/%m/%Y') if c.expiration_date else '—' }}
+              {% if not can_edit_deadlines %}<span class="ch-lock-glyph" aria-hidden="true">&#128274;</span>{% endif %}
+            </span>
+          </td>
+
+          <td data-label="Atividade" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
+            {{ c.updated_at.strftime('%d/%m/%Y') if c.updated_at else (c.created_at.strftime('%d/%m/%Y') if c.created_at else '—') }}
+          </td>
+          <td data-label="" style="text-align: right;">
+            <a class="ch-chip" href="{{ PREFIX }}/cases/{{ c.id }}" aria-label="Abrir processo">
+              <span data-icon="chevron_right" data-icon-size="14"></span>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% set total_pages = ((total or 0) // (per_page or 20)) + (1 if (total or 0) % (per_page or 20) else 0) %}
+  {% if total_pages and total_pages > 1 %}
+  <div style="padding: var(--space-4); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); border-top: 1px solid var(--line);">
+    <span style="color: var(--fg-muted); font-size: var(--fs-xs); font-family: var(--mono); letter-spacing: 0.12em; text-transform: uppercase;">
+      Página {{ page }} de {{ total_pages }} · {{ total }} processos
+    </span>
+    <div style="display:flex; gap: var(--space-2);">
+      {% if page > 1 %}<a class="ch-btn ch-btn--ghost ch-btn--sm" href="{{ PREFIX }}/cases?page={{ page-1 }}{% if search %}&search={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}">Anterior</a>{% endif %}
+      {% if page < total_pages %}<a class="ch-btn ch-btn--ghost ch-btn--sm" href="{{ PREFIX }}/cases?page={{ page+1 }}{% if search %}&search={{ search }}{% endif %}{% if status %}&status={{ status }}{% endif %}">Próxima</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<p class="ch-inline-hint" aria-hidden="true">
+  <span data-icon="edit" data-icon-size="13"></span>
+  Edição rápida: clique numa célula, <kbd>Enter</kbd> salva, <kbd>Esc</kbd> cancela.
+  {% if not can_edit_deadlines %}Prazos (vencimento) são travados para o seu cargo.{% endif %}
+</p>
+{% else %}
+<div class="ch-card">
+  <div class="ch-empty">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="folder"></span></span>
+    <h3>{% if search or status %}Sem resultados{% else %}Sem processos cadastrados{% endif %}</h3>
+    <p>
+      {% if search or status %}
+        Tente outros termos ou limpe os filtros.
+      {% else %}
+        Comece cadastrando o primeiro processo. Você poderá anexar documentos, prazos e tarefas.
+      {% endif %}
+    </p>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/cases/new" style="margin-top: var(--space-3);">
+      <span data-icon="plus"></span> Cadastrar processo
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ─── Inline-edit cells (neumórfico, segue tokens semânticos) ─── */
+  .ch-table--editable .ch-cell {
+    display: inline-block;
+    border-radius: var(--radius-xs);
+    padding: 2px 6px;
+    margin: -2px -6px;
+    cursor: text;
+    transition: background var(--motion-fast) var(--ease-out),
+                box-shadow var(--motion-fast) var(--ease-out);
+    outline: none;
+  }
+  .ch-table--editable .ch-cell--sub { display: block; margin-top: 2px; color: var(--fg-muted); font-size: var(--fs-xs); }
+  .ch-table--editable .ch-cell--strong { display: block; color: var(--fg-default); font-weight: 600; }
+  .ch-table--editable .ch-cell--muted { color: var(--fg-muted); font-size: var(--fs-xs); }
+  .ch-table--editable .ch-cell--status { cursor: pointer; }
+  .ch-table--editable .ch-cell[role="button"]:hover {
+    background: var(--surface-card-2);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .ch-table--editable .ch-cell[role="button"]:focus-visible {
+    box-shadow: var(--focus-ring);
+    background: var(--surface-card-2);
+  }
+  /* Locked deadline cell: no affordance, "not allowed" cursor */
+  .ch-table--editable .ch-cell--locked {
+    cursor: not-allowed;
+    opacity: 0.85;
+  }
+  .ch-table--editable .ch-cell--locked:hover { background: transparent; box-shadow: none; }
+  .ch-lock-glyph { font-size: 0.85em; opacity: 0.5; margin-left: 4px; }
+
+  /* Cell flipped into edit mode — input/select inherit neumórfico ch-input */
+  .ch-cell-editor {
+    width: 100%;
+    min-width: 8ch;
+    max-width: 22ch;
+    font: inherit;
+    color: var(--fg-default);
+    background: var(--surface-card);
+    border: none;
+    border-radius: var(--radius-xs);
+    padding: 4px 8px;
+    box-shadow: inset 0 0 0 1px var(--c-green-d), var(--focus-ring);
+    outline: none;
+  }
+  select.ch-cell-editor { cursor: pointer; }
+  .ch-cell--saving { opacity: 0.55; pointer-events: none; }
+  .ch-cell--saved {
+    animation: chCellSaved var(--motion-mid) var(--ease-out);
+  }
+  @keyframes chCellSaved {
+    0%   { background: rgba(0, 140, 77, 0.18); }
+    100% { background: transparent; }
+  }
+
+  .ch-cell-link { color: var(--fg-default); text-decoration: none; }
+  .ch-cell-link:hover { color: var(--accent-fg); text-decoration: underline; }
+
+  .ch-inline-hint {
+    display: flex; align-items: center; gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    font-size: var(--fs-xs); color: var(--fg-faint);
+    font-family: var(--mono); letter-spacing: 0.06em;
+  }
+  .ch-inline-hint kbd {
+    font-family: var(--mono); font-size: 0.95em;
+    background: var(--surface-card-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xs);
+    padding: 0 5px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ch-cell--saved { animation: none; }
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script defer src="{{ asset_url('js/app/cases-inline-edit.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,185 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% block title %}Referrals · List · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/referrals-list.css">
+{% endblock %}
+{% block content %}
+<section class="referrals-list-main" aria-labelledby="referrals-list-title">
+    <header class="referrals-list-header">
+        <div class="referrals-list-header-leading">
+            <h1 id="referrals-list-title" class="referrals-list-title">
+                <i class="fas fa-users" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Indicações{% else %}Referrals{% endif %}</span>
+            </h1>
+            <p class="referrals-list-subtitle">{% if product == "lite" %}Acompanhe indicações de clientes e comissões{% else %}Track client referrals and commissions{% endif %}</p>
+        </div>
+
+        <div class="referrals-list-actions">
+            <a href="{{ PREFIX }}/referrals/sources" class="referrals-list-action referrals-list-action--secondary">
+                <i class="fas fa-sitemap" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Origens{% else %}Sources{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/referrals/new" class="referrals-list-action referrals-list-action--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Nova Indicação{% else %}New Referral{% endif %}</span>
+            </a>
+        </div>
+    </header>
+
+    {% if stats %}
+    <section class="referrals-list-stats" aria-label="{% if product == 'lite' %}Resumo de indicações{% else %}Referrals summary{% endif %}">
+        <article class="referrals-list-stat-card">
+            <span class="referrals-list-stat-value">{{ stats.total or 0 }}</span>
+            <span class="referrals-list-stat-label">{% if product == "lite" %}Total de Indicações{% else %}Total Referrals{% endif %}</span>
+        </article>
+        <article class="referrals-list-stat-card">
+            <span class="referrals-list-stat-value referrals-list-stat-value--success">{{ stats.converted or 0 }}</span>
+            <span class="referrals-list-stat-label">{% if product == "lite" %}Convertidas{% else %}Converted{% endif %}</span>
+        </article>
+        <article class="referrals-list-stat-card">
+            <span class="referrals-list-stat-value referrals-list-stat-value--accent">{{ (stats.total_value or 0)|format_currency(org_currency|default('USD')) }}</span>
+            <span class="referrals-list-stat-label">{% if product == "lite" %}Valor Total{% else %}Total Value{% endif %}</span>
+        </article>
+        <article class="referrals-list-stat-card">
+            <span class="referrals-list-stat-value referrals-list-stat-value--warning">{{ (stats.total_commission or 0)|format_currency(org_currency|default('USD')) }}</span>
+            <span class="referrals-list-stat-label">{% if product == "lite" %}Comissoes{% else %}Commissions{% endif %}</span>
+        </article>
+    </section>
+    {% endif %}
+
+    <section class="referrals-list-filters" aria-label="{% if product == 'lite' %}Filtros{% else %}Filters{% endif %}">
+        <form method="GET" class="referrals-list-filter-form">
+            <div class="referrals-list-filter-field">
+                <label for="referrals-list-filter-source" class="referrals-list-filter-label">{% if product == "lite" %}Origem{% else %}Source{% endif %}</label>
+                <select id="referrals-list-filter-source" name="source_id" class="referrals-list-select">
+                    <option value="">{% if product == "lite" %}Todas as Origens{% else %}All Sources{% endif %}</option>
+                    {% for s in sources %}
+                    <option value="{{ s.id }}" {% if selected_source == s.id %}selected{% endif %}>
+                        {{ s.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="referrals-list-filter-field">
+                <label for="referrals-list-filter-status" class="referrals-list-filter-label">Status</label>
+                <select id="referrals-list-filter-status" name="status" class="referrals-list-select">
+                    <option value="">{% if product == "lite" %}Todos os Status{% else %}All Statuses{% endif %}</option>
+                    {% for st in statuses %}
+                    <option value="{{ st }}" {% if selected_status == st %}selected{% endif %}>{{ st|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="referrals-list-filter-field">
+                <button type="submit" class="referrals-list-filter-submit">{% if product == "lite" %}Filtrar{% else %}Filter{% endif %}</button>
+            </div>
+        </form>
+    </section>
+
+    {% if referrals %}
+    <div class="referrals-list-card">
+        <div class="referrals-list-tablewrap">
+            <table class="referrals-list-table">
+                <caption>{% if product == "lite" %}Lista de indicações com data, origem, cliente, processo, valor, comissão e status.{% else %}List of referrals with date, source, client, case, value, commission, and status.{% endif %}</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Data{% else %}Date{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Origem{% else %}Source{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Processo{% else %}Case{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Valor{% else %}Value{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Comissao{% else %}Commission{% endif %}</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="referrals-list-cell-end">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ref in referrals %}
+                    <tr>
+                        <td>
+                            <span class="referrals-list-date">{% if ref.referral_date %}{% if product == "lite" %}{{ ref.referral_date.strftime('%d/%m/%Y') }}{% else %}{{ ref.referral_date.strftime('%Y-%m-%d') }}{% endif %}{% else %}<span class="referrals-list-placeholder" aria-label="{% if product == 'lite' %}Sem data{% else %}No date{% endif %}">—</span>{% endif %}</span>
+                        </td>
+                        <td>
+                            <span class="referrals-list-source">
+                                <span class="referrals-list-source-badge">{{ ref.source_type }}</span>
+                                <span>{{ ref.source_name }}</span>
+                            </span>
+                        </td>
+                        <td>
+                            {% if ref.client_id %}
+                            <a href="{{ PREFIX }}/clients/{{ ref.client_id }}" class="referrals-list-link">
+                                {{ ref.first_name }} {{ ref.last_name }}
+                            </a>
+                            {% else %}
+                            <span class="referrals-list-placeholder" aria-label="{% if product == 'lite' %}Sem cliente{% else %}No client{% endif %}">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ref.case_id %}
+                            <a href="{{ PREFIX }}/cases/{{ ref.case_id }}" class="referrals-list-link">{{ ref.case_number }}</a>
+                            {% else %}
+                            <span class="referrals-list-placeholder" aria-label="{% if product == 'lite' %}Sem processo{% else %}No case{% endif %}">—</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="referrals-list-numeric">{{ (ref.case_value or 0)|format_currency(org_currency|default('USD')) }}</span></td>
+                        <td><span class="referrals-list-numeric">{{ (ref.commission_amount or 0)|format_currency(org_currency|default('USD')) }}</span></td>
+                        <td>
+                            {% if ref.status == 'pending' %}
+                            <span class="referrals-list-status referrals-list-status--pending">{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</span>
+                            {% elif ref.status == 'converted' %}
+                            <span class="referrals-list-status referrals-list-status--converted">{% if product == "lite" %}Convertida{% else %}Converted{% endif %}</span>
+                            {% elif ref.status == 'paid' %}
+                            <span class="referrals-list-status referrals-list-status--paid">{% if product == "lite" %}Paga{% else %}Paid{% endif %}</span>
+                            {% elif ref.status == 'cancelled' %}
+                            <span class="referrals-list-status referrals-list-status--cancelled">{% if product == "lite" %}Cancelada{% else %}Cancelled{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td class="referrals-list-cell-end">
+                            <div class="referrals-list-row-actions">
+                                {% if ref.status == 'pending' %}
+                                <form method="POST" action="{{ PREFIX }}/referrals/{{ ref.id }}/status">
+                                    <input type="hidden" name="status" value="converted">
+                                    <button type="submit" class="referrals-list-icon-btn referrals-list-icon-btn--success" title="{% if product == 'lite' %}Marcar como Convertida{% else %}Mark Converted{% endif %}" aria-label="{% if product == 'lite' %}Marcar como Convertida{% else %}Mark Converted{% endif %}">
+                                        <i class="fas fa-check" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                                {% elif ref.status == 'converted' %}
+                                <form method="POST" action="{{ PREFIX }}/referrals/{{ ref.id }}/status">
+                                    <input type="hidden" name="status" value="paid">
+                                    <button type="submit" class="referrals-list-icon-btn referrals-list-icon-btn--accent" title="{% if product == 'lite' %}Marcar como Paga{% else %}Mark Paid{% endif %}" aria-label="{% if product == 'lite' %}Marcar como Paga{% else %}Mark Paid{% endif %}">
+                                        <i class="fas fa-dollar-sign" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                                <form method="POST" action="{{ PREFIX }}/referrals/{{ ref.id }}/delete"
+                                      onsubmit="return confirm('{% if product == 'lite' %}Excluir esta indicação?{% else %}Delete this referral?{% endif %}');">
+                                    <button type="submit" class="referrals-list-icon-btn referrals-list-icon-btn--danger" title="{% if product == 'lite' %}Excluir{% else %}Delete{% endif %}" aria-label="{% if product == 'lite' %}Excluir{% else %}Delete{% endif %}">
+                                        <i class="fas fa-trash" aria-hidden="true"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="referrals-list-card">
+        <div class="referrals-list-empty">
+            <i class="fas fa-users referrals-list-empty-icon" aria-hidden="true"></i>
+            <h2 class="referrals-list-empty-title">{% if product == "lite" %}Sem Indicações{% else %}No Referrals{% endif %}</h2>
+            <p class="referrals-list-empty-text">{% if product == "lite" %}Acompanhe indicações para medir a eficacia do marketing.{% else %}Track referrals to measure marketing effectiveness.{% endif %}</p>
+            <a href="{{ PREFIX }}/referrals/new" class="referrals-list-action referrals-list-action--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Adicionar Indicacao{% else %}Add Referral{% endif %}</span>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

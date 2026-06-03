@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block title %}Aposentadoria por Idade - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-aposentadoria-idade.css">
+{% endblock %}
+
+{% block content %}
+<div class="aposentadoria-main" aria-labelledby="aposentadoria-title">
+    <div class="aposentadoria-container">
+        <header class="aposentadoria-header no-print">
+            <div class="aposentadoria-header-text">
+                <h1 id="aposentadoria-title" class="aposentadoria-title">
+                    <i class="fas fa-user-clock aposentadoria-title-icon" aria-hidden="true"></i>
+                    <span>Aposentadoria por Idade</span>
+                </h1>
+                <p class="aposentadoria-subtitle">EC 103/2019, Art. 15, 26</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="aposentadoria-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        {% if error %}
+        <div class="aposentadoria-alert" role="alert">
+            <div>
+                <i class="fas fa-exclamation-triangle aposentadoria-alert-icon" aria-hidden="true"></i>
+                <span>{{ error }}</span>
+            </div>
+            <button type="button" class="aposentadoria-alert-close no-print" aria-label="Fechar alerta" onclick="this.closest('.aposentadoria-alert').remove()">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        {% endif %}
+
+        <div class="aposentadoria-layout {% if resultado %}aposentadoria-layout--with-result{% else %}aposentadoria-layout--form-only{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/aposentadoria-idade/calcular" class="aposentadoria-form">
+                <div class="aposentadoria-card">
+                    <div class="aposentadoria-card-body">
+                        <section class="aposentadoria-section" aria-labelledby="aposentadoria-section-pessoais">
+                            <h2 id="aposentadoria-section-pessoais" class="aposentadoria-section-title">Dados Pessoais</h2>
+                            <div class="aposentadoria-grid">
+                                <div class="aposentadoria-field">
+                                    <label for="data_nascimento" class="aposentadoria-label">Data de Nascimento</label>
+                                    <input type="date" class="aposentadoria-input" id="data_nascimento" name="data_nascimento"
+                                           value="{{ form.data_nascimento if form else '' }}" required aria-required="true">
+                                </div>
+                                <div class="aposentadoria-field">
+                                    <label for="sexo" class="aposentadoria-label">Sexo</label>
+                                    <select class="aposentadoria-select" id="sexo" name="sexo" required aria-required="true">
+                                        <option value="F" {% if form and form.sexo == 'F' %}selected{% endif %}>Feminino</option>
+                                        <option value="M" {% if form and form.sexo == 'M' %}selected{% endif %}>Masculino</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="aposentadoria-section" aria-labelledby="aposentadoria-section-contribuicao">
+                            <h2 id="aposentadoria-section-contribuicao" class="aposentadoria-section-title">Tempo de Contribuição</h2>
+                            <div class="aposentadoria-grid">
+                                <div class="aposentadoria-field">
+                                    <label for="anos_contribuicao" class="aposentadoria-label">Anos de Contribuição</label>
+                                    <input type="number" class="aposentadoria-input" id="anos_contribuicao" name="anos_contribuicao"
+                                           min="0" value="{{ form.anos_contribuicao if form else '0' }}">
+                                </div>
+                                <div class="aposentadoria-field">
+                                    <label for="meses_contribuicao" class="aposentadoria-label">Meses Adicionais</label>
+                                    <input type="number" class="aposentadoria-input" id="meses_contribuicao" name="meses_contribuicao"
+                                           min="0" max="11" value="{{ form.meses_contribuicao if form else '0' }}">
+                                </div>
+                            </div>
+                            <div class="aposentadoria-field">
+                                <label for="carencia_meses" class="aposentadoria-label">Carência (meses de contribuição)</label>
+                                <input type="number" class="aposentadoria-input" id="carencia_meses" name="carencia_meses"
+                                       min="0" value="{{ form.carencia_meses if form else '' }}" required aria-required="true"
+                                       aria-describedby="aposentadoria-hint-carencia">
+                                <span id="aposentadoria-hint-carencia" class="aposentadoria-hint">Número total de contribuições mensais ao INSS</span>
+                            </div>
+                        </section>
+
+                        <section class="aposentadoria-section" aria-labelledby="aposentadoria-section-beneficio">
+                            <h2 id="aposentadoria-section-beneficio" class="aposentadoria-section-title">Cálculo do Benefício</h2>
+                            <div class="aposentadoria-field">
+                                <label for="media_salarial" class="aposentadoria-label">Média dos Salários de Contribuição (R$)</label>
+                                <div class="aposentadoria-input-group">
+                                    <span class="aposentadoria-input-group-text" aria-hidden="true">R$</span>
+                                    <input type="number" class="aposentadoria-input" id="media_salarial" name="media_salarial"
+                                           step="0.01" min="0" value="{{ form.media_salarial if form else '' }}" required aria-required="true"
+                                           aria-describedby="aposentadoria-hint-media">
+                                </div>
+                                <span id="aposentadoria-hint-media" class="aposentadoria-hint">Média de 100% dos salários desde jul/1994</span>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <div class="aposentadoria-actions no-print">
+                    <button type="submit" class="aposentadoria-btn aposentadoria-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <button type="button" class="aposentadoria-btn aposentadoria-btn--ghost" onclick="window.location.href='{{ PREFIX }}/tools/aposentadoria-idade'">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </button>
+                </div>
+            </form>
+
+            {% if resultado %}
+            <section class="aposentadoria-result" id="resultado" aria-labelledby="aposentadoria-result-title">
+                <article class="aposentadoria-card">
+                    <header class="aposentadoria-card-header {% if resultado.elegivel %}aposentadoria-card-header--success{% else %}aposentadoria-card-header--warning{% endif %}">
+                        <h2 id="aposentadoria-result-title" class="aposentadoria-card-title">
+                            <i class="fas {% if resultado.elegivel %}fa-check-circle{% else %}fa-clock{% endif %}" aria-hidden="true"></i>
+                            <span>Resultado — Aposentadoria por Idade</span>
+                        </h2>
+                        <button type="button" class="aposentadoria-btn aposentadoria-btn--ghost aposentadoria-btn--sm no-print" onclick="window.print()">
+                            <i class="fas fa-print" aria-hidden="true"></i>
+                            <span>Imprimir</span>
+                        </button>
+                    </header>
+                    <div class="aposentadoria-card-body">
+                        <div class="aposentadoria-status">
+                            {% if resultado.elegivel %}
+                            <span class="aposentadoria-status-badge aposentadoria-status-badge--success"
+                                  role="status"
+                                  aria-label="Status de elegibilidade: elegível à aposentadoria">
+                                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                                <span>ELEGÍVEL À APOSENTADORIA</span>
+                            </span>
+                            {% else %}
+                            <span class="aposentadoria-status-badge aposentadoria-status-badge--warning"
+                                  role="status"
+                                  aria-label="Status de elegibilidade: ainda não elegível">
+                                <i class="fas fa-clock" aria-hidden="true"></i>
+                                <span>AINDA NÃO ELEGÍVEL</span>
+                            </span>
+                            <p class="aposentadoria-status-meta">
+                                Data estimada: <strong>{{ resultado.data_estimada }}</strong>
+                            </p>
+                            {% endif %}
+                        </div>
+
+                        <table class="aposentadoria-table" aria-label="Requisitos de aposentadoria">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Sexo</th>
+                                    <td>{{ resultado.sexo_label }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Idade Atual</th>
+                                    <td>{{ resultado.idade }} anos</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Idade Mínima</th>
+                                    <td>
+                                        {{ resultado.idade_minima }} anos
+                                        {% if resultado.cumpre_idade %}
+                                        <span class="aposentadoria-badge aposentadoria-badge--success" aria-label="Requisito de idade cumprido">OK</span>
+                                        {% else %}
+                                        <span class="aposentadoria-badge aposentadoria-badge--danger" aria-label="Faltam {{ resultado.idade_minima - resultado.idade }} anos para idade mínima">Faltam {{ resultado.idade_minima - resultado.idade }} anos</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Tempo de Contribuição</th>
+                                    <td>
+                                        {{ resultado.total_contrib_anos }} anos
+                                        {% if resultado.cumpre_contribuicao %}
+                                        <span class="aposentadoria-badge aposentadoria-badge--success" aria-label="Requisito de contribuição cumprido">OK</span>
+                                        {% else %}
+                                        <span class="aposentadoria-badge aposentadoria-badge--danger" aria-label="Faltam {{ resultado.falta_contrib_anos }} anos e {{ resultado.falta_contrib_meses }} meses de contribuição">Faltam {{ resultado.falta_contrib_anos }}a {{ resultado.falta_contrib_meses }}m</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Carência</td>
+                                    <td>
+                                        {{ resultado.carencia_meses }} meses
+                                        {% if resultado.cumpre_carencia %}
+                                        <span class="aposentadoria-badge aposentadoria-badge--success" aria-label="Requisito de carência cumprido">OK</span>
+                                        {% else %}
+                                        <span class="aposentadoria-badge aposentadoria-badge--danger" aria-label="Faltam {{ resultado.carencia_minima - resultado.carencia_meses }} meses de carência">Faltam {{ resultado.carencia_minima - resultado.carencia_meses }} meses</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        {% if resultado.motivos_inelegibilidade %}
+                        <div class="aposentadoria-notice" role="note">
+                            <p class="aposentadoria-notice-title">
+                                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                                <span>Requisitos Pendentes:</span>
+                            </p>
+                            <ul class="aposentadoria-notice-list">
+                                {% for motivo in resultado.motivos_inelegibilidade %}
+                                <li>{{ motivo }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endif %}
+                    </div>
+                </article>
+
+                <article class="aposentadoria-card">
+                    <header class="aposentadoria-card-header aposentadoria-card-header--accent">
+                        <h2 class="aposentadoria-card-title">
+                            <i class="fas fa-coins" aria-hidden="true"></i>
+                            <span>Cálculo do Benefício</span>
+                        </h2>
+                    </header>
+                    <table class="aposentadoria-table" aria-label="Cálculo do benefício previdenciário">
+                        <tbody>
+                            <tr>
+                                <td>Média Salarial</td>
+                                <td>R$ {{ "%.2f"|format(resultado.media_salarial) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Coeficiente</td>
+                                <td>
+                                    {{ resultado.coeficiente }}%
+                                    <span class="aposentadoria-table-hint">(60% + 2% × {{ ((resultado.coeficiente - 60) / 2)|int }} anos acima do mínimo)</span>
+                                </td>
+                            </tr>
+                            <tr class="aposentadoria-row--total">
+                                <td>Valor Estimado do Benefício</td>
+                                <td><strong>R$ {{ "%.2f"|format(resultado.valor_beneficio) }}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </article>
+
+                <article class="aposentadoria-card">
+                    <div class="aposentadoria-card-footer">
+                        <p class="aposentadoria-legal-title">
+                            <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </p>
+                        <ul class="aposentadoria-legal-list">
+                            <li><strong>EC 103/2019, Art. 15</strong> — Idade mínima: 65 (H) / 62 (M) + contribuição mínima</li>
+                            <li><strong>EC 103/2019, Art. 26</strong> — Cálculo: 60% da média + 2% por ano acima do mínimo</li>
+                            <li><strong>EC 103/2019, Art. 26, §6º</strong> — Média de 100% dos salários desde jul/1994</li>
+                            <li><strong>Lei 8.213/91, Art. 25</strong> — Carência de 180 contribuições mensais</li>
+                        </ul>
+                        <p class="aposentadoria-legal-disclaimer">
+                            <i class="fas fa-info-circle" aria-hidden="true"></i>
+                            <span>Cálculo estimativo baseado na regra geral pós-Reforma. Regras de transição podem ser mais vantajosas. Consulte o INSS ou "Meu INSS" para simulação oficial.</span>
+                        </p>
+                    </div>
+                </article>
+            </section>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 992) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+</script>
+{% endif %}
+{% endblock %}

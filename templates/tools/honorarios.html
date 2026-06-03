@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Honorários Sucumbenciais - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-honorarios.css">
+{% endblock %}
+
+{% block content %}
+<div class="tools-honorarios">
+    <header class="tools-honorarios-header tools-honorarios-no-print">
+        <div>
+            <h1 class="tools-honorarios-title">
+                <i class="fas fa-gavel tools-honorarios-title-icon" aria-hidden="true"></i>
+                Honorários Sucumbenciais
+            </h1>
+            <p class="tools-honorarios-subtitle">CPC Art. 85 §§2-11</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-honorarios-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="tools-honorarios-alert tools-honorarios-no-print" role="alert">
+        <i class="fas fa-exclamation-triangle tools-honorarios-alert-icon" aria-hidden="true"></i>
+        <span class="tools-honorarios-alert-message">{{ error }}</span>
+        <button type="button" class="tools-honorarios-alert-close" aria-label="Fechar alerta" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+
+    <div class="tools-honorarios-layout {% if resultado %}tools-honorarios-layout--split{% endif %}">
+        <div class="tools-honorarios-form-column {% if not resultado %}tools-honorarios-form-column--narrow{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/honorarios/calcular">
+                <section class="tools-honorarios-card" aria-labelledby="tools-honorarios-form-title">
+                    <div class="tools-honorarios-card-body">
+                        <h2 id="tools-honorarios-form-title" class="tools-honorarios-section-title">Dados da Causa</h2>
+
+                        <div class="tools-honorarios-field">
+                            <label for="valor_causa" class="tools-honorarios-label">
+                                Valor da Causa (R$)
+                                <span class="tools-honorarios-required" aria-hidden="true">*</span>
+                            </label>
+                            <div class="tools-honorarios-input-group">
+                                <span class="tools-honorarios-input-affix tools-honorarios-input-affix--prefix" aria-hidden="true">R$</span>
+                                <input type="number" class="tools-honorarios-input" id="valor_causa" name="valor_causa"
+                                       step="0.01" min="0" value="{{ form.valor_causa if form else '' }}"
+                                       aria-required="true" required>
+                            </div>
+                        </div>
+
+                        <div class="tools-honorarios-field-row">
+                            <div class="tools-honorarios-field">
+                                <label for="percentual" class="tools-honorarios-label">
+                                    Percentual (10-20%)
+                                    <span class="tools-honorarios-required" aria-hidden="true">*</span>
+                                </label>
+                                <div class="tools-honorarios-input-group">
+                                    <input type="number" class="tools-honorarios-input" id="percentual" name="percentual"
+                                           step="0.5" min="10" max="20" value="{{ form.percentual if form else '15' }}"
+                                           aria-required="true" aria-describedby="percentual_hint" required>
+                                    <span class="tools-honorarios-input-affix tools-honorarios-input-affix--suffix" aria-hidden="true">%</span>
+                                </div>
+                                <small id="percentual_hint" class="tools-honorarios-hint">Art. 85, §2º: entre 10% e 20%</small>
+                            </div>
+                            <div class="tools-honorarios-field">
+                                <label for="fase" class="tools-honorarios-label">Fase Processual</label>
+                                <select class="tools-honorarios-select" id="fase" name="fase">
+                                    <option value="conhecimento" {% if form and form.fase == 'conhecimento' %}selected{% endif %}>Conhecimento</option>
+                                    <option value="recurso" {% if form and form.fase == 'recurso' %}selected{% endif %}>Recurso (§11 — recursais)</option>
+                                    <option value="execucao" {% if form and form.fase == 'execucao' %}selected{% endif %}>Execução</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <h2 class="tools-honorarios-section-title">Opções Adicionais</h2>
+
+                        <div class="tools-honorarios-check">
+                            <input class="tools-honorarios-checkbox" type="checkbox" id="contra_fazenda" name="contra_fazenda"
+                                   value="true" {% if form and form.contra_fazenda %}checked{% endif %}>
+                            <label class="tools-honorarios-check-label" for="contra_fazenda">
+                                Contra a Fazenda Pública (§3º — faixas escalonadas)
+                            </label>
+                        </div>
+
+                        <div class="tools-honorarios-check">
+                            <input class="tools-honorarios-checkbox" type="checkbox" id="sucumbencia_reciproca" name="sucumbencia_reciproca"
+                                   value="true" {% if form and form.sucumbencia_reciproca %}checked{% endif %}
+                                   aria-controls="pct_autor_div" aria-expanded="{% if form and form.sucumbencia_reciproca %}true{% else %}false{% endif %}">
+                            <label class="tools-honorarios-check-label" for="sucumbencia_reciproca">
+                                Sucumbência recíproca (Art. 86 CPC)
+                            </label>
+                        </div>
+
+                        <div id="pct_autor_div" class="tools-honorarios-reveal" data-open="{% if form and form.sucumbencia_reciproca %}true{% else %}false{% endif %}">
+                            <div class="tools-honorarios-field">
+                                <label for="percentual_autor" class="tools-honorarios-label">Percentual de sucumbência do autor (%)</label>
+                                <div class="tools-honorarios-input-group">
+                                    <input type="number" class="tools-honorarios-input" id="percentual_autor" name="percentual_autor"
+                                           step="5" min="0" max="100" value="{{ form.percentual_autor if form else '50' }}">
+                                    <span class="tools-honorarios-input-affix tools-honorarios-input-affix--suffix" aria-hidden="true">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="tools-honorarios-actions tools-honorarios-no-print">
+                    <button type="submit" class="tools-honorarios-btn tools-honorarios-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/honorarios" class="tools-honorarios-btn tools-honorarios-btn--ghost">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <div class="tools-honorarios-result-column" id="resultado">
+            <section class="tools-honorarios-card" aria-labelledby="tools-honorarios-result-title">
+                <header class="tools-honorarios-card-header">
+                    <h2 id="tools-honorarios-result-title" class="tools-honorarios-card-header-title">
+                        <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+                        Resultado — Honorários
+                    </h2>
+                    <button type="button" class="tools-honorarios-btn tools-honorarios-btn--inline tools-honorarios-no-print" onclick="window.print()">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+                <div class="tools-honorarios-card-body tools-honorarios-card-body--flush">
+                    <table class="tools-honorarios-result-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Item</th>
+                                <th scope="col">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Valor da Causa</td>
+                                <td>R$ {{ "%.2f"|format(resultado.valor_causa) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Percentual</td>
+                                <td>{{ resultado.percentual }}%</td>
+                            </tr>
+                            <tr>
+                                <td>Fase</td>
+                                <td>{{ resultado.fase_label }}</td>
+                            </tr>
+                            <tr class="tools-honorarios-result-row--highlight">
+                                <td>Honorários</td>
+                                <td>R$ {{ "%.2f"|format(resultado.honorarios) }}</td>
+                            </tr>
+                            {% if resultado.honorarios_recursais and resultado.honorarios_recursais > 0 %}
+                            <tr>
+                                <td>Honorários Recursais (§11 — majoração ~10%)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.honorarios_recursais) }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if resultado.contra_fazenda and resultado.fazenda_faixa %}
+                            <tr class="tools-honorarios-result-row--info">
+                                <td colspan="2">
+                                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                    Fazenda Pública — {{ resultado.fazenda_faixa }}
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% if resultado.sucumbencia_reciproca %}
+                            <tr>
+                                <td>Honorários do Autor ({{ resultado.percentual_autor }}%)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.honorarios_autor) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Honorários do Réu ({{ 100 - resultado.percentual_autor }}%)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.honorarios_reu) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="tools-honorarios-result-row--total">
+                                <td>TOTAL</td>
+                                <td>R$ {{ "%.2f"|format(resultado.total) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="tools-honorarios-card-footer">
+                    <h3 class="tools-honorarios-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        Fundamentação Legal
+                    </h3>
+                    <ul class="tools-honorarios-legal-list">
+                        <li><strong>CPC Art. 85 §2º</strong> — Honorários entre 10% e 20% do valor da condenação</li>
+                        <li><strong>CPC Art. 85 §3º</strong> — Faixas escalonadas contra a Fazenda Pública</li>
+                        <li><strong>CPC Art. 85 §11</strong> — Honorários recursais (majoração pelo tribunal)</li>
+                        <li><strong>CPC Art. 86</strong> — Sucumbência recíproca: distribuição proporcional</li>
+                    </ul>
+                    <p class="tools-honorarios-disclaimer">
+                        <i class="fas fa-info-circle tools-honorarios-disclaimer-icon" aria-hidden="true"></i>
+                        <span>Cálculo estimativo. Valores finais dependem da decisão judicial.</span>
+                    </p>
+                </div>
+            </section>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    (function () {
+        var checkbox = document.getElementById('sucumbencia_reciproca');
+        var reveal = document.getElementById('pct_autor_div');
+        if (checkbox && reveal) {
+            checkbox.addEventListener('change', function () {
+                var open = checkbox.checked;
+                reveal.dataset.open = open ? 'true' : 'false';
+                checkbox.setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+        }
+        {% if resultado %}
+        var result = document.getElementById('resultado');
+        if (result && window.innerWidth < 992) {
+            result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        {% endif %}
+    })();
+</script>
+{% endblock %}

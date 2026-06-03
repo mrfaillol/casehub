@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Clientes em Lote{% else %}Bulk Clients{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/bulk-clients.css">
+{% endblock %}
+
+{% block content %}
+<main class="bulk-clients" aria-labelledby="bulk-clients-title">
+    <header class="bulk-clients-header">
+        <a href="{{ PREFIX }}/bulk" class="bulk-clients-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar{% else %}Back to Bulk{% endif %}</span>
+        </a>
+        <h1 id="bulk-clients-title" class="bulk-clients-title">
+            <i class="fas fa-users bulk-clients-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Operações em Lote — Clientes{% else %}Bulk Client Operations{% endif %}</span>
+        </h1>
+    </header>
+
+    {% if request.query_params.get('success') %}
+    <div class="bulk-clients-alert" role="status">
+        <i class="fas fa-check-circle bulk-clients-alert-icon" aria-hidden="true"></i>
+        <span class="bulk-clients-alert-message">
+            {% if product == "lite" %}
+            {{ request.query_params.get('success') }} registros atualizados com sucesso
+            {% else %}
+            {{ request.query_params.get('success') }} records updated successfully
+            {% endif %}
+        </span>
+        <button type="button" class="bulk-clients-alert-close" data-bulk-clients-dismiss
+                aria-label="{% if product == 'lite' %}Fechar aviso{% else %}Dismiss notice{% endif %}">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ PREFIX }}/bulk/clients/execute" id="bulkForm" class="bulk-clients-form">
+        <input type="hidden" name="client_ids" id="clientIds" value="[]">
+
+        <section class="bulk-clients-card" aria-labelledby="bulk-clients-operation-title">
+            <h2 id="bulk-clients-operation-title" class="bulk-clients-sr-only">
+                {% if product == "lite" %}Configurar operação{% else %}Configure operation{% endif %}
+            </h2>
+            <div class="bulk-clients-card-body">
+                <div class="bulk-clients-controls">
+                    <div class="bulk-clients-field">
+                        <label class="bulk-clients-label" for="operationSelect">
+                            {% if product == "lite" %}Operação{% else %}Operation{% endif %}
+                        </label>
+                        <select name="operation" id="operationSelect" class="bulk-clients-select"
+                                data-bulk-clients-operation>
+                            {% for op in operations %}
+                            <option value="{{ op.id }}">{{ op.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="bulk-clients-field" id="statusField" data-bulk-clients-status-field>
+                        <label class="bulk-clients-label" for="newStatusSelect">
+                            {% if product == "lite" %}Novo Status{% else %}New Status{% endif %}
+                        </label>
+                        <select name="new_status" id="newStatusSelect" class="bulk-clients-select">
+                            {% for st in status_options %}
+                            <option value="{{ st.value }}">{{ st.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="bulk-clients-field">
+                        <span class="bulk-clients-label" aria-hidden="true">&nbsp;</span>
+                        <button type="submit" class="bulk-clients-btn bulk-clients-btn--primary"
+                                id="executeBtn" disabled>
+                            <i class="fas fa-play" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Executar{% else %}Execute{% endif %}</span>
+                            <span aria-hidden="true">(<span id="selectedCount">0</span>)</span>
+                            <span class="bulk-clients-sr-only" id="selectedCountSr">0 selecionados</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="bulk-clients-card" aria-labelledby="bulk-clients-list-title">
+            <header class="bulk-clients-card-header">
+                <h2 id="bulk-clients-list-title" class="bulk-clients-card-title">
+                    {% if product == "lite" %}Selecionar Clientes{% else %}Select Clients{% endif %}
+                </h2>
+                <div class="bulk-clients-card-actions">
+                    <button type="button" class="bulk-clients-btn bulk-clients-btn--ghost"
+                            data-bulk-clients-select-all>
+                        {% if product == "lite" %}Selecionar Todos{% else %}Select All{% endif %}
+                    </button>
+                    <button type="button" class="bulk-clients-btn bulk-clients-btn--ghost"
+                            data-bulk-clients-select-none>
+                        {% if product == "lite" %}Limpar{% else %}Clear{% endif %}
+                    </button>
+                </div>
+            </header>
+            <div class="bulk-clients-table-wrap">
+                {% if clients %}
+                <table class="bulk-clients-table">
+                    <thead>
+                        <tr>
+                            <th class="bulk-clients-table-th-check" scope="col">
+                                <label class="bulk-clients-sr-only" for="checkAll">
+                                    {% if product == "lite" %}Selecionar todos{% else %}Select all{% endif %}
+                                </label>
+                                <input type="checkbox" id="checkAll" class="bulk-clients-checkbox"
+                                       data-bulk-clients-check-all>
+                            </th>
+                            <th scope="col">{% if product == "lite" %}Nome{% else %}Name{% endif %}</th>
+                            <th scope="col">E-mail</th>
+                            <th scope="col">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for client in clients %}
+                        <tr>
+                            <td class="bulk-clients-table-cell-check">
+                                <label class="bulk-clients-sr-only" for="client-{{ client.id }}">
+                                    {% if product == "lite" %}Selecionar{% else %}Select{% endif %}
+                                    {{ client.first_name }} {{ client.last_name }}
+                                </label>
+                                <input type="checkbox" id="client-{{ client.id }}"
+                                       class="bulk-clients-checkbox" data-bulk-clients-row
+                                       value="{{ client.id }}">
+                            </td>
+                            <td>{{ client.first_name }} {{ client.last_name }}</td>
+                            <td>{{ client.email or '—' }}</td>
+                            <td>{{ client.phone or '—' }}</td>
+                            <td><span class="bulk-clients-badge">{{ client.status or '—' }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="bulk-clients-empty">
+                    <span class="bulk-clients-empty-icon" aria-hidden="true">
+                        <i class="fas fa-users"></i>
+                    </span>
+                    <p class="bulk-clients-empty-title">
+                        {% if product == "lite" %}Nenhum cliente disponível{% else %}No clients available{% endif %}
+                    </p>
+                    <p class="bulk-clients-empty-detail">
+                        {% if product == "lite" %}
+                        Cadastre clientes para executar operações em lote.
+                        {% else %}
+                        Add clients to run bulk operations on them.
+                        {% endif %}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+    </form>
+</main>
+
+<script>
+(function() {
+    var form = document.getElementById('bulkForm');
+    if (!form) return;
+
+    var operationSelect = form.querySelector('[data-bulk-clients-operation]');
+    var statusField = form.querySelector('[data-bulk-clients-status-field]');
+    var executeBtn = document.getElementById('executeBtn');
+    var clientIdsInput = document.getElementById('clientIds');
+    var selectedCount = document.getElementById('selectedCount');
+    var selectedCountSr = document.getElementById('selectedCountSr');
+    var checkAll = form.querySelector('[data-bulk-clients-check-all]');
+    var rowCheckboxes = function() {
+        return form.querySelectorAll('[data-bulk-clients-row]');
+    };
+
+    var labels = {
+        lite: { sr: ' selecionados', confirm: 'Tem certeza que deseja EXCLUIR ' + '__N__' + ' clientes?' },
+        full: { sr: ' selected', confirm: 'Are you sure you want to DELETE ' + '__N__' + ' clients?' }
+    };
+    var lang = {% if product == "lite" %}labels.lite{% else %}labels.full{% endif %};
+
+    function updateOperationFields() {
+        if (!operationSelect || !statusField) return;
+        var isStatus = operationSelect.value === 'update_status';
+        statusField.classList.toggle('bulk-clients-field--hidden', !isStatus);
+    }
+
+    function updateSelection() {
+        var selected = [];
+        rowCheckboxes().forEach(function(cb) {
+            if (cb.checked) selected.push(parseInt(cb.value, 10));
+        });
+        if (clientIdsInput) clientIdsInput.value = JSON.stringify(selected);
+        if (selectedCount) selectedCount.textContent = selected.length;
+        if (selectedCountSr) selectedCountSr.textContent = selected.length + lang.sr;
+        if (executeBtn) executeBtn.disabled = selected.length === 0;
+    }
+
+    function setAll(checked) {
+        rowCheckboxes().forEach(function(cb) { cb.checked = checked; });
+        if (checkAll) checkAll.checked = checked;
+        updateSelection();
+    }
+
+    if (operationSelect) {
+        operationSelect.addEventListener('change', updateOperationFields);
+        updateOperationFields();
+    }
+
+    rowCheckboxes().forEach(function(cb) {
+        cb.addEventListener('change', updateSelection);
+    });
+
+    if (checkAll) {
+        checkAll.addEventListener('change', function() { setAll(checkAll.checked); });
+    }
+
+    var selectAllBtn = document.querySelector('[data-bulk-clients-select-all]');
+    if (selectAllBtn) selectAllBtn.addEventListener('click', function() { setAll(true); });
+
+    var selectNoneBtn = document.querySelector('[data-bulk-clients-select-none]');
+    if (selectNoneBtn) selectNoneBtn.addEventListener('click', function() { setAll(false); });
+
+    form.addEventListener('submit', function(e) {
+        if (!operationSelect) return;
+        var op = operationSelect.value;
+        var count = selectedCount ? selectedCount.textContent : '0';
+        if (op === 'delete' && !window.confirm(lang.confirm.replace('__N__', count))) {
+            e.preventDefault();
+        }
+    });
+
+    document.querySelectorAll('[data-bulk-clients-dismiss]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var alert = btn.closest('.bulk-clients-alert');
+            if (alert) alert.remove();
+        });
+    });
+
+    updateSelection();
+})();
+</script>
+{% endblock %}

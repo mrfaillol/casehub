@@ -1,0 +1,140 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Payments · Overview · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-credit-card me-2"></i>Payments</h2>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-2">Total Paid</h6>
+                        <h3 class="text-success">{{ stats.total_paid|format_currency(org_currency|default('USD')) }}</h3>
+                    </div>
+                    <div class="text-success opacity-50">
+                        <i class="fas fa-check-circle fa-3x"></i>
+                    </div>
+                </div>
+                <small class="text-muted">{{ stats.paid_invoices }} invoices</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-2">Pending</h6>
+                        <h3 class="text-warning">{{ stats.total_pending|format_currency(org_currency|default('USD')) }}</h3>
+                    </div>
+                    <div class="text-warning opacity-50">
+                        <i class="fas fa-clock fa-3x"></i>
+                    </div>
+                </div>
+                <small class="text-muted">{{ stats.pending_invoices }} invoices</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card glass-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-2">Total Revenue</h6>
+                        <h3>{{ (stats.total_paid + stats.total_pending)|format_currency(org_currency|default('USD')) }}</h3>
+                    </div>
+                    <div class="text-primary opacity-50">
+                        <i class="fas fa-dollar-sign fa-3x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card {% if stripe_configured %}border-success{% else %}border-danger{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-2">Stripe Status</h6>
+                        {% if stripe_configured %}
+                        <h4 class="text-success"><i class="fas fa-check me-1"></i>Active</h4>
+                        {% else %}
+                        <h4 class="text-danger"><i class="fas fa-times me-1"></i>Not Configured</h4>
+                        {% endif %}
+                    </div>
+                    <div class="{% if stripe_configured %}text-success{% else %}text-danger{% endif %} opacity-50">
+                        <i class="fab fa-stripe fa-3x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Quick Actions</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <a href="{{ PREFIX }}/invoices" class="btn btn-outline-primary glass-btn glass-btn--ghost w-100">
+                    <i class="fas fa-file-invoice me-1"></i> View All Invoices
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ PREFIX }}/billing" class="btn btn-outline-primary glass-btn glass-btn--ghost w-100">
+                    <i class="fas fa-money-bill me-1"></i> Billing Items
+                </a>
+            </div>
+            <div class="col-md-4">
+                <a href="{{ PREFIX }}/reports/billing" class="btn btn-outline-primary glass-btn glass-btn--ghost w-100">
+                    <i class="fas fa-chart-bar me-1"></i> Billing Reports
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if not stripe_configured %}
+<!-- Stripe Setup Guide -->
+<div class="card border-info">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="fab fa-stripe me-2"></i>Setup Stripe Payments</h5>
+    </div>
+    <div class="card-body">
+        <p>To enable online payments, you need to configure Stripe:</p>
+        <ol>
+            <li>Create a Stripe account at <a href="https://stripe.com" target="_blank">stripe.com</a></li>
+            <li>Get your API keys from the Stripe Dashboard</li>
+            <li>Add the following environment variables to your server:
+                <pre class="bg-light p-3 mt-2">
+STRIPE_SECRET_KEY=sk_live_xxxxx
+STRIPE_PUBLISHABLE_KEY=pk_live_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+                </pre>
+            </li>
+            <li>Restart the {{ org_name|default('CaseHub') }} application</li>
+        </ol>
+        <p class="mb-0">
+            <strong>Note:</strong> Use <code>sk_test_</code> and <code>pk_test_</code> keys for testing.
+        </p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

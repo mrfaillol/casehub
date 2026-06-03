@@ -1,0 +1,196 @@
+<!--
+  Loaders — CaseHub Design System
+  Extraído de: codepen-references/loading-animations/ (Tier A, copy-paste direto)
+  Técnica: CSS keyframes + mask + conic-gradient — zero JS
+  Custo: 60fps, GPU-accelerated (transform/opacity), respeita prefers-reduced-motion
+  Security scan: 2026-04-13 SAFE (CSS puro, zero deps)
+  Selecionados 6 dos 24 loaders originais: mais universais pro app.
+-->
+
+<div class="snippet-group" data-category="feedback">
+
+  <h3>Loaders</h3>
+  <p class="snippet-caption">Loaders CSS-only. Variável <code>--ch-loader-size</code> (default 32px) controla tamanho, <code>--ch-loader-speed</code> (default 1) controla velocidade.</p>
+
+  <style>
+    .ch-loader {
+      --ch-loader-size: 32px;
+      --ch-loader-speed: 1;
+      --ch-loader-color: var(--accent-aqua, #55d7ff);
+      display: inline-grid;
+      place-items: center;
+      will-change: transform, opacity;
+    }
+
+    /* Spinner */
+    .ch-loader--spinner {
+      width: var(--ch-loader-size);
+      height: var(--ch-loader-size);
+      border: calc(var(--ch-loader-size) / 8) solid transparent;
+      border-top-color: var(--ch-loader-color);
+      border-radius: 50%;
+      animation: ch-spin calc(.9s / var(--ch-loader-speed)) linear infinite;
+    }
+
+    /* Dual Ring */
+    .ch-loader--dual-ring {
+      position: relative;
+      width: var(--ch-loader-size);
+      height: var(--ch-loader-size);
+    }
+    .ch-loader--dual-ring::before,
+    .ch-loader--dual-ring::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: calc(var(--ch-loader-size) / 10) solid transparent;
+      border-radius: 50%;
+    }
+    .ch-loader--dual-ring::before {
+      border-top-color: var(--ch-loader-color);
+      border-left-color: var(--ch-loader-color);
+      animation: ch-spin calc(1.1s * var(--ch-loader-speed)) linear infinite;
+    }
+    .ch-loader--dual-ring::after {
+      border-bottom-color: rgba(255,255,255,.12);
+      border-right-color: rgba(255,255,255,.12);
+      animation: ch-spin-rev calc(1.1s * var(--ch-loader-speed)) linear infinite;
+    }
+
+    /* Dots Pulse */
+    .ch-loader--dots {
+      display: inline-flex;
+      gap: calc(var(--ch-loader-size) / 6);
+    }
+    .ch-loader--dots span {
+      width: calc(var(--ch-loader-size) / 4);
+      height: calc(var(--ch-loader-size) / 4);
+      border-radius: 50%;
+      background: var(--ch-loader-color);
+      opacity: .5;
+      animation: ch-pulse calc(1.2s * var(--ch-loader-speed)) ease-in-out infinite;
+    }
+    .ch-loader--dots span:nth-child(2) { animation-delay: .15s; }
+    .ch-loader--dots span:nth-child(3) { animation-delay: .30s; }
+
+    /* Bar Indeterminate */
+    .ch-loader--bar {
+      width: 100%;
+      height: calc(var(--ch-loader-size) / 3.2);
+      background: var(--glass-white-sm, rgba(255,255,255,.06));
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .ch-loader--bar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, var(--ch-loader-color), transparent);
+      width: 40%;
+      border-radius: inherit;
+      animation: ch-slide calc(1.2s * var(--ch-loader-speed)) ease-in-out infinite;
+    }
+
+    /* Skeleton Line */
+    .ch-skeleton-line {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+      background: var(--glass-white-sm, rgba(255,255,255,.06));
+    }
+    .ch-skeleton-line::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+      transform: translateX(-100%);
+      animation: ch-shimmer 1.2s linear infinite;
+    }
+
+    /* Skeleton Card */
+    .ch-skeleton-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px 12px;
+    }
+    .ch-skeleton-card .ph {
+      background: var(--glass-white-sm, rgba(255,255,255,.06));
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      min-height: 12px;
+    }
+    .ch-skeleton-card .avatar {
+      width: 44px;
+      height: 44px;
+      grid-row: 1 / span 2;
+      border-radius: 50%;
+    }
+    .ch-skeleton-card .line { height: 12px; }
+    .ch-skeleton-card .w60 { width: 60%; }
+    .ch-skeleton-card .w80 { width: 80%; }
+    .ch-skeleton-card .ph::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.10), transparent);
+      transform: translateX(-100%);
+      animation: ch-shimmer 1.4s linear infinite;
+    }
+
+    @keyframes ch-spin { to { transform: rotate(360deg); } }
+    @keyframes ch-spin-rev { to { transform: rotate(-360deg); } }
+    @keyframes ch-pulse { 50% { transform: scale(1.3); opacity: 1; } }
+    @keyframes ch-slide {
+      0%   { transform: translateX(-60%); }
+      50%  { transform: translateX(40%); }
+      100% { transform: translateX(140%); }
+    }
+    @keyframes ch-shimmer { to { transform: translateX(100%); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ch-loader, .ch-loader *,
+      .ch-skeleton-line, .ch-skeleton-line::after,
+      .ch-skeleton-card .ph::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px;align-items:center;">
+    <div style="display:grid;place-items:center;gap:8px;padding:16px;border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;">
+      <div class="ch-loader ch-loader--spinner" aria-hidden="true"></div>
+      <small>Spinner</small>
+    </div>
+    <div style="display:grid;place-items:center;gap:8px;padding:16px;border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;">
+      <div class="ch-loader ch-loader--dual-ring" aria-hidden="true"></div>
+      <small>Dual Ring</small>
+    </div>
+    <div style="display:grid;place-items:center;gap:8px;padding:16px;border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;">
+      <div class="ch-loader ch-loader--dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      <small>Dots</small>
+    </div>
+    <div style="display:grid;place-items:center;gap:8px;padding:16px;border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;">
+      <div class="ch-loader ch-loader--bar" aria-hidden="true"></div>
+      <small>Bar Indeterminate</small>
+    </div>
+    <div style="display:grid;gap:8px;padding:16px;border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;">
+      <div class="ch-skeleton-line" aria-hidden="true"></div>
+      <small>Skeleton Line</small>
+    </div>
+    <div style="display:grid;gap:8px;padding:16px;border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;">
+      <div class="ch-skeleton-card" aria-hidden="true">
+        <div class="ph avatar"></div>
+        <div class="ph line w60"></div>
+        <div class="ph line"></div>
+        <div class="ph line w80"></div>
+      </div>
+      <small>Skeleton Card</small>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,920 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% block title %}Moskit · Dashboard · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/moskit-dashboard.css">
+{% endblock %}
+{% block content %}
+<main class="moskit-dashboard" aria-labelledby="moskit-dashboard-title">
+    <header class="moskit-dashboard-header">
+        <h1 id="moskit-dashboard-title" class="moskit-dashboard-title">
+            <i class="fas fa-bullseye" aria-hidden="true"></i>
+            <span>Leads Moskit</span>
+        </h1>
+        <div class="moskit-dashboard-header-actions">
+            {% if is_configured %}
+            <span class="moskit-status-badge moskit-status-badge--connected" role="status">
+                <i class="fas fa-check" aria-hidden="true"></i>
+                <span>Connected</span>
+            </span>
+            {% else %}
+            <span class="moskit-status-badge moskit-status-badge--warning" role="status">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                <span>Not Configured</span>
+            </span>
+            {% endif %}
+            <a href="https://app.moskit.com.br" target="_blank" rel="noopener noreferrer"
+               class="moskit-btn moskit-btn--ghost moskit-btn--sm">
+                <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                <span>Open Moskit</span>
+            </a>
+        </div>
+    </header>
+
+    <ul class="moskit-tabs" role="tablist" aria-label="Moskit sections">
+        <li role="presentation">
+            <button type="button" role="tab" id="moskit-tab-contacts"
+                    class="moskit-tab" aria-selected="true" aria-controls="moskit-panel-contacts"
+                    data-tab-target="contacts">
+                <i class="fas fa-users" aria-hidden="true"></i>
+                <span>Leads</span>
+            </button>
+        </li>
+        <li role="presentation">
+            <button type="button" role="tab" id="moskit-tab-deals"
+                    class="moskit-tab" aria-selected="false" aria-controls="moskit-panel-deals"
+                    tabindex="-1" data-tab-target="deals">
+                <i class="fas fa-handshake" aria-hidden="true"></i>
+                <span>Deals</span>
+            </button>
+        </li>
+        <li role="presentation">
+            <button type="button" role="tab" id="moskit-tab-newcontact"
+                    class="moskit-tab" aria-selected="false" aria-controls="moskit-panel-newcontact"
+                    tabindex="-1" data-tab-target="newContact">
+                <i class="fas fa-user-plus" aria-hidden="true"></i>
+                <span>New Contact</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Contacts Tab -->
+    <section role="tabpanel" id="moskit-panel-contacts" aria-labelledby="moskit-tab-contacts"
+             class="moskit-tab-panel" data-state="active" data-tab-panel="contacts">
+
+        <form class="moskit-filter-bar" role="search" aria-label="Filter leads"
+              id="moskitFiltersForm" onsubmit="event.preventDefault();">
+            <div class="moskit-filter-field">
+                <label for="filterSource" class="moskit-filter-field-label">Source</label>
+                <select class="moskit-select" id="filterSource">
+                    <option value="">All</option>
+                    <option value="META">META</option>
+                    <option value="WPP">WPP</option>
+                    <option value="SITE">SITE</option>
+                    <option value="FORM">FORM</option>
+                </select>
+            </div>
+            <div class="moskit-filter-field">
+                <label for="filterPathway" class="moskit-filter-field-label">Pathway</label>
+                <select class="moskit-select" id="filterPathway">
+                    <option value="">All</option>
+                    <option value="FAM">FAM</option>
+                    <option value="EMP">EMP</option>
+                    <option value="INV">INV</option>
+                    <option value="A">A</option>
+                </select>
+            </div>
+            <div class="moskit-filter-field moskit-filter-field--score">
+                <label for="filterMinScore" class="moskit-filter-field-label">Min Score</label>
+                <input type="number" class="moskit-input" id="filterMinScore"
+                       placeholder="0" min="0" max="100">
+            </div>
+            <div class="moskit-filter-field moskit-filter-field--grow">
+                <label for="contactSearch" class="moskit-filter-field-label">Search</label>
+                <div class="moskit-input-group">
+                    <input type="search" class="moskit-input" id="contactSearch"
+                           placeholder="Name or email...">
+                    <button type="button" class="moskit-btn moskit-btn--ghost moskit-btn--icon"
+                            id="moskitSearchBtn" aria-label="Apply search">
+                        <i class="fas fa-search" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="moskit-filter-actions">
+                <span id="cacheStatus" class="moskit-cache-status" aria-live="polite"></span>
+                <button type="button" class="moskit-btn moskit-btn--ghost moskit-btn--icon"
+                        id="moskitRefreshBtn" title="Refresh from Moskit"
+                        aria-label="Refresh leads from Moskit">
+                    <i class="fas fa-sync" id="refreshIcon" aria-hidden="true"></i>
+                </button>
+                <button type="reset" class="moskit-btn moskit-btn--ghost moskit-btn--icon"
+                        id="moskitClearBtn" title="Clear filters"
+                        aria-label="Clear all filters">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+        </form>
+
+        <div class="moskit-bulk-actions" id="bulkActions" role="region" aria-label="Bulk actions">
+            <span class="moskit-bulk-count" id="selectedCount">0 selected</span>
+            <button type="button" class="moskit-btn moskit-btn--ghost moskit-btn--sm" id="moskitExportBtn">
+                <i class="fas fa-download" aria-hidden="true"></i>
+                <span>Export CSV</span>
+            </button>
+            <button type="button" class="moskit-btn moskit-btn--ghost moskit-btn--sm" id="moskitOpenSelectedBtn">
+                <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                <span>Open in Moskit</span>
+            </button>
+            <button type="button" class="moskit-btn moskit-btn--ghost moskit-btn--sm" id="moskitClearSelectionBtn">
+                <i class="fas fa-times" aria-hidden="true"></i>
+                <span>Clear</span>
+            </button>
+        </div>
+
+        <article class="moskit-card">
+            <header class="moskit-card-header">
+                <span id="leadsHeader">
+                    <i class="fas fa-users" aria-hidden="true"></i>
+                    <span>Moskit Leads</span>
+                </span>
+                <span class="moskit-pagination-info" id="paginationInfo" aria-live="polite"></span>
+            </header>
+            <div class="moskit-card-body moskit-card-body--flush">
+                <div class="moskit-table-wrap">
+                    <table class="moskit-table" aria-label="Moskit leads">
+                        <thead>
+                            <tr>
+                                <th class="moskit-table th--checkbox" scope="col">
+                                    <input type="checkbox" class="moskit-checkbox" id="selectAll"
+                                           aria-label="Select all visible leads">
+                                </th>
+                                <th class="moskit-table th--sortable" scope="col"
+                                    data-sort="name" aria-sort="none">
+                                    <span>Name</span>
+                                    <i class="fas fa-sort moskit-sort-icon" aria-hidden="true"></i>
+                                </th>
+                                <th class="moskit-table th--sortable" scope="col"
+                                    data-sort="source" aria-sort="none">
+                                    <span>Source</span>
+                                    <i class="fas fa-sort moskit-sort-icon" aria-hidden="true"></i>
+                                </th>
+                                <th class="moskit-table th--sortable" scope="col"
+                                    data-sort="score" aria-sort="descending">
+                                    <span>Score</span>
+                                    <i class="fas fa-sort-down moskit-sort-icon" aria-hidden="true"></i>
+                                </th>
+                                <th class="moskit-table th--sortable" scope="col"
+                                    data-sort="email" aria-sort="none">
+                                    <span>Email</span>
+                                    <i class="fas fa-sort moskit-sort-icon" aria-hidden="true"></i>
+                                </th>
+                                <th scope="col">Phone</th>
+                                <th class="moskit-table th--sortable" scope="col"
+                                    data-sort="created" aria-sort="none">
+                                    <span>Created</span>
+                                    <i class="fas fa-sort moskit-sort-icon" aria-hidden="true"></i>
+                                </th>
+                                <th class="moskit-table th--actions" scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsTable">
+                            <tr class="moskit-state-row" data-state="loading">
+                                <td colspan="8">
+                                    <i class="fas fa-spinner moskit-spin" aria-hidden="true"></i>
+                                    Loading contacts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <footer class="moskit-card-footer">
+                <div class="moskit-perpage">
+                    <label for="perPage" class="moskit-filter-field-label">Per page</label>
+                    <select class="moskit-select" id="perPage">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+                <nav aria-label="Leads pagination">
+                    <ul class="moskit-pagination" id="pagination"></ul>
+                </nav>
+            </footer>
+        </article>
+    </section>
+
+    <!-- Deals Tab -->
+    <section role="tabpanel" id="moskit-panel-deals" aria-labelledby="moskit-tab-deals"
+             class="moskit-tab-panel" data-tab-panel="deals" hidden>
+        <article class="moskit-card">
+            <header class="moskit-card-header">
+                <span>
+                    <i class="fas fa-handshake" aria-hidden="true"></i>
+                    <span>Moskit Deals</span>
+                </span>
+            </header>
+            <div class="moskit-card-body moskit-card-body--flush">
+                <div class="moskit-table-wrap">
+                    <table class="moskit-table" aria-label="Moskit deals">
+                        <thead>
+                            <tr>
+                                <th scope="col">Deal</th>
+                                <th scope="col">Contact</th>
+                                <th scope="col">Value</th>
+                                <th scope="col">Stage</th>
+                                <th scope="col">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dealsTable">
+                            <tr class="moskit-state-row" data-state="loading">
+                                <td colspan="5">
+                                    <i class="fas fa-spinner moskit-spin" aria-hidden="true"></i>
+                                    Loading deals...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <!-- New Contact Tab -->
+    <section role="tabpanel" id="moskit-panel-newcontact" aria-labelledby="moskit-tab-newcontact"
+             class="moskit-tab-panel" data-tab-panel="newContact" hidden>
+        <div class="moskit-form-grid">
+            <article class="moskit-card">
+                <header class="moskit-card-header">
+                    <span>
+                        <i class="fas fa-user-plus" aria-hidden="true"></i>
+                        <span>Create Contact in Moskit</span>
+                    </span>
+                </header>
+                <div class="moskit-card-body">
+                    <form id="newContactForm">
+                        <div class="moskit-field">
+                            <label for="newContactName" class="moskit-field-label">
+                                Name<span class="moskit-field-required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="text" id="newContactName" class="moskit-input"
+                                   name="name" required aria-required="true">
+                        </div>
+                        <div class="moskit-field">
+                            <label for="newContactEmail" class="moskit-field-label">Email</label>
+                            <input type="email" id="newContactEmail" class="moskit-input" name="email">
+                        </div>
+                        <div class="moskit-field">
+                            <label for="newContactPhone" class="moskit-field-label">Phone</label>
+                            <input type="tel" id="newContactPhone" class="moskit-input"
+                                   name="phone" placeholder="+1234567890">
+                        </div>
+                        <div class="moskit-field">
+                            <label for="newContactNotes" class="moskit-field-label">Notes</label>
+                            <textarea id="newContactNotes" class="moskit-textarea"
+                                      name="notes" rows="3"></textarea>
+                        </div>
+                        <button type="submit" class="moskit-btn moskit-btn--primary"
+                                {% if not is_configured %}disabled aria-disabled="true"{% endif %}>
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Create Contact</span>
+                        </button>
+                    </form>
+                </div>
+            </article>
+
+            <div class="moskit-stack">
+                <article class="moskit-card">
+                    <header class="moskit-card-header">
+                        <span>
+                            <i class="fas fa-sync" aria-hidden="true"></i>
+                            <span>Sync CaseHub Client</span>
+                        </span>
+                    </header>
+                    <div class="moskit-card-body">
+                        <p class="moskit-field-help">Sync an existing CaseHub client to Moskit CRM.</p>
+                        <form id="syncClientForm">
+                            <div class="moskit-field">
+                                <label for="syncClientId" class="moskit-field-label">Client ID</label>
+                                <input type="number" id="syncClientId" class="moskit-input"
+                                       name="client_id" placeholder="Enter CaseHub client ID">
+                            </div>
+                            <button type="submit" class="moskit-btn moskit-btn--success"
+                                    {% if not is_configured %}disabled aria-disabled="true"{% endif %}>
+                                <i class="fas fa-sync" aria-hidden="true"></i>
+                                <span>Sync to Moskit</span>
+                            </button>
+                        </form>
+                    </div>
+                </article>
+
+                <article class="moskit-card">
+                    <header class="moskit-card-header">
+                        <span>
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <span>Find Contact by Phone</span>
+                        </span>
+                    </header>
+                    <div class="moskit-card-body">
+                        <form id="searchPhoneForm">
+                            <div class="moskit-field">
+                                <label for="searchPhone" class="moskit-field-label">Phone</label>
+                                <div class="moskit-input-group">
+                                    <input type="tel" id="searchPhone" class="moskit-input"
+                                           name="phone" placeholder="+1234567890">
+                                    <button type="submit" class="moskit-btn moskit-btn--ghost"
+                                            {% if not is_configured %}disabled aria-disabled="true"{% endif %}>
+                                        <i class="fas fa-search" aria-hidden="true"></i>
+                                        <span>Search</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                        <div id="phoneSearchResult" aria-live="polite"></div>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    {% if not is_configured %}
+    <aside class="moskit-alert moskit-alert--warning" role="note">
+        <h2 class="moskit-alert-title">
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+            <span>Moskit Not Configured</span>
+        </h2>
+        <p>Add these to your .env file:</p>
+        <ul>
+            <li><code>MOSKIT_API_KEY</code> - Your Moskit API key</li>
+            <li><code>MOSKIT_RESPONSIBLE_ID</code> - Default responsible user ID</li>
+        </ul>
+    </aside>
+    {% endif %}
+</main>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function() {
+    'use strict';
+
+    // --- State ---
+    let allLeads = [];
+    let filteredLeads = [];
+    let currentPage = 1;
+    const selectedLeads = new Set();
+    let currentSort = { field: 'score', direction: 'desc' };
+
+    const $ = (id) => document.getElementById(id);
+
+    // --- Tabs ---
+    function activateTab(target) {
+        document.querySelectorAll('[data-tab-target]').forEach(btn => {
+            const isActive = btn.dataset.tabTarget === target;
+            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            btn.tabIndex = isActive ? 0 : -1;
+        });
+        document.querySelectorAll('[data-tab-panel]').forEach(panel => {
+            const isActive = panel.dataset.tabPanel === target;
+            panel.toggleAttribute('hidden', !isActive);
+            panel.dataset.state = isActive ? 'active' : '';
+        });
+        if (target === 'contacts') loadContacts();
+        if (target === 'deals') loadDeals();
+    }
+
+    // --- Load contacts (cached) ---
+    async function loadContacts(forceRefresh = false) {
+        const tbody = $('contactsTable');
+        const refreshIcon = $('refreshIcon');
+        const cacheStatus = $('cacheStatus');
+
+        if (forceRefresh) {
+            refreshIcon.classList.add('moskit-spin');
+            tbody.innerHTML = '<tr class="moskit-state-row" data-state="loading"><td colspan="8"><i class="fas fa-spinner moskit-spin" aria-hidden="true"></i> Fetching from Moskit (~2000 contacts)...</td></tr>';
+        }
+
+        try {
+            let url = '{{ PREFIX }}/moskit/api/contacts?limit=9999';
+            if (forceRefresh) url += '&refresh=true';
+
+            const response = await fetch(url);
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                allLeads = result.data;
+
+                if (result.cached) {
+                    const ageMin = Math.floor((result.cache_age_seconds || 0) / 60);
+                    const ageSec = (result.cache_age_seconds || 0) % 60;
+                    cacheStatus.innerHTML = '<i class="fas fa-database" aria-hidden="true"></i> ' + ageMin + 'm ' + ageSec + 's ago';
+                } else {
+                    cacheStatus.innerHTML = '<i class="fas fa-cloud-download-alt" aria-hidden="true"></i> Fresh';
+                }
+
+                populateFilterOptions();
+                applyFilters();
+            } else {
+                tbody.innerHTML = '<tr class="moskit-state-row" data-state="empty"><td colspan="8">No contacts found</td></tr>';
+            }
+        } catch (error) {
+            tbody.innerHTML = '<tr class="moskit-state-row" data-state="error"><td colspan="8">Error loading contacts</td></tr>';
+        } finally {
+            refreshIcon.classList.remove('moskit-spin');
+        }
+    }
+
+    function populateFilterOptions() {
+        const sources = [...new Set(allLeads.map(l => l.source).filter(Boolean))].sort();
+        const pathways = [...new Set(allLeads.map(l => l.pathway).filter(Boolean))].sort();
+
+        const sourceSelect = $('filterSource');
+        const pathwaySelect = $('filterPathway');
+
+        const currentSource = sourceSelect.value;
+        const currentPathway = pathwaySelect.value;
+
+        sourceSelect.innerHTML = '<option value="">All Sources</option>' +
+            sources.map(s => `<option value="${s}">${s}</option>`).join('');
+
+        pathwaySelect.innerHTML = '<option value="">All Pathways</option>' +
+            pathways.map(p => `<option value="${p}">${p}</option>`).join('');
+
+        sourceSelect.value = currentSource;
+        pathwaySelect.value = currentPathway;
+    }
+
+    function applyFilters() {
+        const source = $('filterSource').value;
+        const pathway = $('filterPathway').value;
+        const minScore = parseInt($('filterMinScore').value) || 0;
+        const search = $('contactSearch').value.toLowerCase();
+
+        filteredLeads = allLeads.filter(lead => {
+            if (source && lead.source !== source) return false;
+            if (pathway && lead.pathway !== pathway) return false;
+            if (minScore && (!lead.score || lead.score < minScore)) return false;
+            if (search) {
+                const name = (lead.clean_name || lead.name || '').toLowerCase();
+                const email = (lead.emails?.[0]?.address || lead.emails?.[0]?.email || '').toLowerCase();
+                if (!name.includes(search) && !email.includes(search)) return false;
+            }
+            return true;
+        });
+
+        applySorting();
+        currentPage = 1;
+        renderTable();
+    }
+
+    function clearFilters() {
+        $('filterSource').value = '';
+        $('filterPathway').value = '';
+        $('filterMinScore').value = '';
+        $('contactSearch').value = '';
+        applyFilters();
+    }
+
+    function sortBy(field) {
+        if (currentSort.field === field) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.field = field;
+            currentSort.direction = field === 'score' ? 'desc' : 'asc';
+        }
+
+        document.querySelectorAll('.moskit-table th--sortable, th[data-sort]').forEach(th => {
+            th.setAttribute('aria-sort', 'none');
+            const icon = th.querySelector('.moskit-sort-icon');
+            if (icon) icon.className = 'fas fa-sort moskit-sort-icon';
+        });
+
+        const currentTh = document.querySelector(`th[data-sort="${field}"]`);
+        if (currentTh) {
+            currentTh.setAttribute('aria-sort', currentSort.direction === 'asc' ? 'ascending' : 'descending');
+            const icon = currentTh.querySelector('.moskit-sort-icon');
+            if (icon) {
+                icon.className = `fas fa-sort-${currentSort.direction === 'asc' ? 'up' : 'down'} moskit-sort-icon`;
+            }
+        }
+
+        applySorting();
+        renderTable();
+    }
+
+    function applySorting() {
+        const field = currentSort.field;
+        const dir = currentSort.direction === 'asc' ? 1 : -1;
+
+        filteredLeads.sort((a, b) => {
+            let valA, valB;
+            switch(field) {
+                case 'name':
+                    valA = (a.name || '').toLowerCase();
+                    valB = (b.name || '').toLowerCase();
+                    break;
+                case 'source':
+                    valA = (a.source || '').toLowerCase();
+                    valB = (b.source || '').toLowerCase();
+                    break;
+                case 'score':
+                    valA = a.score || 0;
+                    valB = b.score || 0;
+                    break;
+                case 'email':
+                    valA = (a.emails?.[0]?.address || a.emails?.[0]?.email || '').toLowerCase();
+                    valB = (b.emails?.[0]?.address || b.emails?.[0]?.email || '').toLowerCase();
+                    break;
+                case 'created':
+                    valA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    valB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    break;
+                default:
+                    valA = '';
+                    valB = '';
+            }
+            if (valA < valB) return -1 * dir;
+            if (valA > valB) return 1 * dir;
+            return 0;
+        });
+    }
+
+    function getSourceClass(source) {
+        if (!source) return 'moskit-badge--source-default';
+        const s = source.toUpperCase();
+        if (s === 'META') return 'moskit-badge--source-meta';
+        if (s === 'GOOGLE') return 'moskit-badge--source-google';
+        if (s === 'WPP') return 'moskit-badge--source-wpp';
+        if (s === 'SITE') return 'moskit-badge--source-site';
+        if (s === 'FORM') return 'moskit-badge--source-form';
+        return 'moskit-badge--source-default';
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, ch => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[ch]));
+    }
+
+    function renderTable() {
+        const perPage = parseInt($('perPage').value);
+        const totalPages = Math.ceil(filteredLeads.length / perPage);
+        const start = (currentPage - 1) * perPage;
+        const end = start + perPage;
+        const pageLeads = filteredLeads.slice(start, end);
+        const tbody = $('contactsTable');
+
+        $('leadsHeader').innerHTML =
+            `<i class="fas fa-users" aria-hidden="true"></i> <span>Moskit Leads</span> <span class="moskit-pagination-info">(${filteredLeads.length} of ${allLeads.length})</span>`;
+
+        $('paginationInfo').textContent =
+            `Showing ${start + 1}-${Math.min(end, filteredLeads.length)} of ${filteredLeads.length}`;
+
+        if (pageLeads.length === 0) {
+            tbody.innerHTML = '<tr class="moskit-state-row" data-state="empty"><td colspan="8">No leads match the filters</td></tr>';
+            renderPagination(0);
+            return;
+        }
+
+        tbody.innerHTML = pageLeads.map(c => {
+            const emailObj = c.emails && c.emails[0] ? c.emails[0] : null;
+            const email = emailObj ? (emailObj.address || emailObj.email || '-') : '-';
+            const phoneObj = c.phones && c.phones[0] ? c.phones[0] : null;
+            const phone = phoneObj ? (phoneObj.number || phoneObj.phone || '-') : '-';
+            const displayName = c.name || '-';
+
+            let scoreBadge = '';
+            if (c.score) {
+                const scoreClass = c.score >= 60 ? 'moskit-badge--score-high'
+                                  : c.score >= 40 ? 'moskit-badge--score-medium'
+                                  : 'moskit-badge--score-low';
+                scoreBadge = `<span class="moskit-badge moskit-badge--score ${scoreClass}">${c.score}</span>`;
+            }
+
+            let sourceBadge = '';
+            if (c.source) {
+                const sourceClass = getSourceClass(c.source);
+                sourceBadge = `<span class="moskit-badge ${sourceClass}">${escapeHtml(c.source)}</span>`;
+            }
+
+            const pathway = c.pathway
+                ? `<span class="moskit-badge moskit-badge--neutral">${escapeHtml(c.pathway)}</span>`
+                : '';
+            const isSelected = selectedLeads.has(c.id);
+
+            return `
+            <tr data-id="${c.id}" data-selected="${isSelected ? 'true' : 'false'}">
+                <td>
+                    <input type="checkbox" class="moskit-checkbox"
+                        ${isSelected ? 'checked' : ''}
+                        data-row-checkbox data-row-id="${c.id}"
+                        aria-label="Select lead ${escapeHtml(displayName)}">
+                </td>
+                <td>
+                    <span class="moskit-table-cell-strong">${escapeHtml(displayName)}</span> ${pathway}
+                </td>
+                <td>${sourceBadge}</td>
+                <td>${scoreBadge}</td>
+                <td><span class="moskit-table-cell-mono">${escapeHtml(email)}</span></td>
+                <td><span class="moskit-table-cell-mono">${escapeHtml(phone)}</span></td>
+                <td><span class="moskit-table-cell-mono">${c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '-'}</span></td>
+                <td>
+                    <a href="https://app.moskit.com.br/contacts/${c.id}" target="_blank" rel="noopener noreferrer"
+                       class="moskit-btn moskit-btn--ghost moskit-btn--icon moskit-btn--sm"
+                       title="View in Moskit" aria-label="View ${escapeHtml(displayName)} in Moskit">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                    </a>
+                </td>
+            </tr>`;
+        }).join('');
+
+        renderPagination(totalPages);
+        updateBulkActions();
+    }
+
+    function renderPagination(totalPages) {
+        const pagination = $('pagination');
+
+        if (totalPages <= 1) {
+            pagination.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+
+        html += `<li class="moskit-pagination-item" ${currentPage === 1 ? 'aria-disabled="true"' : ''}>
+            <button type="button" class="moskit-pagination-link" data-page="${currentPage - 1}" aria-label="Previous page">&laquo;</button>
+        </li>`;
+
+        const maxPages = 7;
+        let startPage = Math.max(1, currentPage - 3);
+        let endPage = Math.min(totalPages, startPage + maxPages - 1);
+
+        if (endPage - startPage < maxPages - 1) {
+            startPage = Math.max(1, endPage - maxPages + 1);
+        }
+
+        if (startPage > 1) {
+            html += `<li class="moskit-pagination-item"><button type="button" class="moskit-pagination-link" data-page="1">1</button></li>`;
+            if (startPage > 2) html += `<li class="moskit-pagination-item" aria-disabled="true"><span class="moskit-pagination-link">…</span></li>`;
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<li class="moskit-pagination-item" ${i === currentPage ? 'aria-current="page"' : ''}>
+                <button type="button" class="moskit-pagination-link" data-page="${i}" aria-label="Page ${i}">${i}</button>
+            </li>`;
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) html += `<li class="moskit-pagination-item" aria-disabled="true"><span class="moskit-pagination-link">…</span></li>`;
+            html += `<li class="moskit-pagination-item"><button type="button" class="moskit-pagination-link" data-page="${totalPages}">${totalPages}</button></li>`;
+        }
+
+        html += `<li class="moskit-pagination-item" ${currentPage === totalPages ? 'aria-disabled="true"' : ''}>
+            <button type="button" class="moskit-pagination-link" data-page="${currentPage + 1}" aria-label="Next page">&raquo;</button>
+        </li>`;
+
+        pagination.innerHTML = html;
+    }
+
+    function goToPage(page) {
+        const perPage = parseInt($('perPage').value);
+        const totalPages = Math.ceil(filteredLeads.length / perPage);
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        renderTable();
+    }
+
+    function toggleSelect(id, checked) {
+        if (checked) selectedLeads.add(id);
+        else selectedLeads.delete(id);
+        updateBulkActions();
+        const row = document.querySelector(`tr[data-id="${id}"]`);
+        if (row) row.dataset.selected = checked ? 'true' : 'false';
+    }
+
+    function toggleSelectAll() {
+        const checked = $('selectAll').checked;
+        const perPage = parseInt($('perPage').value);
+        const start = (currentPage - 1) * perPage;
+        const end = start + perPage;
+        const pageLeads = filteredLeads.slice(start, end);
+        pageLeads.forEach(lead => {
+            if (checked) selectedLeads.add(lead.id);
+            else selectedLeads.delete(lead.id);
+        });
+        renderTable();
+    }
+
+    function clearSelection() {
+        selectedLeads.clear();
+        $('selectAll').checked = false;
+        renderTable();
+    }
+
+    function updateBulkActions() {
+        const bulkActions = $('bulkActions');
+        const count = selectedLeads.size;
+        if (count > 0) {
+            bulkActions.dataset.state = 'active';
+            $('selectedCount').textContent = `${count} selected`;
+        } else {
+            bulkActions.dataset.state = '';
+        }
+    }
+
+    function exportSelected() {
+        const selected = allLeads.filter(l => selectedLeads.has(l.id));
+        if (selected.length === 0) return;
+
+        const headers = ['Name', 'Score', 'Pathway', 'Source', 'Email', 'Phone', 'Created', 'Moskit ID'];
+        const rows = selected.map(l => [
+            l.clean_name || l.name || '',
+            l.score || '',
+            l.pathway || '',
+            l.source || '',
+            l.emails?.[0]?.address || l.emails?.[0]?.email || '',
+            l.phones?.[0]?.number || l.phones?.[0]?.phone || '',
+            l.createdAt ? new Date(l.createdAt).toLocaleDateString() : '',
+            l.id
+        ]);
+
+        const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `moskit_leads_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+    }
+
+    function openInMoskit() {
+        if (selectedLeads.size === 0) return;
+        const firstId = [...selectedLeads][0];
+        window.open(`https://app.moskit.com.br/contacts/${firstId}`, '_blank', 'noopener,noreferrer');
+    }
+
+    async function loadDeals() {
+        try {
+            const response = await fetch('{{ PREFIX }}/moskit/api/deals?limit=50');
+            const result = await response.json();
+            const tbody = $('dealsTable');
+
+            if (result.success && result.data && result.data.length > 0) {
+                tbody.innerHTML = result.data.map(d => `
+                    <tr>
+                        <td><span class="moskit-table-cell-strong">${escapeHtml(d.name || '-')}</span></td>
+                        <td>${d.contact ? escapeHtml(d.contact.name) : '-'}</td>
+                        <td><span class="moskit-table-cell-mono">${d.price ? '$' + d.price.toLocaleString() : '-'}</span></td>
+                        <td><span class="moskit-badge moskit-badge--info">${d.stage ? escapeHtml(d.stage.name) : '-'}</span></td>
+                        <td><span class="moskit-table-cell-mono">${d.createdAt ? new Date(d.createdAt).toLocaleDateString() : '-'}</span></td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr class="moskit-state-row" data-state="empty"><td colspan="5">No deals found</td></tr>';
+            }
+        } catch (error) {
+            $('dealsTable').innerHTML = '<tr class="moskit-state-row" data-state="error"><td colspan="5">Error loading deals</td></tr>';
+        }
+    }
+
+    // --- Event wiring ---
+    document.addEventListener('DOMContentLoaded', function() {
+        // Tabs
+        document.querySelectorAll('[data-tab-target]').forEach(btn => {
+            btn.addEventListener('click', () => activateTab(btn.dataset.tabTarget));
+        });
+
+        // Filter form
+        ['filterSource', 'filterPathway', 'filterMinScore', 'perPage'].forEach(id => {
+            const el = $(id);
+            if (el) el.addEventListener('change', applyFilters);
+        });
+        $('contactSearch').addEventListener('keypress', e => {
+            if (e.key === 'Enter') { e.preventDefault(); applyFilters(); }
+        });
+        $('moskitSearchBtn').addEventListener('click', applyFilters);
+        $('moskitRefreshBtn').addEventListener('click', () => loadContacts(true));
+        $('moskitClearBtn').addEventListener('click', clearFilters);
+        $('moskitFiltersForm').addEventListener('reset', () => setTimeout(applyFilters, 0));
+
+        // Bulk actions
+        $('moskitExportBtn').addEventListener('click', exportSelected);
+        $('moskitOpenSelectedBtn').addEventListener('click', openInMoskit);
+        $('moskitClearSelectionBtn').addEventListener('click', clearSelection);
+
+        // Select all
+        $('selectAll').addEventListener('change', toggleSelectAll);
+
+        // Delegated events: row checkboxes, sort headers, pagination
+        $('contactsTable').addEventListener('change', e => {
+            const cb = e.target.closest('[data-row-checkbox]');
+            if (cb) toggleSelect(parseInt(cb.dataset.rowId), cb.checked);
+        });
+
+        document.querySelectorAll('th[data-sort]').forEach(th => {
+            th.addEventListener('click', () => sortBy(th.dataset.sort));
+            th.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    sortBy(th.dataset.sort);
+                }
+            });
+            th.tabIndex = 0;
+        });
+
+        $('pagination').addEventListener('click', e => {
+            const btn = e.target.closest('[data-page]');
+            if (btn) goToPage(parseInt(btn.dataset.page));
+        });
+
+        // Forms
+        $('newContactForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = this.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner moskit-spin" aria-hidden="true"></i> <span>Creating...</span>';
+
+            try {
+                const formData = new FormData(this);
+                const response = await fetch('{{ PREFIX }}/moskit/api/contacts', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Contact created successfully! ID: ' + result.id);
+                    this.reset();
+                    loadContacts(true);
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to create contact'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plus" aria-hidden="true"></i> <span>Create Contact</span>';
+        });
+
+        $('syncClientForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const clientId = this.querySelector('input[name="client_id"]').value;
+            if (!clientId) return;
+            const btn = this.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner moskit-spin" aria-hidden="true"></i> <span>Syncing...</span>';
+
+            try {
+                const response = await fetch('{{ PREFIX }}/moskit/api/sync-client/' + clientId, { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    alert(result.message || 'Client synced successfully!');
+                    loadContacts(true);
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to sync client'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sync" aria-hidden="true"></i> <span>Sync to Moskit</span>';
+        });
+
+        $('searchPhoneForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const phone = this.querySelector('input[name="phone"]').value;
+            if (!phone) return;
+            const resultDiv = $('phoneSearchResult');
+            resultDiv.innerHTML = '<div class="moskit-alert moskit-alert--info" data-block="result"><i class="fas fa-spinner moskit-spin" aria-hidden="true"></i> Searching...</div>';
+
+            try {
+                const response = await fetch('{{ PREFIX }}/moskit/api/contacts/search/phone/' + encodeURIComponent(phone));
+                const result = await response.json();
+
+                if (result.success && result.found) {
+                    const c = result.data;
+                    resultDiv.innerHTML = `
+                        <div class="moskit-alert moskit-alert--success" data-block="result">
+                            <strong>Found!</strong>
+                            <div>Name: ${escapeHtml(c.name)}</div>
+                            <div>ID: ${c.id}</div>
+                            <a href="https://app.moskit.com.br/contacts/${c.id}" target="_blank" rel="noopener noreferrer" class="moskit-btn moskit-btn--primary moskit-btn--sm moskit-btn--self-start">
+                                <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                                <span>View in Moskit</span>
+                            </a>
+                        </div>`;
+                } else {
+                    resultDiv.innerHTML = '<div class="moskit-alert moskit-alert--warning" data-block="result">Contact not found for this phone number.</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="moskit-alert moskit-alert--danger" data-block="result">Error searching: ' + escapeHtml(error.message) + '</div>';
+            }
+        });
+
+        // Init
+        loadContacts();
+        loadDeals();
+    });
+})();
+</script>
+{% endblock %}

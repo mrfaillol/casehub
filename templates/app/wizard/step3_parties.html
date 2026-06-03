@@ -1,0 +1,175 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Wizard · Step3_Parties · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/wizard-step3-parties.css">
+{% endblock %}
+{% block content %}
+<main class="wizard-step3-parties-main" aria-labelledby="wizard-step3-parties-title">
+    <section class="wizard-step3-parties-progress-card" aria-label="Wizard progress">
+        <header class="wizard-step3-parties-progress-header">
+            <h1 id="wizard-step3-parties-title" class="wizard-step3-parties-progress-title">Case Creation Wizard</h1>
+            <span class="wizard-step3-parties-progress-counter">Step {{ step }} of {{ total_steps }}</span>
+        </header>
+        <div class="wizard-step3-parties-progress-track"
+             role="progressbar"
+             aria-valuenow="{{ step }}"
+             aria-valuemin="0"
+             aria-valuemax="{{ total_steps }}"
+             aria-label="Wizard progress">
+            <div class="wizard-step3-parties-progress-fill" style="width: {{ (step / total_steps * 100)|int }}%"></div>
+        </div>
+        <ol class="wizard-step3-parties-progress-steps">
+            <li class="wizard-step3-parties-progress-step{% if step >= 1 %} wizard-step3-parties-progress-step--active{% endif %}">1. Client</li>
+            <li class="wizard-step3-parties-progress-step{% if step >= 2 %} wizard-step3-parties-progress-step--active{% endif %}">2. Case Type</li>
+            <li class="wizard-step3-parties-progress-step{% if step >= 3 %} wizard-step3-parties-progress-step--active{% endif %}">3. Parties</li>
+            <li class="wizard-step3-parties-progress-step{% if step >= 4 %} wizard-step3-parties-progress-step--active{% endif %}">4. Review</li>
+        </ol>
+    </section>
+
+    <aside class="wizard-step3-parties-summary" aria-label="Case summary">
+        <i class="fas fa-briefcase wizard-step3-parties-summary-icon" aria-hidden="true"></i>
+        <div class="wizard-step3-parties-summary-body">
+            <span class="wizard-step3-parties-summary-title">
+                <span class="wizard-step3-parties-summary-name">{{ session_data.visa_type }}</span> &mdash; {{ session_data.case_name }}
+                {% if session_data.premium_processing %}
+                <span class="wizard-step3-parties-badge">Premium Processing</span>
+                {% endif %}
+            </span>
+            <span class="wizard-step3-parties-summary-meta">Client: {{ session_data.client_name }}</span>
+        </div>
+    </aside>
+
+    <form method="POST" action="{{ PREFIX }}/wizard/step3" novalidate>
+        <div class="wizard-step3-parties-grid">
+            <section class="wizard-step3-parties-card" aria-labelledby="wizard-step3-parties-employer-title">
+                <header class="wizard-step3-parties-card-header">
+                    <h2 id="wizard-step3-parties-employer-title" class="wizard-step3-parties-card-title">
+                        <i class="fas fa-building wizard-step3-parties-card-title-icon" aria-hidden="true"></i>
+                        <span>Employer/Petitioner Company</span>
+                    </h2>
+                    <span class="wizard-step3-parties-card-subtitle">Optional &mdash; for employment-based cases</span>
+                </header>
+                <div class="wizard-step3-parties-card-body">
+                    <div class="wizard-step3-parties-field">
+                        <label for="wizard-step3-parties-employer-name" class="wizard-step3-parties-label">Company Name</label>
+                        <input type="text"
+                               id="wizard-step3-parties-employer-name"
+                               name="employer_name"
+                               class="wizard-step3-parties-input"
+                               placeholder="e.g., Acme Corporation"
+                               autocomplete="organization"
+                               value="{{ session_data.employer.name if session_data.employer else '' }}">
+                    </div>
+
+                    <div class="wizard-step3-parties-field">
+                        <label for="wizard-step3-parties-employer-address" class="wizard-step3-parties-label">Company Address</label>
+                        <textarea id="wizard-step3-parties-employer-address"
+                                  name="employer_address"
+                                  class="wizard-step3-parties-textarea"
+                                  rows="2"
+                                  autocomplete="street-address"
+                                  placeholder="123 Main St, City, State, ZIP">{{ session_data.employer.address if session_data.employer else '' }}</textarea>
+                    </div>
+
+                    <div class="wizard-step3-parties-field">
+                        <label for="wizard-step3-parties-employer-ein" class="wizard-step3-parties-label">EIN (Tax ID)</label>
+                        <input type="text"
+                               id="wizard-step3-parties-employer-ein"
+                               name="employer_ein"
+                               class="wizard-step3-parties-input"
+                               placeholder="XX-XXXXXXX"
+                               autocomplete="off"
+                               value="{{ session_data.employer.ein if session_data.employer else '' }}">
+                    </div>
+                </div>
+            </section>
+
+            <div class="wizard-step3-parties-column">
+                <section class="wizard-step3-parties-card" aria-labelledby="wizard-step3-parties-petitioner-title">
+                    <header class="wizard-step3-parties-card-header">
+                        <h2 id="wizard-step3-parties-petitioner-title" class="wizard-step3-parties-card-title">
+                            <i class="fas fa-user-tie wizard-step3-parties-card-title-icon" aria-hidden="true"></i>
+                            <span>Petitioner/Signatory</span>
+                        </h2>
+                        <span class="wizard-step3-parties-card-subtitle">Person who will sign the petition</span>
+                    </header>
+                    <div class="wizard-step3-parties-card-body">
+                        <div class="wizard-step3-parties-field">
+                            <label for="wizard-step3-parties-petitioner-name" class="wizard-step3-parties-label">Full Name</label>
+                            <input type="text"
+                                   id="wizard-step3-parties-petitioner-name"
+                                   name="petitioner_name"
+                                   class="wizard-step3-parties-input"
+                                   placeholder="e.g., John Smith"
+                                   autocomplete="name"
+                                   value="{{ session_data.petitioner.name if session_data.petitioner else '' }}">
+                        </div>
+
+                        <div class="wizard-step3-parties-field">
+                            <label for="wizard-step3-parties-petitioner-title" class="wizard-step3-parties-label">Title</label>
+                            <input type="text"
+                                   id="wizard-step3-parties-petitioner-title"
+                                   name="petitioner_title"
+                                   class="wizard-step3-parties-input"
+                                   placeholder="e.g., CEO, HR Director"
+                                   autocomplete="organization-title"
+                                   value="{{ session_data.petitioner.title if session_data.petitioner else '' }}">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="wizard-step3-parties-card" aria-labelledby="wizard-step3-parties-attorney-title">
+                    <header class="wizard-step3-parties-card-header">
+                        <h2 id="wizard-step3-parties-attorney-title" class="wizard-step3-parties-card-title">
+                            <i class="fas fa-gavel wizard-step3-parties-card-title-icon" aria-hidden="true"></i>
+                            <span>Assigned Attorney</span>
+                        </h2>
+                    </header>
+                    <div class="wizard-step3-parties-card-body">
+                        <div class="wizard-step3-parties-field">
+                            <label for="wizard-step3-parties-assigned-attorney" class="wizard-step3-parties-label">Attorney/Case Worker</label>
+                            <select id="wizard-step3-parties-assigned-attorney"
+                                    name="assigned_attorney"
+                                    class="wizard-step3-parties-select">
+                                <option value="">-- Not Assigned --</option>
+                                {% for attorney in attorneys %}
+                                <option value="{{ attorney.id }}"
+                                        {% if session_data.assigned_attorney == attorney.id %}selected{% endif %}>
+                                    {{ attorney.name }} ({{ attorney.user_type }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <p class="wizard-step3-parties-notice">
+            <i class="fas fa-info-circle wizard-step3-parties-notice-icon" aria-hidden="true"></i>
+            <span>These fields are optional. You can add or update this information later from the case detail page.</span>
+        </p>
+
+        <div class="wizard-step3-parties-actions">
+            <a href="{{ PREFIX }}/wizard/step2" class="wizard-step3-parties-btn wizard-step3-parties-btn--ghost">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Step 2</span>
+            </a>
+            <div class="wizard-step3-parties-actions-group">
+                <button type="submit" class="wizard-step3-parties-btn wizard-step3-parties-btn--ghost">
+                    <span>Skip &amp; Continue</span>
+                    <i class="fas fa-forward" aria-hidden="true"></i>
+                </button>
+                <button type="submit" class="wizard-step3-parties-btn wizard-step3-parties-btn--primary">
+                    <span>Continue to Review</span>
+                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+    </form>
+</main>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

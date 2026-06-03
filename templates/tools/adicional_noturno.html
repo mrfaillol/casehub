@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Adicional Noturno - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-adicional-noturno.css">
+{% endblock %}
+
+{% block content %}
+<section class="tool-noturno-main" aria-labelledby="tool-noturno-title">
+    <header class="tool-noturno-header tool-noturno-no-print">
+        <div class="tool-noturno-heading">
+            <h1 id="tool-noturno-title" class="tool-noturno-title">
+                <i class="fas fa-moon" aria-hidden="true"></i>
+                <span>Adicional Noturno</span>
+            </h1>
+            <p class="tool-noturno-subtitle">CLT Art. 73 — Trabalho noturno (22h às 5h)</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tool-noturno-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    <div class="tool-noturno-layout{% if not resultado %} tool-noturno-layout--single{% endif %}">
+        <section class="tool-noturno-card" aria-labelledby="tool-noturno-form-title">
+            <header class="tool-noturno-card-header">
+                <h2 id="tool-noturno-form-title" class="tool-noturno-card-title">
+                    <i class="fas fa-calculator" aria-hidden="true"></i>
+                    <span>Parâmetros do cálculo</span>
+                </h2>
+            </header>
+            <div class="tool-noturno-card-body">
+                <form class="tool-noturno-form" method="POST" action="{{ PREFIX }}/tools/adicional-noturno/calcular">
+                    <fieldset class="tool-noturno-fieldset">
+                        <legend class="tool-noturno-section-title">Dados salariais</legend>
+
+                        <div class="tool-noturno-field">
+                            <label class="tool-noturno-label" for="salario">Salário base (R$)</label>
+                            <div class="tool-noturno-input-group">
+                                <span class="tool-noturno-input-prefix" aria-hidden="true">R$</span>
+                                <input type="number" class="tool-noturno-input" id="salario" name="salario"
+                                       step="0.01" min="0" inputmode="decimal"
+                                       value="{{ form.salario if form else '' }}" required>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="tool-noturno-fieldset">
+                        <legend class="tool-noturno-section-title">Trabalho noturno</legend>
+
+                        <div class="tool-noturno-field-row">
+                            <div class="tool-noturno-field">
+                                <label class="tool-noturno-label" for="horas_noturnas">Horas noturnas no mês</label>
+                                <input type="number" class="tool-noturno-input" id="horas_noturnas" name="horas_noturnas"
+                                       step="0.5" min="0" inputmode="decimal"
+                                       aria-describedby="horas_noturnas_hint"
+                                       value="{{ form.horas_noturnas if form else '' }}" required>
+                                <small id="horas_noturnas_hint" class="tool-noturno-hint">Período: 22h00 às 05h00</small>
+                            </div>
+                            <div class="tool-noturno-field">
+                                <label class="tool-noturno-label" for="percentual">Percentual adicional (%)</label>
+                                <input type="number" class="tool-noturno-input" id="percentual" name="percentual"
+                                       step="1" min="1" inputmode="numeric"
+                                       aria-describedby="percentual_hint"
+                                       value="{{ form.percentual if form else '20' }}" required>
+                                <small id="percentual_hint" class="tool-noturno-hint">CLT: mínimo 20%</small>
+                            </div>
+                        </div>
+
+                        <div class="tool-noturno-field-row">
+                            <div class="tool-noturno-field">
+                                <label class="tool-noturno-label" for="dias_uteis">Dias úteis no mês</label>
+                                <input type="number" class="tool-noturno-input" id="dias_uteis" name="dias_uteis"
+                                       min="1" max="31" inputmode="numeric"
+                                       value="{{ form.dias_uteis if form else '22' }}" required>
+                            </div>
+                            <div class="tool-noturno-field">
+                                <label class="tool-noturno-label" for="domingos_feriados">Domingos / feriados</label>
+                                <input type="number" class="tool-noturno-input" id="domingos_feriados" name="domingos_feriados"
+                                       min="0" max="15" inputmode="numeric"
+                                       value="{{ form.domingos_feriados if form else '8' }}" required>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="tool-noturno-actions tool-noturno-no-print">
+                        <button type="submit" class="tool-noturno-btn tool-noturno-btn--primary">
+                            <i class="fas fa-calculator" aria-hidden="true"></i>
+                            <span>Calcular</span>
+                        </button>
+                        <a href="{{ PREFIX }}/tools/adicional-noturno" class="tool-noturno-btn">
+                            <i class="fas fa-eraser" aria-hidden="true"></i>
+                            <span>Limpar</span>
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        {% if resultado %}
+        <section class="tool-noturno-card" id="resultado" aria-labelledby="tool-noturno-result-title">
+            <header class="tool-noturno-card-header tool-noturno-card-header--result">
+                <h2 id="tool-noturno-result-title" class="tool-noturno-card-title">
+                    <i class="fas fa-moon" aria-hidden="true"></i>
+                    <span>Resultado — Adicional Noturno</span>
+                </h2>
+                <button type="button" class="tool-noturno-btn tool-noturno-btn--ghost tool-noturno-no-print" data-action="print">
+                    <i class="fas fa-print" aria-hidden="true"></i>
+                    <span>Imprimir</span>
+                </button>
+            </header>
+
+            <p class="tool-noturno-result-note">
+                <strong>Hora noturna reduzida:</strong>
+                {{ resultado.horas_noturnas }} horas reais = {{ resultado.horas_fictas }} horas fictas (52min30s cada).
+            </p>
+
+            <div class="tool-noturno-table-wrap">
+                <table class="tool-noturno-table">
+                    <caption class="tool-noturno-table-caption">
+                        Detalhamento de verbas e reflexos calculados a partir dos parâmetros informados.
+                    </caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Verba</th>
+                            <th scope="col">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Valor hora normal (salário / 220h)</td>
+                            <td>R$ {{ "%.2f"|format(resultado.valor_hora) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Adicional noturno ({{ resultado.percentual|int }}%)</td>
+                            <td>R$ {{ "%.2f"|format(resultado.adicional) }}</td>
+                        </tr>
+                        <tr>
+                            <td>DSR sobre adicional noturno</td>
+                            <td>R$ {{ "%.2f"|format(resultado.dsr) }}</td>
+                        </tr>
+                        <tr class="tool-noturno-row-subtotal">
+                            <td>Subtotal (adicional + DSR)</td>
+                            <td>R$ {{ "%.2f"|format(resultado.total_com_dsr) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Reflexo no 13º salário</td>
+                            <td>R$ {{ "%.2f"|format(resultado.reflexo_13) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Reflexo em férias + 1/3</td>
+                            <td>R$ {{ "%.2f"|format(resultado.reflexo_ferias) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Reflexo no FGTS (8%)</td>
+                            <td>R$ {{ "%.2f"|format(resultado.reflexo_fgts) }}</td>
+                        </tr>
+                        <tr class="tool-noturno-row-total">
+                            <td>Total geral</td>
+                            <td>R$ {{ "%.2f"|format(resultado.total_geral) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="tool-noturno-card-footer">
+                <div class="tool-noturno-legal">
+                    <span class="tool-noturno-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação legal</span>
+                    </span>
+                    <ul class="tool-noturno-legal-list">
+                        <li><strong>CLT Art. 73</strong> — Trabalho noturno: adicional mínimo de 20%</li>
+                        <li><strong>CLT Art. 73, §1º</strong> — Hora noturna reduzida: 52 minutos e 30 segundos</li>
+                        <li><strong>Súmula 60 TST</strong> — Adicional noturno integra salário para todos os efeitos</li>
+                        <li><strong>CF Art. 7º, IX</strong> — Remuneração do trabalho noturno superior à do diurno</li>
+                    </ul>
+                </div>
+                <p class="tool-noturno-footer-note">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span>Cálculo estimativo. Convenção coletiva pode prever percentual superior a 20%.</span>
+                </p>
+            </footer>
+        </section>
+        {% endif %}
+    </div>
+</section>
+
+{% if resultado %}
+<script>
+    (function () {
+        document.addEventListener('DOMContentLoaded', function () {
+            var el = document.getElementById('resultado');
+            if (el && window.innerWidth < 992) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            var printBtn = document.querySelector('[data-action="print"]');
+            if (printBtn) {
+                printBtn.addEventListener('click', function () { window.print(); });
+            }
+        });
+    })();
+</script>
+{% endif %}
+{% endblock %}

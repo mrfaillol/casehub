@@ -1,0 +1,163 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Whatsapp · Send · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fab fa-whatsapp me-2 text-success"></i>Send WhatsApp Message</h2>
+    <a href="{{ PREFIX }}/whatsapp" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-paper-plane me-2"></i>Compose Message
+            </div>
+            <div class="card-body">
+                <form id="sendForm">
+                    <div class="mb-3">
+                        <label class="form-label">Recipient</label>
+                        <select class="form-select glass-input" id="clientSelect" onchange="updatePhone()">
+                            <option value="">Select a client or enter number manually...</option>
+                            {% for c in clients %}
+                            <option value="{{ c.whatsapp or c.phone }}" {% if client and c.id == client.id %}selected{% endif %}>
+                                {{ c.first_name }} {{ c.last_name }} - {{ c.whatsapp or c.phone }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input type="tel" class="form-control glass-input" id="phone" required
+                               placeholder="+1 (555) 123-4567"
+                               value="{{ client.whatsapp or client.phone if client else '' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Template</label>
+                        <select class="form-select glass-input" id="template" onchange="applyTemplate()">
+                            <option value="">Custom message</option>
+                            <option value="case_update">Case Update</option>
+                            <option value="document_request">Document Request</option>
+                            <option value="appointment_reminder">Appointment Reminder</option>
+                            <option value="task_reminder">Task Reminder</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Message</label>
+                        <textarea class="form-control glass-input" id="message" rows="6" required
+                                  placeholder="Type your message here..."></textarea>
+                        <small class="text-muted">Supports *bold* and _italic_ formatting</small>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-success glass-btn glass-btn--success">
+                        <i class="fab fa-whatsapp me-1"></i>Send Message
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card glass-card">
+            <div class="card-header">
+                <i class="fas fa-eye me-2"></i>Preview
+            </div>
+            <div class="card-body" style="background: var(--bg-light-override); border-radius: 8px;">
+                <div id="preview" class="p-3 bg-white rounded shadow-sm" style="white-space: pre-wrap;">
+                    Message preview will appear here...
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>Tips
+            </div>
+            <div class="card-body small">
+                <ul class="mb-0">
+                    <li>Use *asterisks* for <strong>bold</strong></li>
+                    <li>Use _underscores_ for <em>italic</em></li>
+                    <li>Keep messages concise</li>
+                    <li>Include call-to-action</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var templates = {
+    case_update: "Hello!\n\nYour immigration case has been updated.\n\nCase Status: [STATUS]\n\nPlease log into the client portal for more details, or contact our office if you have questions.",
+    document_request: "Hello!\n\nWe need the following documents for your case:\n\n- [DOCUMENT 1]\n- [DOCUMENT 2]\n\nPlease upload via the portal or send them to us as soon as possible.",
+    appointment_reminder: "Hello!\n\nThis is a reminder about your upcoming appointment:\n\nDate: [DATE]\nTime: [TIME]\nLocation: [LOCATION]\n\nPlease confirm your attendance.",
+    task_reminder: "Hello!\n\nYou have a pending task:\n\n[TASK DESCRIPTION]\n\nDue: [DUE DATE]\n\nPlease complete this as soon as possible."
+};
+
+function updatePhone() {
+    var select = document.getElementById('clientSelect');
+    if (select.value) {
+        document.getElementById('phone').value = select.value;
+    }
+}
+
+function applyTemplate() {
+    var template = document.getElementById('template').value;
+    if (template && templates[template]) {
+        document.getElementById('message').value = templates[template];
+        updatePreview();
+    }
+}
+
+function updatePreview() {
+    var message = document.getElementById('message').value;
+    message = message.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+    message = message.replace(/_([^_]+)_/g, '<em>$1</em>');
+    document.getElementById('preview').innerHTML = message || 'Message preview will appear here...';
+}
+
+document.getElementById('message').addEventListener('input', updatePreview);
+
+document.getElementById('sendForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    var phone = document.getElementById('phone').value;
+    var message = document.getElementById('message').value;
+    var template = document.getElementById('template').value;
+    
+    var formData = new FormData();
+    formData.append('phone', phone);
+    formData.append('message', message);
+    if (template) formData.append('template', template);
+    
+    fetch('{{ PREFIX }}/whatsapp/send', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (window.toast) window.toast.success('Mensagem enviada com sucesso');
+            setTimeout(() => { window.location.href = '{{ PREFIX }}/whatsapp'; }, 800);
+        } else {
+            if (window.toast) window.toast.error('Erro: ' + data.error);
+            else alert('Erro: ' + data.error);
+        }
+    })
+    .catch(e => {
+        if (window.toast) window.toast.error('Erro ao enviar mensagem: ' + e.message);
+        else alert('Erro ao enviar mensagem: ' + e.message);
+    });
+});
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

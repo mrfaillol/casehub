@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Nova Automação - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/triggers-create.css">
+{% endblock %}
+
+{% block content %}
+{% set trigger_event_labels = {
+    'status_changed': 'Status alterado',
+    'case_created': 'Processo criado',
+    'document_uploaded': 'Documento enviado',
+    'task_completed': 'Tarefa concluída',
+    'deadline_approaching': 'Prazo próximo',
+    'payment_received': 'Pagamento recebido'
+} %}
+{% set trigger_action_labels = {
+    'create_task': 'Criar tarefa',
+    'send_email': 'Enviar e-mail',
+    'update_status': 'Atualizar status',
+    'add_note': 'Adicionar nota',
+    'send_notification': 'Enviar notificação',
+    'create_reminder': 'Criar lembrete',
+    'webhook': 'Webhook'
+} %}
+<section class="triggers-create" aria-labelledby="triggers-create-title">
+    <header class="triggers-create__header">
+        <h1 id="triggers-create-title" class="triggers-create__title">
+            <i class="fas fa-bolt triggers-create__title-icon" aria-hidden="true"></i>
+            <span>Nova Automação</span>
+        </h1>
+        <a href="{{ PREFIX }}/triggers" class="triggers-create__back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar às automações</span>
+        </a>
+    </header>
+
+    <div class="triggers-create__layout">
+        <form class="triggers-create__main"
+              method="POST"
+              action="{{ PREFIX }}/triggers/create">
+            <section class="triggers-create__card" aria-labelledby="triggers-create-details-title">
+                <header class="triggers-create__card-header">
+                    <h2 id="triggers-create-details-title" class="triggers-create__card-title">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Dados da automação</span>
+                    </h2>
+                </header>
+                <div class="triggers-create__card-body">
+                    <div class="triggers-create__row">
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-case" class="triggers-create__label">
+                                Processo<span class="triggers-create__required" aria-hidden="true">*</span>
+                            </label>
+                            <select id="triggers-create-case"
+                                    name="case_id"
+                                    class="triggers-create__select"
+                                    required>
+                                <option value="">-- Selecione o processo --</option>
+                                {% for case in cases %}
+                                <option value="{{ case.id }}" {% if selected_case and selected_case.id == case.id %}selected{% endif %}>
+                                    {{ case.case_number }} - {{ case.case_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-name" class="triggers-create__label">
+                                Nome da automação<span class="triggers-create__required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="text"
+                                   id="triggers-create-name"
+                                   name="name"
+                                   class="triggers-create__input"
+                                   placeholder="Ex.: criar tarefa ao protocolar"
+                                   autocomplete="off"
+                                   required>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="triggers-create__card" aria-labelledby="triggers-create-event-title">
+                <header class="triggers-create__card-header">
+                    <h2 id="triggers-create-event-title" class="triggers-create__card-title">
+                        <i class="fas fa-play" aria-hidden="true"></i>
+                        <span>Quando isto acontecer</span>
+                    </h2>
+                </header>
+                <div class="triggers-create__card-body">
+                    <div class="triggers-create__row triggers-create__row--three">
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-event" class="triggers-create__label">
+                                Tipo de evento<span class="triggers-create__required" aria-hidden="true">*</span>
+                            </label>
+                            <select id="triggers-create-event"
+                                    name="event"
+                                    class="triggers-create__select"
+                                    required>
+                                {% for e in events %}
+                                <option value="{{ e.value }}">{{ trigger_event_labels.get(e.value, e.label) }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-from-status" class="triggers-create__label">Status anterior</label>
+                            <select id="triggers-create-from-status"
+                                    name="from_status"
+                                    class="triggers-create__select">
+                                <option value="">Qualquer status</option>
+                                <option value="intake">Entrada</option>
+                                <option value="document_collection">Coleta de documentos</option>
+                                <option value="drafting">Minuta</option>
+                                <option value="review">Revisão</option>
+                                <option value="filed">Protocolado</option>
+                                <option value="rfe">Exigência (RFE)</option>
+                                <option value="approved">Aprovado</option>
+                                <option value="denied">Negado</option>
+                            </select>
+                        </div>
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-to-status" class="triggers-create__label">Novo status</label>
+                            <select id="triggers-create-to-status"
+                                    name="to_status"
+                                    class="triggers-create__select">
+                                <option value="">Qualquer status</option>
+                                <option value="intake">Entrada</option>
+                                <option value="document_collection">Coleta de documentos</option>
+                                <option value="drafting">Minuta</option>
+                                <option value="review">Revisão</option>
+                                <option value="filed">Protocolado</option>
+                                <option value="rfe">Exigência (RFE)</option>
+                                <option value="approved">Aprovado</option>
+                                <option value="denied">Negado</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="triggers-create__card" aria-labelledby="triggers-create-action-title">
+                <header class="triggers-create__card-header">
+                    <h2 id="triggers-create-action-title" class="triggers-create__card-title">
+                        <i class="fas fa-cog" aria-hidden="true"></i>
+                        <span>Executar esta ação</span>
+                    </h2>
+                </header>
+                <div class="triggers-create__card-body">
+                    <div class="triggers-create__field">
+                        <label for="triggers-create-action" class="triggers-create__label">
+                            Tipo de ação<span class="triggers-create__required" aria-hidden="true">*</span>
+                        </label>
+                        <select id="triggers-create-action"
+                                name="action"
+                                class="triggers-create__select"
+                                required
+                                data-triggers-action>
+                            {% for a in actions %}
+                            <option value="{{ a.value }}">{{ trigger_action_labels.get(a.value, a.label) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="triggers-create__action-group" id="taskFields" data-triggers-group="task" hidden>
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-task-title" class="triggers-create__label">Título da tarefa</label>
+                            <input type="text"
+                                   id="triggers-create-task-title"
+                                   name="task_title"
+                                   class="triggers-create__input"
+                                   placeholder="Título da tarefa...">
+                        </div>
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-task-description" class="triggers-create__label">Descrição da tarefa</label>
+                            <textarea id="triggers-create-task-description"
+                                      name="task_description"
+                                      class="triggers-create__textarea"
+                                      rows="3"
+                                      placeholder="Descrição da tarefa..."></textarea>
+                        </div>
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-task-priority" class="triggers-create__label">Prioridade</label>
+                            <select id="triggers-create-task-priority"
+                                    name="task_priority"
+                                    class="triggers-create__select">
+                                <option value="low">Baixa</option>
+                                <option value="medium" selected>Média</option>
+                                <option value="high">Alta</option>
+                                <option value="urgent">Urgente</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="triggers-create__action-group" id="noteFields" data-triggers-group="note" hidden>
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-note-content" class="triggers-create__label">Conteúdo da nota</label>
+                            <textarea id="triggers-create-note-content"
+                                      name="note_content"
+                                      class="triggers-create__textarea"
+                                      rows="3"
+                                      placeholder="Nota a adicionar..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="triggers-create__action-group" id="reminderFields" data-triggers-group="reminder" hidden>
+                        <div class="triggers-create__field">
+                            <label for="triggers-create-reminder-days" class="triggers-create__label">Dias para lembrete</label>
+                            <input type="number"
+                                   id="triggers-create-reminder-days"
+                                   name="reminder_days"
+                                   class="triggers-create__input"
+                                   value="7"
+                                   min="1"
+                                   aria-describedby="triggers-create-reminder-days-help">
+                            <small id="triggers-create-reminder-days-help" class="triggers-create__help">
+                                Dias a partir da execução da automação
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="triggers-create__actions">
+                <a href="{{ PREFIX }}/triggers" class="triggers-create__btn triggers-create__btn--ghost">
+                    Cancelar
+                </a>
+                <button type="submit" class="triggers-create__btn triggers-create__btn--primary">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>Criar automação</span>
+                </button>
+            </div>
+        </form>
+
+        <aside class="triggers-create__sidebar" aria-labelledby="triggers-create-help-title">
+            <div class="triggers-create__card">
+                <header class="triggers-create__card-header">
+                    <h2 id="triggers-create-help-title" class="triggers-create__card-title">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Sobre automações</span>
+                    </h2>
+                </header>
+                <div class="triggers-create__sidebar-body">
+                    <p class="triggers-create__sidebar-intro">
+                        Automações executam ações quando eventos específicos acontecem em um processo.
+                    </p>
+                    <h3 class="triggers-create__sidebar-subtitle">Exemplos comuns</h3>
+                    <ul class="triggers-create__example-list">
+                        <li class="triggers-create__example-item">Criar tarefa quando o status mudar para "Coleta de documentos"</li>
+                        <li class="triggers-create__example-item">Adicionar nota quando o processo for protocolado</li>
+                        <li class="triggers-create__example-item">Enviar notificação quando houver exigência</li>
+                        <li class="triggers-create__example-item">Criar lembrete quando for aprovado</li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+    </div>
+</section>
+
+<script>
+(function () {
+    const actionSelect = document.querySelector('[data-triggers-action]');
+    if (!actionSelect) return;
+
+    const groups = document.querySelectorAll('[data-triggers-group]');
+    const visibility = {
+        create_task: ['task'],
+        send_notification: ['task'],
+        add_note: ['note'],
+        create_reminder: ['task', 'reminder']
+    };
+
+    function updateActionFields() {
+        const active = visibility[actionSelect.value] || [];
+        groups.forEach(function (group) {
+            const show = active.indexOf(group.dataset.triggersGroup) !== -1;
+            group.hidden = !show;
+        });
+    }
+
+    actionSelect.addEventListener('change', updateActionFields);
+    updateActionFields();
+})();
+</script>
+{% endblock %}

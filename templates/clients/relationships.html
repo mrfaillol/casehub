@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}{{ client.first_name }} {{ client.last_name or '' }} - {% if product == "lite" %}Vínculos{% else %}Members{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/clients-relationships.css">
+{% endblock %}
+
+{% block content %}
+{% set del_rel_msg = 'Excluir este vínculo?' if product == 'lite' else 'Delete this relationship?' %}
+<div class="clients-relationships-main" aria-labelledby="clients-relationships-title">
+
+  <nav class="clients-relationships-breadcrumb" aria-label="Breadcrumb">
+    <ol class="clients-relationships-breadcrumb-list">
+      <li class="clients-relationships-breadcrumb-item">
+        <a class="clients-relationships-breadcrumb-link" href="{{ PREFIX }}/dashboard">Dashboard</a>
+      </li>
+      <li class="clients-relationships-breadcrumb-item">
+        <a class="clients-relationships-breadcrumb-link" href="{{ PREFIX }}/clients">Clients</a>
+      </li>
+      <li class="clients-relationships-breadcrumb-item">
+        <a class="clients-relationships-breadcrumb-link" href="{{ PREFIX }}/clients/{{ client.id }}">{{ client.first_name }} {{ client.last_name or '' }}</a>
+      </li>
+      <li class="clients-relationships-breadcrumb-item" aria-current="page">
+        <span class="clients-relationships-breadcrumb-current">{% if product == "lite" %}Vínculos{% else %}Members{% endif %}</span>
+      </li>
+    </ol>
+  </nav>
+
+  <header class="clients-relationships-header">
+    <div>
+      <h1 id="clients-relationships-title" class="clients-relationships-header-title">
+        <i class="bi bi-people" aria-hidden="true"></i>
+        <span>Members &amp; Relationships</span>
+      </h1>
+      <p class="clients-relationships-header-subtitle">{{ client.first_name }} {{ client.last_name or '' }}</p>
+    </div>
+    <div class="clients-relationships-actions">
+      <button type="button" class="clients-relationships-btn clients-relationships-btn--primary"
+              data-bs-toggle="modal" data-bs-target="#addRelationshipModal">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        <span>Add Relationship</span>
+      </button>
+      <a href="{{ PREFIX }}/clients/{{ client.id }}" class="clients-relationships-btn clients-relationships-btn--secondary">
+        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+        <span>Back to Client</span>
+      </a>
+    </div>
+  </header>
+
+  <div class="clients-relationships-layout">
+
+    <section class="clients-relationships-card" aria-labelledby="clients-relationships-list-title">
+      <header class="clients-relationships-card-header">
+        <h2 id="clients-relationships-list-title" class="clients-relationships-card-title">
+          <i class="bi bi-diagram-3" aria-hidden="true"></i>
+          <span>Relationships ({{ relationships|length }})</span>
+        </h2>
+      </header>
+      <div class="clients-relationships-card-body clients-relationships-card-body--flush">
+        {% if relationships %}
+        <div class="clients-relationships-table-wrap">
+          <table class="clients-relationships-table">
+            <thead>
+              <tr>
+                <th scope="col">Related Person</th>
+                <th scope="col">Relationship</th>
+                <th scope="col">Contact</th>
+                <th scope="col">Notes</th>
+                <th scope="col" class="clients-relationships-table-actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for rel in relationships %}
+              <tr>
+                <td>
+                  <div class="clients-relationships-person">
+                    <span class="clients-relationships-avatar {% if rel.is_primary %}clients-relationships-avatar--primary{% endif %}" aria-hidden="true">
+                      {{ rel.related_client_name[0] if rel.related_client_name else '?' }}
+                    </span>
+                    <span class="clients-relationships-person-name">
+                      {% if rel.related_client_id %}
+                      <a href="{{ PREFIX }}/clients/{{ rel.related_client_id }}" class="clients-relationships-person-link">
+                        {{ rel.related_client_name }}
+                      </a>
+                      {% else %}
+                      <span class="clients-relationships-person-placeholder">External Contact</span>
+                      {% endif %}
+                      {% if rel.is_primary %}
+                      <span class="clients-relationships-badge clients-relationships-badge--primary">Primary</span>
+                      {% endif %}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  {% set badge_variant = 'family' if rel.category == 'family' else 'employment' if rel.category == 'employment' else 'neutral' %}
+                  <span class="clients-relationships-badge clients-relationships-badge--{{ badge_variant }}">
+                    {{ rel.type_label or rel.relationship_type }}
+                  </span>
+                  {% if rel.relationship_label %}
+                  <small class="clients-relationships-relationship-label">{{ rel.relationship_label }}</small>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="clients-relationships-contact">
+                    {% if rel.related_client_email %}
+                    <a href="mailto:{{ rel.related_client_email }}" class="clients-relationships-contact-link">
+                      <i class="bi bi-envelope" aria-hidden="true"></i>
+                      <span>{{ rel.related_client_email }}</span>
+                    </a>
+                    {% endif %}
+                    {% if rel.related_client_phone %}
+                    <span class="clients-relationships-contact-phone">{{ rel.related_client_phone }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <span class="clients-relationships-notes">{{ rel.notes or '—' }}</span>
+                </td>
+                <td>
+                  <div class="clients-relationships-row-actions">
+                    {% if not rel.is_primary %}
+                    <form action="{{ PREFIX }}/client-relationships/{{ rel.id }}/set-primary" method="post">
+                      <button type="submit"
+                              class="clients-relationships-btn clients-relationships-btn--icon clients-relationships-btn--icon-accent"
+                              aria-label="Set as primary relationship">
+                        <i class="bi bi-star" aria-hidden="true"></i>
+                      </button>
+                    </form>
+                    {% endif %}
+                    <form action="{{ PREFIX }}/client-relationships/{{ rel.id }}/delete" method="post"
+                          onsubmit="return confirm('{{ del_rel_msg }}')">
+                      <button type="submit"
+                              class="clients-relationships-btn clients-relationships-btn--icon clients-relationships-btn--icon-danger"
+                              aria-label="Delete relationship">
+                        <i class="bi bi-trash" aria-hidden="true"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="clients-relationships-empty">
+          <i class="bi bi-people clients-relationships-empty-icon" aria-hidden="true"></i>
+          <p class="clients-relationships-empty-text">No relationships defined yet.</p>
+          <button type="button" class="clients-relationships-btn clients-relationships-btn--primary"
+                  data-bs-toggle="modal" data-bs-target="#addRelationshipModal">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+            <span>Add First Relationship</span>
+          </button>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <aside class="clients-relationships-sidebar" aria-label="Summary">
+
+      <section class="clients-relationships-card" aria-labelledby="clients-relationships-reverse-title">
+        <header class="clients-relationships-card-header">
+          <h2 id="clients-relationships-reverse-title" class="clients-relationships-card-title">
+            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+            <span>Referenced By ({{ reverse_relationships|length }})</span>
+          </h2>
+        </header>
+        <div class="clients-relationships-card-body">
+          {% if reverse_relationships %}
+          <ul class="clients-relationships-reverse-list">
+            {% for rel in reverse_relationships %}
+            <li class="clients-relationships-reverse-item">
+              <span class="clients-relationships-avatar clients-relationships-avatar--muted" aria-hidden="true">
+                {{ rel.source_client_name[0] if rel.source_client_name else '?' }}
+              </span>
+              <div class="clients-relationships-reverse-meta">
+                <a href="{{ PREFIX }}/clients/{{ rel.source_client_id }}" class="clients-relationships-person-link">
+                  {{ rel.source_client_name }}
+                </a>
+                <span class="clients-relationships-reverse-label">
+                  {{ rel.reverse_label or rel.type_label or rel.relationship_type }}
+                </span>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="clients-relationships-empty clients-relationships-empty--compact">
+            <i class="bi bi-link-45deg clients-relationships-empty-icon" aria-hidden="true"></i>
+            <p class="clients-relationships-empty-text">Not referenced by any other clients.</p>
+          </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="clients-relationships-card" aria-labelledby="clients-relationships-summary-title">
+        <header class="clients-relationships-card-header">
+          <h2 id="clients-relationships-summary-title" class="clients-relationships-card-title">
+            <i class="bi bi-graph-up" aria-hidden="true"></i>
+            <span>Relationship Summary</span>
+          </h2>
+        </header>
+        <div class="clients-relationships-card-body">
+          <dl class="clients-relationships-summary">
+            <div class="clients-relationships-summary-tile">
+              <dd class="clients-relationships-summary-value clients-relationships-summary-value--accent">{{ relationships|length }}</dd>
+              <dt class="clients-relationships-summary-label">Total</dt>
+            </div>
+            <div class="clients-relationships-summary-tile">
+              <dd class="clients-relationships-summary-value clients-relationships-summary-value--success">{{ relationships|selectattr('is_primary')|list|length }}</dd>
+              <dt class="clients-relationships-summary-label">Primary</dt>
+            </div>
+            <div class="clients-relationships-summary-tile">
+              <dd class="clients-relationships-summary-value clients-relationships-summary-value--info">{{ relationships|selectattr('category', 'equalto', 'family')|list|length }}</dd>
+              <dt class="clients-relationships-summary-label">Family</dt>
+            </div>
+            <div class="clients-relationships-summary-tile">
+              <dd class="clients-relationships-summary-value clients-relationships-summary-value--warning">{{ relationships|selectattr('category', 'equalto', 'employment')|list|length }}</dd>
+              <dt class="clients-relationships-summary-label">Employment</dt>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+    </aside>
+
+  </div>
+</div>
+
+<div class="modal fade clients-relationships-modal" id="addRelationshipModal" tabindex="-1"
+     aria-labelledby="addRelationshipModalTitle" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form action="{{ PREFIX }}/client-relationships/client/{{ client.id }}/add" method="post">
+        <header class="clients-relationships-modal-header">
+          <h2 id="addRelationshipModalTitle" class="clients-relationships-modal-title">
+            <i class="bi bi-plus-circle" aria-hidden="true"></i>
+            <span>Add Relationship</span>
+          </h2>
+          <button type="button" class="clients-relationships-modal-close" data-bs-dismiss="modal" aria-label="Close">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        <div class="clients-relationships-modal-body">
+          <div class="clients-relationships-form-group">
+            <label for="relationshipType" class="clients-relationships-form-label">
+              Relationship Type
+              <span class="clients-relationships-form-required" aria-hidden="true">*</span>
+            </label>
+            <select id="relationshipType" name="relationship_type" class="clients-relationships-form-select" required>
+              <option value="">-- Select Type --</option>
+              {% for rt in relationship_types %}
+              <option value="{{ rt.code }}">{{ rt.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="clients-relationships-form-group">
+            <label for="relatedClientSelect" class="clients-relationships-form-label">Related Client</label>
+            <select id="relatedClientSelect" name="related_client_id" class="clients-relationships-form-select">
+              <option value="">-- Select Client (optional) --</option>
+              {% for c in all_clients %}
+              <option value="{{ c.id }}">{{ c.first_name }} {{ c.last_name or '' }}{% if c.email %} ({{ c.email }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            <small class="clients-relationships-form-hint">Link to an existing client in the system.</small>
+          </div>
+
+          <div class="clients-relationships-form-group">
+            <label for="relationshipLabel" class="clients-relationships-form-label">Custom Label</label>
+            <input id="relationshipLabel" type="text" name="relationship_label"
+                   class="clients-relationships-form-input"
+                   placeholder="e.g., Primary Employer, Ex-Spouse">
+            <small class="clients-relationships-form-hint">Optional custom label for this relationship.</small>
+          </div>
+
+          <div class="clients-relationships-form-group">
+            <label for="relationshipNotes" class="clients-relationships-form-label">Notes</label>
+            <textarea id="relationshipNotes" name="notes" class="clients-relationships-form-textarea" rows="2"
+                      placeholder="Additional notes about this relationship..."></textarea>
+          </div>
+
+          <div class="clients-relationships-form-group">
+            <label class="clients-relationships-form-check" for="isPrimaryCheck">
+              <input id="isPrimaryCheck" type="checkbox" name="is_primary" value="true"
+                     class="clients-relationships-form-check-input">
+              <span class="clients-relationships-form-check-body">
+                <span>Set as primary relationship of this type</span>
+              </span>
+            </label>
+          </div>
+
+          <div class="clients-relationships-form-group">
+            <label class="clients-relationships-form-check clients-relationships-form-check--reverse"
+                   id="createReverseCheck" for="createReverse" hidden>
+              <input id="createReverse" type="checkbox" name="create_reverse" value="true"
+                     class="clients-relationships-form-check-input" checked>
+              <span class="clients-relationships-form-check-body">
+                <span>Also create reverse relationship</span>
+                <small class="clients-relationships-form-hint">Automatically creates the inverse relationship on the related client.</small>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <footer class="clients-relationships-modal-footer">
+          <button type="button" class="clients-relationships-btn clients-relationships-btn--secondary" data-bs-dismiss="modal">
+            {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+          </button>
+          <button type="submit" class="clients-relationships-btn clients-relationships-btn--primary">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+            <span>Add Relationship</span>
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var relatedClientSelect = document.getElementById('relatedClientSelect');
+  var createReverseCheck = document.getElementById('createReverseCheck');
+  if (!relatedClientSelect || !createReverseCheck) return;
+  relatedClientSelect.addEventListener('change', function () {
+    if (this.value) {
+      createReverseCheck.removeAttribute('hidden');
+    } else {
+      createReverseCheck.setAttribute('hidden', '');
+    }
+  });
+});
+</script>
+{% endblock %}

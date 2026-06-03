@@ -1,0 +1,97 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Questionnaires · List · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-clipboard-list me-2"></i>Questionnaires</h2>
+    <a href="{{ PREFIX }}/questionnaires/new" class="btn btn-primary glass-btn glass-btn--primary">
+        <i class="fas fa-plus me-1"></i> New Questionnaire
+    </a>
+</div>
+
+{% if categories %}
+<div class="mb-3">
+    <span class="me-2">Categories:</span>
+    {% for cat in categories %}
+    <span class="badge bg-secondary">{{ cat }}</span>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="card glass-card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Target</th>
+                    <th>Fields</th>
+                    <th>Responses</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in questionnaires %}
+                <tr>
+                    <td>
+                        <a href="{{ PREFIX }}/questionnaires/{{ q.id }}" class="fw-bold text-decoration-none">
+                            {{ q.name }}
+                        </a>
+                        {% if q.description %}
+                        <br><small class="text-muted">{{ q.description|truncate(50) }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if q.category %}
+                        <span class="badge bg-info">{{ q.category }}</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">{{ q.target_type or 'client' }}</span>
+                    </td>
+                    <td>{{ q.fields|length }} fields</td>
+                    <td>{{ q.response_count }} responses</td>
+                    <td>
+                        {% if q.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                        {% if q.is_required %}
+                        <span class="badge bg-warning text-dark">Required</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ PREFIX }}/questionnaires/{{ q.id }}/fill" class="btn btn-sm btn-success" title="Fill">
+                            <i class="fas fa-pen"></i>
+                        </a>
+                        <a href="{{ PREFIX }}/questionnaires/{{ q.id }}" class="btn btn-sm btn-outline-primary" title="View">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="{{ PREFIX }}/questionnaires/{{ q.id }}/edit" class="btn btn-sm btn-outline-secondary" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">
+                        No questionnaires yet. <a href="{{ PREFIX }}/questionnaires/new">Create one</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

@@ -1,0 +1,437 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}{% if product == "lite" %}Autenticação 2FA{% else %}Two-Factor Authentication{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Configurações · Segurança</span>
+    <h1>Autenticação em <em>dois fatores</em>.</h1>
+    <p class="ch-page-head__sub">
+      {% if product == "lite" %}Adicione uma camada extra de segurança usando um app autenticador.{% else %}Add an extra layer of security with an authenticator app.{% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/settings">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--2" style="gap: var(--space-5);">
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+
+    {% if status.unavailable %}
+    <article class="ch-card" style="border-color: var(--c-warn);">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Aviso</span>
+          <h2 class="ch-card__title">{% if product == "lite" %}2FA temporariamente indisponível{% else %}2FA temporarily unavailable{% endif %}</h2>
+        </div>
+        <span data-icon="bolt" data-icon-size="20" style="color: var(--c-warn);"></span>
+      </header>
+      <p style="margin: 0 0 var(--space-2);">
+        <strong>{% if product == "lite" %}A configuração de autenticação em dois fatores ainda não está pronta neste ambiente.{% else %}Two-factor authentication setup is not ready in this environment yet.{% endif %}</strong>
+      </p>
+      <p style="margin: 0; color: var(--fg-muted);">
+        {% if product == "lite" %}Sua sessão atual continua funcionando. A equipe técnica precisa concluir a configuração do módulo antes de ativar este recurso.{% else %}Your current session still works. The technical team must finish the module setup before enabling this feature.{% endif %}
+      </p>
+    </article>
+    {% elif status.enabled %}
+    <article class="ch-card" style="border-color: var(--c-green-d);">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Status</span>
+          <h2 class="ch-card__title">{% if product == "lite" %}2FA Ativado{% else %}2FA is Enabled{% endif %}</h2>
+        </div>
+        <span data-icon="check" data-icon-size="22" style="color: var(--c-green-d);"></span>
+      </header>
+      <p style="margin: 0 0 var(--space-3); font-weight: 600;">
+        {% if product == "lite" %}Sua conta está protegida com autenticação em dois fatores.{% else %}Your account is protected with two-factor authentication.{% endif %}
+      </p>
+      <div class="ch-card ch-card--compact" style="background: var(--surface-card-2); margin-bottom: var(--space-4);">
+        <p style="margin: 0 0 var(--space-1);">
+          <strong>{% if product == "lite" %}Códigos de backup restantes:{% else %}Backup codes remaining:{% endif %}</strong>
+          <span class="ch-mono">{{ status.backup_codes_remaining }}</span>
+        </p>
+        <small style="color: var(--fg-muted);">
+          {% if product == "lite" %}Use os códigos de backup se perder acesso ao seu app autenticador.{% else %}Use backup codes if you lose access to your authenticator app.{% endif %}
+        </small>
+      </div>
+
+      <section style="border-top: 1px solid var(--line); padding-top: var(--space-4); margin-bottom: var(--space-4);">
+        <h3 style="margin: 0 0 var(--space-2); font-size: var(--fs-lg);">{% if product == "lite" %}Regenerar códigos de backup{% else %}Regenerate Backup Codes{% endif %}</h3>
+        <p style="margin: 0 0 var(--space-3); color: var(--fg-muted); font-size: var(--fs-sm);">
+          {% if product == "lite" %}Se você já usou a maioria dos seus códigos de backup, gere novos.{% else %}If you've used most of your backup codes, generate new ones.{% endif %}
+        </p>
+        <form id="regenerateForm" novalidate>
+          <div class="ch-field">
+            <label class="ch-field__label" for="regenerateCode">{% if product == "lite" %}Código 2FA atual{% else %}Current 2FA code{% endif %}</label>
+            <input type="text" id="regenerateCode" name="regenerate_code" class="ch-input ch-mono"
+                   placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                   inputmode="numeric" autocomplete="one-time-code" required />
+          </div>
+          <button type="submit" class="ch-btn" style="margin-top: var(--space-3); color: var(--c-warn);">
+            <span data-icon="bolt"></span>
+            {% if product == "lite" %}Regenerar códigos{% else %}Regenerate Codes{% endif %}
+          </button>
+        </form>
+      </section>
+
+      <section style="border-top: 1px solid var(--line); padding-top: var(--space-4);">
+        <h3 style="margin: 0 0 var(--space-2); font-size: var(--fs-lg); color: var(--c-danger);">{% if product == "lite" %}Desativar 2FA{% else %}Disable 2FA{% endif %}</h3>
+        <p style="margin: 0 0 var(--space-3); color: var(--fg-muted); font-size: var(--fs-sm);">
+          {% if product == "lite" %}Não recomendado. Sua conta ficará menos segura.{% else %}Not recommended. Your account will be less secure.{% endif %}
+        </p>
+        <form id="disableForm" novalidate>
+          <div class="ch-field">
+            <label class="ch-field__label" for="disableCode">{% if product == "lite" %}Código 2FA para desativar{% else %}Current 2FA code{% endif %}</label>
+            <input type="text" id="disableCode" name="disable_code" class="ch-input ch-mono"
+                   placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                   inputmode="numeric" autocomplete="one-time-code" required />
+          </div>
+          <button type="submit" class="ch-btn" style="margin-top: var(--space-3); color: var(--c-danger);">
+            <span data-icon="x"></span>
+            {% if product == "lite" %}Desativar 2FA{% else %}Disable 2FA{% endif %}
+          </button>
+        </form>
+      </section>
+    </article>
+    {% else %}
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Configuração</span>
+          <h2 class="ch-card__title">{% if product == "lite" %}Configurar 2FA{% else %}Setup 2FA{% endif %}</h2>
+        </div>
+        <span data-icon="bolt" data-icon-size="22" style="color: var(--c-pollen);"></span>
+      </header>
+      <div aria-live="polite">
+        <section id="step1">
+          <h3 style="margin: 0 0 var(--space-2); font-size: var(--fs-lg);">
+            {% if product == "lite" %}Passo 1: Instale um app autenticador{% else %}Step 1: Install an Authenticator App{% endif %}
+          </h3>
+          <p style="margin: 0 0 var(--space-3); color: var(--fg-default);">
+            {% if product == "lite" %}Baixe um destes apps autenticadores no seu celular:{% else %}Download one of these authenticator apps on your phone:{% endif %}
+          </p>
+          <ul style="list-style: disc inside; padding: 0; margin: 0 0 var(--space-4); display: flex; flex-direction: column; gap: var(--space-1);">
+            <li><strong>Google Authenticator</strong> (iOS / Android)</li>
+            <li><strong>Microsoft Authenticator</strong> (iOS / Android)</li>
+            <li><strong>Authy</strong> (iOS / Android / Desktop)</li>
+          </ul>
+          <button type="button" id="startSetupBtn" class="ch-btn ch-btn--primary">
+            <span data-icon="chevron_right"></span>
+            {% if product == "lite" %}Já tenho um app, continuar{% else %}I have an app, continue{% endif %}
+          </button>
+        </section>
+
+        <section id="step2" hidden>
+          <h3 style="margin: 0 0 var(--space-2); font-size: var(--fs-lg);">
+            {% if product == "lite" %}Passo 2: Escaneie o QR Code{% else %}Step 2: Scan QR Code{% endif %}
+          </h3>
+          <p style="margin: 0 0 var(--space-3); color: var(--fg-default);">
+            {% if product == "lite" %}Abra seu app autenticador e escaneie este QR code:{% else %}Open your authenticator app and scan this QR code:{% endif %}
+          </p>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: var(--space-3); padding: var(--space-4); background: var(--surface-card-2); border-radius: var(--radius-md);">
+            <div id="qrCode" role="img"
+                 aria-label="{% if product == 'lite' %}QR code para configurar a autenticação em dois fatores{% else %}QR code to set up two-factor authentication{% endif %}"
+                 aria-busy="true"
+                 style="min-width: 200px; min-height: 200px; display: flex; align-items: center; justify-content: center; background: white; border-radius: var(--radius-sm); padding: var(--space-3);">
+              <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-sm);">{% if product == "lite" %}Carregando…{% else %}Loading…{% endif %}</span>
+            </div>
+            <p style="margin: 0; font-size: var(--fs-sm); color: var(--fg-muted); text-align: center;">
+              {% if product == "lite" %}Não consegue escanear? Digite este código manualmente:{% else %}Can't scan? Enter this code manually:{% endif %}
+            </p>
+            <code id="manualSecret" class="ch-mono"
+                  aria-label="{% if product == 'lite' %}Chave secreta para entrada manual{% else %}Manual entry secret key{% endif %}"
+                  style="word-break: break-all; padding: var(--space-2) var(--space-3); background: var(--surface-card); border-radius: var(--radius-sm); font-size: var(--fs-sm);"></code>
+          </div>
+          <div style="display: flex; gap: var(--space-2); margin-top: var(--space-4); flex-wrap: wrap;">
+            <button type="button" id="backToStep1" class="ch-btn ch-btn--ghost">
+              <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span>
+              {% if product == "lite" %}Voltar{% else %}Back{% endif %}
+            </button>
+            <button type="button" id="goToStep3" class="ch-btn ch-btn--primary">
+              <span data-icon="chevron_right"></span>
+              {% if product == "lite" %}Já escaneei, continuar{% else %}I've scanned it, continue{% endif %}
+            </button>
+          </div>
+        </section>
+
+        <section id="step3" hidden>
+          <h3 style="margin: 0 0 var(--space-2); font-size: var(--fs-lg);">
+            {% if product == "lite" %}Passo 3: Verificar configuração{% else %}Step 3: Verify Setup{% endif %}
+          </h3>
+          <p style="margin: 0 0 var(--space-3); color: var(--fg-default);">
+            {% if product == "lite" %}Digite o código de 6 dígitos do seu app autenticador:{% else %}Enter the 6-digit code from your authenticator app:{% endif %}
+          </p>
+          <form id="verifyForm" novalidate>
+            <div class="ch-field">
+              <label class="ch-field__label" for="verifyCode" style="position: absolute; left: -9999px;">
+                {% if product == "lite" %}Código de verificação de 6 dígitos{% else %}6-digit verification code{% endif %}
+              </label>
+              <input type="text" id="verifyCode" name="verify_code" class="ch-input ch-mono"
+                     placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+                     inputmode="numeric" autocomplete="one-time-code" required
+                     style="font-size: var(--fs-2xl); letter-spacing: 0.5em; text-align: center;" />
+            </div>
+            <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
+              <button type="button" id="backToStep2" class="ch-btn ch-btn--ghost">
+                <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span>
+                {% if product == "lite" %}Voltar{% else %}Back{% endif %}
+              </button>
+              <button type="submit" class="ch-btn ch-btn--primary">
+                <span data-icon="check"></span>
+                {% if product == "lite" %}Verificar e ativar{% else %}Verify and Enable{% endif %}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section id="step4" hidden>
+          <div class="ch-card ch-card--compact" style="border-color: var(--c-green-d); background: var(--surface-card-2); margin-bottom: var(--space-4);">
+            <p style="margin: 0 0 var(--space-1); display: flex; gap: var(--space-2); align-items: center;">
+              <span data-icon="check" data-icon-size="18" style="color: var(--c-green-d);"></span>
+              <strong id="tfa-step4-title">{% if product == "lite" %}2FA ativado com sucesso!{% else %}2FA Enabled Successfully!{% endif %}</strong>
+            </p>
+            <p style="margin: 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+              {% if product == "lite" %}Sua conta agora está protegida com autenticação em dois fatores.{% else %}Your account is now protected with two-factor authentication.{% endif %}
+            </p>
+          </div>
+
+          <h3 style="margin: 0 0 var(--space-2); font-size: var(--fs-lg);">
+            {% if product == "lite" %}Salve seus códigos de backup{% else %}Save Your Backup Codes{% endif %}
+          </h3>
+          <p style="margin: 0 0 var(--space-3); color: var(--c-danger); font-size: var(--fs-sm);">
+            <strong>{% if product == "lite" %}Importante:{% else %}Important:{% endif %}</strong>
+            {% if product == "lite" %}Salve estes códigos em um lugar seguro. Você pode usá-los para acessar sua conta se perder seu celular.{% else %}Save these codes in a safe place. You can use them to access your account if you lose your phone.{% endif %}
+          </p>
+          <div id="backupCodesContainer" role="region"
+               aria-label="{% if product == 'lite' %}Códigos de backup{% else %}Backup codes{% endif %}"
+               style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); margin-bottom: var(--space-4);"></div>
+          <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+            <button type="button" id="downloadCodes" class="ch-btn ch-btn--ghost">
+              <span data-icon="docs"></span>
+              {% if product == "lite" %}Baixar códigos{% else %}Download Codes{% endif %}
+            </button>
+            <a href="{{ PREFIX }}/dashboard" class="ch-btn ch-btn--primary">
+              <span data-icon="check"></span>
+              {% if product == "lite" %}Concluído{% else %}Done{% endif %}
+            </a>
+          </div>
+        </section>
+      </div>
+    </article>
+    {% endif %}
+  </div>
+
+  {# ─── Sidebar info ─── #}
+  <aside>
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Sobre</span>
+          <h2 class="ch-card__title">{% if product == "lite" %}Sobre o 2FA{% else %}About 2FA{% endif %}</h2>
+        </div>
+        <span data-icon="bolt" data-icon-size="20" style="color: var(--c-info);"></span>
+      </header>
+      <p style="margin: 0 0 var(--space-3);">
+        {% if product == "lite" %}A autenticação em dois fatores adiciona uma camada extra de segurança à sua conta.{% else %}Two-factor authentication adds an extra layer of security to your account.{% endif %}
+      </p>
+      <p style="margin: 0 0 var(--space-3);">
+        {% if product == "lite" %}Quando ativado, você precisará digitar um código do seu celular além da sua senha ao fazer login.{% else %}When enabled, you'll need to enter a code from your phone in addition to your password when logging in.{% endif %}
+      </p>
+      <h3 style="margin: 0 0 var(--space-2); font-size: var(--fs-base); color: var(--c-green-d);">
+        {% if product == "lite" %}Benefícios:{% else %}Benefits:{% endif %}
+      </h3>
+      <ul style="list-style: disc inside; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-1);">
+        <li>{% if product == "lite" %}Protege contra roubo de senha{% else %}Protects against password theft{% endif %}</li>
+        <li>{% if product == "lite" %}Previne acesso não autorizado{% else %}Prevents unauthorized access{% endif %}</li>
+        <li>{% if product == "lite" %}Padrão de segurança do mercado{% else %}Industry standard security{% endif %}</li>
+      </ul>
+    </article>
+  </aside>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var PREFIX = '{{ PREFIX }}';
+  var I18N = {
+    error: {% if product == "lite" %}'Erro'{% else %}'Error'{% endif %},
+    confirmDisable: {% if product == "lite" %}'Tem certeza que deseja desativar o 2FA? Sua conta ficará menos segura.'{% else %}'Are you sure you want to disable 2FA? Your account will be less secure.'{% endif %},
+    disableSuccess: {% if product == "lite" %}'2FA foi desativado.'{% else %}'2FA has been disabled.'{% endif %},
+    regenSuccessTitle: {% if product == "lite" %}'Novos códigos de backup gerados:\n\n'{% else %}'New backup codes generated:\n\n'{% endif %},
+    regenSuccessFooter: {% if product == "lite" %}'\n\nSalve estes códigos!'{% else %}'\n\nSave these codes!'{% endif %},
+    downloadHeader: {% if product == "lite" %}'Códigos de Backup 2FA'{% else %}'2FA Backup Codes'{% endif %},
+    downloadFooter: {% if product == "lite" %}'Mantenha estes códigos em segurança!'{% else %}'Keep these codes safe!'{% endif %},
+    downloadFile: {% if product == "lite" %}'codigos-backup-2fa.txt'{% else %}'casehub-backup-codes.txt'{% endif %},
+    org: '{{ org_name|default("CaseHub") }}'
+  };
+
+  var backupCodes = [];
+
+  function showStep(id) {
+    ['step1', 'step2', 'step3', 'step4'].forEach(function (s) {
+      var el = document.getElementById(s);
+      if (!el) return;
+      if (s === id) el.removeAttribute('hidden');
+      else el.setAttribute('hidden', '');
+    });
+  }
+
+  function renderQRError(message) {
+    var qr = document.getElementById('qrCode');
+    if (!qr) return;
+    qr.innerHTML = '';
+    qr.removeAttribute('aria-busy');
+    var p = document.createElement('p');
+    p.style.color = 'var(--c-danger)';
+    p.style.margin = '0';
+    p.style.fontSize = 'var(--fs-sm)';
+    p.textContent = message;
+    qr.appendChild(p);
+  }
+
+  function generateQRCode() {
+    var qr = document.getElementById('qrCode');
+    if (!qr) return;
+    qr.setAttribute('aria-busy', 'true');
+    fetch(PREFIX + '/2fa/setup/generate', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.success) {
+          qr.innerHTML = '';
+          qr.removeAttribute('aria-busy');
+          var img = document.createElement('img');
+          img.src = data.qr_code;
+          img.alt = '';
+          img.style.maxWidth = '200px';
+          img.style.height = 'auto';
+          qr.appendChild(img);
+          var secret = document.getElementById('manualSecret');
+          if (secret) secret.textContent = data.secret;
+        } else {
+          renderQRError((data && data.error) || I18N.error);
+        }
+      })
+      .catch(function (e) {
+        renderQRError(I18N.error + ': ' + (e && e.message ? e.message : ''));
+      });
+  }
+
+  var startBtn = document.getElementById('startSetupBtn');
+  if (startBtn) startBtn.addEventListener('click', function () { showStep('step2'); generateQRCode(); });
+
+  var backTo1 = document.getElementById('backToStep1');
+  if (backTo1) backTo1.addEventListener('click', function () { showStep('step1'); });
+
+  var goTo3 = document.getElementById('goToStep3');
+  if (goTo3) goTo3.addEventListener('click', function () {
+    showStep('step3');
+    var input = document.getElementById('verifyCode');
+    if (input) input.focus();
+  });
+
+  var backTo2 = document.getElementById('backToStep2');
+  if (backTo2) backTo2.addEventListener('click', function () { showStep('step2'); });
+
+  var verifyForm = document.getElementById('verifyForm');
+  if (verifyForm) {
+    verifyForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var code = document.getElementById('verifyCode').value;
+      var formData = new FormData();
+      formData.append('code', code);
+      fetch(PREFIX + '/2fa/setup/verify', { method: 'POST', body: formData })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.success) {
+            backupCodes = data.backup_codes || [];
+            var container = document.getElementById('backupCodesContainer');
+            if (container) {
+              container.innerHTML = '';
+              backupCodes.forEach(function (c) {
+                var node = document.createElement('code');
+                node.className = 'ch-mono';
+                node.style.padding = 'var(--space-2)';
+                node.style.background = 'var(--surface-card-2)';
+                node.style.borderRadius = 'var(--radius-sm)';
+                node.style.textAlign = 'center';
+                node.style.fontSize = 'var(--fs-sm)';
+                node.textContent = c;
+                container.appendChild(node);
+              });
+            }
+            showStep('step4');
+          } else {
+            window.alert(I18N.error + ': ' + ((data && data.error) || ''));
+          }
+        })
+        .catch(function (err) {
+          window.alert(I18N.error + ': ' + (err && err.message ? err.message : ''));
+        });
+    });
+  }
+
+  var dlBtn = document.getElementById('downloadCodes');
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function () {
+      var text = I18N.org + ' - ' + I18N.downloadHeader + '\n' +
+                 '================================\n\n' +
+                 backupCodes.join('\n') +
+                 '\n\n' + I18N.downloadFooter;
+      var blob = new Blob([text], { type: 'text/plain' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = I18N.downloadFile;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  var disableForm = document.getElementById('disableForm');
+  if (disableForm) {
+    disableForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!window.confirm(I18N.confirmDisable)) return;
+      var formData = new FormData();
+      formData.append('code', document.getElementById('disableCode').value);
+      fetch(PREFIX + '/2fa/disable', { method: 'POST', body: formData })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.success) {
+            window.alert(I18N.disableSuccess);
+            window.location.reload();
+          } else {
+            window.alert(I18N.error + ': ' + ((data && data.error) || ''));
+          }
+        });
+    });
+  }
+
+  var regenForm = document.getElementById('regenerateForm');
+  if (regenForm) {
+    regenForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var formData = new FormData();
+      formData.append('code', document.getElementById('regenerateCode').value);
+      fetch(PREFIX + '/2fa/regenerate-backup-codes', { method: 'POST', body: formData })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data && data.success) {
+            window.alert(I18N.regenSuccessTitle + (data.backup_codes || []).join('\n') + I18N.regenSuccessFooter);
+            window.location.reload();
+          } else {
+            window.alert(I18N.error + ': ' + ((data && data.error) || ''));
+          }
+        });
+    });
+  }
+})();
+</script>
+{% endblock %}

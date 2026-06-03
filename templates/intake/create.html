@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+
+{% block title %}New Intake Package - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/intake-create.css">
+{% endblock %}
+
+{% block content %}
+<section class="intake-create-main" aria-labelledby="intake-create-title">
+    <header class="intake-create-header">
+        <a href="{{ PREFIX }}/intake" class="intake-create-back-link">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Packages</span>
+        </a>
+        <h1 id="intake-create-title" class="intake-create-title">
+            <i class="fas fa-inbox" aria-hidden="true"></i>
+            <span>New Intake Package</span>
+        </h1>
+    </header>
+
+    <form method="POST" action="{{ PREFIX }}/intake/create" id="packageForm" class="intake-create-form">
+        <input type="hidden" name="items_json" id="itemsJson" value="[]">
+
+        <div class="intake-create-grid">
+            <div class="intake-create-col-main">
+                <!-- Package Details -->
+                <section class="intake-create-card" aria-labelledby="intake-create-details-title">
+                    <header class="intake-create-card-header">
+                        <h2 id="intake-create-details-title" class="intake-create-card-title">
+                            <i class="fas fa-info-circle" aria-hidden="true"></i>
+                            <span>Package Details</span>
+                        </h2>
+                    </header>
+                    <div class="intake-create-card-body">
+                        <div class="intake-create-field-row">
+                            <div class="intake-create-field">
+                                <label class="intake-create-label" for="caseSelect">
+                                    Case <span class="intake-create-required-mark" aria-hidden="true">*</span>
+                                </label>
+                                <select name="case_id" class="intake-create-select" required
+                                        id="caseSelect" onchange="loadTemplate()" aria-required="true">
+                                    <option value="">-- Select Case --</option>
+                                    {% for case in cases %}
+                                    <option value="{{ case.id }}" data-visa="{{ case.visa_type or '' }}"
+                                            {% if selected_case and selected_case.id == case.id %}selected{% endif %}>
+                                        {{ case.case_number }} - {{ case.case_name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="intake-create-field">
+                                <label class="intake-create-label" for="packageName">
+                                    Package Name <span class="intake-create-required-mark" aria-hidden="true">*</span>
+                                </label>
+                                <input type="text" name="name" id="packageName" class="intake-create-input" required
+                                       placeholder="e.g., H-1B Initial Filing Intake"
+                                       value="{{ suggested_template.name if suggested_template else '' }}"
+                                       aria-required="true">
+                            </div>
+                        </div>
+
+                        <div class="intake-create-field-row">
+                            <div class="intake-create-field">
+                                <label class="intake-create-label" for="expiresIn">Expires In</label>
+                                <select name="expires_in_days" id="expiresIn" class="intake-create-select">
+                                    <option value="14">14 days</option>
+                                    <option value="30" selected>30 days</option>
+                                    <option value="60">60 days</option>
+                                    <option value="90">90 days</option>
+                                </select>
+                            </div>
+                            <div class="intake-create-field">
+                                <label class="intake-create-label" for="templateSelect">Load Template</label>
+                                <select id="templateSelect" class="intake-create-select" onchange="applyTemplate()">
+                                    <option value="">-- Select Template --</option>
+                                    {% for t in available_templates %}
+                                    <option value="{{ t.visa_type }}">{{ t.name }} ({{ t.item_count }} items)</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="intake-create-field">
+                            <label class="intake-create-label" for="messageInput">Message to Client</label>
+                            <textarea name="message" id="messageInput" class="intake-create-textarea" rows="2"
+                                      placeholder="Optional message that will be shown to the client..."></textarea>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Items -->
+                <section class="intake-create-card" aria-labelledby="intake-create-items-title">
+                    <header class="intake-create-card-header">
+                        <h2 id="intake-create-items-title" class="intake-create-card-title">
+                            <i class="fas fa-list" aria-hidden="true"></i>
+                            <span>Package Items</span>
+                            <span id="itemsCount" class="intake-create-sr-only" aria-live="polite">0 items</span>
+                        </h2>
+                        <button type="button" class="intake-create-btn intake-create-btn--ghost intake-create-btn--sm"
+                                onclick="addItem()">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Add Item</span>
+                        </button>
+                    </header>
+                    <div class="intake-create-card-body">
+                        <div id="itemsList" class="intake-create-items"></div>
+
+                        <div id="noItems" class="intake-create-empty">
+                            <i class="fas fa-clipboard-list intake-create-empty-icon" aria-hidden="true"></i>
+                            <p>No items added yet. Click "Add Item" or select a template.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <label class="intake-create-check" for="autoSend">
+                    <input type="checkbox" name="auto_send" id="autoSend" value="true">
+                    <span class="intake-create-check-label">
+                        <span class="intake-create-check-text">
+                            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                            <span>Send to client immediately after creating</span>
+                        </span>
+                        <span class="intake-create-helper">Client will receive an email with a link to fill out the forms</span>
+                    </span>
+                </label>
+
+                <div class="intake-create-footer">
+                    <a href="{{ PREFIX }}/intake" class="intake-create-btn intake-create-btn--ghost">Cancel</a>
+                    <button type="submit" class="intake-create-btn intake-create-btn--primary">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Create Package</span>
+                    </button>
+                </div>
+            </div>
+
+            <aside class="intake-create-col-side" aria-label="Item helpers">
+                <!-- Quick Add -->
+                <section class="intake-create-card" aria-labelledby="intake-create-quick-title">
+                    <header class="intake-create-card-header intake-create-card-header--accent">
+                        <h2 id="intake-create-quick-title" class="intake-create-card-title">
+                            <i class="fas fa-plus-circle" aria-hidden="true"></i>
+                            <span>Quick Add</span>
+                        </h2>
+                    </header>
+                    <div class="intake-create-card-body">
+                        <div class="intake-create-field">
+                            <label class="intake-create-label" for="quickType">Item Type</label>
+                            <select id="quickType" class="intake-create-select">
+                                <option value="document_request">Document Request</option>
+                                <option value="questionnaire">Questionnaire</option>
+                                <option value="signature">Signature</option>
+                                <option value="information">Information</option>
+                            </select>
+                        </div>
+                        <div class="intake-create-field">
+                            <label class="intake-create-label" for="quickName">Name</label>
+                            <input type="text" id="quickName" class="intake-create-input" placeholder="e.g., Passport Copy">
+                        </div>
+                        <label class="intake-create-check" for="quickRequired">
+                            <input type="checkbox" id="quickRequired" checked>
+                            <span class="intake-create-check-label">
+                                <span class="intake-create-check-text">Required</span>
+                            </span>
+                        </label>
+                        <button type="button" class="intake-create-btn intake-create-btn--primary intake-create-btn--full"
+                                onclick="quickAdd()">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Add Item</span>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Common Items -->
+                <section class="intake-create-card" aria-labelledby="intake-create-presets-title">
+                    <header class="intake-create-card-header intake-create-card-header--info">
+                        <h2 id="intake-create-presets-title" class="intake-create-card-title">
+                            <i class="fas fa-star" aria-hidden="true"></i>
+                            <span>Common Items</span>
+                        </h2>
+                    </header>
+                    <div class="intake-create-card-body intake-create-card-body--flush">
+                        <div class="intake-create-presets" role="list">
+                            <button type="button" class="intake-create-preset" role="listitem"
+                                    onclick="addPreset('document_request', 'Passport Copy', true)">
+                                <i class="fas fa-passport intake-create-preset-icon intake-create-preset-icon--accent" aria-hidden="true"></i>
+                                <span>Passport Copy</span>
+                            </button>
+                            <button type="button" class="intake-create-preset" role="listitem"
+                                    onclick="addPreset('document_request', 'Resume/CV', true)">
+                                <i class="fas fa-file-alt intake-create-preset-icon intake-create-preset-icon--accent" aria-hidden="true"></i>
+                                <span>Resume/CV</span>
+                            </button>
+                            <button type="button" class="intake-create-preset" role="listitem"
+                                    onclick="addPreset('document_request', 'Diploma/Degree', true)">
+                                <i class="fas fa-graduation-cap intake-create-preset-icon intake-create-preset-icon--accent" aria-hidden="true"></i>
+                                <span>Diploma/Degree</span>
+                            </button>
+                            <button type="button" class="intake-create-preset" role="listitem"
+                                    onclick="addPreset('questionnaire', 'Personal Information', true)">
+                                <i class="fas fa-user intake-create-preset-icon intake-create-preset-icon--success" aria-hidden="true"></i>
+                                <span>Personal Information</span>
+                            </button>
+                            <button type="button" class="intake-create-preset" role="listitem"
+                                    onclick="addPreset('signature', 'G-28 Authorization', true)">
+                                <i class="fas fa-signature intake-create-preset-icon intake-create-preset-icon--warning" aria-hidden="true"></i>
+                                <span>G-28 Authorization</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </form>
+</section>
+
+<dialog id="addItemDialog" class="intake-create-modal" aria-labelledby="addItemDialogTitle">
+    <form method="dialog" id="addItemForm" class="intake-create-modal-form">
+        <header class="intake-create-modal-header">
+            <h2 id="addItemDialogTitle" class="intake-create-modal-title">Add Item</h2>
+        </header>
+        <div class="intake-create-modal-body">
+            <div class="intake-create-field">
+                <label class="intake-create-label" for="addItemName">Item name</label>
+                <input type="text" id="addItemName" class="intake-create-input"
+                       placeholder="e.g., Birth Certificate" required>
+            </div>
+        </div>
+        <footer class="intake-create-modal-footer">
+            <button type="button" class="intake-create-btn intake-create-btn--ghost" data-dialog-cancel>Cancel</button>
+            <button type="submit" class="intake-create-btn intake-create-btn--primary">Add</button>
+        </footer>
+    </form>
+</dialog>
+
+<div class="intake-create-toasts" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+const PREFIX = '{{ PREFIX }}';
+let items = [];
+
+function escapeHTML(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+        {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+    ));
+}
+
+function showToast(message, variant) {
+    variant = variant || 'info';
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'intake-create-toast intake-create-toast--' + variant;
+    toast.setAttribute('role', variant === 'danger' ? 'alert' : 'status');
+    toast.textContent = message;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('is-visible'));
+    setTimeout(() => {
+        toast.classList.remove('is-visible');
+        setTimeout(() => toast.remove(), 240);
+    }, 3500);
+}
+
+function typeLabel(type) {
+    return String(type).replace(/_/g, ' ');
+}
+
+{% if suggested_template %}
+const suggestedItems = {{ suggested_template['items'] | tojson }};
+suggestedItems.forEach(item => {
+    items.push({
+        type: item.type,
+        name: item.name,
+        description: '',
+        required: item.required
+    });
+});
+{% endif %}
+
+function renderItems() {
+    const container = document.getElementById('itemsList');
+    const noItems = document.getElementById('noItems');
+    const count = document.getElementById('itemsCount');
+
+    if (items.length === 0) {
+        container.innerHTML = '';
+        noItems.style.display = '';
+        count.textContent = '0 items';
+        updateFormData();
+        return;
+    }
+
+    noItems.style.display = 'none';
+    count.textContent = items.length + (items.length === 1 ? ' item' : ' items');
+    container.innerHTML = items.map((item, index) => {
+        const safeName = escapeHTML(item.name);
+        const safeType = escapeHTML(item.type);
+        const safeLabel = escapeHTML(typeLabel(item.type));
+        const requiredBadge = item.required
+            ? '<span class="intake-create-badge intake-create-badge--required">Required</span>'
+            : '';
+        return (
+            '<div class="intake-create-item">' +
+                '<div class="intake-create-item-meta">' +
+                    '<span class="intake-create-badge intake-create-badge--type-' + safeType + '">' + safeLabel + '</span>' +
+                    '<span class="intake-create-item-name">' + safeName + '</span>' +
+                    requiredBadge +
+                '</div>' +
+                '<div class="intake-create-item-actions">' +
+                    '<button type="button" class="intake-create-icon-btn" aria-label="Move ' + safeName + ' up" onclick="moveItem(' + index + ', -1)">' +
+                        '<i class="fas fa-arrow-up" aria-hidden="true"></i>' +
+                    '</button>' +
+                    '<button type="button" class="intake-create-icon-btn" aria-label="Move ' + safeName + ' down" onclick="moveItem(' + index + ', 1)">' +
+                        '<i class="fas fa-arrow-down" aria-hidden="true"></i>' +
+                    '</button>' +
+                    '<button type="button" class="intake-create-icon-btn intake-create-icon-btn--danger" aria-label="Remove ' + safeName + '" onclick="removeItem(' + index + ')">' +
+                        '<i class="fas fa-trash" aria-hidden="true"></i>' +
+                    '</button>' +
+                '</div>' +
+            '</div>'
+        );
+    }).join('');
+
+    updateFormData();
+}
+
+function addItem() {
+    const dialog = document.getElementById('addItemDialog');
+    const input = document.getElementById('addItemName');
+    if (input) input.value = '';
+    if (dialog && typeof dialog.showModal === 'function') {
+        dialog.showModal();
+        setTimeout(() => input && input.focus(), 0);
+    } else {
+        const name = window.prompt('Enter item name (e.g., Birth Certificate):');
+        if (name) {
+            items.push({ type: 'document_request', name: name, description: '', required: true });
+            renderItems();
+        }
+    }
+}
+
+function quickAdd() {
+    const type = document.getElementById('quickType').value;
+    const name = document.getElementById('quickName').value.trim();
+    const required = document.getElementById('quickRequired').checked;
+
+    if (!name) {
+        showToast('Please enter an item name', 'danger');
+        document.getElementById('quickName').focus();
+        return;
+    }
+
+    items.push({ type: type, name: name, description: '', required: required });
+    document.getElementById('quickName').value = '';
+    renderItems();
+    showToast('Item added', 'success');
+}
+
+function addPreset(type, name, required) {
+    items.push({ type: type, name: name, description: '', required: required });
+    renderItems();
+}
+
+function removeItem(index) {
+    items.splice(index, 1);
+    renderItems();
+}
+
+function moveItem(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= items.length) return;
+    const item = items[index];
+    items.splice(index, 1);
+    items.splice(newIndex, 0, item);
+    renderItems();
+}
+
+function updateFormData() {
+    document.getElementById('itemsJson').value = JSON.stringify(items);
+}
+
+async function loadTemplate() {
+    const select = document.getElementById('caseSelect');
+    const option = select.options[select.selectedIndex];
+    const visaType = option.getAttribute('data-visa');
+    if (!visaType) return;
+    try {
+        const response = await fetch(PREFIX + '/intake/api/template/' + encodeURIComponent(visaType));
+        const template = await response.json();
+        if (template.items) {
+            document.getElementById('packageName').value = template.name;
+            items = template.items.map(item => ({
+                type: item.type,
+                name: item.name,
+                description: '',
+                required: item.required
+            }));
+            renderItems();
+        }
+    } catch (e) {
+        console.error('Error loading template:', e);
+        showToast('Could not load template', 'danger');
+    }
+}
+
+async function applyTemplate() {
+    const visaType = document.getElementById('templateSelect').value;
+    if (!visaType) return;
+    try {
+        const response = await fetch(PREFIX + '/intake/api/template/' + encodeURIComponent(visaType));
+        const template = await response.json();
+        if (template.items) {
+            document.getElementById('packageName').value = template.name;
+            items = template.items.map(item => ({
+                type: item.type,
+                name: item.name,
+                description: '',
+                required: item.required
+            }));
+            renderItems();
+        }
+    } catch (e) {
+        console.error('Error loading template:', e);
+        showToast('Could not load template', 'danger');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderItems();
+
+    const dialog = document.getElementById('addItemDialog');
+    const dialogForm = document.getElementById('addItemForm');
+    const cancelBtn = dialog && dialog.querySelector('[data-dialog-cancel]');
+
+    if (cancelBtn && dialog) {
+        cancelBtn.addEventListener('click', () => dialog.close());
+    }
+
+    if (dialogForm) {
+        dialogForm.addEventListener('submit', (e) => {
+            const input = document.getElementById('addItemName');
+            const name = input ? input.value.trim() : '';
+            if (!name) {
+                e.preventDefault();
+                input && input.focus();
+                return;
+            }
+            items.push({ type: 'document_request', name: name, description: '', required: true });
+            renderItems();
+        });
+    }
+
+    const form = document.getElementById('packageForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (items.length === 0) {
+                e.preventDefault();
+                showToast('Please add at least one item to the package', 'danger');
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

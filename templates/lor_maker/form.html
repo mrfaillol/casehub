@@ -1,0 +1,697 @@
+{% extends "base.html" %}
+{% block title %}LOR Maker - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/lor-maker-form.css">
+{% endblock %}
+
+{% block content %}
+<main class="lor-maker-form-main" aria-labelledby="lor-maker-form-title">
+    <header class="lor-maker-form-header">
+        {% if case %}
+        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="lor-maker-form-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Case</span>
+        </a>
+        {% endif %}
+        <h1 id="lor-maker-form-title" class="lor-maker-form-title">
+            <i class="fas fa-file-signature lor-maker-form-title-icon" aria-hidden="true"></i>
+            <span>LOR Maker</span>
+        </h1>
+        <p class="lor-maker-form-subtitle">Generate a professionally formatted Letter of Recommendation with persona-specific styling.</p>
+    </header>
+
+    <form id="lorForm" class="lor-maker-form-form" novalidate>
+        {% if case %}<input type="hidden" name="case_id" value="{{ case.id }}">{% endif %}
+
+        {# ======== STEP 1: SELECT PERSONA ======== #}
+        <section class="lor-maker-form-card" aria-labelledby="lor-maker-form-step1-title">
+            <header id="lor-maker-form-step1-title" class="lor-maker-form-card-header">
+                <i class="fas fa-user-tie lor-maker-form-card-header-icon" aria-hidden="true"></i>
+                <span class="lor-maker-form-card-header-title">Step 1: Select Persona</span>
+            </header>
+            <div class="lor-maker-form-card-body">
+                <p class="lor-maker-form-card-hint">Each persona uses a different font, formatting style, and tone to avoid &ldquo;template letter syndrome&rdquo; when multiple LORs are in the same case.</p>
+
+                <div class="lor-maker-form-persona-grid" id="personaGrid" role="radiogroup" aria-label="Select persona">
+                    {% for p in personas %}
+                    <button type="button"
+                            class="lor-maker-form-persona-card"
+                            data-persona="{{ p.key }}"
+                            role="radio"
+                            aria-checked="false"
+                            onclick="selectPersona('{{ p.key }}')">
+                        <span class="lor-maker-form-persona-name">{{ p.name }}</span>
+                        <span class="lor-maker-form-persona-meta">{{ p.font }} {{ p.size }}pt</span>
+                    </button>
+                    {% endfor %}
+                </div>
+                <div id="customPersonaGrid" class="lor-maker-form-persona-grid" role="radiogroup" aria-label="Custom personas"></div>
+                <input type="hidden" name="persona" id="personaInput" required>
+
+                <hr class="lor-maker-form-divider">
+
+                <div>
+                    <button type="button" class="lor-maker-form-btn lor-maker-form-btn--ghost lor-maker-form-btn--sm" onclick="toggleCustomProfileForm()" aria-expanded="false" aria-controls="customProfileForm">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>Create Custom Profile</span>
+                    </button>
+                </div>
+
+                <div id="customProfileForm" class="lor-maker-form-custom-profile" role="region" aria-label="Custom recommender profile">
+                    <h2 class="lor-maker-form-custom-profile-title">Analyze Recommender &amp; Create Custom Persona</h2>
+                    <div class="lor-maker-form-grid">
+                        <div class="lor-maker-form-field">
+                            <label for="customRecName" class="lor-maker-form-label">
+                                Recommender Name<span class="lor-maker-form-required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="text" id="customRecName" class="lor-maker-form-input" placeholder="Dr. John Smith" autocomplete="off">
+                        </div>
+                        <div class="lor-maker-form-field">
+                            <label for="customRecTitle" class="lor-maker-form-label">Title/Position</label>
+                            <input type="text" id="customRecTitle" class="lor-maker-form-input" placeholder="Professor of Computer Science" autocomplete="off">
+                        </div>
+                        <div class="lor-maker-form-field">
+                            <label for="customRecOrg" class="lor-maker-form-label">Organization</label>
+                            <input type="text" id="customRecOrg" class="lor-maker-form-input" placeholder="MIT" autocomplete="off">
+                        </div>
+                        <div class="lor-maker-form-field lor-maker-form-field--span-2">
+                            <label for="customRecDescription" class="lor-maker-form-label">Style Description</label>
+                            <textarea id="customRecDescription" class="lor-maker-form-textarea" rows="2" placeholder="Describe the recommender's writing style, communication approach, etc."></textarea>
+                        </div>
+                        <div class="lor-maker-form-field">
+                            <label for="customRecCV" class="lor-maker-form-label">CV/Resume (optional)</label>
+                            <input type="file" id="customRecCV" class="lor-maker-form-file" accept=".pdf,.docx,.txt">
+                        </div>
+                    </div>
+                    <div class="lor-maker-form-actions">
+                        <button type="button" class="lor-maker-form-btn lor-maker-form-btn--primary lor-maker-form-btn--sm" id="analyzeBtn" onclick="analyzeProfile()">
+                            <i class="fas fa-brain" aria-hidden="true"></i>
+                            <span>Analyze &amp; Create Profile</span>
+                        </button>
+                        <button type="button" class="lor-maker-form-btn lor-maker-form-btn--ghost lor-maker-form-btn--sm" onclick="toggleCustomProfileForm()">
+                            <span>Cancel</span>
+                        </button>
+                    </div>
+                    <div id="profileStatus" class="lor-maker-form-custom-profile-status" role="status" aria-live="polite">
+                        <span class="lor-maker-form-spinner" aria-hidden="true"></span>
+                        <span id="profileStatusText">Analyzing profile&hellip;</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {# ======== STEP 2: BENEFICIARY INFO ======== #}
+        <section class="lor-maker-form-card" aria-labelledby="lor-maker-form-step2-title">
+            <header id="lor-maker-form-step2-title" class="lor-maker-form-card-header">
+                <i class="fas fa-user lor-maker-form-card-header-icon" aria-hidden="true"></i>
+                <span class="lor-maker-form-card-header-title">Step 2: Beneficiary Information</span>
+            </header>
+            <div class="lor-maker-form-card-body">
+                <div class="lor-maker-form-grid">
+                    <div class="lor-maker-form-field">
+                        <label for="lor-beneficiary-name" class="lor-maker-form-label">
+                            Beneficiary Name<span class="lor-maker-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text"
+                               id="lor-beneficiary-name"
+                               name="beneficiary_name"
+                               class="lor-maker-form-input"
+                               value="{{ prefill.beneficiary_name }}"
+                               autocomplete="off"
+                               required>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="visa_type" class="lor-maker-form-label">Visa Type</label>
+                        <select name="visa_type" id="visa_type" class="lor-maker-form-select" onchange="handleSelectChange(this, 'visa_type')">
+                            <option value="EB-2 NIW" {% if prefill.visa_type == 'EB-2 NIW' %}selected{% endif %}>EB-2 NIW</option>
+                            <option value="EB-1A" {% if prefill.visa_type == 'EB-1A' %}selected{% endif %}>EB-1A</option>
+                            <option value="EB-1B" {% if prefill.visa_type == 'EB-1B' %}selected{% endif %}>EB-1B</option>
+                            <option value="EB-1C" {% if prefill.visa_type == 'EB-1C' %}selected{% endif %}>EB-1C</option>
+                            <option value="O-1A" {% if prefill.visa_type == 'O-1A' %}selected{% endif %}>O-1A</option>
+                            <option value="O-1B" {% if prefill.visa_type == 'O-1B' %}selected{% endif %}>O-1B</option>
+                            <option value="__add_new__">+ Add New&hellip;</option>
+                        </select>
+                        <div class="lor-maker-form-add-new" id="add-visa_type" role="group" aria-label="Add new visa type">
+                            <input type="text" class="lor-maker-form-input lor-maker-form-add-new-input" placeholder="New visa type&hellip;" aria-label="New visa type">
+                            <button type="button" class="lor-maker-form-btn lor-maker-form-btn--primary lor-maker-form-btn--sm" onclick="addNewOption('visa_type')">Add</button>
+                            <button type="button" class="lor-maker-form-btn lor-maker-form-btn--ghost lor-maker-form-btn--sm" onclick="cancelAddNew('visa_type')">Cancel</button>
+                        </div>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor_field" class="lor-maker-form-label">Field (for National Interest)</label>
+                        <select name="field" id="lor_field" class="lor-maker-form-select" onchange="handleSelectChange(this, 'field')">
+                            <option value="">-- Select field --</option>
+                            {% for f in fields %}
+                            <option value="{{ f }}" {% if prefill.field == f %}selected{% endif %}>{{ f|replace('_', ' ')|title }}</option>
+                            {% endfor %}
+                            <option value="__add_new__">+ Add New&hellip;</option>
+                        </select>
+                        <div class="lor-maker-form-add-new" id="add-lor_field" role="group" aria-label="Add new field">
+                            <input type="text" class="lor-maker-form-input lor-maker-form-add-new-input" placeholder="New field&hellip;" aria-label="New field">
+                            <button type="button" class="lor-maker-form-btn lor-maker-form-btn--primary lor-maker-form-btn--sm" onclick="addNewOption('lor_field')">Add</button>
+                            <button type="button" class="lor-maker-form-btn lor-maker-form-btn--ghost lor-maker-form-btn--sm" onclick="cancelAddNew('lor_field')">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {# ======== STEP 3: RECOMMENDER INFO ======== #}
+        <section class="lor-maker-form-card" aria-labelledby="lor-maker-form-step3-title">
+            <header id="lor-maker-form-step3-title" class="lor-maker-form-card-header">
+                <i class="fas fa-pen-fancy lor-maker-form-card-header-icon" aria-hidden="true"></i>
+                <span class="lor-maker-form-card-header-title">Step 3: Recommender Information</span>
+            </header>
+            <div class="lor-maker-form-card-body">
+                <div class="lor-maker-form-grid">
+                    <div class="lor-maker-form-field">
+                        <label for="lor-recommender-name" class="lor-maker-form-label">
+                            Recommender Name<span class="lor-maker-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="lor-recommender-name" name="recommender_name" class="lor-maker-form-input" autocomplete="name" required>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-recommender-title" class="lor-maker-form-label">
+                            Title<span class="lor-maker-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="lor-recommender-title" name="recommender_title" class="lor-maker-form-input" placeholder="e.g. VP of Engineering" autocomplete="organization-title" required>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-recommender-org" class="lor-maker-form-label">
+                            Organization<span class="lor-maker-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="text" id="lor-recommender-org" name="recommender_org" class="lor-maker-form-input" autocomplete="organization" required>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-recommender-email" class="lor-maker-form-label">
+                            Email<span class="lor-maker-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input type="email" id="lor-recommender-email" name="recommender_email" class="lor-maker-form-input" autocomplete="email" required>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-recommender-phone" class="lor-maker-form-label">Phone</label>
+                        <input type="tel" id="lor-recommender-phone" name="recommender_phone" class="lor-maker-form-input" placeholder="+1 555-123-4567" autocomplete="tel">
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-years-known" class="lor-maker-form-label">Years Known</label>
+                        <input type="text" id="lor-years-known" name="years_known" class="lor-maker-form-input" value="several">
+                    </div>
+                    <div class="lor-maker-form-field lor-maker-form-field--full">
+                        <label for="relationship" class="lor-maker-form-label">
+                            Relationship to Beneficiary<span class="lor-maker-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <select name="relationship" id="relationship" class="lor-maker-form-select" required onchange="handleSelectChange(this, 'relationship')">
+                            <option value="">-- Select --</option>
+                            <option value="supervisor">Supervisor / Manager</option>
+                            <option value="mentor">Mentor / Advisor</option>
+                            <option value="colleague">Colleague / Peer</option>
+                            <option value="independent">Independent Observer</option>
+                            <option value="client">Client / Partner</option>
+                            <option value="professor">Professor / Academic Advisor</option>
+                            <option value="collaborator">Collaborator</option>
+                            <option value="hiring_manager">Hiring Manager</option>
+                            <option value="strategic_advisor">Strategic Advisor</option>
+                            <option value="company_founder">Company Founder/CEO</option>
+                            <option value="conference">Conference/Symposium Connection</option>
+                            <option value="cross_functional">Cross-Functional Colleague</option>
+                            <option value="research_observer">Research Observer</option>
+                            <option value="institute_alumnus">Institute/Alumnus</option>
+                            <option value="former_student">Former Student (writing about mentor)</option>
+                            <option value="direct_report">Direct Report</option>
+                            <option value="industry_expert">Industry Expert</option>
+                            <option value="__add_new__">+ Add New&hellip;</option>
+                        </select>
+                        <div class="lor-maker-form-add-new" id="add-relationship" role="group" aria-label="Add new relationship">
+                            <input type="text" class="lor-maker-form-input lor-maker-form-add-new-input" placeholder="New relationship&hellip;" aria-label="New relationship">
+                            <button type="button" class="lor-maker-form-btn lor-maker-form-btn--primary lor-maker-form-btn--sm" onclick="addNewOption('relationship')">Add</button>
+                            <button type="button" class="lor-maker-form-btn lor-maker-form-btn--ghost lor-maker-form-btn--sm" onclick="cancelAddNew('relationship')">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {# ======== STEP 4: CONTENT ======== #}
+        <section class="lor-maker-form-card" aria-labelledby="lor-maker-form-step4-title">
+            <header id="lor-maker-form-step4-title" class="lor-maker-form-card-header">
+                <i class="fas fa-paragraph lor-maker-form-card-header-icon" aria-hidden="true"></i>
+                <span class="lor-maker-form-card-header-title">Step 4: Custom Content</span>
+            </header>
+            <div class="lor-maker-form-card-body">
+                <div class="lor-maker-form-field">
+                    <label for="lor-custom-paragraphs" class="lor-maker-form-label">Custom Paragraphs</label>
+                    <textarea id="lor-custom-paragraphs"
+                              name="custom_paragraphs"
+                              class="lor-maker-form-textarea"
+                              rows="8"
+                              placeholder="Write your custom content here. Separate paragraphs with a blank line.&#10;&#10;Each paragraph should describe the beneficiary's specific contributions, achievements, or qualifications.&#10;&#10;Example:&#10;During my time working with [Name], I had the opportunity to observe their exceptional contributions to [field]. They developed [specific achievement] which resulted in [measurable impact]."></textarea>
+                </div>
+
+                <div class="lor-maker-form-grid">
+                    <div class="lor-maker-form-field">
+                        <label class="lor-maker-form-check" for="niCheck">
+                            <input class="lor-maker-form-check-input" type="checkbox" name="include_national_importance" id="niCheck" checked>
+                            <span>Include National Importance paragraph</span>
+                        </label>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label class="lor-maker-form-check" for="p3Check">
+                            <input class="lor-maker-form-check-input" type="checkbox" name="include_prong3" id="p3Check" checked>
+                            <span>Include Prong 3 (Matter of Dhanasar)</span>
+                        </label>
+                    </div>
+                    <fieldset class="lor-maker-form-field lor-maker-form-fieldset">
+                        <legend class="lor-maker-form-label">Output Format</legend>
+                        <div class="lor-maker-form-radio-group">
+                            <label class="lor-maker-form-check" for="fmtDocx">
+                                <input class="lor-maker-form-check-input" type="radio" name="output_format" id="fmtDocx" value="docx" checked>
+                                <span>DOCX (editable)</span>
+                            </label>
+                            <label class="lor-maker-form-check" for="fmtPdf">
+                                <input class="lor-maker-form-check-input" type="radio" name="output_format" id="fmtPdf" value="pdf">
+                                <span>PDF</span>
+                            </label>
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+        </section>
+
+        {# ======== STEP 5: ADVANCED CUSTOMIZATION ======== #}
+        <section class="lor-maker-form-card" aria-labelledby="lor-maker-form-step5-title">
+            <button type="button"
+                    id="lor-maker-form-step5-title"
+                    class="lor-maker-form-advanced-toggle"
+                    onclick="toggleAdvancedLOR()"
+                    aria-expanded="false"
+                    aria-controls="advancedOptions">
+                <span class="lor-maker-form-advanced-toggle-label">
+                    <i class="fas fa-sliders-h lor-maker-form-card-header-icon" aria-hidden="true"></i>
+                    <span>Advanced Customization</span>
+                </span>
+                <span id="advancedToggle" class="lor-maker-form-advanced-toggle-state">[+ Expand]</span>
+            </button>
+            <div class="lor-maker-form-card-body lor-maker-form-advanced-options" id="advancedOptions">
+                <div class="lor-maker-form-grid">
+                    <div class="lor-maker-form-field">
+                        <label for="lor-opening-style" class="lor-maker-form-label">Opening Style</label>
+                        <select id="lor-opening-style" name="opening_style" class="lor-maker-form-select">
+                            <option value="">-- Auto (based on persona) --</option>
+                            <option value="direct_personal">Direct Personal - "I'm [Name], [Title]..."</option>
+                            <option value="formal_declaration">Formal Declaration - "My name is X. I write in support..."</option>
+                            <option value="credentials_first">Credentials First - Lead with qualifications</option>
+                            <option value="anecdote_opener">Anecdote - Start with a story/moment</option>
+                            <option value="context_first">Context First - Establish situation</option>
+                            <option value="symposium_meeting">Symposium Meeting - Professional event connection</option>
+                            <option value="project_collaboration">Project Collaboration - Start with project context</option>
+                            <option value="independent_evaluator">Independent Evaluator - Objective perspective</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-letter-structure" class="lor-maker-form-label">Letter Structure</label>
+                        <select id="lor-letter-structure" name="letter_structure" class="lor-maker-form-select">
+                            <option value="flowing_narrative">Flowing Narrative - Continuous prose</option>
+                            <option value="sectioned">Sectioned - Explicit headers</option>
+                            <option value="problem_solution">Problem-Solution - Challenges and results</option>
+                            <option value="chronological">Chronological - Timeline of achievements</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-relationship-type" class="lor-maker-form-label">Relationship Type (Detailed)</label>
+                        <select id="lor-relationship-type" name="relationship_type" class="lor-maker-form-select">
+                            <option value="">-- Use basic relationship above --</option>
+                            <option value="direct_supervisor">Direct Supervisor/Manager (strong)</option>
+                            <option value="mentor">Mentor/Advisor (strong)</option>
+                            <option value="thesis_advisor">Thesis/Dissertation Advisor (strong)</option>
+                            <option value="industry_peer">Industry Expert/Peer (strong)</option>
+                            <option value="independent_evaluator">Independent Evaluator - by reputation (very strong)</option>
+                            <option value="colleague_peer">Colleague/Peer (moderate)</option>
+                            <option value="project_collaborator">Project Collaborator (moderate)</option>
+                            <option value="client_partner">Client/Business Partner (moderate)</option>
+                            <option value="conference_acquaintance">Conference/Symposium Connection (moderate)</option>
+                            <option value="potential_employer">Potential Employer/Recruiter (moderate)</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-salutation" class="lor-maker-form-label">Salutation</label>
+                        <select id="lor-salutation" name="salutation" class="lor-maker-form-select">
+                            <option value="">-- Auto (based on persona) --</option>
+                            <option value="To Whom It May Concern:">To Whom It May Concern:</option>
+                            <option value="Dear Sir or Madam:">Dear Sir or Madam:</option>
+                            <option value="To the Reviewing Officer:">To the Reviewing Officer:</option>
+                            <option value="Dear Adjudication Officer,">Dear Adjudication Officer,</option>
+                            <option value="USCIS Officer,">USCIS Officer,</option>
+                            <option value="To the United States Citizenship and Immigration Services:">To the USCIS:</option>
+                            <option value="Dear Immigration Officer:">Dear Immigration Officer:</option>
+                            <option value="Dear Officer,">Dear Officer,</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-closing" class="lor-maker-form-label">Closing</label>
+                        <select id="lor-closing" name="closing" class="lor-maker-form-select">
+                            <option value="">-- Auto (based on persona) --</option>
+                            <option value="Sincerely,">Sincerely,</option>
+                            <option value="Respectfully submitted,">Respectfully submitted,</option>
+                            <option value="Best regards,">Best regards,</option>
+                            <option value="Regards,">Regards,</option>
+                            <option value="Respectfully,">Respectfully,</option>
+                            <option value="With appreciation,">With appreciation,</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-evidence-style" class="lor-maker-form-label">Evidence Presentation Style</label>
+                        <select id="lor-evidence-style" name="evidence_style" class="lor-maker-form-select">
+                            <option value="footnoted">Academic - Numbered references</option>
+                            <option value="inline_citations">Inline Citations - Within text</option>
+                            <option value="statistics_heavy">Statistics Heavy - Lead with numbers</option>
+                            <option value="narrative_with_data">Narrative with Data - Story + stats</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-paragraph-style" class="lor-maker-form-label">Paragraph Length</label>
+                        <select id="lor-paragraph-style" name="paragraph_style" class="lor-maker-form-select">
+                            <option value="medium_balanced">Medium/Balanced (4-6 sentences)</option>
+                            <option value="short_punchy">Short/Punchy - Executive (2-4 sentences)</option>
+                            <option value="long_detailed">Long/Detailed - Academic (6+ sentences)</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-international-context" class="lor-maker-form-label">Recommender Location</label>
+                        <select id="lor-international-context" name="international_context" class="lor-maker-form-select">
+                            <option value="auto">Auto (Detect from CV/Web)</option>
+                            <option value="us">US-Based - Domestic expertise</option>
+                            <option value="international">International - Global recognition</option>
+                            <option value="multinational_experience">Multinational - Cross-border experience</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label for="lor-header-format" class="lor-maker-form-label">Header Format</label>
+                        <select id="lor-header-format" name="header_format" class="lor-maker-form-select">
+                            <option value="full_letterhead">Full Letterhead - All contact details</option>
+                            <option value="date_address_first">Date + USCIS Address First</option>
+                            <option value="institutional">Institutional - Organization-first</option>
+                            <option value="simple_header">Simple - Just name and date</option>
+                        </select>
+                    </div>
+                    <div class="lor-maker-form-field">
+                        <label class="lor-maker-form-check" for="detrimentCheck">
+                            <input class="lor-maker-form-check-input" type="checkbox" name="include_detriment" id="detrimentCheck" checked>
+                            <span>Include Prong 3 Detriment Analysis</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {# ======== GENERATE ======== #}
+        <div class="lor-maker-form-submit-row">
+            <button type="submit" class="lor-maker-form-btn lor-maker-form-btn--primary lor-maker-form-btn--lg" id="generateBtn">
+                <i class="fas fa-file-signature" aria-hidden="true"></i>
+                <span>Generate LOR</span>
+            </button>
+        </div>
+
+        <div id="loadingArea" class="lor-maker-form-panel lor-maker-form-panel--loading" role="status" aria-live="polite">
+            <span class="lor-maker-form-spinner lor-maker-form-spinner--lg" aria-hidden="true"></span>
+            <p class="lor-maker-form-panel-text">Generating Letter of Recommendation&hellip;</p>
+        </div>
+
+        <div id="downloadArea" class="lor-maker-form-panel lor-maker-form-panel--success" role="status" aria-live="polite">
+            <h2 class="lor-maker-form-panel-title">
+                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                <span>LOR Generated Successfully</span>
+            </h2>
+            <p class="lor-maker-form-panel-text" id="downloadInfo"></p>
+            <a href="#" id="downloadLink" class="lor-maker-form-btn lor-maker-form-btn--success">
+                <i class="fas fa-download" aria-hidden="true"></i>
+                <span>Download</span>
+            </a>
+        </div>
+    </form>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var PREFIX = '{{ PREFIX }}';
+var CUSTOM_PROFILES_KEY = 'ilc_lor_custom_profiles';
+var CUSTOM_OPTIONS_KEY = 'ilc_custom_options';
+var FORM_STORAGE_KEY = 'ilc_lor_form_state';
+
+// ======== PERSONA SELECTION ========
+function selectPersona(key) {
+    document.querySelectorAll('.lor-maker-form-persona-card').forEach(function(c) {
+        c.classList.remove('is-selected');
+        c.setAttribute('aria-checked', 'false');
+    });
+    var card = document.querySelector('.lor-maker-form-persona-card[data-persona="' + key + '"]');
+    if (card) {
+        card.classList.add('is-selected');
+        card.setAttribute('aria-checked', 'true');
+    }
+    document.getElementById('personaInput').value = key;
+    saveFormState();
+}
+
+// ======== CUSTOM PROFILE ========
+function toggleCustomProfileForm() {
+    var form = document.getElementById('customProfileForm');
+    var btn = document.querySelector('[aria-controls="customProfileForm"]');
+    var isOpen = form.classList.toggle('is-open');
+    if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+}
+
+async function analyzeProfile() {
+    var name = document.getElementById('customRecName').value;
+    if (!name) { alert('Please enter the recommender name.'); return; }
+
+    var status = document.getElementById('profileStatus');
+    status.classList.add('is-active');
+    document.getElementById('analyzeBtn').disabled = true;
+
+    var formData = new FormData();
+    formData.append('name', name);
+    formData.append('title', document.getElementById('customRecTitle').value);
+    formData.append('organization', document.getElementById('customRecOrg').value);
+    formData.append('style_description', document.getElementById('customRecDescription').value);
+    var cvFile = document.getElementById('customRecCV').files[0];
+    if (cvFile) formData.append('cv_file', cvFile);
+
+    try {
+        var res = await fetch(PREFIX + '/api/lor/persona-analyze', { method: 'POST', body: formData });
+        var data = await res.json();
+
+        if (data.success && data.persona) {
+            var profiles = JSON.parse(localStorage.getItem(CUSTOM_PROFILES_KEY) || '[]');
+            profiles.push(data.persona);
+            localStorage.setItem(CUSTOM_PROFILES_KEY, JSON.stringify(profiles));
+            renderCustomPersonas();
+            toggleCustomProfileForm();
+            document.getElementById('profileStatusText').textContent = 'Profile created!';
+        } else {
+            alert(data.error || 'Analysis failed');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+
+    status.classList.remove('is-active');
+    document.getElementById('analyzeBtn').disabled = false;
+}
+
+function renderCustomPersonas() {
+    var profiles = JSON.parse(localStorage.getItem(CUSTOM_PROFILES_KEY) || '[]');
+    var grid = document.getElementById('customPersonaGrid');
+    grid.innerHTML = '';
+    profiles.forEach(function(p, idx) {
+        var key = 'custom_' + idx;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'lor-maker-form-persona-card';
+        btn.setAttribute('data-persona', key);
+        btn.setAttribute('role', 'radio');
+        btn.setAttribute('aria-checked', 'false');
+        btn.addEventListener('click', function() { selectPersona(key); });
+
+        var name = document.createElement('span');
+        name.className = 'lor-maker-form-persona-name';
+        name.textContent = p.name || ('Custom ' + (idx + 1));
+
+        var meta = document.createElement('span');
+        meta.className = 'lor-maker-form-persona-meta';
+        meta.textContent = (p.font || 'Arial') + ' ' + (p.font_size || 11) + 'pt';
+
+        btn.appendChild(name);
+        btn.appendChild(meta);
+        grid.appendChild(btn);
+    });
+}
+
+// ======== EDITABLE DROPDOWNS ========
+function handleSelectChange(el, type) {
+    if (el.value === '__add_new__') {
+        var wrapper = document.getElementById('add-' + el.id);
+        if (wrapper) wrapper.classList.add('is-open');
+        el.value = '';
+    }
+    saveFormState();
+}
+
+function addNewOption(selectId) {
+    var wrapper = document.getElementById('add-' + selectId);
+    var input = wrapper.querySelector('input');
+    var value = input.value.trim();
+    if (!value) return;
+
+    var select = document.getElementById(selectId);
+    var slug = value.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+
+    var opt = document.createElement('option');
+    opt.value = slug;
+    opt.textContent = value;
+    select.insertBefore(opt, select.querySelector('[value="__add_new__"]'));
+    select.value = slug;
+
+    input.value = '';
+    wrapper.classList.remove('is-open');
+
+    var stored = JSON.parse(localStorage.getItem(CUSTOM_OPTIONS_KEY) || '{}');
+    if (!stored[selectId]) stored[selectId] = [];
+    stored[selectId].push({slug: slug, label: value});
+    localStorage.setItem(CUSTOM_OPTIONS_KEY, JSON.stringify(stored));
+    saveFormState();
+}
+
+function cancelAddNew(selectId) {
+    var wrapper = document.getElementById('add-' + selectId);
+    wrapper.querySelector('input').value = '';
+    wrapper.classList.remove('is-open');
+}
+
+function restoreCustomOptions() {
+    var stored = JSON.parse(localStorage.getItem(CUSTOM_OPTIONS_KEY) || '{}');
+    for (var selectId in stored) {
+        var select = document.getElementById(selectId);
+        if (!select) continue;
+        stored[selectId].forEach(function(item) {
+            if (!select.querySelector('[value="' + item.slug + '"]')) {
+                var opt = document.createElement('option');
+                opt.value = item.slug;
+                opt.textContent = item.label;
+                var addNew = select.querySelector('[value="__add_new__"]');
+                if (addNew) select.insertBefore(opt, addNew);
+                else select.appendChild(opt);
+            }
+        });
+    }
+}
+
+// ======== ADVANCED TOGGLE ========
+function toggleAdvancedLOR() {
+    var opts = document.getElementById('advancedOptions');
+    var toggle = document.getElementById('advancedToggle');
+    var btn = document.getElementById('lor-maker-form-step5-title');
+    var isOpen = opts.classList.toggle('is-open');
+    toggle.textContent = isOpen ? '[- Collapse]' : '[+ Expand]';
+    if (btn) btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+}
+
+// ======== FORM PERSISTENCE ========
+var saveTimeout;
+function saveFormState() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(function() {
+        var form = document.getElementById('lorForm');
+        var data = {};
+        new FormData(form).forEach(function(val, key) { data[key] = val; });
+        localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
+    }, 1000);
+}
+
+function restoreFormState() {
+    var saved = localStorage.getItem(FORM_STORAGE_KEY);
+    if (!saved) return;
+    try {
+        var data = JSON.parse(saved);
+        var form = document.getElementById('lorForm');
+        for (var key in data) {
+            var el = form.querySelector('[name="' + key + '"]');
+            if (!el) continue;
+            if (el.type === 'checkbox') {
+                el.checked = data[key] === 'on' || data[key] === 'true' || data[key] === true;
+            } else if (el.type === 'radio') {
+                var radio = form.querySelector('[name="' + key + '"][value="' + data[key] + '"]');
+                if (radio) radio.checked = true;
+            } else {
+                el.value = data[key];
+            }
+        }
+        if (data.persona) selectPersona(data.persona);
+    } catch(e) {}
+}
+
+// ======== GENERATE ========
+async function generateLOR(e) {
+    e.preventDefault();
+    var form = document.getElementById('lorForm');
+    var formData = new FormData(form);
+
+    if (!formData.get('persona')) {
+        alert('Please select a persona first.');
+        return false;
+    }
+
+    if (!document.getElementById('niCheck').checked) formData.set('include_national_importance', 'false');
+    if (!document.getElementById('p3Check').checked) formData.set('include_prong3', 'false');
+    if (!document.getElementById('detrimentCheck').checked) formData.set('include_detriment', 'false');
+
+    var loading = document.getElementById('loadingArea');
+    var download = document.getElementById('downloadArea');
+
+    document.getElementById('generateBtn').disabled = true;
+    loading.classList.add('is-active');
+    download.classList.remove('is-active');
+
+    try {
+        var res = await fetch(PREFIX + '/api/lor/generate', { method: 'POST', body: formData });
+        var data = await res.json();
+
+        loading.classList.remove('is-active');
+
+        if (data.success) {
+            download.classList.add('is-active');
+            document.getElementById('downloadInfo').textContent = 'Persona: ' + data.persona + ' | Beneficiary: ' + data.beneficiary;
+            document.getElementById('downloadLink').href = data.download_url;
+            var fmt = formData.get('output_format') || 'docx';
+            document.getElementById('downloadLink').querySelector('span').textContent = 'Download ' + fmt.toUpperCase();
+        } else {
+            alert(data.error || 'Error generating LOR');
+        }
+    } catch (err) {
+        loading.classList.remove('is-active');
+        alert('Error: ' + err.message);
+    }
+
+    document.getElementById('generateBtn').disabled = false;
+    return false;
+}
+
+// ======== INIT ========
+document.addEventListener('DOMContentLoaded', function() {
+    restoreCustomOptions();
+    renderCustomPersonas();
+    restoreFormState();
+
+    var form = document.getElementById('lorForm');
+    if (form) {
+        form.addEventListener('submit', generateLOR);
+    }
+
+    document.querySelectorAll('#lorForm input, #lorForm select, #lorForm textarea').forEach(function(el) {
+        el.addEventListener('input', saveFormState);
+        el.addEventListener('change', saveFormState);
+    });
+});
+</script>
+{% endblock %}

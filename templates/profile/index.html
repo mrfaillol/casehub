@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+
+{% block title %}Meu Perfil - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+{% if product != "lite" %}
+<link rel="stylesheet" href="/static/css/templates/profile-index.css">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<main class="profile-index-main" aria-labelledby="profile-index-title">
+    <header class="profile-index-header">
+        <h1 id="profile-index-title" class="profile-index-title">Meu Perfil</h1>
+    </header>
+
+    {% if success %}
+    <div class="profile-index-alert profile-index-alert--success" role="status">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <span>{{ success }}</span>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="profile-index-alert profile-index-alert--error" role="alert">
+        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <div class="profile-index-grid">
+        <section class="profile-index-card profile-index-card--summary" aria-labelledby="profile-index-summary-name">
+            <div class="profile-index-avatar">
+                {% if user.photo_url %}
+                <img src="{{ user.photo_url }}" alt="Foto de {{ user.name }}" loading="lazy">
+                {% else %}
+                <span aria-hidden="true">{{ user.name[:1]|upper }}{{ user.name.split(' ')[-1][:1]|upper if ' ' in user.name else '' }}</span>
+                {% endif %}
+            </div>
+            <p id="profile-index-summary-name" class="profile-index-name">{{ user.name }}</p>
+            <p class="profile-index-email">{{ user.email }}</p>
+            <p class="profile-index-badge">
+                {% if user.user_type == 'admin' %}Administrador
+                {% elif user.user_type == 'attorney' %}Advogado(a)
+                {% elif user.user_type == 'paralegal' %}Paralegal
+                {% else %}Colaborador{% endif %}
+            </p>
+
+            <form action="{{ PREFIX }}/profile/avatar" method="post" enctype="multipart/form-data" id="profile-index-avatar-form" class="profile-index-avatar-form">
+                <input type="file"
+                       id="profile-index-avatar-input"
+                       name="file"
+                       accept=".jpg,.jpeg,.png"
+                       class="profile-index-avatar-input">
+                <label for="profile-index-avatar-input" class="profile-index-avatar-btn">
+                    <i class="fas fa-camera" aria-hidden="true"></i>
+                    <span>Alterar Foto</span>
+                </label>
+            </form>
+        </section>
+
+        <section class="profile-index-card profile-index-card--details" aria-label="Configurações do perfil">
+            <div class="profile-index-tabs" role="tablist" aria-label="Seções do perfil">
+                <button type="button"
+                        class="profile-index-tab"
+                        role="tab"
+                        id="profile-index-tab-dados"
+                        aria-controls="profile-index-panel-dados"
+                        aria-selected="true">
+                    <i class="fas fa-user" aria-hidden="true"></i>
+                    <span>Dados Pessoais</span>
+                </button>
+                <button type="button"
+                        class="profile-index-tab"
+                        role="tab"
+                        id="profile-index-tab-seguranca"
+                        aria-controls="profile-index-panel-seguranca"
+                        aria-selected="false"
+                        tabindex="-1">
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <span>Segurança</span>
+                </button>
+                <button type="button"
+                        class="profile-index-tab"
+                        role="tab"
+                        id="profile-index-tab-preferencias"
+                        aria-controls="profile-index-panel-preferencias"
+                        aria-selected="false"
+                        tabindex="-1">
+                    <i class="fas fa-palette" aria-hidden="true"></i>
+                    <span>Preferências</span>
+                </button>
+            </div>
+
+            <div class="profile-index-panel"
+                 role="tabpanel"
+                 id="profile-index-panel-dados"
+                 aria-labelledby="profile-index-tab-dados">
+                <form action="{{ PREFIX }}/profile" method="post">
+                    <div class="profile-index-field">
+                        <label for="profile-index-name-input" class="profile-index-label">Nome Completo</label>
+                        <input type="text"
+                               id="profile-index-name-input"
+                               name="name"
+                               class="profile-index-input"
+                               value="{{ user.name }}"
+                               autocomplete="name"
+                               required>
+                    </div>
+                    <div class="profile-index-field">
+                        <label for="profile-index-email-input" class="profile-index-label">Email</label>
+                        <input type="email"
+                               id="profile-index-email-input"
+                               class="profile-index-input"
+                               value="{{ user.email }}"
+                               autocomplete="email"
+                               aria-describedby="profile-index-email-hint"
+                               disabled>
+                        <small id="profile-index-email-hint" class="profile-index-hint">Email não pode ser alterado por aqui.</small>
+                    </div>
+                    <div class="profile-index-row">
+                        <div class="profile-index-field">
+                            <label for="profile-index-phone-input" class="profile-index-label">Telefone</label>
+                            <input type="tel"
+                                   id="profile-index-phone-input"
+                                   name="phone"
+                                   class="profile-index-input"
+                                   value="{{ user.phone or '' }}"
+                                   autocomplete="tel"
+                                   placeholder="(11) 99999-9999">
+                        </div>
+                        <div class="profile-index-field">
+                            <label for="profile-index-department-input" class="profile-index-label">Departamento</label>
+                            <input type="text"
+                                   id="profile-index-department-input"
+                                   name="department"
+                                   class="profile-index-input"
+                                   value="{{ user.department or '' }}"
+                                   placeholder="Ex.: Jurídico">
+                        </div>
+                    </div>
+                    <div class="profile-index-field">
+                        <label for="profile-index-oab-input" class="profile-index-label">Número OAB</label>
+                        <input type="text"
+                               id="profile-index-oab-input"
+                               name="oab_number"
+                               class="profile-index-input"
+                               value="{{ user.oab_number or '' }}"
+                               placeholder="Ex.: 123456/MG">
+                    </div>
+                    <div class="profile-index-field">
+                        <label for="profile-index-bio-input" class="profile-index-label">Bio</label>
+                        <textarea id="profile-index-bio-input"
+                                  name="bio"
+                                  class="profile-index-textarea"
+                                  placeholder="Conte um pouco sobre você...">{{ user.bio or '' }}</textarea>
+                    </div>
+                    <button type="submit" class="profile-index-btn">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Salvar Alterações</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="profile-index-panel"
+                 role="tabpanel"
+                 id="profile-index-panel-seguranca"
+                 aria-labelledby="profile-index-tab-seguranca"
+                 hidden>
+                <form action="{{ PREFIX }}/profile/password" method="post">
+                    <div class="profile-index-field">
+                        <label for="profile-index-current-password" class="profile-index-label">Senha Atual</label>
+                        <input type="password"
+                               id="profile-index-current-password"
+                               name="current_password"
+                               class="profile-index-input"
+                               autocomplete="current-password"
+                               required>
+                    </div>
+                    <div class="profile-index-field">
+                        <label for="profile-index-new-password" class="profile-index-label">Nova Senha</label>
+                        <input type="password"
+                               id="profile-index-new-password"
+                               name="new_password"
+                               class="profile-index-input"
+                               autocomplete="new-password"
+                               minlength="8"
+                               placeholder="Mínimo 8 caracteres"
+                               required>
+                    </div>
+                    <div class="profile-index-field">
+                        <label for="profile-index-confirm-password" class="profile-index-label">Confirmar Nova Senha</label>
+                        <input type="password"
+                               id="profile-index-confirm-password"
+                               name="confirm_password"
+                               class="profile-index-input"
+                               autocomplete="new-password"
+                               minlength="8"
+                               required>
+                    </div>
+                    <button type="submit" class="profile-index-btn">
+                        <i class="fas fa-key" aria-hidden="true"></i>
+                        <span>Alterar Senha</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="profile-index-panel"
+                 role="tabpanel"
+                 id="profile-index-panel-preferencias"
+                 aria-labelledby="profile-index-tab-preferencias"
+                 hidden>
+                <div class="profile-index-field">
+                    <span class="profile-index-label" id="profile-index-theme-label">Tema</span>
+                    <div class="profile-index-theme-toggle">
+                        <i class="fas fa-sun profile-index-theme-icon" aria-hidden="true"></i>
+                        <button type="button"
+                                class="profile-index-switch"
+                                id="profile-index-theme-toggle"
+                                role="switch"
+                                aria-checked="false"
+                                aria-labelledby="profile-index-theme-label"></button>
+                        <i class="fas fa-moon profile-index-theme-icon" aria-hidden="true"></i>
+                        <span class="profile-index-theme-status" id="profile-index-theme-status">Claro</span>
+                    </div>
+                </div>
+                <div class="profile-index-field">
+                    <label for="profile-index-language" class="profile-index-label">Idioma</label>
+                    <select id="profile-index-language"
+                            class="profile-index-select"
+                            onchange="profileIndexSetLanguage(this.value)">
+                        <option value="pt" {{ 'selected' if lang|default('pt') == 'pt' else '' }}>Português</option>
+                        <option value="en" {{ 'selected' if lang|default('pt') == 'en' else '' }}>English</option>
+                        <option value="es" {{ 'selected' if lang|default('pt') == 'es' else '' }}>Español</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var tabs = document.querySelectorAll('.profile-index-tab');
+    var panels = document.querySelectorAll('.profile-index-panel');
+
+    function activate(tab) {
+        tabs.forEach(function (t) {
+            var on = t === tab;
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+            t.setAttribute('tabindex', on ? '0' : '-1');
+        });
+        panels.forEach(function (p) {
+            var on = p.id === tab.getAttribute('aria-controls');
+            if (on) p.removeAttribute('hidden'); else p.setAttribute('hidden', '');
+        });
+    }
+
+    tabs.forEach(function (tab, idx) {
+        tab.addEventListener('click', function () { activate(tab); });
+        tab.addEventListener('keydown', function (e) {
+            var next = null;
+            if (e.key === 'ArrowRight') next = tabs[(idx + 1) % tabs.length];
+            else if (e.key === 'ArrowLeft') next = tabs[(idx - 1 + tabs.length) % tabs.length];
+            else if (e.key === 'Home') next = tabs[0];
+            else if (e.key === 'End') next = tabs[tabs.length - 1];
+            if (next) {
+                e.preventDefault();
+                activate(next);
+                next.focus();
+            }
+        });
+    });
+
+    var avatarInput = document.getElementById('profile-index-avatar-input');
+    var avatarForm = document.getElementById('profile-index-avatar-form');
+    if (avatarInput && avatarForm) {
+        avatarInput.addEventListener('change', function () { avatarForm.submit(); });
+    }
+
+    var themeToggle = document.getElementById('profile-index-theme-toggle');
+    var themeStatus = document.getElementById('profile-index-theme-status');
+    var currentTheme = localStorage.getItem('casehub-theme') || 'light';
+
+    function applyThemeUI() {
+        var dark = currentTheme === 'dark';
+        themeToggle.setAttribute('aria-checked', dark ? 'true' : 'false');
+        themeStatus.textContent = dark ? 'Escuro' : 'Claro';
+    }
+    applyThemeUI();
+
+    themeToggle.addEventListener('click', function () {
+        currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('casehub-theme', currentTheme);
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        applyThemeUI();
+    });
+})();
+
+function profileIndexSetLanguage(lang) {
+    window.location.href = '{{ PREFIX }}/set-language/' + lang;
+}
+</script>
+{% endblock %}

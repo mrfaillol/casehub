@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}ICMS - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-icms.css">
+{% endblock %}
+
+{% block content %}
+<section class="tools-icms-main" aria-labelledby="tools-icms-title">
+    <div class="tools-icms-container">
+        <header class="tools-icms-header tools-icms-no-print">
+            <div class="tools-icms-heading">
+                <h1 id="tools-icms-title" class="tools-icms-title">
+                    <i class="fas fa-truck tools-icms-title-icon" aria-hidden="true"></i>
+                    <span>ICMS &mdash; Cálculo por Dentro</span>
+                </h1>
+                <p class="tools-icms-subtitle">LC 87/96 (Lei Kandir), CF Art. 155, II</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="tools-icms-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        <div class="tools-icms-grid {% if resultado %}tools-icms-grid--split{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/icms/calcular" class="tools-icms-form" aria-labelledby="tools-icms-form-title">
+                <div class="tools-icms-card">
+                    <h2 id="tools-icms-form-title" class="tools-icms-section-title">Dados da Operação</h2>
+
+                    <div class="tools-icms-field">
+                        <label for="valor_produto" class="tools-icms-label">Valor do Produto (R$)</label>
+                        <div class="tools-icms-input-group">
+                            <span class="tools-icms-input-affix" aria-hidden="true">R$</span>
+                            <input type="number" class="tools-icms-input" id="valor_produto" name="valor_produto"
+                                   step="0.01" min="0" inputmode="decimal"
+                                   value="{{ form.valor_produto if form else '' }}"
+                                   required aria-required="true">
+                        </div>
+                    </div>
+
+                    <div class="tools-icms-field">
+                        <label for="aliquota_interna" class="tools-icms-label">Alíquota Interna (%)</label>
+                        <div class="tools-icms-input-group">
+                            <input type="number" class="tools-icms-input" id="aliquota_interna" name="aliquota_interna"
+                                   step="0.01" min="0" max="30" inputmode="decimal"
+                                   value="{{ form.aliquota_interna if form else '18' }}"
+                                   required aria-required="true"
+                                   aria-describedby="aliquota_interna_help">
+                            <span class="tools-icms-input-affix tools-icms-input-affix--suffix" aria-hidden="true">%</span>
+                        </div>
+                        <small id="aliquota_interna_help" class="tools-icms-help">
+                            Geralmente 12%, 17%, 18% ou 25% conforme UF e produto.
+                        </small>
+                    </div>
+
+                    <h2 class="tools-icms-section-title">Substituição Tributária (ST)</h2>
+
+                    <div class="tools-icms-field">
+                        <label for="icms_st" class="tools-icms-label">ICMS-ST?</label>
+                        <select class="tools-icms-select"
+                                id="icms_st"
+                                name="icms_st"
+                                data-toggle-target="mva_group"
+                                aria-controls="mva_group"
+                                aria-expanded="{% if form and form.icms_st == 'sim' %}true{% else %}false{% endif %}">
+                            <option value="nao" {% if form and form.icms_st == 'nao' %}selected{% endif %}>Não</option>
+                            <option value="sim" {% if form and form.icms_st == 'sim' %}selected{% endif %}>Sim</option>
+                        </select>
+                    </div>
+
+                    <div class="tools-icms-field" id="mva_group"
+                         {% if not (form and form.icms_st == 'sim') %}hidden{% endif %}>
+                        <label for="mva" class="tools-icms-label">MVA &mdash; Margem de Valor Agregado (%)</label>
+                        <div class="tools-icms-input-group">
+                            <input type="number" class="tools-icms-input" id="mva" name="mva"
+                                   step="0.01" min="0" inputmode="decimal"
+                                   value="{{ form.mva if form else '0' }}">
+                            <span class="tools-icms-input-affix tools-icms-input-affix--suffix" aria-hidden="true">%</span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="tools-icms-submit">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular ICMS</span>
+                    </button>
+                </div>
+            </form>
+
+            {% if resultado %}
+            <div class="tools-icms-card" aria-labelledby="tools-icms-result-title">
+                <div class="tools-icms-result-header">
+                    <h2 id="tools-icms-result-title" class="tools-icms-result-title">
+                        <i class="fas fa-receipt" aria-hidden="true"></i>
+                        <span>Resultado do Cálculo</span>
+                    </h2>
+                </div>
+
+                <table class="tools-icms-table">
+                    <caption class="visually-hidden">Detalhamento do cálculo de ICMS</caption>
+                    <tbody>
+                        <tr>
+                            <th scope="row">Valor do Produto</th>
+                            <td>R$ {{ resultado.valor_produto_fmt }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Base de Cálculo (por dentro)</th>
+                            <td>R$ {{ resultado.base_calculo_fmt }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Alíquota Interna</th>
+                            <td>{{ resultado.aliquota_interna }}%</td>
+                        </tr>
+                        <tr class="tools-icms-row--highlight-info">
+                            <th scope="row">ICMS Próprio</th>
+                            <td>R$ {{ resultado.icms_proprio_fmt }}</td>
+                        </tr>
+                        {% if resultado.icms_st %}
+                        <tr>
+                            <th scope="row">Base ST (com MVA {{ resultado.mva }}%)</th>
+                            <td>R$ {{ resultado.base_st_fmt }}</td>
+                        </tr>
+                        <tr class="tools-icms-row--highlight-warning">
+                            <th scope="row">ICMS-ST</th>
+                            <td>R$ {{ resultado.icms_st_valor_fmt }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr class="tools-icms-row--total">
+                            <th scope="row">Total ICMS</th>
+                            <td>R$ {{ resultado.total_fmt }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <aside class="tools-icms-note" role="note">
+                    <span class="tools-icms-note-title">Cálculo por dentro:</span>
+                    Base = Valor / (1 &minus; Alíquota). O ICMS integra sua própria base de cálculo.
+                </aside>
+
+                <section class="tools-icms-legal" aria-labelledby="tools-icms-legal-title">
+                    <h3 id="tools-icms-legal-title" class="tools-icms-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-icms-legal-list">
+                        {% for ref in resultado.fundamentacao %}
+                        <li>{{ ref }}</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <div class="tools-icms-actions tools-icms-no-print">
+                    <button type="button" class="tools-icms-btn-ghost" data-action="print">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    var toggles = document.querySelectorAll('[data-toggle-target]');
+    toggles.forEach(function (select) {
+        var targetId = select.getAttribute('data-toggle-target');
+        var target = document.getElementById(targetId);
+        if (!target) return;
+        select.addEventListener('change', function () {
+            var show = select.value === 'sim';
+            target.hidden = !show;
+            select.setAttribute('aria-expanded', show ? 'true' : 'false');
+        });
+    });
+
+    var printBtn = document.querySelector('[data-action="print"]');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () { window.print(); });
+    }
+})();
+</script>
+{% endblock %}

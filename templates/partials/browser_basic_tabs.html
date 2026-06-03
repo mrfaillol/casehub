@@ -1,0 +1,84 @@
+{% set _path = request.path if request else '' %}
+{% macro casehub_line_icon(name) -%}
+<svg class="casehub-line-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    {% if name == 'dashboard' %}
+    <path d="M4 11.5 12 5l8 6.5" />
+    <path d="M6.5 10.5V19h4.2v-4.4h2.6V19h4.2v-8.5" />
+    {% elif name == 'controladoria' %}
+    <path d="M12 4v16" />
+    <path d="M6 7h12" />
+    <path d="M8 7l-3 6h6L8 7Z" />
+    <path d="M16 7l-3 6h6l-3-6Z" />
+    <path d="M8.5 20h7" />
+    {% elif name == 'agenda' %}
+    <rect x="5" y="6.5" width="14" height="13" rx="2" />
+    <path d="M8 4.5v4" />
+    <path d="M16 4.5v4" />
+    <path d="M5 10.5h14" />
+    {% elif name == 'kanban' %}
+    <rect x="4.5" y="6" width="15" height="12.5" rx="2" />
+    <path d="M9.5 6v12.5" />
+    <path d="M14.5 6v12.5" />
+    {% elif name == 'crm' %}
+    <path d="M4.5 6h15l-6 6v4.5l-3 1.5V12l-6-6Z" />
+    <circle cx="17.5" cy="17.5" r="2.3" />
+    <path d="M17.5 16.2v2.6" />
+    <path d="M16.2 17.5h2.6" />
+    {% elif name == 'clients' %}
+    <rect x="6.5" y="4.5" width="11" height="15" rx="2" />
+    <path d="M9 8h6" />
+    <circle cx="12" cy="12" r="1.8" />
+    <path d="M9.2 16.2c.8-1.2 4.8-1.2 5.6 0" />
+    {% elif name == 'editor' %}
+    <path d="M5 5h10" />
+    <path d="M5 9h7" />
+    <path d="M5 13h10" />
+    <path d="M5 17h6" />
+    <path d="m15.5 14.5 3.5-3.5a1.4 1.4 0 0 1 2 2L17.5 16.5l-3 .8.8-2.8Z" />
+    {% elif name == 'whatsapp' %}
+    <path d="M6.5 18.2 5 21l3.1-1.2a8 8 0 1 0-1.6-1.6Z" />
+    <path d="M9.5 8.8c.4 3 2.7 5.3 5.7 5.8l1.2-1.6-2-.9-.8.8c-1.1-.4-2-1.3-2.4-2.4l.8-.8-.9-2-1.6 1.1Z" />
+    {% elif name == 'maestro' %}
+    <rect x="6.5" y="4.5" width="11" height="15" rx="2" />
+    <path d="M9 8h6" />
+    <path d="M9 11h6" />
+    <path d="M9 14h3.8" />
+    <path d="m13.5 17 1.4 1.4 2.6-3" />
+    {% endif %}
+</svg>
+{%- endmacro %}
+{% set _tabs = [
+    {'href': PREFIX ~ '/dashboard', 'icon': 'dashboard', 'label': 'Painel', 'key': 'dashboard'},
+    {'href': PREFIX ~ '/controladoria', 'icon': 'controladoria', 'label': 'Controladoria', 'key': 'controladoria'},
+    {'href': PREFIX ~ '/calendar/agenda', 'icon': 'agenda', 'label': 'Agenda', 'key': 'agenda'},
+    {'href': PREFIX ~ '/tasks/kanban', 'icon': 'kanban', 'label': 'Kanban', 'key': 'kanban'},
+    {'href': PREFIX ~ '/leads', 'icon': 'crm', 'label': 'CRM', 'key': 'crm'},
+    {'href': PREFIX ~ '/whatsapp-chat', 'icon': 'whatsapp', 'label': 'WhatsApp', 'key': 'whatsapp'},
+    {'href': PREFIX ~ '/assistente', 'icon': 'maestro', 'label': 'Maestro', 'key': 'maestro'},
+    {'href': PREFIX ~ '/clients', 'icon': 'clients', 'label': 'Clientes', 'key': 'clients'},
+    {'href': PREFIX ~ '/casehub-md', 'icon': 'editor', 'label': 'CaseHub.md', 'key': 'casehub-md'},
+] %}
+
+<header class="casehub-basic-tabs" aria-label="Navegador CaseHub">
+    <div class="casehub-basic-tabs__track" role="tablist" aria-label="Abas abertas do workspace">
+        {% for _tab in _tabs %}
+        {% set _active = _path == _tab.href or _path.startswith(_tab.href ~ '/') or (_tab.key == 'kanban' and _path.startswith(PREFIX ~ '/tasks')) or (_tab.key == 'agenda' and _path.startswith(PREFIX ~ '/calendar')) or (_tab.key == 'whatsapp' and (_path.startswith(PREFIX ~ '/whatsapp') or _path.startswith(PREFIX ~ '/whatsapp-chat'))) or (_tab.key == 'maestro' and _path.startswith(PREFIX ~ '/assistente')) %}
+        <a class="casehub-basic-tabs__tab{% if _active %} is-active{% endif %}"
+           href="{{ _tab.href }}"
+           role="tab"
+           draggable="true"
+           data-tab-key="{{ _tab.key }}"
+           aria-selected="{{ 'true' if _active else 'false' }}"
+           {% if _active %}aria-current="page"{% endif %}>
+            {{ casehub_line_icon(_tab.icon) }}
+            <span>{{ _tab.label }}</span>
+            <button class="casehub-basic-tabs__close"
+                    type="button"
+                    aria-label="Fechar aba {{ _tab.label }}"
+                    data-close-tab="{{ _tab.key }}">
+                <span aria-hidden="true">×</span>
+            </button>
+        </a>
+        {% endfor %}
+    </div>
+</header>

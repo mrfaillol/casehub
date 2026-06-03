@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+
+{% block title %}Case Progress - {{ case.case_name or case.case_number }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/processes-case-progress.css">
+{% endblock %}
+
+{% block content %}
+<div class="case-progress-main" aria-labelledby="case-progress-title">
+
+  <header class="case-progress-header">
+    <div class="case-progress-header-text">
+      <a href="{{ PREFIX }}/cases/{{ case.id }}" class="case-progress-back">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        <span>Back to Case</span>
+      </a>
+      <h1 id="case-progress-title" class="case-progress-title">
+        <i class="fas fa-tasks case-progress-title-icon" aria-hidden="true"></i>
+        <span>Case Progress: {{ case.case_name or case.case_number }}</span>
+      </h1>
+      {% if case.visa_type %}
+      <span class="case-progress-tag case-progress-tag--info">{{ case.visa_type }}</span>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if tracking %}
+
+  <section class="case-progress-card" aria-labelledby="case-progress-overview-title">
+    <header class="case-progress-card-header">
+      <h2 id="case-progress-overview-title" class="case-progress-card-title">
+        <i class="fas fa-project-diagram case-progress-card-title-icon" aria-hidden="true"></i>
+        <span>{{ tracking.process_name }}</span>
+        <small class="case-progress-card-subtitle">
+          Started {{ tracking.started_at.strftime('%b %d, %Y') if tracking.started_at else 'N/A' }}
+        </small>
+      </h2>
+      {% if tracking.completed_at %}
+      <span class="case-progress-status case-progress-status--success">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <span>Completed</span>
+      </span>
+      {% else %}
+      <span class="case-progress-status case-progress-status--accent">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>In Progress</span>
+      </span>
+      {% endif %}
+    </header>
+
+    <div class="case-progress-card-body">
+
+      <div class="case-progress-overall" aria-labelledby="case-progress-overall-title">
+        <div class="case-progress-overall-head">
+          <h3 id="case-progress-overall-title" class="case-progress-overall-label">Overall Progress</h3>
+          <span class="case-progress-overall-value">{{ progress_percent|int }}%</span>
+        </div>
+        <div
+          class="case-progress-bar"
+          role="progressbar"
+          aria-label="Overall progress"
+          aria-valuenow="{{ progress_percent|int }}"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <div class="case-progress-bar-fill" style="width: {{ progress_percent }}%">
+            {% if progress_percent > 10 %}
+            <span class="case-progress-bar-text">{{ completed_steps }} / {{ total_steps }} steps</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <dl class="case-progress-stats" aria-label="Step counts by status">
+        <div class="case-progress-stat case-progress-stat--success">
+          <dd class="case-progress-stat-value">{{ completed_steps }}</dd>
+          <dt class="case-progress-stat-label">Completed</dt>
+        </div>
+        <div class="case-progress-stat case-progress-stat--accent">
+          <dd class="case-progress-stat-value">{{ step_progress|selectattr('status', 'equalto', 'in_progress')|list|length }}</dd>
+          <dt class="case-progress-stat-label">In Progress</dt>
+        </div>
+        <div class="case-progress-stat case-progress-stat--warning">
+          <dd class="case-progress-stat-value">{{ step_progress|selectattr('display_status', 'equalto', 'overdue')|list|length }}</dd>
+          <dt class="case-progress-stat-label">Overdue</dt>
+        </div>
+        <div class="case-progress-stat case-progress-stat--neutral">
+          <dd class="case-progress-stat-value">{{ step_progress|selectattr('status', 'equalto', 'pending')|list|length }}</dd>
+          <dt class="case-progress-stat-label">Pending</dt>
+        </div>
+      </dl>
+
+      <ol class="case-progress-timeline" aria-label="Step timeline">
+        {% for step in step_progress %}
+        <li class="case-progress-timeline-item">
+          <span
+            class="case-progress-timeline-node
+              {% if step.status == 'completed' %}case-progress-timeline-node--completed
+              {% elif step.status == 'in_progress' %}case-progress-timeline-node--active
+              {% elif step.display_status == 'overdue' %}case-progress-timeline-node--overdue
+              {% endif %}"
+            data-bs-toggle="tooltip"
+            title="{{ step.step_name }}: {{ step.status }}"
+            aria-label="Step {{ step.step_number }}: {{ step.step_name }} — {{ step.status }}"
+          >
+            {% if step.status == 'completed' %}
+            <i class="fas fa-check" aria-hidden="true"></i>
+            {% elif step.status == 'in_progress' %}
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            {% elif step.is_milestone %}
+            <i class="fas fa-flag" aria-hidden="true"></i>
+            {% else %}
+            <span aria-hidden="true">{{ step.step_number }}</span>
+            {% endif %}
+          </span>
+          {% if not loop.last %}
+          <span
+            class="case-progress-timeline-line {% if step.status == 'completed' %}case-progress-timeline-line--completed{% endif %}"
+            aria-hidden="true"
+          ></span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+
+    </div>
+  </section>
+
+  <section class="case-progress-card" aria-labelledby="case-progress-steps-title">
+    <header class="case-progress-card-header">
+      <h2 id="case-progress-steps-title" class="case-progress-card-title">
+        <i class="fas fa-list-ol case-progress-card-title-icon" aria-hidden="true"></i>
+        <span>Process Steps</span>
+      </h2>
+      <span class="case-progress-tag case-progress-tag--neutral">{{ step_progress|length }} steps</span>
+    </header>
+
+    <div class="case-progress-table-wrap">
+      <table class="case-progress-table" aria-label="Process steps detail">
+        <thead>
+          <tr>
+            <th scope="col" class="case-progress-table-col-num">#</th>
+            <th scope="col">Step</th>
+            <th scope="col">Status</th>
+            <th scope="col">Target Date</th>
+            <th scope="col">Assigned To</th>
+            <th scope="col" class="case-progress-table-col-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for step in step_progress %}
+          <tr
+            class="
+              {% if step.display_status == 'overdue' %}case-progress-row--danger
+              {% elif step.display_status == 'due_soon' %}case-progress-row--warning
+              {% elif step.status == 'completed' %}case-progress-row--success
+              {% endif %}"
+          >
+            <th scope="row" class="case-progress-table-col-num">
+              {% if step.status == 'completed' %}
+              <span class="case-progress-step-icon case-progress-step-icon--success" aria-label="Completed">
+                <i class="fas fa-check" aria-hidden="true"></i>
+              </span>
+              {% elif step.status == 'in_progress' %}
+              <span class="case-progress-step-icon case-progress-step-icon--accent" aria-label="In progress">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              </span>
+              {% elif step.status == 'skipped' %}
+              <span class="case-progress-step-icon case-progress-step-icon--neutral" aria-label="Skipped">
+                <i class="fas fa-forward" aria-hidden="true"></i>
+              </span>
+              {% else %}
+              <span class="case-progress-step-icon case-progress-step-icon--muted">{{ step.step_number }}</span>
+              {% endif %}
+            </th>
+            <td>
+              <strong class="case-progress-step-name">{{ step.step_name }}</strong>
+              {% if step.is_milestone %}
+              <span class="case-progress-tag case-progress-tag--warning">
+                <i class="fas fa-flag" aria-hidden="true"></i>
+                <span>Milestone</span>
+              </span>
+              {% endif %}
+              {% if step.required_documents %}
+              <small class="case-progress-step-meta case-progress-step-meta--muted">
+                <i class="fas fa-file" aria-hidden="true"></i>
+                <span>{{ step.required_documents }}</span>
+              </small>
+              {% endif %}
+              {% if step.notes %}
+              <small class="case-progress-step-meta case-progress-step-meta--info">
+                <i class="fas fa-comment" aria-hidden="true"></i>
+                <span>{{ step.notes }}</span>
+              </small>
+              {% endif %}
+            </td>
+            <td>
+              {% if step.display_status == 'overdue' %}
+              <span class="case-progress-tag case-progress-tag--danger">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                <span>Overdue</span>
+              </span>
+              {% elif step.display_status == 'due_soon' %}
+              <span class="case-progress-tag case-progress-tag--warning">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                <span>Due Soon</span>
+              </span>
+              {% elif step.status == 'completed' %}
+              <span class="case-progress-tag case-progress-tag--success">Completed</span>
+              {% if step.completed_at %}
+              <small class="case-progress-step-meta case-progress-step-meta--muted">{{ step.completed_at.strftime('%b %d') }}</small>
+              {% endif %}
+              {% elif step.status == 'in_progress' %}
+              <span class="case-progress-tag case-progress-tag--accent">In Progress</span>
+              {% elif step.status == 'skipped' %}
+              <span class="case-progress-tag case-progress-tag--neutral">Skipped</span>
+              {% else %}
+              <span class="case-progress-tag case-progress-tag--muted">Pending</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if step.status not in ['completed', 'skipped'] %}
+              <form
+                action="{{ PREFIX }}/processes/case/{{ case.id }}/step/{{ step.step_id }}/set-target"
+                method="POST"
+                class="case-progress-inline-form"
+              >
+                <label for="case-progress-target-{{ step.step_id }}" class="case-progress-visually-hidden">
+                  Target date for {{ step.step_name }}
+                </label>
+                <input
+                  type="date"
+                  id="case-progress-target-{{ step.step_id }}"
+                  name="target_date"
+                  value="{{ step.target_date.strftime('%Y-%m-%d') if step.target_date else '' }}"
+                  class="case-progress-input case-progress-input--date"
+                  onchange="this.form.submit()"
+                >
+              </form>
+              {% else %}
+              <span class="case-progress-step-meta">
+                {{ step.target_date.strftime('%b %d, %Y') if step.target_date else '-' }}
+              </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if step.status not in ['completed', 'skipped'] %}
+              <form
+                action="{{ PREFIX }}/processes/case/{{ case.id }}/step/{{ step.step_id }}/assign"
+                method="POST"
+                class="case-progress-inline-form"
+              >
+                <label for="case-progress-assign-{{ step.step_id }}" class="case-progress-visually-hidden">
+                  Assignee for {{ step.step_name }}
+                </label>
+                <select
+                  id="case-progress-assign-{{ step.step_id }}"
+                  name="assigned_to"
+                  class="case-progress-input case-progress-input--select"
+                  onchange="this.form.submit()"
+                >
+                  <option value="">Unassigned</option>
+                  {% for u in all_users %}
+                  <option value="{{ u.id }}" {% if step.assigned_to == u.id %}selected{% endif %}>{{ u.name }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+              {% else %}
+              <span class="case-progress-step-assignee">
+                {{ step.assigned_to_name or '-' }}
+                {% if step.completed_by_name %}
+                <small class="case-progress-step-meta case-progress-step-meta--muted">by {{ step.completed_by_name }}</small>
+                {% endif %}
+              </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if step.status == 'in_progress' %}
+              <div class="case-progress-row-actions">
+                <button
+                  type="button"
+                  class="case-progress-btn case-progress-btn--icon case-progress-btn--icon-success"
+                  data-bs-toggle="modal"
+                  data-bs-target="#completeModal{{ step.step_id }}"
+                  aria-label="Mark {{ step.step_name }} as complete"
+                >
+                  <i class="fas fa-check" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="case-progress-btn case-progress-btn--icon"
+                  data-bs-toggle="modal"
+                  data-bs-target="#skipModal{{ step.step_id }}"
+                  aria-label="Skip {{ step.step_name }}"
+                >
+                  <i class="fas fa-forward" aria-hidden="true"></i>
+                </button>
+              </div>
+              {% elif step.status == 'pending' %}
+              <span class="case-progress-step-meta case-progress-step-meta--muted">Waiting…</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% for step in step_progress %}
+  {% if step.status == 'in_progress' %}
+
+  <div
+    class="modal fade case-progress-modal"
+    id="completeModal{{ step.step_id }}"
+    tabindex="-1"
+    aria-labelledby="completeModalTitle{{ step.step_id }}"
+    aria-hidden="true"
+  >
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form action="{{ PREFIX }}/processes/case/{{ case.id }}/step/{{ step.step_id }}/complete" method="POST">
+          <header class="case-progress-modal-header">
+            <h2 id="completeModalTitle{{ step.step_id }}" class="case-progress-modal-title">
+              Complete Step: {{ step.step_name }}
+            </h2>
+            <button
+              type="button"
+              class="case-progress-modal-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            >
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </header>
+          <div class="case-progress-modal-body">
+            <div class="case-progress-form-group">
+              <label for="completeNotes{{ step.step_id }}" class="case-progress-label">Notes (optional)</label>
+              <textarea
+                id="completeNotes{{ step.step_id }}"
+                name="notes"
+                class="case-progress-input case-progress-input--textarea"
+                rows="3"
+                placeholder="Add any notes about completing this step..."
+              ></textarea>
+            </div>
+          </div>
+          <footer class="case-progress-modal-footer">
+            <button type="button" class="case-progress-btn case-progress-btn--secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="case-progress-btn case-progress-btn--success">
+              <i class="fas fa-check" aria-hidden="true"></i>
+              <span>Mark Complete</span>
+            </button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="modal fade case-progress-modal"
+    id="skipModal{{ step.step_id }}"
+    tabindex="-1"
+    aria-labelledby="skipModalTitle{{ step.step_id }}"
+    aria-hidden="true"
+  >
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form action="{{ PREFIX }}/processes/case/{{ case.id }}/step/{{ step.step_id }}/skip" method="POST">
+          <header class="case-progress-modal-header">
+            <h2 id="skipModalTitle{{ step.step_id }}" class="case-progress-modal-title">
+              Skip Step: {{ step.step_name }}
+            </h2>
+            <button
+              type="button"
+              class="case-progress-modal-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            >
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </header>
+          <div class="case-progress-modal-body">
+            <div class="case-progress-form-group">
+              <label for="skipNotes{{ step.step_id }}" class="case-progress-label">
+                Reason for skipping
+                <span class="case-progress-required" aria-hidden="true">*</span>
+              </label>
+              <textarea
+                id="skipNotes{{ step.step_id }}"
+                name="notes"
+                class="case-progress-input case-progress-input--textarea"
+                rows="3"
+                required
+                aria-required="true"
+                placeholder="Explain why this step is being skipped..."
+              ></textarea>
+            </div>
+          </div>
+          <footer class="case-progress-modal-footer">
+            <button type="button" class="case-progress-btn case-progress-btn--secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="case-progress-btn case-progress-btn--warning">
+              <i class="fas fa-forward" aria-hidden="true"></i>
+              <span>Skip Step</span>
+            </button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+  {% endfor %}
+
+  {% else %}
+
+  <section class="case-progress-card case-progress-card--empty" aria-labelledby="case-progress-empty-title">
+    <div class="case-progress-empty">
+      <i class="fas fa-project-diagram case-progress-empty-icon" aria-hidden="true"></i>
+      <h2 id="case-progress-empty-title" class="case-progress-empty-title">No Process Assigned</h2>
+      <p class="case-progress-empty-text">
+        Assign a process template to track this case's progress through defined steps.
+      </p>
+
+      <form
+        action="{{ PREFIX }}/processes/case/{{ case.id }}/assign"
+        method="POST"
+        class="case-progress-assign-form"
+      >
+        <div class="case-progress-form-group">
+          <label for="case-progress-process-select" class="case-progress-label">Select Process</label>
+          <select
+            id="case-progress-process-select"
+            name="process_id"
+            class="case-progress-input case-progress-input--select"
+            required
+            aria-required="true"
+          >
+            <option value="">Choose a process...</option>
+            {% for p in all_processes %}
+            <option value="{{ p.id }}">{{ p.name }}{% if p.area_of_practice %} ({{ p.area_of_practice }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="case-progress-form-group">
+          <label for="case-progress-start-date" class="case-progress-label">Start Date</label>
+          <input
+            type="date"
+            id="case-progress-start-date"
+            name="start_date"
+            class="case-progress-input case-progress-input--date"
+            value="{{ today }}"
+          >
+        </div>
+        <div class="case-progress-form-group case-progress-form-group--submit">
+          <button type="submit" class="case-progress-btn case-progress-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Assign</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var triggers = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+  if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+    triggers.forEach(function (el) {
+      new bootstrap.Tooltip(el);
+    });
+  }
+});
+</script>
+{% endblock %}

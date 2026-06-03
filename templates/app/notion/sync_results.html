@@ -1,0 +1,124 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Notion · Sync_Results · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/notion-sync-results.css">
+{% endblock %}
+{% block content %}
+<main class="notion-sync-results-main" aria-labelledby="notion-sync-results-title">
+    <header class="notion-sync-results-header">
+        <a href="{{ PREFIX }}/notion" class="notion-sync-results-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if lang == 'pt-BR' %}Voltar{% else %}Back{% endif %}</span>
+        </a>
+        <h1 id="notion-sync-results-title" class="notion-sync-results-title">
+            <i class="fas fa-sync notion-sync-results-title-icon" aria-hidden="true"></i>
+            <span>{% if lang == 'pt-BR' %}Resultados da Sincronização{% else %}Sync Results{% endif %}</span>
+        </h1>
+        <p class="notion-sync-results-subtitle">
+            <span class="notion-sync-results-subtitle-segment">{{ sync_type }}</span>
+            <span class="notion-sync-results-subtitle-divider" aria-hidden="true">·</span>
+            <span class="notion-sync-results-subtitle-segment">{{ direction }}</span>
+        </p>
+    </header>
+
+    <div class="notion-sync-results-grid">
+        <section class="notion-sync-results-card" aria-labelledby="notion-sync-results-summary-title">
+            <header class="notion-sync-results-card-header">
+                <h2 id="notion-sync-results-summary-title" class="notion-sync-results-card-title">
+                    <i class="fas fa-chart-bar notion-sync-results-card-icon" aria-hidden="true"></i>
+                    <span>{% if lang == 'pt-BR' %}Resumo{% else %}Summary{% endif %}</span>
+                </h2>
+            </header>
+            <div class="notion-sync-results-card-body">
+                <ul class="notion-sync-results-stats" role="list">
+                    <li class="notion-sync-results-stat notion-sync-results-stat--success">
+                        <span class="notion-sync-results-stat-value">{{ results.synced_to_notion }}</span>
+                        <span class="notion-sync-results-stat-label">{% if lang == 'pt-BR' %}Enviados para Notion{% else %}Sent to Notion{% endif %}</span>
+                    </li>
+                    <li class="notion-sync-results-stat notion-sync-results-stat--info">
+                        <span class="notion-sync-results-stat-value">{{ results.synced_from_notion }}</span>
+                        <span class="notion-sync-results-stat-label">{% if lang == 'pt-BR' %}Importados do Notion{% else %}Imported from Notion{% endif %}</span>
+                    </li>
+                    <li class="notion-sync-results-stat notion-sync-results-stat--danger">
+                        <span class="notion-sync-results-stat-value">{{ results.errors|length }}</span>
+                        <span class="notion-sync-results-stat-label">{% if lang == 'pt-BR' %}Erros{% else %}Errors{% endif %}</span>
+                    </li>
+                </ul>
+
+                {% if results.errors %}
+                <section class="notion-sync-results-errors" aria-labelledby="notion-sync-results-errors-title">
+                    <h3 id="notion-sync-results-errors-title" class="notion-sync-results-errors-title">
+                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        <span>{% if lang == 'pt-BR' %}Erros Encontrados{% else %}Errors Found{% endif %}</span>
+                    </h3>
+                    <ul class="notion-sync-results-errors-list" role="list">
+                        {% for error in results.errors %}
+                        <li class="notion-sync-results-error">
+                            <i class="fas fa-times notion-sync-results-error-icon" aria-hidden="true"></i>
+                            <span>{{ error }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+                {% else %}
+                <p class="notion-sync-results-success" role="status">
+                    <i class="fas fa-check-circle notion-sync-results-success-icon" aria-hidden="true"></i>
+                    <span>{% if lang == 'pt-BR' %}Sincronização concluída sem erros!{% else %}Sync completed without errors!{% endif %}</span>
+                </p>
+                {% endif %}
+            </div>
+        </section>
+
+        <aside class="notion-sync-results-side" aria-label="{% if lang == 'pt-BR' %}Detalhes da sincronização{% else %}Sync details{% endif %}">
+            <section class="notion-sync-results-card" aria-labelledby="notion-sync-results-details-title">
+                <header class="notion-sync-results-card-header">
+                    <h2 id="notion-sync-results-details-title" class="notion-sync-results-card-title">
+                        <i class="fas fa-info-circle notion-sync-results-card-icon" aria-hidden="true"></i>
+                        <span>{% if lang == 'pt-BR' %}Detalhes{% else %}Details{% endif %}</span>
+                    </h2>
+                </header>
+                <div class="notion-sync-results-card-body">
+                    <dl class="notion-sync-results-dl">
+                        <dt>{% if lang == 'pt-BR' %}Tipo{% else %}Type{% endif %}</dt>
+                        <dd>{{ sync_type }}</dd>
+
+                        <dt>{% if lang == 'pt-BR' %}Direção{% else %}Direction{% endif %}</dt>
+                        <dd>
+                            {% if direction == 'to_notion' %}
+                            <span class="notion-sync-results-badge notion-sync-results-badge--accent">
+                                <span>CaseHub</span>
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                <span>Notion</span>
+                            </span>
+                            {% elif direction == 'from_notion' %}
+                            <span class="notion-sync-results-badge notion-sync-results-badge--success">
+                                <span>Notion</span>
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                <span>CaseHub</span>
+                            </span>
+                            {% else %}
+                            <span class="notion-sync-results-badge notion-sync-results-badge--info">
+                                <i class="fas fa-exchange-alt" aria-hidden="true"></i>
+                                <span>{% if lang == 'pt-BR' %}Bidirecional{% else %}Bidirectional{% endif %}</span>
+                            </span>
+                            {% endif %}
+                        </dd>
+
+                        <dt>{% if lang == 'pt-BR' %}Total Processado{% else %}Total Processed{% endif %}</dt>
+                        <dd>{{ results.synced_to_notion + results.synced_from_notion }}</dd>
+                    </dl>
+                </div>
+            </section>
+
+            <a href="{{ PREFIX }}/notion" class="notion-sync-results-btn notion-sync-results-btn--primary">
+                <i class="fas fa-redo" aria-hidden="true"></i>
+                <span>{% if lang == 'pt-BR' %}Nova Sincronização{% else %}New Sync{% endif %}</span>
+            </a>
+        </aside>
+    </div>
+</main>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

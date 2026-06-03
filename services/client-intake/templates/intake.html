@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Forms - Immigration Law Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2c5aa0;
+            --secondary: #1a3d6e;
+            --success: #28a745;
+        }
+        body { background: #f8f9fa; }
+        .header {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+            color: white;
+            padding: 2rem 0;
+        }
+        .progress-bar { background: var(--success); }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-3px); }
+        .form-item {
+            border-left: 4px solid #dee2e6;
+        }
+        .form-item.completed {
+            border-left-color: var(--success);
+        }
+        .form-item.in-progress {
+            border-left-color: #ffc107;
+        }
+        .status-badge {
+            font-size: 0.75rem;
+        }
+        .btn-start {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+        .btn-start:hover {
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="mb-1">
+                        <i class="fas fa-balance-scale me-2"></i>
+                        Immigration Law Center
+                    </h4>
+                    <h2 class="mb-0">Welcome, {{ package.first_name }}!</h2>
+                    <p class="mb-0 opacity-75">{{ package.name }}</p>
+                </div>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <div class="bg-white bg-opacity-25 rounded p-3">
+                        <small class="d-block">Case: {{ package.case_number or 'N/A' }}</small>
+                        <div class="progress mt-2" style="height: 10px;">
+                            <div class="progress-bar" role="progressbar"
+                                 style="width: {{ progress.percent }}%"></div>
+                        </div>
+                        <small>{{ progress.completed }} of {{ progress.total }} completed</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container py-4">
+        {% if package.message %}
+        <div class="alert alert-info mb-4">
+            <i class="fas fa-info-circle me-2"></i>
+            {{ package.message }}
+        </div>
+        {% endif %}
+
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <a class="nav-link active" href="{{ PREFIX }}/{{ package.package_id }}?token={{ token }}">
+                    <i class="fas fa-clipboard-list me-1"></i>Forms
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{{ PREFIX }}/{{ package.package_id }}/documents?token={{ token }}">
+                    <i class="fas fa-folder-open me-1"></i>Documents
+                </a>
+            </li>
+        </ul>
+
+        <h5 class="mb-3">
+            <i class="fas fa-clipboard-list me-2"></i>
+            Your Forms
+        </h5>
+
+        <div class="row">
+            {% for item in items %}
+            <div class="col-12 mb-3">
+                <div class="card form-item {% if item.status == 'submitted' or item.status == 'approved' %}completed{% elif item.status == 'in_progress' %}in-progress{% endif %}">
+                    <div class="card-body d-flex align-items-center">
+                        <div class="me-3">
+                            {% if item.status == 'submitted' or item.status == 'approved' %}
+                            <i class="fas fa-check-circle fa-2x text-success"></i>
+                            {% elif item.status == 'in_progress' %}
+                            <i class="fas fa-edit fa-2x text-warning"></i>
+                            {% else %}
+                            <i class="far fa-circle fa-2x text-muted"></i>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">
+                                {{ item.name }}
+                                {% if item.required %}
+                                <span class="badge bg-danger status-badge">Required</span>
+                                {% else %}
+                                <span class="badge bg-secondary status-badge">Optional</span>
+                                {% endif %}
+                            </h6>
+                            <small class="text-muted">{{ item.description or item.template_desc or '' }}</small>
+                        </div>
+                        <div>
+                            {% if item.status == 'submitted' %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-check me-1"></i>Submitted
+                            </span>
+                            {% elif item.status == 'approved' %}
+                            <span class="badge bg-primary">
+                                <i class="fas fa-thumbs-up me-1"></i>Approved
+                            </span>
+                            {% else %}
+                            <a href="{{ PREFIX }}/{{ package.package_id }}/form/{{ item.id }}?token={{ token }}"
+                               class="btn btn-start btn-sm">
+                                {% if item.status == 'in_progress' %}
+                                <i class="fas fa-edit me-1"></i>Continue
+                                {% else %}
+                                <i class="fas fa-play me-1"></i>Start
+                                {% endif %}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if progress.percent == 100 %}
+        <div class="alert alert-success mt-4">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>All forms completed!</strong> Thank you for submitting your information.
+            Your attorney will review your submissions.
+        </div>
+        {% endif %}
+
+        <div class="text-center mt-4 text-muted small">
+            <p>
+                <i class="fas fa-lock me-1"></i>
+                Your information is secure and encrypted.
+            </p>
+            <p>Questions? Contact <a href="mailto:info@casehub.app">info@casehub.app</a></p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

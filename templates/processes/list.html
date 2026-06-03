@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == 'lite' %}Modelos de processo{% else %}Process Templates{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/processes-list.css">
+{% endblock %}
+
+{% block content %}
+<main class="processes-list-main" role="main" aria-labelledby="processes-list-title">
+    <header class="processes-list-header">
+        <h1 id="processes-list-title" class="processes-list-title">
+            <i class="fas fa-project-diagram" aria-hidden="true"></i>
+            <span>{% if product == 'lite' %}Modelos de processo{% else %}Process Templates{% endif %}</span>
+        </h1>
+        <a href="{{ PREFIX }}/processes/new" class="processes-list-btn processes-list-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == 'lite' %}Novo modelo{% else %}New Process{% endif %}</span>
+        </a>
+    </header>
+
+    <section class="processes-list-card" aria-label="{% if product == 'lite' %}Modelos de processo{% else %}Process templates{% endif %}">
+        <div class="processes-list-table-wrapper">
+            <table class="processes-list-table" role="table">
+                <thead role="rowgroup">
+                    <tr role="row">
+                        <th scope="col" role="columnheader">{% if product == 'lite' %}Nome{% else %}Name{% endif %}</th>
+                        <th scope="col" role="columnheader">{% if product == 'lite' %}Area de atuação{% else %}Area of Practice{% endif %}</th>
+                        <th scope="col" role="columnheader">{% if product == 'lite' %}Etapas{% else %}Steps{% endif %}</th>
+                        <th scope="col" role="columnheader">{% if product == 'lite' %}Processos usando{% else %}Cases Using{% endif %}</th>
+                        <th scope="col" role="columnheader">{% if product == 'lite' %}Dias estimados{% else %}Est. Days{% endif %}</th>
+                        <th scope="col" role="columnheader">Status</th>
+                        <th scope="col" role="columnheader" class="processes-list-actions-cell">
+                            <span class="processes-list-visually-hidden">{% if product == 'lite' %}Ações{% else %}Actions{% endif %}</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody role="rowgroup">
+                    {% for process in processes %}
+                    <tr class="processes-list-row" role="row">
+                        <td role="cell" class="processes-list-name" data-label="{% if product == 'lite' %}Nome{% else %}Name{% endif %}">
+                            <a href="{{ PREFIX }}/processes/{{ process.id }}" class="processes-list-name-link">
+                                {{ process.name }}
+                            </a>
+                            {% if process.description %}
+                            <small class="processes-list-description">{{ process.description[:60] }}{% if process.description|length > 60 %}...{% endif %}</small>
+                            {% endif %}
+                        </td>
+                        <td role="cell" class="processes-list-area" data-label="{% if product == 'lite' %}Area de atuação{% else %}Area of Practice{% endif %}">{{ process.area_of_practice or '-' }}</td>
+                        <td role="cell" class="processes-list-steps" data-label="{% if product == 'lite' %}Etapas{% else %}Steps{% endif %}">
+                            <span class="processes-list-badge processes-list-badge--neutral">{{ process.step_count }} {% if product == 'lite' %}etapas{% else %}steps{% endif %}</span>
+                        </td>
+                        <td role="cell" class="processes-list-numeric processes-list-cases" data-label="{% if product == 'lite' %}Processos usando{% else %}Cases Using{% endif %}">{{ process.cases_using }} {% if product == 'lite' %}processos{% else %}cases{% endif %}</td>
+                        <td role="cell" class="processes-list-numeric processes-list-duration" data-label="{% if product == 'lite' %}Dias estimados{% else %}Est. Days{% endif %}">
+                            {% if process.estimated_days is not none and process.estimated_days != '' %}{{ process.estimated_days }} {% if product == 'lite' %}dias{% else %}days{% endif %}{% else %}-{% endif %}
+                        </td>
+                        <td role="cell" class="processes-list-status" data-label="Status">
+                            {% if process.enabled %}
+                            <span class="processes-list-badge processes-list-badge--active">{% if product == 'lite' %}Ativo{% else %}Active{% endif %}</span>
+                            {% else %}
+                            <span class="processes-list-badge processes-list-badge--disabled">{% if product == 'lite' %}Desativado{% else %}Disabled{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td role="cell" class="processes-list-actions-cell" data-label="{% if product == 'lite' %}Ações{% else %}Actions{% endif %}">
+                            <div class="processes-list-actions">
+                                <a href="{{ PREFIX }}/processes/{{ process.id }}" class="processes-list-icon-btn" aria-label="{% if product == 'lite' %}Ver {{ process.name }}{% else %}View {{ process.name }}{% endif %}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/processes/{{ process.id }}/edit" class="processes-list-icon-btn" aria-label="{% if product == 'lite' %}Editar {{ process.name }}{% else %}Edit {{ process.name }}{% endif %}">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr role="row">
+                        <td role="cell" colspan="7" class="processes-list-empty">
+                            <i class="fas fa-folder-open processes-list-empty-icon" aria-hidden="true"></i>
+                            <span>{% if product == 'lite' %}Nenhum modelo de processo encontrado.{% else %}No process templates yet.{% endif %}</span>
+                            <a href="{{ PREFIX }}/processes/new" class="processes-list-empty-link">{% if product == 'lite' %}Criar modelo{% else %}Create one{% endif %}</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+{% endblock %}

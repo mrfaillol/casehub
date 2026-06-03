@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Férias + 1/3 - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-ferias.css">
+{% endblock %}
+
+{% block content %}
+<main class="tools-ferias-main" aria-labelledby="tools-ferias-title">
+    <header class="tools-ferias-header tools-ferias-no-print">
+        <div class="tools-ferias-heading">
+            <h1 id="tools-ferias-title" class="tools-ferias-title">
+                <i class="fas fa-umbrella-beach tools-ferias-title-icon" aria-hidden="true"></i>
+                <span>Férias + 1/3 Constitucional</span>
+            </h1>
+            <p class="tools-ferias-subtitle">CLT Art. 129-145, CF Art. 7º, XVII</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-ferias-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    <div class="tools-ferias-grid {% if resultado %}tools-ferias-grid--with-result{% endif %}">
+        <section aria-labelledby="tools-ferias-form-title">
+            <form method="POST" action="{{ PREFIX }}/tools/ferias/calcular" novalidate>
+                <div class="tools-ferias-card">
+                    <div class="tools-ferias-card-body">
+                        <h2 id="tools-ferias-form-title" class="tools-ferias-section-title">Dados do Cálculo</h2>
+
+                        <div class="tools-ferias-field">
+                            <label for="tools-ferias-salario" class="tools-ferias-label">Salário Base</label>
+                            <div class="tools-ferias-input-group">
+                                <span class="tools-ferias-input-prefix" aria-hidden="true">R$</span>
+                                <input type="number" class="tools-ferias-input" id="tools-ferias-salario" name="salario"
+                                       step="0.01" min="0" inputmode="decimal"
+                                       value="{{ form.salario if form else '' }}"
+                                       required aria-required="true">
+                            </div>
+                        </div>
+
+                        <div class="tools-ferias-field-row">
+                            <div>
+                                <label for="tools-ferias-meses" class="tools-ferias-label">Meses Trabalhados</label>
+                                <input type="number" class="tools-ferias-input" id="tools-ferias-meses" name="meses_trabalhados"
+                                       min="1" max="12" inputmode="numeric"
+                                       value="{{ form.meses_trabalhados if form else '12' }}"
+                                       required aria-required="true"
+                                       aria-describedby="tools-ferias-meses-hint">
+                                <small id="tools-ferias-meses-hint" class="tools-ferias-hint">1 a 12 meses no período aquisitivo</small>
+                            </div>
+                            <div>
+                                <label for="tools-ferias-faltas" class="tools-ferias-label">Faltas Injustificadas</label>
+                                <input type="number" class="tools-ferias-input" id="tools-ferias-faltas" name="faltas"
+                                       min="0" inputmode="numeric"
+                                       value="{{ form.faltas if form else '0' }}"
+                                       required aria-required="true"
+                                       aria-describedby="tools-ferias-faltas-hint">
+                                <small id="tools-ferias-faltas-hint" class="tools-ferias-hint">Art. 130 CLT: faltas reduzem dias de férias</small>
+                            </div>
+                        </div>
+
+                        <div class="tools-ferias-field">
+                            <label class="tools-ferias-check" for="tools-ferias-abono">
+                                <input class="tools-ferias-check-input" type="checkbox" id="tools-ferias-abono"
+                                       name="abono_pecuniario" value="true"
+                                       {% if form and form.abono_pecuniario %}checked{% endif %}>
+                                <span>Abono pecuniário (vender 1/3 das férias — Art. 143 CLT)</span>
+                            </label>
+                        </div>
+
+                        <aside class="tools-ferias-alert" role="note" aria-label="Tabela Art. 130 CLT">
+                            <span class="tools-ferias-alert-title">Tabela Art. 130 CLT:</span>
+                            Até 5 faltas = 30 dias · 6-14 faltas = 24 dias · 15-23 faltas = 18 dias · 24-32 faltas = 12 dias · 33+ = perde direito
+                        </aside>
+                    </div>
+                </div>
+
+                <div class="tools-ferias-actions tools-ferias-no-print">
+                    <button type="submit" class="tools-ferias-btn tools-ferias-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/ferias" class="tools-ferias-btn tools-ferias-btn--ghost">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </section>
+
+        {% if resultado %}
+        <section id="resultado" aria-labelledby="tools-ferias-result-title">
+            <article class="tools-ferias-card">
+                <header class="tools-ferias-result-header">
+                    <h2 id="tools-ferias-result-title" class="tools-ferias-result-title">
+                        <i class="fas fa-umbrella-beach tools-ferias-result-icon" aria-hidden="true"></i>
+                        <span>Resultado — Férias</span>
+                    </h2>
+                    <button type="button" class="tools-ferias-btn tools-ferias-btn--ghost tools-ferias-btn--small tools-ferias-no-print" onclick="window.print()">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+
+                <div class="tools-ferias-days-banner
+                            {% if resultado.dias_ferias == 0 %}tools-ferias-days-banner--danger
+                            {% elif resultado.faltas > 5 %}tools-ferias-days-banner--warning{% endif %}">
+                    <strong>Dias de férias:</strong>
+                    <span class="tools-ferias-days-value">{{ resultado.dias_ferias }} dias</span>
+                    {% if resultado.dias_ferias == 0 %}
+                        <span class="tools-ferias-days-note tools-ferias-days-note--danger">(perdeu direito a férias)</span>
+                    {% elif resultado.faltas > 5 %}
+                        <span class="tools-ferias-days-note tools-ferias-days-note--warning">(reduzido por {{ resultado.faltas }} faltas)</span>
+                    {% endif %}
+                </div>
+
+                <div class="tools-ferias-table-wrap">
+                    <table class="tools-ferias-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Verba</th>
+                                <th scope="col" class="tools-ferias-table-value">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Férias Proporcionais ({{ resultado.meses_trabalhados }}/12 avos — {{ resultado.dias_ferias }} dias)</td>
+                                <td class="tools-ferias-table-value">R$ {{ "%.2f"|format(resultado.proporcional) }}</td>
+                            </tr>
+                            <tr>
+                                <td>1/3 Constitucional</td>
+                                <td class="tools-ferias-table-value">R$ {{ "%.2f"|format(resultado.terco) }}</td>
+                            </tr>
+                            {% if resultado.usou_abono %}
+                            <tr>
+                                <td>Abono Pecuniário ({{ resultado.dias_abono }} dias vendidos)</td>
+                                <td class="tools-ferias-table-value">R$ {{ "%.2f"|format(resultado.abono_pecuniario) }}</td>
+                            </tr>
+                            <tr>
+                                <td>1/3 sobre Abono Pecuniário</td>
+                                <td class="tools-ferias-table-value">R$ {{ "%.2f"|format(resultado.terco_abono) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="tools-ferias-table-total">
+                                <td>Total</td>
+                                <td class="tools-ferias-table-value">R$ {{ "%.2f"|format(resultado.total) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="tools-ferias-card-footer">
+                    <h3 class="tools-ferias-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-ferias-legal-list">
+                        <li><strong>CLT Art. 129-130</strong> — Direito a férias e redução por faltas injustificadas</li>
+                        <li><strong>CLT Art. 143</strong> — Abono pecuniário (conversão de 1/3 em dinheiro)</li>
+                        <li><strong>CF Art. 7º, XVII</strong> — Terço constitucional de férias</li>
+                        <li><strong>CLT Art. 137</strong> — Férias em dobro se não concedidas no prazo</li>
+                        <li><strong>CLT Art. 145</strong> — Pagamento até 2 dias antes do início</li>
+                    </ul>
+                    <p class="tools-ferias-footnote">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Cálculo estimativo. Adicionais habituais (HE, noturno, etc.) integram a base de cálculo das férias.</span>
+                    </p>
+                </footer>
+            </article>
+        </section>
+        {% endif %}
+    </div>
+</main>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 960) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

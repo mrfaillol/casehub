@@ -1,0 +1,239 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Meu perfil · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Configurações · Perfil</span>
+    <h1>Seu <em>perfil</em> no CaseHub.</h1>
+    <p class="ch-page-head__sub">Dados pessoais, segurança e preferências de visualização.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/settings">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+{% if success %}
+<section class="ch-card ch-card--compact" role="status" style="border-color: var(--c-green-d); margin-bottom: var(--space-4);">
+  <div style="display: flex; gap: var(--space-2); align-items: center;">
+    <span data-icon="check" data-icon-size="18" style="color: var(--c-green-d);"></span>
+    <span>{{ success }}</span>
+  </div>
+</section>
+{% endif %}
+{% if error %}
+<section class="ch-card ch-card--compact" role="alert" style="border-color: var(--c-danger); margin-bottom: var(--space-4);">
+  <div style="display: flex; gap: var(--space-2); align-items: center;">
+    <span data-icon="x" data-icon-size="18" style="color: var(--c-danger);"></span>
+    <span>{{ error }}</span>
+  </div>
+</section>
+{% endif %}
+
+<section class="ch-grid" style="grid-template-columns: 1fr; gap: var(--space-5);">
+
+  {# ─── Identidade ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div style="display: flex; gap: var(--space-4); align-items: center;">
+        <div style="width: 72px; height: 72px; border-radius: var(--radius-pill); background: var(--surface-card-2); display: flex; align-items: center; justify-content: center; overflow: hidden; flex: 0 0 72px;">
+          {% if user.photo_url %}
+            <img src="{{ user.photo_url }}" alt="Foto de {{ user.name }}" loading="lazy" style="width: 100%; height: 100%; object-fit: cover;" />
+          {% else %}
+            <span style="font-family: var(--display); font-size: var(--fs-2xl); color: var(--c-green-d);">{{ user.name[:1]|upper }}{{ user.name.split(' ')[-1][:1]|upper if ' ' in user.name else '' }}</span>
+          {% endif %}
+        </div>
+        <div>
+          <span class="ch-card__eyebrow">Você</span>
+          <h2 class="ch-card__title">{{ user.name }}</h2>
+          <p class="ch-card__subtitle">{{ user.email }}</p>
+          <span class="ch-pill ch-pill--info" style="margin-top: var(--space-1);">
+            <span class="dot"></span>
+            {% if user.user_type == 'admin' %}Administrador
+            {% elif user.user_type == 'attorney' %}Advogado(a)
+            {% elif user.user_type == 'paralegal' %}Paralegal
+            {% elif user.user_type == 'superadmin' %}Superadmin
+            {% else %}Colaborador{% endif %}
+          </span>
+        </div>
+      </div>
+      <form action="{{ PREFIX }}/profile/avatar" method="post" enctype="multipart/form-data" id="profile-avatar-form" style="margin: 0;">
+        <input type="file"
+               id="profile-avatar-input"
+               name="file"
+               accept=".jpg,.jpeg,.png"
+               style="display: none;" />
+        <label for="profile-avatar-input" class="ch-btn ch-btn--ghost" style="cursor: pointer;">
+          <span data-icon="user" data-icon-size="14"></span>
+          Alterar foto
+        </label>
+      </form>
+    </header>
+  </article>
+
+  {# ─── Dados pessoais ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Dados pessoais</span>
+        <h2 class="ch-card__title">Identificação & contato</h2>
+      </div>
+      <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <form action="{{ PREFIX }}/profile" method="post" novalidate>
+      <div class="ch-field">
+        <label class="ch-field__label" for="profile-name">Nome completo <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input" id="profile-name" name="name" type="text" required
+               value="{{ user.name }}" autocomplete="name" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="profile-email">E-mail</label>
+        <input class="ch-input" id="profile-email" type="email"
+               value="{{ user.email }}" autocomplete="email" disabled />
+        <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">
+          E-mail não pode ser alterado por aqui.
+        </small>
+      </div>
+      <div class="ch-grid ch-grid--2">
+        <div class="ch-field">
+          <label class="ch-field__label" for="profile-phone">Telefone</label>
+          <input class="ch-input" id="profile-phone" name="phone" type="tel"
+                 value="{{ user.phone or '' }}" autocomplete="tel" placeholder="(11) 99999-9999" />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="profile-department">Departamento</label>
+          <input class="ch-input" id="profile-department" name="department" type="text"
+                 value="{{ user.department or '' }}" placeholder="Ex.: Jurídico" />
+        </div>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="profile-oab">Número OAB</label>
+        <input class="ch-input ch-mono" id="profile-oab" name="oab_number" type="text"
+               value="{{ user.oab_number or '' }}" placeholder="123456/MG" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="profile-bio">Bio</label>
+        <textarea class="ch-textarea" id="profile-bio" name="bio" rows="3"
+                  placeholder="Conte um pouco sobre você...">{{ user.bio or '' }}</textarea>
+      </div>
+      <div style="display: flex; gap: var(--space-2); justify-content: flex-end; margin-top: var(--space-3);">
+        <button class="ch-btn ch-btn--primary" type="submit">
+          <span data-icon="check"></span> Salvar alterações
+        </button>
+      </div>
+    </form>
+  </article>
+
+  {# ─── Segurança ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Segurança</span>
+        <h2 class="ch-card__title">Alterar senha</h2>
+        <p class="ch-card__subtitle">Mínimo 8 caracteres. Use uma senha exclusiva.</p>
+      </div>
+      <span data-icon="bolt" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <form action="{{ PREFIX }}/profile/password" method="post" novalidate>
+      <div class="ch-field">
+        <label class="ch-field__label" for="profile-current-password">Senha atual <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input" id="profile-current-password" name="current_password" type="password"
+               autocomplete="current-password" required />
+      </div>
+      <div class="ch-grid ch-grid--2">
+        <div class="ch-field">
+          <label class="ch-field__label" for="profile-new-password">Nova senha <span style="color: var(--c-danger);">*</span></label>
+          <input class="ch-input" id="profile-new-password" name="new_password" type="password"
+                 autocomplete="new-password" minlength="8" placeholder="Mínimo 8 caracteres" required />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="profile-confirm-password">Confirmar nova senha <span style="color: var(--c-danger);">*</span></label>
+          <input class="ch-input" id="profile-confirm-password" name="confirm_password" type="password"
+                 autocomplete="new-password" minlength="8" required />
+        </div>
+      </div>
+      <div style="display: flex; gap: var(--space-2); justify-content: flex-end; margin-top: var(--space-3);">
+        <button class="ch-btn ch-btn--primary" type="submit">
+          <span data-icon="check"></span> Alterar senha
+        </button>
+      </div>
+    </form>
+    <footer class="ch-card__footer">
+      <a class="ch-card__action" href="{{ PREFIX }}/2fa/setup">
+        <span data-icon="bolt"></span> Configurar autenticação 2FA
+      </a>
+    </footer>
+  </article>
+
+  {# ─── Preferências ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Preferências</span>
+        <h2 class="ch-card__title">Tema & idioma</h2>
+      </div>
+      <span data-icon="sun" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+      <div style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+        <div>
+          <p style="margin: 0; font-weight: 600;">Tema da interface</p>
+          <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+            Atual: <strong data-theme-label>—</strong> · Eco <strong data-eco-label>—</strong>
+          </p>
+        </div>
+        <div style="display: flex; gap: var(--space-2);">
+          <button class="ch-btn ch-btn--ghost" type="button" data-toggle="theme">
+            <span data-icon="moon"></span> Alternar tema
+          </button>
+          <button class="ch-btn ch-btn--ghost" type="button" data-toggle="eco">
+            <span data-icon="leaf"></span> Modo Eco
+          </button>
+        </div>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="profile-language">Idioma</label>
+        <select id="profile-language" class="ch-select" onchange="profileSetLanguage(this.value)">
+          <option value="pt" {% if (lang|default('pt')) == 'pt' %}selected{% endif %}>Português</option>
+          <option value="en" {% if (lang|default('pt')) == 'en' %}selected{% endif %}>English</option>
+          <option value="es" {% if (lang|default('pt')) == 'es' %}selected{% endif %}>Español</option>
+        </select>
+      </div>
+    </div>
+  </article>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var avatarInput = document.getElementById('profile-avatar-input');
+  var avatarForm = document.getElementById('profile-avatar-form');
+  if (avatarInput && avatarForm) {
+    avatarInput.addEventListener('change', function () { avatarForm.submit(); });
+  }
+
+  function sync() {
+    if (!window.CHTheme) return;
+    var t = window.CHTheme.get();
+    document.querySelectorAll('[data-theme-label]').forEach(function (el) {
+      el.textContent = t.theme === 'auto' ? 'auto (' + t.resolvedTheme + ')' : t.resolvedTheme;
+    });
+    document.querySelectorAll('[data-eco-label]').forEach(function (el) {
+      el.textContent = t.eco === 'auto' ? 'auto (' + (t.resolvedEco ? 'on' : 'off') + ')' : t.eco;
+    });
+  }
+  document.addEventListener('casehub:theme', sync);
+  document.addEventListener('casehub:eco', sync);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sync);
+  else sync();
+})();
+
+function profileSetLanguage(lang) {
+  window.location.href = '{{ PREFIX }}/set-language/' + lang;
+}
+</script>
+{% endblock %}

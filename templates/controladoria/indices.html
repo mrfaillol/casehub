@@ -1,0 +1,645 @@
+{% extends "base.html" %}
+
+{% block title %}Indices - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .indices-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        color: #fff;
+    }
+    .indices-header h2 {
+        font-family: 'Instrument Serif', serif;
+        font-size: 1.75rem;
+        margin-bottom: 0.25rem;
+    }
+    .indices-header p {
+        color: #94a3b8;
+        margin-bottom: 1.25rem;
+        font-size: 0.9rem;
+    }
+    .filter-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    .filter-row .form-select {
+        background-color: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: #e2e8f0;
+        border-radius: 10px;
+        padding: 0.5rem 2.25rem 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        min-width: 180px;
+        transition: border-color 0.2s, background-color 0.2s;
+    }
+    .filter-row .form-select:focus {
+        border-color: #1C2447;
+        background-color: rgba(28, 36, 71,0.1);
+        box-shadow: 0 0 0 3px rgba(28, 36, 71,0.15);
+        color: #f1f5f9;
+    }
+    .filter-row .form-select option {
+        background: #1e293b;
+        color: #e2e8f0;
+    }
+    .chart-card {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+        transition: box-shadow 0.3s ease, transform 0.2s ease;
+    }
+    .chart-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.04);
+        transform: translateY(-1px);
+    }
+    .chart-card h6 {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 0.95rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .chart-card h6 .chart-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+    }
+    .chart-card .chart-container {
+        position: relative;
+        height: 280px;
+    }
+    .chart-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 280px;
+        color: #94a3b8;
+    }
+    .chart-empty i {
+        font-size: 2rem;
+        margin-bottom: 0.75rem;
+        opacity: 0.5;
+    }
+    .loading-spinner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 280px;
+    }
+    .loading-spinner .spinner-border {
+        color: #1C2447;
+        width: 2rem;
+        height: 2rem;
+    }
+
+    /* Dark mode */
+    [data-theme="dark"] .chart-card {
+        background: #1e293b;
+        border-color: #334155;
+    }
+    [data-theme="dark"] .chart-card h6 {
+        color: #e2e8f0;
+    }
+    [data-theme="dark"] .chart-empty {
+        color: #64748b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header + Filters -->
+    <div class="indices-header">
+        <h2><i class="fas fa-chart-line me-2"></i>Indices</h2>
+        <p>Analise o desempenho do escritório com metricas detalhadas de tempo, resultados e volume processual.</p>
+
+        <div class="filter-row">
+            <select id="filterSetor" class="form-select glass-input">
+                <option value="">Setor: Todos</option>
+                <option value="Previdenciario">Previdenciário</option>
+                <option value="Trabalhista">Trabalhista</option>
+                <option value="Civel">Civel</option>
+                <option value="Familia">Familia</option>
+            </select>
+            <select id="filterTipo" class="form-select glass-input">
+                <option value="">Tipo: Todos</option>
+                <option value="Auxilio-doenca">Auxilio-doenca</option>
+                <option value="Aposentadoria">Aposentadoria</option>
+                <option value="Reclamacao Trabalhista">Reclamacao Trabalhista</option>
+                <option value="Indenizacao">Indenizacao</option>
+                <option value="Divorcio">Divorcio</option>
+            </select>
+            <select id="filterPeriodo" class="form-select glass-input">
+                <option value="">Período: Todos</option>
+                <option value="3m">Últimos 3 meses</option>
+                <option value="6m">Últimos 6 meses</option>
+                <option value="1y">Último ano</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="row">
+        <!-- Chart 1: Tempo Medio por Setor -->
+        <div class="col-md-6">
+            <div class="chart-card">
+                <h6>
+                    <span class="chart-icon" style="background: rgba(28, 36, 71,0.1); color: #1C2447;">
+                        <i class="fas fa-clock"></i>
+                    </span>
+                    Tempo Medio por Setor (meses)
+                </h6>
+                <div class="chart-container">
+                    <canvas id="chartTempoSetor"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 2: Tempo Medio por Tipo -->
+        <div class="col-md-6">
+            <div class="chart-card">
+                <h6>
+                    <span class="chart-icon" style="background: rgba(139,92,246,0.1); color: #8b5cf6;">
+                        <i class="fas fa-hourglass-half"></i>
+                    </span>
+                    Tempo Medio por Tipo (meses)
+                </h6>
+                <div class="chart-container">
+                    <canvas id="chartTempoTipo"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 3: Indice de Vitoria por Setor -->
+        <div class="col-md-6">
+            <div class="chart-card">
+                <h6>
+                    <span class="chart-icon" style="background: rgba(34,197,94,0.1); color: #22c55e;">
+                        <i class="fas fa-trophy"></i>
+                    </span>
+                    Indice de Vitoria por Setor (%)
+                </h6>
+                <div class="chart-container">
+                    <canvas id="chartVitoriaSetor"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 4: Indice de Vitoria por Tipo -->
+        <div class="col-md-6">
+            <div class="chart-card">
+                <h6>
+                    <span class="chart-icon" style="background: rgba(245,158,11,0.1); color: #f59e0b;">
+                        <i class="fas fa-gavel"></i>
+                    </span>
+                    Indice de Vitoria por Tipo (%)
+                </h6>
+                <div class="chart-container">
+                    <canvas id="chartVitoriaTipo"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 5: Processos por Mes -->
+        <div class="col-md-6">
+            <div class="chart-card">
+                <h6>
+                    <span class="chart-icon" style="background: rgba(28, 36, 71,0.1); color: #1C2447;">
+                        <i class="fas fa-chart-line"></i>
+                    </span>
+                    Processos por Mes
+                </h6>
+                <div class="chart-container">
+                    <canvas id="chartProcessosMes"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 6: Distribuicao por Setor -->
+        <div class="col-md-6">
+            <div class="chart-card">
+                <h6>
+                    <span class="chart-icon" style="background: rgba(236,72,153,0.1); color: #ec4899;">
+                        <i class="fas fa-chart-bar"></i>
+                    </span>
+                    Distribuicao por Setor ao Longo do Tempo (%)
+                </h6>
+                <div class="chart-container">
+                    <canvas id="chartDistribuicao"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    'use strict';
+
+    // ── Color palette ──────────────────────────────────────
+    const CYAN    = '#1C2447';
+    const GREEN   = '#22c55e';
+    const AMBER   = '#f59e0b';
+    const PURPLE  = '#8b5cf6';
+    const PINK    = '#ec4899';
+    const SLATE   = '#64748b';
+    const ROSE    = '#f43f5e';
+    const TEAL    = '#14b8a6';
+
+    const MULTI_COLORS = [CYAN, GREEN, AMBER, PURPLE, PINK, SLATE, ROSE, TEAL];
+    const MULTI_BG     = MULTI_COLORS.map(c => c + '22');
+
+    // ── Chart.js global defaults ───────────────────────────
+    Chart.defaults.font.family = "'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+    Chart.defaults.font.size = 12;
+    Chart.defaults.color = '#64748b';
+    Chart.defaults.plugins.legend.display = false;
+    Chart.defaults.animation.duration = 800;
+    Chart.defaults.animation.easing = 'easeOutQuart';
+
+    // ── Chart instances ────────────────────────────────────
+    let charts = {};
+
+    // ── Common chart options ───────────────────────────────
+    function barOpts(horizontal) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: horizontal ? 'y' : 'x',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    titleColor: '#f1f5f9',
+                    bodyColor: '#e2e8f0',
+                    cornerRadius: 10,
+                    padding: 12,
+                    displayColors: false,
+                    titleFont: { weight: '600' }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: !horizontal, color: 'rgba(0,0,0,0.04)' },
+                    border: { display: false },
+                    ticks: { padding: 8 }
+                },
+                y: {
+                    grid: { display: horizontal, color: 'rgba(0,0,0,0.04)' },
+                    border: { display: false },
+                    ticks: { padding: 8 },
+                    beginAtZero: true
+                }
+            }
+        };
+    }
+
+    function showEmpty(canvasId) {
+        const canvas = document.getElementById(canvasId);
+        const container = canvas.parentElement;
+        canvas.style.display = 'none';
+        container.innerHTML = '<div class="chart-empty"><i class="fas fa-chart-bar"></i><span>Sem dados para exibir</span></div>';
+    }
+
+    function showLoading(canvasId) {
+        const canvas = document.getElementById(canvasId);
+        const container = canvas.parentElement;
+        container.innerHTML = '<div class="loading-spinner"><div class="spinner-border" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+    }
+
+    // ── Render functions ───────────────────────────────────
+    function renderTempoSetor(data) {
+        if (!data || !data.labels.length) return showEmpty('chartTempoSetor');
+        if (charts.tempoSetor) charts.tempoSetor.destroy();
+        charts.tempoSetor = new Chart(document.getElementById('chartTempoSetor'), {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    data: data.data,
+                    backgroundColor: CYAN + '33',
+                    borderColor: CYAN,
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    barPercentage: 0.6,
+                    categoryPercentage: 0.7
+                }]
+            },
+            options: {
+                ...barOpts(false),
+                plugins: {
+                    ...barOpts(false).plugins,
+                    tooltip: {
+                        ...barOpts(false).plugins.tooltip,
+                        callbacks: {
+                            label: ctx => ctx.parsed.y.toFixed(1) + ' meses'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderTempoTipo(data) {
+        if (!data || !data.labels.length) return showEmpty('chartTempoTipo');
+        if (charts.tempoTipo) charts.tempoTipo.destroy();
+        charts.tempoTipo = new Chart(document.getElementById('chartTempoTipo'), {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    data: data.data,
+                    backgroundColor: data.data.map((_, i) => MULTI_COLORS[i % MULTI_COLORS.length] + '33'),
+                    borderColor: data.data.map((_, i) => MULTI_COLORS[i % MULTI_COLORS.length]),
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    barPercentage: 0.6,
+                    categoryPercentage: 0.7
+                }]
+            },
+            options: {
+                ...barOpts(true),
+                plugins: {
+                    ...barOpts(true).plugins,
+                    tooltip: {
+                        ...barOpts(true).plugins.tooltip,
+                        callbacks: {
+                            label: ctx => ctx.parsed.x.toFixed(1) + ' meses'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderVitoriaSetor(data) {
+        if (!data || !data.labels.length) return showEmpty('chartVitoriaSetor');
+        if (charts.vitoriaSetor) charts.vitoriaSetor.destroy();
+        charts.vitoriaSetor = new Chart(document.getElementById('chartVitoriaSetor'), {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    data: data.data,
+                    backgroundColor: GREEN + '33',
+                    borderColor: GREEN,
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    barPercentage: 0.6,
+                    categoryPercentage: 0.7
+                }]
+            },
+            options: {
+                ...barOpts(false),
+                scales: {
+                    ...barOpts(false).scales,
+                    y: { ...barOpts(false).scales.y, max: 100 }
+                },
+                plugins: {
+                    ...barOpts(false).plugins,
+                    tooltip: {
+                        ...barOpts(false).plugins.tooltip,
+                        callbacks: {
+                            label: ctx => ctx.parsed.y.toFixed(0) + '%'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderVitoriaTipo(data) {
+        if (!data || !data.labels.length) return showEmpty('chartVitoriaTipo');
+        if (charts.vitoriaTipo) charts.vitoriaTipo.destroy();
+        charts.vitoriaTipo = new Chart(document.getElementById('chartVitoriaTipo'), {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    data: data.data,
+                    backgroundColor: data.data.map((_, i) => MULTI_COLORS[i % MULTI_COLORS.length] + '33'),
+                    borderColor: data.data.map((_, i) => MULTI_COLORS[i % MULTI_COLORS.length]),
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false,
+                    barPercentage: 0.6,
+                    categoryPercentage: 0.7
+                }]
+            },
+            options: {
+                ...barOpts(true),
+                scales: {
+                    ...barOpts(true).scales,
+                    x: { ...barOpts(true).scales.x, max: 100 }
+                },
+                plugins: {
+                    ...barOpts(true).plugins,
+                    tooltip: {
+                        ...barOpts(true).plugins.tooltip,
+                        callbacks: {
+                            label: ctx => ctx.parsed.x.toFixed(0) + '%'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderProcessosMes(data) {
+        if (!data || !data.labels.length) return showEmpty('chartProcessosMes');
+        if (charts.processosMes) charts.processosMes.destroy();
+        charts.processosMes = new Chart(document.getElementById('chartProcessosMes'), {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    data: data.data,
+                    borderColor: CYAN,
+                    backgroundColor: CYAN + '15',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: CYAN,
+                    pointBorderWidth: 2.5,
+                    pointHoverBackgroundColor: CYAN,
+                    pointHoverBorderColor: '#fff',
+                    borderWidth: 2.5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#f1f5f9',
+                        bodyColor: '#e2e8f0',
+                        cornerRadius: 10,
+                        padding: 12,
+                        displayColors: false,
+                        callbacks: {
+                            label: ctx => ctx.parsed.y + ' processos'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        border: { display: false },
+                        ticks: { padding: 8 }
+                    },
+                    y: {
+                        grid: { color: 'rgba(0,0,0,0.04)' },
+                        border: { display: false },
+                        ticks: { padding: 8, stepSize: 1 },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    function renderDistribuicao(data) {
+        if (!data || !data.labels.length) return showEmpty('chartDistribuicao');
+        if (charts.distribuicao) charts.distribuicao.destroy();
+        const datasets = (data.datasets || []).map((ds, i) => ({
+            label: ds.label,
+            data: ds.data,
+            backgroundColor: MULTI_COLORS[i % MULTI_COLORS.length] + '99',
+            borderColor: MULTI_COLORS[i % MULTI_COLORS.length],
+            borderWidth: 1,
+            borderRadius: 4,
+            borderSkipped: false
+        }));
+        charts.distribuicao = new Chart(document.getElementById('chartDistribuicao'), {
+            type: 'bar',
+            data: { labels: data.labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'rectRounded',
+                            padding: 16,
+                            font: { size: 11 }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#f1f5f9',
+                        bodyColor: '#e2e8f0',
+                        cornerRadius: 10,
+                        padding: 12,
+                        callbacks: {
+                            label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(0) + '%'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: { display: false },
+                        border: { display: false },
+                        ticks: { padding: 8 }
+                    },
+                    y: {
+                        stacked: true,
+                        max: 100,
+                        grid: { color: 'rgba(0,0,0,0.04)' },
+                        border: { display: false },
+                        ticks: {
+                            padding: 8,
+                            callback: v => v + '%'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── Fetch & render ─────────────────────────────────────
+    function fetchAndRender() {
+        const setor = document.getElementById('filterSetor')?.value || '';
+        const tipo = document.getElementById('filterTipo')?.value || '';
+        const periodo = document.getElementById('filterPeriodo')?.value || '';
+
+        const params = new URLSearchParams();
+        if (setor) params.set('setor', setor);
+        if (tipo) params.set('tipo', tipo);
+        if (periodo) params.set('periodo', periodo);
+
+        const url = '{{ PREFIX }}/controladoria/api/indices' + (params.toString() ? '?' + params.toString() : '');
+
+        // Show loading states
+        ['chartTempoSetor','chartTempoTipo','chartVitoriaSetor','chartVitoriaTipo','chartProcessosMes','chartDistribuicao'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                const container = el.parentElement;
+                container.innerHTML = '<canvas id="'+id+'"></canvas><div class="loading-spinner" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><div class="spinner-border" role="status" style="color:#1C2447;width:2rem;height:2rem;"><span class="visually-hidden">Carregando...</span></div></div>';
+            }
+        });
+
+        fetch(url, {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        })
+        .then(r => {
+            if (!r.ok) throw new Error('Erro ' + r.status);
+            return r.json();
+        })
+        .then(data => {
+            // Remove loading spinners
+            document.querySelectorAll('.loading-spinner').forEach(el => el.remove());
+
+            renderTempoSetor(data.tempo_medio_setor);
+            renderTempoTipo(data.tempo_medio_tipo);
+            renderVitoriaSetor(data.vitoria_setor);
+            renderVitoriaTipo(data.vitoria_tipo);
+            renderProcessosMes(data.processos_mes);
+            renderDistribuicao(data.distribuicao_setor);
+        })
+        .catch(err => {
+            console.error('Erro ao carregar indices:', err);
+            ['chartTempoSetor','chartTempoTipo','chartVitoriaSetor','chartVitoriaTipo','chartProcessosMes','chartDistribuicao'].forEach(showEmpty);
+        });
+    }
+
+    // ── Event listeners ────────────────────────────────────
+    ['filterSetor', 'filterTipo', 'filterPeriodo'].forEach(id => {
+        const filter = document.getElementById(id);
+        if (filter) filter.addEventListener('change', fetchAndRender);
+    });
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', fetchAndRender);
+})();
+</script>
+{% endblock %}

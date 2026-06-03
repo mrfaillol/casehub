@@ -1,0 +1,105 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}{% if product == "lite" %}Usuários{% else %}Users{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Admin · {{ users|length }} {% if product == "lite" %}usuário{{ 's' if users|length != 1 else '' }}{% else %}user{{ 's' if users|length != 1 else '' }}{% endif %}</span>
+    <h1>Equipe do <em>escritório</em>.</h1>
+    <p class="ch-page-head__sub">
+      {% if product == "lite" %}Convidar, editar permissões, desativar acesso.{% else %}Invite, edit permissions, disable access.{% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/admin">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/admin/users/new">
+      <span data-icon="plus"></span> {% if product == "lite" %}Novo usuário{% else %}New user{% endif %}
+    </a>
+  </div>
+</section>
+
+<section class="ch-card ch-card--bleed">
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <caption class="visually-hidden" style="position: absolute; left: -9999px;">
+        {% if product == "lite" %}Lista de usuários da organização{% else %}Organization users list{% endif %}
+      </caption>
+      <thead>
+        <tr>
+          <th>{% if product == "lite" %}Nome{% else %}Name{% endif %}</th>
+          <th>{% if product == "lite" %}E-mail{% else %}Email{% endif %}</th>
+          <th>{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+          <th>Status</th>
+          <th style="text-align: right;">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td data-label="{% if product == 'lite' %}Nome{% else %}Name{% endif %}">
+            <strong>{{ u.name }}</strong>
+          </td>
+          <td data-label="{% if product == 'lite' %}E-mail{% else %}Email{% endif %}" class="ch-mono" style="font-size: var(--fs-xs);">{{ u.email }}</td>
+          <td data-label="{% if product == 'lite' %}Tipo{% else %}Type{% endif %}">
+            <span class="ch-pill ch-pill--info">
+              <span class="dot"></span>
+              {% if product == "lite" %}
+                {% if u.user_type == "superadmin" %}Superadmin
+                {%- elif u.user_type == "admin" %}Administrador
+                {%- elif u.user_type == "attorney" %}Advogado
+                {%- elif u.user_type == "paralegal" %}Estagiário
+                {%- elif u.user_type == "assistant" %}Assistente
+                {%- else %}Operador{% endif %}
+              {% else %}{{ u.user_type|title }}{% endif %}
+            </span>
+          </td>
+          <td data-label="Status">
+            {% if u.enabled %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>{% if product == "lite" %}Ativo{% else %}Active{% endif %}</span>
+            {% else %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>{% if product == "lite" %}Desativado{% else %}Disabled{% endif %}</span>
+            {% endif %}
+          </td>
+          <td data-label="" style="text-align: right;">
+            <div style="display: inline-flex; gap: var(--space-2); align-items: center;">
+              <a class="ch-chip" href="{{ PREFIX }}/admin/users/{{ u.id }}/edit"
+                 aria-label="{% if product == 'lite' %}Editar {{ u.name }}{% else %}Edit {{ u.name }}{% endif %}">
+                <span data-icon="settings" data-icon-size="14"></span>
+              </a>
+              {% if u.id != user.id %}
+              <form method="post"
+                    action="{{ PREFIX }}/admin/users/{{ u.id }}/delete"
+                    style="margin: 0;"
+                    onsubmit="return confirm({{ ((product == 'lite') and ('Deletar usuário ' ~ u.name ~ '?') or ('Delete user ' ~ u.name ~ '?')) | tojson }});">
+                <button type="submit" class="ch-chip"
+                        style="color: var(--c-danger);"
+                        aria-label="{% if product == 'lite' %}Deletar {{ u.name }}{% else %}Delete {{ u.name }}{% endif %}">
+                  <span data-icon="x" data-icon-size="14"></span>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5">
+            <div class="ch-empty">
+              <span class="ch-empty__icon" data-icon="clients" data-icon-size="36"></span>
+              <h3>{% if product == "lite" %}Nenhum usuário cadastrado{% else %}No users yet{% endif %}</h3>
+              <p>{% if product == "lite" %}Crie o primeiro usuário da sua organização para começar.{% else %}Create the first user of your organization to get started.{% endif %}</p>
+              <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/admin/users/new">
+                <span data-icon="plus"></span> {% if product == "lite" %}Adicionar usuário{% else %}Add user{% endif %}
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

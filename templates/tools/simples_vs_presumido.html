@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Simples vs Presumido vs Real - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-simples-vs-presumido.css">
+{% endblock %}
+
+{% block content %}
+<section class="svp-main" aria-labelledby="svp-title">
+    <div class="svp-container">
+        <header class="svp-header svp-no-print">
+            <div>
+                <h1 id="svp-title" class="svp-header-title">
+                    <i class="fas fa-balance-scale-right svp-header-icon" aria-hidden="true"></i>
+                    <span>Simples vs Presumido vs Real</span>
+                </h1>
+                <p class="svp-header-subtitle">LC 123/2006, Lei 9.249/95, Lei 9.430/96</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="svp-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        <div class="svp-grid {% if resultado %}svp-grid--with-results{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/simples-vs-presumido/calcular" class="svp-card" aria-label="Dados da empresa">
+                <h2 class="svp-form-title">Dados da Empresa</h2>
+
+                <div class="svp-field">
+                    <label for="svp-faturamento" class="svp-label">Faturamento Anual (R$)</label>
+                    <div class="svp-input-group">
+                        <span class="svp-input-prefix" aria-hidden="true">R$</span>
+                        <input type="number" class="svp-input" id="svp-faturamento" name="faturamento"
+                               step="0.01" min="0" value="{{ form.faturamento if form else '' }}" required aria-required="true">
+                    </div>
+                </div>
+
+                <div class="svp-field">
+                    <label for="svp-atividade" class="svp-label">Atividade Principal</label>
+                    <select class="svp-select" id="svp-atividade" name="atividade" required aria-required="true">
+                        <option value="comercio" {% if form and form.atividade == 'comercio' %}selected{% endif %}>Comércio</option>
+                        <option value="servico" {% if form and form.atividade == 'servico' %}selected{% endif %}>Serviço</option>
+                        <option value="industria" {% if form and form.atividade == 'industria' %}selected{% endif %}>Indústria</option>
+                    </select>
+                </div>
+
+                <div class="svp-field">
+                    <label for="svp-folha" class="svp-label">Folha de Pagamento Anual (R$)</label>
+                    <div class="svp-input-group">
+                        <span class="svp-input-prefix" aria-hidden="true">R$</span>
+                        <input type="number" class="svp-input" id="svp-folha" name="folha"
+                               step="0.01" min="0" value="{{ form.folha if form else '0' }}">
+                    </div>
+                    <small class="svp-hint">Importante para o Fator R (Simples Nacional)</small>
+                </div>
+
+                <button type="submit" class="svp-submit">
+                    <i class="fas fa-calculator" aria-hidden="true"></i>
+                    <span>Comparar Regimes</span>
+                </button>
+            </form>
+
+            {% if resultado %}
+            <div class="svp-results">
+                <div class="svp-summary" role="status" aria-live="polite">
+                    <h2 class="svp-summary-title">
+                        <i class="fas fa-trophy" aria-hidden="true"></i>
+                        <span>Melhor Regime: {{ resultado.melhor_regime }}</span>
+                    </h2>
+                    <p class="svp-summary-body">Economia de R$ {{ resultado.economia_fmt }} em comparação ao regime mais caro. Fator R: {{ resultado.fator_r }}%</p>
+                </div>
+
+                <div class="svp-regimes">
+                    <article class="svp-regime {% if resultado.melhor_regime == 'Simples Nacional' %}svp-regime--best{% endif %}"
+                             {% if not resultado.simples.elegivel %}aria-label="Simples Nacional não elegível"{% endif %}>
+                        <header class="svp-regime-header svp-regime-header--simples">Simples Nacional</header>
+                        <div class="svp-regime-body">
+                            {% if resultado.simples.elegivel %}
+                            <div class="svp-regime-total">
+                                <span class="svp-regime-total-value">R$ {{ resultado.simples.total_fmt }}</span>
+                                <span class="svp-regime-total-percent">{{ resultado.simples.percentual }}% do faturamento</span>
+                            </div>
+                            <ul class="svp-regime-breakdown">
+                                <li><span>Anexo</span><span>{{ resultado.simples.anexo }}</span></li>
+                                <li><span>Alíquota efetiva</span><span>{{ resultado.simples.aliquota_efetiva }}%</span></li>
+                            </ul>
+                            {% else %}
+                            <div class="svp-regime-empty">
+                                <i class="fas fa-ban svp-regime-empty-icon" aria-hidden="true"></i>
+                                <span>Não elegível<br>(faturamento &gt; R$ 4.8M)</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </article>
+
+                    <article class="svp-regime {% if resultado.melhor_regime == 'Lucro Presumido' %}svp-regime--best{% endif %}">
+                        <header class="svp-regime-header svp-regime-header--presumido">Lucro Presumido</header>
+                        <div class="svp-regime-body">
+                            <div class="svp-regime-total">
+                                <span class="svp-regime-total-value">R$ {{ resultado.presumido.total_fmt }}</span>
+                                <span class="svp-regime-total-percent">{{ resultado.presumido.percentual }}% do faturamento</span>
+                            </div>
+                            <ul class="svp-regime-breakdown">
+                                <li><span>IRPJ</span><span>R$ {{ resultado.presumido.irpj_fmt }}</span></li>
+                                <li><span>CSLL</span><span>R$ {{ resultado.presumido.csll_fmt }}</span></li>
+                                <li><span>PIS</span><span>R$ {{ resultado.presumido.pis_fmt }}</span></li>
+                                <li><span>COFINS</span><span>R$ {{ resultado.presumido.cofins_fmt }}</span></li>
+                                <li><span>CPP</span><span>R$ {{ resultado.presumido.cpp_fmt }}</span></li>
+                            </ul>
+                        </div>
+                    </article>
+
+                    <article class="svp-regime {% if resultado.melhor_regime == 'Lucro Real' %}svp-regime--best{% endif %}">
+                        <header class="svp-regime-header svp-regime-header--real">Lucro Real</header>
+                        <div class="svp-regime-body">
+                            <div class="svp-regime-total">
+                                <span class="svp-regime-total-value">R$ {{ resultado.real.total_fmt }}</span>
+                                <span class="svp-regime-total-percent">{{ resultado.real.percentual }}% do faturamento</span>
+                            </div>
+                            <ul class="svp-regime-breakdown">
+                                <li><span>IRPJ</span><span>R$ {{ resultado.real.irpj_fmt }}</span></li>
+                                <li><span>CSLL</span><span>R$ {{ resultado.real.csll_fmt }}</span></li>
+                                <li><span>PIS</span><span>R$ {{ resultado.real.pis_fmt }}</span></li>
+                                <li><span>COFINS</span><span>R$ {{ resultado.real.cofins_fmt }}</span></li>
+                                <li><span>CPP</span><span>R$ {{ resultado.real.cpp_fmt }}</span></li>
+                            </ul>
+                        </div>
+                    </article>
+                </div>
+
+                <section class="svp-card" aria-labelledby="svp-legal-title">
+                    <h2 id="svp-legal-title" class="svp-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h2>
+                    <ul class="svp-legal-list">
+                        {% for ref in resultado.fundamentacao %}
+                        <li>{{ ref }}</li>
+                        {% endfor %}
+                    </ul>
+                    <div class="svp-disclaimer" role="note">
+                        <i class="fas fa-exclamation-triangle svp-disclaimer-icon" aria-hidden="true"></i>
+                        <span><strong>Aviso:</strong> Cálculo simplificado para fins de estimativa. O Lucro Real utiliza margem de lucro estimada de 20%. Consulte um contador para análise detalhada.</span>
+                    </div>
+                </section>
+
+                <div class="svp-actions svp-no-print">
+                    <button type="button" onclick="window.print()" class="svp-print">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

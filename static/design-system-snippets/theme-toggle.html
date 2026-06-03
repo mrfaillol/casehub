@@ -1,0 +1,121 @@
+<!--
+  Theme Toggle — CaseHub Design System
+  Inspirado em: codepen-references/pen-export-pvbvLBN/ (Tier A)
+  Adaptação: versão enxuta (sol/lua SVG + rotação) em vez do original 209 linhas com clouds/stars/craters
+  Técnica: CSS transition + localStorage persist, vanilla JS < 1KB
+  Custo: 60fps, GPU (transform/opacity), zero layers extras
+  Security scan: 2026-04-13 SAFE (localStorage só tema, sem eval, sem CDN externa)
+-->
+
+<div class="snippet-group" data-category="navigation">
+
+  <h3>Theme Toggle</h3>
+  <p class="snippet-caption">Alterna <code>.dark</code> em <code>&lt;html&gt;</code>. Persiste em <code>localStorage["ch-theme"]</code>. Respeita <code>prefers-color-scheme</code> na primeira visita.</p>
+
+  <style>
+    .ch-theme-toggle {
+      --ch-tt-size: 44px;
+      position: relative;
+      width: calc(var(--ch-tt-size) * 1.8);
+      height: var(--ch-tt-size);
+      border-radius: 999px;
+      border: 1px solid var(--glass-border, rgba(255,255,255,.14));
+      background: var(--glass-white-sm, rgba(255,255,255,.06));
+      cursor: pointer;
+      padding: 0;
+      overflow: hidden;
+      transition: background .3s ease;
+    }
+    .ch-theme-toggle:focus-visible {
+      outline: 2px solid var(--accent-aqua, #55d7ff);
+      outline-offset: 3px;
+    }
+
+    .ch-theme-toggle__thumb {
+      position: absolute;
+      top: 50%;
+      left: 4px;
+      width: calc(var(--ch-tt-size) - 10px);
+      height: calc(var(--ch-tt-size) - 10px);
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ffd86b, #ff9a3c);
+      transform: translateY(-50%);
+      transition: left .35s cubic-bezier(.66,-.2,.33,1.2), background .3s ease;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+
+    .ch-theme-toggle[aria-checked="true"] .ch-theme-toggle__thumb {
+      left: calc(100% - var(--ch-tt-size) + 6px);
+      background: linear-gradient(135deg, #bcd0ff, #6688c9);
+    }
+
+    .ch-theme-toggle__icon {
+      width: 60%;
+      height: 60%;
+      color: rgba(0,0,0,.7);
+      transition: transform .35s ease, opacity .2s ease;
+    }
+
+    .ch-theme-toggle[aria-checked="false"] .ch-theme-toggle__icon--moon,
+    .ch-theme-toggle[aria-checked="true"] .ch-theme-toggle__icon--sun {
+      opacity: 0;
+      transform: scale(.4) rotate(-90deg);
+      position: absolute;
+    }
+
+    .ch-theme-toggle[aria-checked="true"] .ch-theme-toggle__icon--moon,
+    .ch-theme-toggle[aria-checked="false"] .ch-theme-toggle__icon--sun {
+      opacity: 1;
+      transform: scale(1) rotate(0);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ch-theme-toggle,
+      .ch-theme-toggle__thumb,
+      .ch-theme-toggle__icon {
+        transition: none !important;
+      }
+    }
+  </style>
+
+  <button class="ch-theme-toggle" role="switch" aria-checked="false" aria-label="Alternar tema" id="ch-theme-toggle">
+    <span class="ch-theme-toggle__thumb">
+      <svg class="ch-theme-toggle__icon ch-theme-toggle__icon--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+      </svg>
+      <svg class="ch-theme-toggle__icon ch-theme-toggle__icon--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </span>
+  </button>
+
+  <script>
+    (function () {
+      var KEY = "ch-theme";
+      var root = document.documentElement;
+      var btn = document.getElementById("ch-theme-toggle");
+      if (!btn) return;
+
+      function apply(isDark) {
+        root.classList.toggle("dark", isDark);
+        btn.setAttribute("aria-checked", String(isDark));
+        try { localStorage.setItem(KEY, isDark ? "dark" : "light"); } catch (e) {}
+      }
+
+      var stored = null;
+      try { stored = localStorage.getItem(KEY); } catch (e) {}
+      var initial = stored
+        ? stored === "dark"
+        : window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      apply(initial);
+
+      btn.addEventListener("click", function () {
+        apply(!root.classList.contains("dark"));
+      });
+    })();
+  </script>
+
+</div>

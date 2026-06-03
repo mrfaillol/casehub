@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Processos{% else %}Cases{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/cases-list.css">
+{% endblock %}
+
+{% block content %}
+<main class="cases-list-main" role="main" aria-labelledby="cases-list-title">
+    <header class="cases-list-header">
+        <h1 id="cases-list-title" class="cases-list-title">
+            <i class="fas fa-folder" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Processos{% else %}Cases{% endif %}</span>
+        </h1>
+        <a href="{{ PREFIX }}/cases/new" class="cases-list-btn cases-list-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Novo Processo{% else %}New Case{% endif %}</span>
+        </a>
+    </header>
+
+    <section class="cases-list-filters" aria-label="{% if product == 'lite' %}Filtros{% else %}Filters{% endif %}">
+        <form method="get" class="cases-list-filters-form{% if product == 'lite' %} cases-list-filters-form--no-visa{% endif %}">
+            <div class="cases-list-field">
+                <label class="cases-list-field-label" for="cases-list-search">{% if product == "lite" %}Buscar{% else %}Search{% endif %}</label>
+                <div class="cases-list-search">
+                    <i class="fas fa-search cases-list-search-icon" aria-hidden="true"></i>
+                    <input type="text" id="cases-list-search" class="cases-list-input" name="search" placeholder="{% if product == 'lite' %}Buscar processos...{% else %}Search cases...{% endif %}" value="{{ search }}">
+                </div>
+            </div>
+            <div class="cases-list-field">
+                <label class="cases-list-field-label" for="cases-list-status">Status</label>
+                <select id="cases-list-status" name="status" class="cases-list-select" aria-label="{% if product == 'lite' %}Filtrar processos por status{% else %}Filter cases by status{% endif %}">
+                    {% if product == "lite" %}
+                    <option value="">Todos os Status</option>
+                    <option value="intake" {% if status == "intake" %}selected{% endif %}>Cadastro</option>
+                    <option value="document_collection" {% if status == "document_collection" %}selected{% endif %}>Coleta de Documentos</option>
+                    <option value="drafting" {% if status == "drafting" %}selected{% endif %}>Elaboração</option>
+                    <option value="review" {% if status == "review" %}selected{% endif %}>Revisão</option>
+                    <option value="filed" {% if status == "filed" %}selected{% endif %}>Protocolado</option>
+                    <option value="approved" {% if status == "approved" %}selected{% endif %}>Aprovado</option>
+                    <option value="denied" {% if status == "denied" %}selected{% endif %}>Negado</option>
+                    {% else %}
+                    <option value="">All Status</option>
+                    <option value="intake" {% if status == "intake" %}selected{% endif %}>Intake</option>
+                    <option value="document_collection" {% if status == "document_collection" %}selected{% endif %}>Document Collection</option>
+                    <option value="drafting" {% if status == "drafting" %}selected{% endif %}>Drafting</option>
+                    <option value="review" {% if status == "review" %}selected{% endif %}>Review</option>
+                    <option value="filed" {% if status == "filed" %}selected{% endif %}>Filed</option>
+                    <option value="rfe" {% if status == "rfe" %}selected{% endif %}>RFE</option>
+                    <option value="approved" {% if status == "approved" %}selected{% endif %}>Approved</option>
+                    <option value="denied" {% if status == "denied" %}selected{% endif %}>Denied</option>
+                    {% endif %}
+                </select>
+            </div>
+            {% if product != "lite" %}
+            <div class="cases-list-field">
+                <label class="cases-list-field-label" for="cases-list-visa-type">Visa Type</label>
+                <select id="cases-list-visa-type" name="visa_type" class="cases-list-select" aria-label="Filter cases by visa type">
+                    <option value="">All Visa Types</option>
+                    <option value="EB-2 NIW" {% if visa_type == "EB-2 NIW" %}selected{% endif %}>EB-2 NIW</option>
+                    <option value="EB-1A" {% if visa_type == "EB-1A" %}selected{% endif %}>EB-1A</option>
+                    <option value="H-1B" {% if visa_type == "H-1B" %}selected{% endif %}>H-1B</option>
+                    <option value="L-1" {% if visa_type == "L-1" %}selected{% endif %}>L-1</option>
+                    <option value="O-1" {% if visa_type == "O-1" %}selected{% endif %}>O-1</option>
+                    <option value="F-1" {% if visa_type == "F-1" %}selected{% endif %}>F-1</option>
+                    <option value="B-1/B-2" {% if visa_type == "B-1/B-2" %}selected{% endif %}>B-1/B-2</option>
+                    <option value="Green Card" {% if visa_type == "Green Card" %}selected{% endif %}>Green Card</option>
+                </select>
+            </div>
+            {% endif %}
+            <div class="cases-list-field">
+                <span class="cases-list-field-label" aria-hidden="true">&nbsp;</span>
+                <button type="submit" class="cases-list-btn cases-list-btn--ghost">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Filtrar{% else %}Filter{% endif %}</span>
+                </button>
+            </div>
+        </form>
+    </section>
+
+    {% if product == "lite" %}
+    <div id="skeleton-loader" class="cases-list-skeleton" aria-hidden="true">
+        <div class="cases-list-skeleton-heading"></div>
+        <div class="cases-list-skeleton-line"></div>
+        <div class="cases-list-skeleton-line"></div>
+        <div class="cases-list-skeleton-line"></div>
+        <div class="cases-list-skeleton-line cases-list-skeleton-line--90"></div>
+        <div class="cases-list-skeleton-line cases-list-skeleton-line--70"></div>
+    </div>
+    {% endif %}
+
+    <section class="cases-list-card" aria-label="{% if product == 'lite' %}Lista de processos{% else %}Case list{% endif %}">
+        <header class="cases-list-card-header">
+            <span class="cases-list-count">
+                <strong>{{ total }}</strong> {% if product == "lite" %}processos encontrados{% else %}cases found{% endif %}
+            </span>
+        </header>
+
+        <div class="cases-list-table-wrapper">
+            <table class="cases-list-table" id="casesTable" role="table">
+                <thead role="rowgroup">
+                    <tr role="row">
+                        <th scope="col" role="columnheader" class="cases-list-sortable" data-sort-col="0" data-sort-type="text" aria-sort="none" tabindex="0">
+                            {% if product == "lite" %}N Processo{% else %}Case #{% endif %}
+                            <span class="cases-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        <th scope="col" role="columnheader" class="cases-list-sortable" data-sort-col="1" data-sort-type="text" aria-sort="none" tabindex="0">
+                            {% if product == "lite" %}Cliente{% else %}Client{% endif %}
+                            <span class="cases-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        {% if product != "lite" %}
+                        <th scope="col" role="columnheader" class="cases-list-sortable" data-sort-col="2" data-sort-type="text" aria-sort="none" tabindex="0">
+                            Type
+                            <span class="cases-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        {% endif %}
+                        <th scope="col" role="columnheader" class="cases-list-sortable" data-sort-col="{% if product == 'lite' %}2{% else %}3{% endif %}" data-sort-type="text" aria-sort="none" tabindex="0">
+                            Status
+                            <span class="cases-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        <th scope="col" role="columnheader" class="cases-list-sortable" data-sort-col="{% if product == 'lite' %}3{% else %}4{% endif %}" data-sort-type="text" aria-sort="none" tabindex="0">
+                            {% if product == "lite" %}Prioridade{% else %}Priority{% endif %}
+                            <span class="cases-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        {% if product != "lite" %}
+                        <th scope="col" role="columnheader" class="cases-list-sortable" data-sort-col="5" data-sort-type="text" aria-sort="none" tabindex="0">
+                            Receipt #
+                            <span class="cases-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        {% endif %}
+                        <th scope="col" role="columnheader" class="cases-list-sortable" data-sort-col="{% if product == 'lite' %}4{% else %}6{% endif %}" data-sort-type="date" aria-sort="none" tabindex="0">
+                            {% if product == "lite" %}Criado{% else %}Created{% endif %}
+                            <span class="cases-list-sort-icon" aria-hidden="true">▲▼</span>
+                        </th>
+                        <th scope="col" role="columnheader" class="cases-list-actions-cell">
+                            <span class="cases-list-visually-hidden">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody role="rowgroup">
+                    {% for case in cases %}
+                    <tr class="cases-list-row" role="row" data-case-href="{{ PREFIX }}/cases/{{ case.id }}" tabindex="0" aria-label="{% if product == 'lite' %}Abrir processo {{ case.case_number or case.case_name or case.id }}{% else %}Open case {{ case.case_number or case.case_name or case.id }}{% endif %}">
+                        <td role="cell" class="cases-list-case-number" data-label="{% if product == 'lite' %}N Processo{% else %}Case #{% endif %}">{{ case.case_number or "-" }}</td>
+                        <td role="cell" class="cases-list-client" data-label="{% if product == 'lite' %}Cliente{% else %}Client{% endif %}">{{ case.case_name or "-" }}</td>
+                        {% if product != "lite" %}<td role="cell" class="cases-list-type" data-label="Type">{{ case.visa_type or "-" }}</td>{% endif %}
+                        <td role="cell" class="cases-list-status" data-label="Status">
+                            {% if product == "lite" %}
+                                {% if case.status == "intake" %}<span class="cases-list-badge cases-list-badge--cadastro">Cadastro</span>
+                                {% elif case.status == "document_collection" %}<span class="cases-list-badge cases-list-badge--cadastro">Coleta Docs</span>
+                                {% elif case.status == "drafting" %}<span class="cases-list-badge cases-list-badge--em-andamento">Elaboração</span>
+                                {% elif case.status == "review" %}<span class="cases-list-badge cases-list-badge--em-andamento">Revisão</span>
+                                {% elif case.status == "filed" %}<span class="cases-list-badge cases-list-badge--protocolado">Protocolado</span>
+                                {% elif case.status == "approved" %}<span class="cases-list-badge cases-list-badge--deferido">Aprovado</span>
+                                {% elif case.status == "denied" %}<span class="cases-list-badge cases-list-badge--indeferido">Negado</span>
+                                {% elif case.status == "archived" %}<span class="cases-list-badge cases-list-badge--arquivado">Arquivado</span>
+                                {% else %}<span class="cases-list-badge cases-list-badge--cadastro">{{ case.status }}</span>
+                                {% endif %}
+                            {% else %}
+                                {% if case.status == "approved" %}<span class="cases-list-badge cases-list-badge--deferido">Approved</span>
+                                {% elif case.status == "filed" %}<span class="cases-list-badge cases-list-badge--protocolado">Filed</span>
+                                {% elif case.status == "denied" %}<span class="cases-list-badge cases-list-badge--indeferido">Denied</span>
+                                {% elif case.status == "rfe" %}<span class="cases-list-badge cases-list-badge--rfe">RFE</span>
+                                {% else %}<span class="cases-list-badge cases-list-badge--cadastro">{{ case.status }}</span>
+                                {% endif %}
+                            {% endif %}
+                            {% if case.upcoming_prazos is defined and case.upcoming_prazos %}
+                            <span class="cases-list-prazo" title="{% if product == 'lite' %}{{ case.upcoming_prazos }} prazo(s) próximo(s){% else %}{{ case.upcoming_prazos }} upcoming deadline(s){% endif %}">
+                                <i class="fas fa-clock" aria-hidden="true"></i>
+                                <span>{{ case.upcoming_prazos }}</span>
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td role="cell" class="cases-list-priority" data-label="{% if product == 'lite' %}Prioridade{% else %}Priority{% endif %}">
+                            {% if product == "lite" %}
+                                {% if case.priority == "urgent" %}<span class="cases-list-badge cases-list-badge--urgent">Urgente</span>
+                                {% elif case.priority == "high" %}<span class="cases-list-badge cases-list-badge--high">Alta</span>
+                                {% elif case.priority == "normal" %}<span class="cases-list-badge cases-list-badge--normal">Normal</span>
+                                {% elif case.priority == "low" %}<span class="cases-list-badge cases-list-badge--low">Baixa</span>
+                                {% else %}<span class="cases-list-badge cases-list-badge--normal">{{ case.priority or "Normal" }}</span>
+                                {% endif %}
+                            {% else %}
+                                {% if case.priority == "urgent" %}<span class="cases-list-badge cases-list-badge--urgent">Urgent</span>
+                                {% elif case.priority == "high" %}<span class="cases-list-badge cases-list-badge--high">High</span>
+                                {% elif case.priority == "normal" %}<span class="cases-list-badge cases-list-badge--normal">Normal</span>
+                                {% elif case.priority == "low" %}<span class="cases-list-badge cases-list-badge--low">Low</span>
+                                {% else %}<span class="cases-list-badge cases-list-badge--normal">{{ case.priority or "Normal" }}</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        {% if product != "lite" %}<td role="cell" class="cases-list-receipt" data-label="Receipt #">{{ case.receipt_number or "-" }}</td>{% endif %}
+                        <td role="cell" class="cases-list-created" data-label="{% if product == 'lite' %}Criado{% else %}Created{% endif %}">{{ case.created_at.strftime("%Y-%m-%d") if case.created_at else "-" }}</td>
+                        <td role="cell" class="cases-list-actions-cell" data-label="{% if product == 'lite' %}Ações{% else %}Actions{% endif %}">
+                            <div class="cases-list-actions">
+                                <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-list-icon-btn" aria-label="{% if product == 'lite' %}Ver processo{% else %}View case{% endif %}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/cases/{{ case.id }}/edit" class="cases-list-icon-btn" aria-label="{% if product == 'lite' %}Editar processo{% else %}Edit case{% endif %}">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr role="row">
+                        <td role="cell" colspan="{% if product != 'lite' %}8{% else %}6{% endif %}" class="cases-list-empty">
+                            <i class="fas fa-folder-open cases-list-empty-icon" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Nenhum processo encontrado{% else %}No cases found{% endif %}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if total > per_page %}
+        <nav class="cases-list-pagination-nav" aria-label="{% if product == 'lite' %}Paginação{% else %}Pagination{% endif %}">
+            <ul class="cases-list-pagination">
+                {% if page > 1 %}
+                <li>
+                    <a class="cases-list-page-link" href="?page={{ page-1 }}&search={{ (search or '')|urlencode }}&status={{ (status or '')|urlencode }}{% if visa_type %}&visa_type={{ visa_type|urlencode }}{% endif %}" rel="prev">
+                        {% if product == "lite" %}Anterior{% else %}Previous{% endif %}
+                    </a>
+                </li>
+                {% endif %}
+                <li>
+                    <span class="cases-list-page-link" aria-current="page">
+                        {% if product == "lite" %}Página{% else %}Page{% endif %} {{ page }}
+                    </span>
+                </li>
+                {% if page * per_page < total %}
+                <li>
+                    <a class="cases-list-page-link" href="?page={{ page+1 }}&search={{ (search or '')|urlencode }}&status={{ (status or '')|urlencode }}{% if visa_type %}&visa_type={{ visa_type|urlencode }}{% endif %}" rel="next">
+                        {% if product == "lite" %}Próxima{% else %}Next{% endif %}
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </section>
+</main>
+
+<script>
+(function() {
+    var table = document.getElementById('casesTable');
+    if (!table) return;
+    var mobileQuery = window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
+
+    function isMobileSortDisabled() {
+        return Boolean(mobileQuery && mobileQuery.matches);
+    }
+
+    function sortTable(th) {
+        if (isMobileSortDisabled()) return;
+        var colIndex = parseInt(th.getAttribute('data-sort-col'), 10);
+        var type = th.getAttribute('data-sort-type');
+        var tbody = table.querySelector('tbody');
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.cases-list-row'));
+        var allThs = table.querySelectorAll('thead th.cases-list-sortable');
+        var current = th.getAttribute('aria-sort');
+        var next = (current === 'ascending') ? 'descending' : 'ascending';
+
+        for (var i = 0; i < allThs.length; i++) {
+            allThs[i].setAttribute('aria-sort', 'none');
+        }
+        th.setAttribute('aria-sort', next);
+
+        if (rows.length === 0) return;
+
+        rows.sort(function(a, b) {
+            var aText = (a.children[colIndex] ? a.children[colIndex].textContent : '').trim().toLowerCase();
+            var bText = (b.children[colIndex] ? b.children[colIndex].textContent : '').trim().toLowerCase();
+
+            if (type === 'date') {
+                var aDate = Date.parse(aText);
+                var bDate = Date.parse(bText);
+                var aInvalid = isNaN(aDate);
+                var bInvalid = isNaN(bDate);
+                if (aInvalid && bInvalid) return 0;
+                if (aInvalid) return 1;
+                if (bInvalid) return -1;
+                return next === 'ascending' ? aDate - bDate : bDate - aDate;
+            }
+
+            if (aText < bText) return next === 'ascending' ? -1 : 1;
+            if (aText > bText) return next === 'ascending' ? 1 : -1;
+            return 0;
+        });
+
+        rows.forEach(function(row) { tbody.appendChild(row); });
+    }
+
+    var sortables = table.querySelectorAll('thead th.cases-list-sortable');
+
+    function syncMobileSortFocus() {
+        var mobile = isMobileSortDisabled();
+        for (var idx = 0; idx < sortables.length; idx++) {
+            sortables[idx].setAttribute('tabindex', mobile ? '-1' : '0');
+            sortables[idx].setAttribute('aria-disabled', mobile ? 'true' : 'false');
+        }
+    }
+
+    for (var i = 0; i < sortables.length; i++) {
+        (function(th) {
+            th.addEventListener('click', function() { sortTable(th); });
+            th.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    sortTable(th);
+                }
+            });
+        })(sortables[i]);
+    }
+    syncMobileSortFocus();
+    if (mobileQuery) {
+        if (mobileQuery.addEventListener) {
+            mobileQuery.addEventListener('change', syncMobileSortFocus);
+        } else if (mobileQuery.addListener) {
+            mobileQuery.addListener(syncMobileSortFocus);
+        }
+    }
+
+    var rows = table.querySelectorAll('tr.cases-list-row');
+    for (var j = 0; j < rows.length; j++) {
+        (function(row) {
+            var href = row.getAttribute('data-case-href');
+            if (!href) return;
+            row.addEventListener('click', function(e) {
+                if (e.target.closest('.cases-list-actions')) return;
+                window.location = href;
+            });
+            row.addEventListener('keydown', function(e) {
+                if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.cases-list-actions')) {
+                    e.preventDefault();
+                    window.location = href;
+                }
+            });
+        })(rows[j]);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var s = document.getElementById('skeleton-loader');
+        if (s) s.remove();
+    });
+})();
+</script>
+{% endblock %}

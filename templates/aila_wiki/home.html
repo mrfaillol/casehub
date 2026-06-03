@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}AILA Wiki - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1"><i class="fas fa-book me-2 text-primary"></i>AILA Wiki</h2>
+        <p class="text-muted mb-0">Base de conhecimento interna - Direito Imigratorio</p>
+    </div>
+</div>
+
+<!-- Search Bar -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form action="{{ PREFIX }}/aila-wiki/search" method="get" class="row g-2">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="text" name="q" class="form-control form-control-lg"
+                           placeholder="Buscar artigos, procedimentos, guias de visto..." required minlength="2">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select name="source" class="form-select form-select-lg">
+                    <option value="all">Todas as fontes</option>
+                    <option value="wiki">Apenas Wiki</option>
+                    <option value="aila">Apenas AILA Docs</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary glass-btn glass-btn--primary btn-lg w-100">
+                    <i class="fas fa-search"></i> Buscar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Categories Grid -->
+<div class="row mb-4">
+    {% for cat in categories %}
+    <div class="col-6 col-md-4 col-lg-2 mb-3">
+        <a href="{{ PREFIX }}/aila-wiki?category={{ cat.name | urlencode }}"
+           class="card h-100 text-decoration-none category-card {% if selected_category == cat.name %}border-{{ cat.color }} border-2{% endif %}"
+           style="transition: all 0.2s ease;">
+            <div class="card-body text-center py-3">
+                <i class="fas fa-{{ cat.icon }} fa-2x mb-2 text-{{ cat.color }}"></i>
+                <h6 class="mb-1" style="font-size: 0.85rem;">{{ cat.name }}</h6>
+                <span class="badge bg-{{ cat.color }}">{{ cat.count }}</span>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Popular Tags -->
+{% if popular_tags %}
+<div class="mb-4">
+    <h6 class="text-muted mb-2"><i class="fas fa-tags me-1"></i> Tags Populares</h6>
+    <div class="d-flex flex-wrap gap-2">
+        {% for tag in popular_tags %}
+        <a href="{{ PREFIX }}/aila-wiki?tag={{ tag.name | urlencode }}"
+           class="badge {% if selected_tag == tag.name %}bg-primary{% else %}bg-secondary{% endif %} text-decoration-none"
+           style="font-size: 0.8rem; padding: 0.5em 0.8em;">
+            {{ tag.name }} <span class="opacity-75">({{ tag.count }})</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Current Filter -->
+{% if selected_category or selected_tag %}
+<div class="alert alert-info d-flex justify-content-between align-items-center mb-4">
+    <span>
+        <i class="fas fa-filter me-2"></i>
+        Filtrado por:
+        {% if selected_category %}<strong>{{ selected_category }}</strong>{% endif %}
+        {% if selected_tag %}<strong>{{ selected_tag }}</strong>{% endif %}
+    </span>
+    <a href="{{ PREFIX }}/aila-wiki" class="btn btn-sm btn-outline-info">
+        <i class="fas fa-times me-1"></i> Limpar filtro
+    </a>
+</div>
+{% endif %}
+
+<!-- Articles List -->
+<div class="card glass-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>
+            {% if selected_category %}
+            <i class="fas fa-folder me-1"></i> {{ selected_category }}
+            {% elif selected_tag %}
+            <i class="fas fa-tag me-1"></i> {{ selected_tag }}
+            {% else %}
+            <i class="fas fa-clock me-1"></i> Artigos Recentes
+            {% endif %}
+        </span>
+        <span class="badge bg-primary">{{ articles | length }} artigos</span>
+    </div>
+    <div class="list-group list-group-flush">
+        {% for article in articles %}
+        <a href="{{ PREFIX }}/aila-wiki/article/{{ article.slug }}"
+           class="list-group-item list-group-item-action">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">
+                        <i class="fas fa-file-alt me-2 text-muted"></i>
+                        {{ article.title }}
+                    </h6>
+                    <p class="mb-1 text-muted small">{{ article.summary }}</p>
+                    <div class="mt-2">
+                        <span class="badge bg-dark">{{ article.category }}</span>
+                        {% for tag in article.tags[:3] %}
+                        <span class="badge bg-secondary">{{ tag }}</span>
+                        {% endfor %}
+                        {% if article.tags | length > 3 %}
+                        <span class="badge bg-secondary">+{{ article.tags | length - 3 }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-end ms-3">
+                    <small class="text-muted d-block">
+                        {% if article.last_updated %}
+                        {{ article.last_updated[:10] }}
+                        {% endif %}
+                    </small>
+                    <i class="fas fa-chevron-right text-muted mt-2"></i>
+                </div>
+            </div>
+        </a>
+        {% else %}
+        <div class="list-group-item text-center text-muted py-5">
+            <i class="fas fa-folder-open fa-3x mb-3 opacity-50"></i>
+            <p class="mb-0">Nenhum artigo encontrado</p>
+            {% if selected_category or selected_tag %}
+            <a href="{{ PREFIX }}/aila-wiki" class="btn btn-sm btn-outline-secondary mt-3">
+                Ver todos os artigos
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+.category-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.list-group-item:hover {
+    background: rgba(74, 144, 217, 0.05);
+}
+</style>
+{% endblock %}

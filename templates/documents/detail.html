@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% block title %}{{ document.name }} - {{ org_name|default('CaseHub') }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <a href="{{ PREFIX }}/documents" class="text-muted text-decoration-none"><i class="fas fa-arrow-left me-1"></i> {% if product == "lite" %}Voltar{% else %}Back{% endif %}</a>
+        <h2 class="mt-2 mb-0"><i class="fas fa-file me-2"></i>{{ document.name }}</h2>
+    </div>
+    <div>
+        {% if document.drive_link %}
+        <a href="{{ document.drive_link }}" target="_blank" class="btn btn-success glass-btn glass-btn--success me-2">
+            <i class="fab fa-google-drive me-1"></i> {% if product == "lite" %}Abrir no Drive{% else %}Open in Drive{% endif %}
+        </a>
+        {% endif %}
+        <a href="{{ PREFIX }}/documents/{{ document.id }}/download" class="btn btn-primary glass-btn glass-btn--primary me-2"><i class="fas fa-download me-1"></i> {% if product == "lite" %}Baixar{% else %}Download{% endif %}</a>
+        <form method="post" action="{{ PREFIX }}/documents/{{ document.id }}/delete" class="d-inline" onsubmit="return confirm('{% if product == &quot;lite&quot; %}Excluir este documento?{% else %}Delete this document?{% endif %}');">
+            <button type="submit" class="btn btn-outline-danger glass-btn glass-btn--ghost"><i class="fas fa-trash me-1"></i> {% if product == "lite" %}Excluir{% else %}Delete{% endif %}</button>
+        </form>
+    </div>
+</div>
+<div class="mb-3">
+    {% if document.uploaded_via %}
+    <span class="badge bg-secondary me-2">
+        <i class="fas fa-{% if document.uploaded_via == 'client_portal' %}user{% elif document.uploaded_via == 'staff_upload' %}users{% else %}envelope{% endif %} me-1"></i>
+        {% if product == "lite" %}
+            {% if document.uploaded_via == 'client_portal' %}Portal do Cliente{% elif document.uploaded_via == 'staff_upload' %}Upload da Equipe{% else %}{{ document.uploaded_via.replace('_', ' ').title() }}{% endif %}
+        {% else %}
+            {{ document.uploaded_via.replace('_', ' ').title() }}
+        {% endif %}
+    </span>
+    {% endif %}
+    {% if document.llm_classified %}
+    <span class="badge bg-info me-2" title="{% if product == 'lite' %}Classificado com {{ (document.classification_confidence * 100)|int if document.classification_confidence else 0 }}% de confiança{% else %}Classified with {{ (document.classification_confidence * 100)|int if document.classification_confidence else 0 }}% confidence{% endif %}">
+        <i class="fas fa-robot me-1"></i>{% if product == "lite" %}Classificação IA ({{ (document.classification_confidence * 100)|int if document.classification_confidence else 0 }}%){% else %}AI Classified ({{ (document.classification_confidence * 100)|int if document.classification_confidence else 0 }}%){% endif %}
+    </span>
+    {% endif %}
+    {% if document.status %}
+    <span class="badge {% if document.status == 'APPROVED' %}bg-success{% elif document.status == 'REJECTED' %}bg-danger{% elif document.status == 'PENDING_APPROVAL' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+        <i class="fas fa-{% if document.status == 'APPROVED' %}check{% elif document.status == 'REJECTED' %}times{% elif document.status == 'PENDING_APPROVAL' %}clock{% else %}circle{% endif %} me-1"></i>
+        {% if product == "lite" %}
+            {% if document.status == 'APPROVED' %}Aprovado{% elif document.status == 'REJECTED' %}Rejeitado{% elif document.status == 'PENDING_APPROVAL' %}Pendente{% else %}Novo{% endif %}
+        {% else %}
+            {{ document.status.replace('_', ' ').title() }}
+        {% endif %}
+    </span>
+    {% endif %}
+</div>
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card glass-card">
+            <div class="card-header"><i class="fas fa-info-circle me-1"></i> {% if product == "lite" %}Informações do Documento{% else %}Document Info{% endif %}</div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr><td class="text-muted" style="width:40%">{% if product == "lite" %}Nome{% else %}Name{% endif %}</td><td><strong>{{ document.name }}</strong></td></tr>
+                    <tr><td class="text-muted">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</td><td><span class="badge bg-info">{{ document.doc_type or "-" }}</span></td></tr>
+                    <tr>
+                        <td class="text-muted">Status</td>
+                        <td>
+                            {% if product == "lite" %}
+                                {% if document.status == 'APPROVED' %}
+                                <span class="badge bg-success">Aprovado</span>
+                                {% elif document.status == 'REJECTED' %}
+                                <span class="badge bg-danger">Rejeitado</span>
+                                {% elif document.status == 'PENDING_APPROVAL' %}
+                                <span class="badge bg-warning text-dark">Pendente</span>
+                                {% elif document.status == 'uploaded' or not document.status %}
+                                <span class="badge bg-secondary">Novo</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ document.status }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary">{{ document.status or "uploaded" }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr><td class="text-muted">{% if product == "lite" %}Tamanho{% else %}Size{% endif %}</td><td>{{ "%.1f KB"|format(document.file_size/1024) if document.file_size else "-" }}</td></tr>
+                    <tr><td class="text-muted">{% if product == "lite" %}Tipo MIME{% else %}MIME Type{% endif %}</td><td><code>{{ document.mime_type or "-" }}</code></td></tr>
+                    {% if product != "lite" %}
+                    <tr><td class="text-muted">Visa Category</td><td>{{ document.visa_category or "-" }}</td></tr>
+                    {% endif %}
+                    <tr><td class="text-muted">{% if product == "lite" %}Enviado em{% else %}Uploaded{% endif %}</td><td>{{ document.created_at.strftime("%d/%m/%Y %H:%M") if document.created_at else "-" }}</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card glass-card">
+            <div class="card-header"><i class="fas fa-link me-1"></i> {% if product == "lite" %}Vinculado a{% else %}Linked To{% endif %}</div>
+            <div class="card-body">
+                <p><strong>{% if product == "lite" %}Cliente:{% else %}Client:{% endif %}</strong> {% if client %}<a href="{{ PREFIX }}/clients/{{ client.id }}">{{ client.first_name }} {{ client.last_name }}</a>{% else %}<span class="text-muted">{% if product == "lite" %}Não vinculado{% else %}Not linked{% endif %}</span>{% endif %}</p>
+                <p class="mb-0"><strong>{% if product == "lite" %}Caso:{% else %}Case:{% endif %}</strong> {% if case %}<a href="{{ PREFIX }}/cases/{{ case.id }}">{{ case.case_name or case.case_number or case.visa_type }}</a>{% else %}<span class="text-muted">{% if product == "lite" %}Não vinculado{% else %}Not linked{% endif %}</span>{% endif %}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Drive Sync & Intake Tracking -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card glass-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fab fa-google-drive me-1"></i> {% if product == "lite" %}Sincronização Google Drive{% else %}Google Drive Sync{% endif %}</span>
+                {% if document.drive_sync_status == 'synced' %}
+                <span class="badge bg-success">{% if product == "lite" %}Sincronizado{% else %}Synced{% endif %}</span>
+                {% elif document.drive_sync_status == 'failed' %}
+                <span class="badge bg-danger">{% if product == "lite" %}Falhou{% else %}Failed{% endif %}</span>
+                {% elif document.drive_sync_status == 'pending' %}
+                <span class="badge bg-warning text-dark">{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</span>
+                {% else %}
+                <span class="badge bg-secondary">{% if product == "lite" %}Não sincronizado{% else %}Not Synced{% endif %}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if document.drive_sync_status == 'synced' %}
+                    <p class="text-success mb-2">
+                        <i class="fas fa-check-circle me-1"></i>
+                        {% if product == "lite" %}Sincronizado com sucesso no Google Drive{% else %}Successfully synced to Google Drive{% endif %}
+                    </p>
+                    {% if document.drive_synced_at %}
+                    <p class="text-muted small mb-2">
+                        <i class="fas fa-clock me-1"></i>
+                        {% if product == "lite" %}Sincronizado em:{% else %}Synced:{% endif %} {{ document.drive_synced_at.strftime("%d/%m/%Y %H:%M") }}
+                    </p>
+                    {% endif %}
+                    {% if document.drive_link %}
+                    <a href="{{ document.drive_link }}" target="_blank" class="btn btn-sm btn-success glass-btn glass-btn--success">
+                        <i class="fab fa-google-drive me-1"></i>{% if product == "lite" %}Abrir no Drive{% else %}Open in Drive{% endif %}
+                    </a>
+                    {% endif %}
+                {% elif document.drive_sync_status == 'failed' %}
+                    <p class="text-danger mb-2">
+                        <i class="fas fa-exclamation-circle me-1"></i>
+                        {% if product == "lite" %}Falha na sincronização{% else %}Sync failed{% endif %}
+                    </p>
+                    {% if document.drive_sync_error %}
+                    <div class="alert alert-danger small mb-2">
+                        <code>{{ document.drive_sync_error }}</code>
+                    </div>
+                    {% endif %}
+                    <p class="text-muted small mb-2">
+                        {% if product == "lite" %}Tentativas: {{ document.drive_retry_count or 0 }}{% else %}Retry count: {{ document.drive_retry_count or 0 }}{% endif %}
+                    </p>
+                    <form method="post" action="{{ PREFIX }}/api/documents/{{ document.id }}/retry-sync" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-warning glass-btn">
+                            <i class="fas fa-redo me-1"></i>{% if product == "lite" %}Tentar Novamente{% else %}Retry Sync{% endif %}
+                        </button>
+                    </form>
+                {% else %}
+                    <p class="text-muted mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        {% if document.status == 'APPROVED' %}
+                        {% if product == "lite" %}Aguardando sincronização automática...{% else %}Waiting for automatic sync...{% endif %}
+                        {% else %}
+                        {% if product == "lite" %}O documento precisa ser aprovado antes de sincronizar com o Drive{% else %}Document must be approved before syncing to Drive{% endif %}
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card glass-card">
+            <div class="card-header"><i class="fas fa-clipboard-list me-1"></i> {% if product == "lite" %}Intake e Notificações{% else %}Intake & Notifications{% endif %}</div>
+            <div class="card-body">
+                {% if document.intake_package_id %}
+                <p class="mb-2">
+                    <strong>{% if product == "lite" %}Pacote de Intake:{% else %}Intake Package:{% endif %}</strong>
+                    <a href="{{ PREFIX }}/intake/packages/{{ document.intake_package_id }}">#{{ document.intake_package_id }}</a>
+                </p>
+                {% endif %}
+                {% if document.intake_item_id %}
+                <p class="mb-2">
+                    <strong>{% if product == "lite" %}Item de Intake:{% else %}Intake Item:{% endif %}</strong> #{{ document.intake_item_id }}
+                </p>
+                {% endif %}
+                <hr class="my-2">
+                <p class="mb-1 small">
+                    <i class="fas fa-{% if document.approval_notification_sent %}check-circle text-success{% else %}circle text-muted{% endif %} me-1"></i>
+                    {% if product == "lite" %}Notificação de aprovação: {% if document.approval_notification_sent %}Enviada{% else %}Não enviada{% endif %}{% else %}Approval notification: {% if document.approval_notification_sent %}Sent{% else %}Not sent{% endif %}{% endif %}
+                </p>
+                <p class="mb-1 small">
+                    <i class="fas fa-{% if document.rejection_notification_sent %}check-circle text-success{% else %}circle text-muted{% endif %} me-1"></i>
+                    {% if product == "lite" %}Notificação de rejeição: {% if document.rejection_notification_sent %}Enviada{% else %}Não enviada{% endif %}{% else %}Rejection notification: {% if document.rejection_notification_sent %}Sent{% else %}Not sent{% endif %}{% endif %}
+                </p>
+                {% if document.client_notified_at %}
+                <p class="text-muted small mb-0">
+                    <i class="fas fa-clock me-1"></i>
+                    {% if product == "lite" %}Última notificação:{% else %}Last notified:{% endif %} {{ document.client_notified_at.strftime("%d/%m/%Y %H:%M") }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Section -->
+<div class="card glass-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-eye me-1"></i> {% if product == "lite" %}Pré-visualização{% else %}Preview{% endif %}</span>
+        <a href="{{ PREFIX }}/documents/{{ document.id }}/preview" target="_blank" class="btn btn-sm btn-outline-primary glass-btn glass-btn--ghost">
+            <i class="fas fa-external-link-alt me-1"></i> {% if product == "lite" %}Abrir em nova aba{% else %}Open in new tab{% endif %}
+        </a>
+    </div>
+    <div class="card-body p-0" style="background: #f8f9fa;">
+        {% if document.mime_type and document.mime_type.startswith('image/') %}
+            <div class="text-center p-3">
+                <img src="{{ PREFIX }}/documents/{{ document.id }}/preview"
+                     class="img-fluid" alt="{{ document.name }}"
+                     loading="lazy"
+                     style="max-height: 600px; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            </div>
+        {% elif document.mime_type == 'application/pdf' %}
+            <iframe src="{{ PREFIX }}/documents/{{ document.id }}/preview"
+                    width="100%" height="700px" frameborder="0"
+                    loading="lazy"
+                    style="border-radius: 0 0 4px 4px;">
+            </iframe>
+        {% elif document.mime_type and (document.mime_type.startswith('text/') or document.mime_type == 'application/json') %}
+            <iframe src="{{ PREFIX }}/documents/{{ document.id }}/preview"
+                    width="100%" height="400px" frameborder="0"
+                    loading="lazy">
+            </iframe>
+        {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-file fa-4x text-muted mb-3"></i>
+                <p class="text-muted mb-3">{% if product == "lite" %}Pré-visualização não disponível para este tipo de arquivo.{% else %}Preview not available for this file type.{% endif %}</p>
+                <a href="{{ PREFIX }}/documents/{{ document.id }}/download" class="btn btn-primary glass-btn glass-btn--primary">
+                    <i class="fas fa-download me-1"></i> {% if product == "lite" %}Baixar Arquivo{% else %}Download File{% endif %}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if document.notes %}
+<div class="card glass-card">
+    <div class="card-header"><i class="fas fa-sticky-note me-1"></i> {% if product == "lite" %}Observações{% else %}Notes{% endif %}</div>
+    <div class="card-body">{{ document.notes }}</div>
+</div>
+{% endif %}
+{% endblock %}

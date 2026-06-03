@@ -1,0 +1,177 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% block title %}Contacts · List · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/contacts-list.css">
+{% endblock %}
+{% block content %}
+<main class="contacts-list-main" aria-labelledby="contacts-list-title">
+    <header class="contacts-list-header">
+        <div class="contacts-list-heading">
+            <h1 id="contacts-list-title" class="contacts-list-title">
+                <i class="fas fa-address-book" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Contatos{% else %}Contacts{% endif %}</span>
+            </h1>
+            <p class="contacts-list-subtitle">
+                {% if product == "lite" %}Gerenciar empregadores, referências e contatos relacionados{% else %}Manage employers, references, and related contacts{% endif %}
+            </p>
+        </div>
+        <a href="{{ PREFIX }}/contacts/new" class="contacts-list-btn contacts-list-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Novo Contato{% else %}New Contact{% endif %}</span>
+        </a>
+    </header>
+
+    <section class="contacts-list-filters" aria-label="{% if product == 'lite' %}Filtros{% else %}Filters{% endif %}">
+        <form method="get" action="{{ PREFIX }}/contacts" class="contacts-list-filters-form">
+            <div class="contacts-list-field">
+                <label class="contacts-list-field-label" for="contacts-list-search">{% if product == "lite" %}Buscar{% else %}Search{% endif %}</label>
+                <div class="contacts-list-search">
+                    <i class="fas fa-search contacts-list-search-icon" aria-hidden="true"></i>
+                    <input type="text" id="contacts-list-search" name="search" class="contacts-list-input"
+                           placeholder="{% if product == 'lite' %}Buscar contatos...{% else %}Search contacts...{% endif %}"
+                           value="{{ search or '' }}">
+                </div>
+            </div>
+            <div class="contacts-list-field">
+                <label class="contacts-list-field-label" for="contacts-list-type">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</label>
+                <select id="contacts-list-type" name="contact_type" class="contacts-list-select"
+                        aria-label="{% if product == 'lite' %}Filtrar contatos por tipo{% else %}Filter contacts by type{% endif %}">
+                    <option value="">{% if product == "lite" %}Todos os Tipos{% else %}All Types{% endif %}</option>
+                    {% for ct in contact_types %}
+                    <option value="{{ ct.value }}" {% if selected_type == ct.value %}selected{% endif %}>
+                        {{ ct.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="contacts-list-field">
+                <span class="contacts-list-field-label" aria-hidden="true">&nbsp;</span>
+                <button type="submit" class="contacts-list-btn contacts-list-btn--ghost">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Filtrar{% else %}Filter{% endif %}</span>
+                </button>
+            </div>
+            {% if search or selected_type %}
+            <div class="contacts-list-field">
+                <span class="contacts-list-field-label" aria-hidden="true">&nbsp;</span>
+                <a href="{{ PREFIX }}/contacts" class="contacts-list-btn contacts-list-btn--subtle">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Limpar{% else %}Clear{% endif %}</span>
+                </a>
+            </div>
+            {% endif %}
+        </form>
+    </section>
+
+    <nav class="contacts-list-pills" aria-label="{% if product == 'lite' %}Filtrar por tipo{% else %}Filter by type{% endif %}">
+        <a href="{{ PREFIX }}/contacts"
+           class="contacts-list-pill {% if not selected_type %}contacts-list-pill--active{% endif %}"
+           {% if not selected_type %}aria-current="page"{% endif %}>
+            <span>{% if product == "lite" %}Todos{% else %}All{% endif %}</span>
+            <span class="contacts-list-pill-count">({{ contacts|length }})</span>
+        </a>
+        {% for ct in contact_types %}
+        {% if type_counts.get(ct.value, 0) > 0 %}
+        <a href="{{ PREFIX }}/contacts?contact_type={{ ct.value }}"
+           class="contacts-list-pill {% if selected_type == ct.value %}contacts-list-pill--active{% endif %}"
+           {% if selected_type == ct.value %}aria-current="page"{% endif %}>
+            <span>{{ ct.label }}</span>
+            <span class="contacts-list-pill-count">({{ type_counts.get(ct.value, 0) }})</span>
+        </a>
+        {% endif %}
+        {% endfor %}
+    </nav>
+
+    {% if contacts %}
+    <section class="contacts-list-card" aria-label="{% if product == 'lite' %}Lista de contatos{% else %}Contact list{% endif %}">
+        <div class="contacts-list-table-wrapper">
+            <table class="contacts-list-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Nome{% else %}Name{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Empresa{% else %}Company{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Contato{% else %}Contact Info{% endif %}</th>
+                        <th scope="col" class="contacts-list-actions-cell">
+                            <span class="contacts-list-visually-hidden">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for contact in contacts %}
+                    <tr class="contacts-list-row">
+                        <td>
+                            <a href="{{ PREFIX }}/contacts/{{ contact.id }}" class="contacts-list-name-link">
+                                {{ contact.name }}
+                            </a>
+                            {% if contact.title %}
+                            <small class="contacts-list-name-title">{{ contact.title }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if contact.contact_type == 'employer' %}
+                            <span class="contacts-list-badge contacts-list-badge--employer">{% if product == "lite" %}Empregador{% else %}Employer{% endif %}</span>
+                            {% elif contact.contact_type == 'attorney' %}
+                            <span class="contacts-list-badge contacts-list-badge--attorney">{% if product == "lite" %}Advogado{% else %}Attorney{% endif %}</span>
+                            {% elif contact.contact_type == 'reference' %}
+                            <span class="contacts-list-badge contacts-list-badge--reference">{% if product == "lite" %}Referência{% else %}Reference{% endif %}</span>
+                            {% elif contact.contact_type == 'expert_witness' %}
+                            <span class="contacts-list-badge contacts-list-badge--expert">{% if product == "lite" %}Perito{% else %}Expert{% endif %}</span>
+                            {% else %}
+                            <span class="contacts-list-badge contacts-list-badge--neutral">{{ contact.contact_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="contacts-list-company">{{ contact.company or '-' }}</td>
+                        <td>
+                            <div class="contacts-list-contact">
+                                {% if contact.email %}
+                                <a href="mailto:{{ contact.email }}" class="contacts-list-contact-link" aria-label="Email {{ contact.email }}">
+                                    <i class="fas fa-envelope" aria-hidden="true"></i>
+                                    <span>{{ contact.email }}</span>
+                                </a>
+                                {% endif %}
+                                {% if contact.phone %}
+                                <span class="contacts-list-contact-line">
+                                    <i class="fas fa-phone" aria-hidden="true"></i>
+                                    <span>{{ contact.phone }}</span>
+                                </span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="contacts-list-actions-cell">
+                            <div class="contacts-list-row-actions">
+                                <a href="{{ PREFIX }}/contacts/{{ contact.id }}" class="contacts-list-icon-btn"
+                                   aria-label="{% if product == 'lite' %}Ver contato {{ contact.name }}{% else %}View contact {{ contact.name }}{% endif %}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/contacts/{{ contact.id }}/edit" class="contacts-list-icon-btn"
+                                   aria-label="{% if product == 'lite' %}Editar contato {{ contact.name }}{% else %}Edit contact {{ contact.name }}{% endif %}">
+                                    <i class="fas fa-edit" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% else %}
+    <section class="contacts-list-empty" aria-label="{% if product == 'lite' %}Estado vazio{% else %}Empty state{% endif %}">
+        <i class="fas fa-address-book contacts-list-empty-icon" aria-hidden="true"></i>
+        <h2 class="contacts-list-empty-title">{% if product == "lite" %}Nenhum Contato{% else %}No Contacts{% endif %}</h2>
+        <p class="contacts-list-empty-text">
+            {% if product == "lite" %}Adicione contatos como empregadores, referências e peritos.{% else %}Add contacts like employers, references, and expert witnesses.{% endif %}
+        </p>
+        <a href="{{ PREFIX }}/contacts/new" class="contacts-list-btn contacts-list-btn--primary">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Adicionar Contato{% else %}Add Contact{% endif %}</span>
+        </a>
+    </section>
+    {% endif %}
+</main>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

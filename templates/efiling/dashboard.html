@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}E-Filing Dashboard - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/efiling-dashboard.css">
+{% endblock %}
+
+{% block content %}
+<section class="efiling-dashboard-main" aria-labelledby="efiling-dashboard-title">
+    <header class="efiling-dashboard-header">
+        <div class="efiling-dashboard-header-leading">
+            <h1 id="efiling-dashboard-title" class="efiling-dashboard-title">
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                <span>E-Filing Dashboard</span>
+            </h1>
+            <p class="efiling-dashboard-subtitle">Manage USCIS form submissions</p>
+        </div>
+
+        <div class="efiling-dashboard-actions">
+            <a href="{{ PREFIX }}/efiling/new" class="efiling-dashboard-action efiling-dashboard-action--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>New Submission</span>
+            </a>
+        </div>
+    </header>
+
+    <nav class="efiling-dashboard-stats" aria-label="Filter submissions by status">
+        <a href="{{ PREFIX }}/efiling"
+           class="efiling-dashboard-stat{% if not selected_status %} efiling-dashboard-stat--active{% endif %}"
+           {% if not selected_status %}aria-current="page"{% endif %}>
+            <span class="efiling-dashboard-stat-value">{{ submissions|length }}</span>
+            <span class="efiling-dashboard-stat-label">All</span>
+        </a>
+        <a href="{{ PREFIX }}/efiling?status=draft"
+           class="efiling-dashboard-stat{% if selected_status == 'draft' %} efiling-dashboard-stat--active{% endif %}"
+           {% if selected_status == 'draft' %}aria-current="page"{% endif %}>
+            <span class="efiling-dashboard-stat-value efiling-dashboard-stat-value--muted">{{ status_counts.get('draft', 0) }}</span>
+            <span class="efiling-dashboard-stat-label">Draft</span>
+        </a>
+        <a href="{{ PREFIX }}/efiling?status=ready"
+           class="efiling-dashboard-stat{% if selected_status == 'ready' %} efiling-dashboard-stat--active{% endif %}"
+           {% if selected_status == 'ready' %}aria-current="page"{% endif %}>
+            <span class="efiling-dashboard-stat-value efiling-dashboard-stat-value--info">{{ status_counts.get('ready', 0) }}</span>
+            <span class="efiling-dashboard-stat-label">Ready</span>
+        </a>
+        <a href="{{ PREFIX }}/efiling?status=submitted"
+           class="efiling-dashboard-stat{% if selected_status == 'submitted' %} efiling-dashboard-stat--active{% endif %}"
+           {% if selected_status == 'submitted' %}aria-current="page"{% endif %}>
+            <span class="efiling-dashboard-stat-value efiling-dashboard-stat-value--warning">{{ status_counts.get('submitted', 0) }}</span>
+            <span class="efiling-dashboard-stat-label">Submitted</span>
+        </a>
+        <a href="{{ PREFIX }}/efiling?status=accepted"
+           class="efiling-dashboard-stat{% if selected_status == 'accepted' %} efiling-dashboard-stat--active{% endif %}"
+           {% if selected_status == 'accepted' %}aria-current="page"{% endif %}>
+            <span class="efiling-dashboard-stat-value efiling-dashboard-stat-value--success">{{ status_counts.get('accepted', 0) }}</span>
+            <span class="efiling-dashboard-stat-label">Accepted</span>
+        </a>
+        <a href="{{ PREFIX }}/efiling?status=rejected"
+           class="efiling-dashboard-stat{% if selected_status == 'rejected' %} efiling-dashboard-stat--active{% endif %}"
+           {% if selected_status == 'rejected' %}aria-current="page"{% endif %}>
+            <span class="efiling-dashboard-stat-value efiling-dashboard-stat-value--danger">{{ status_counts.get('rejected', 0) }}</span>
+            <span class="efiling-dashboard-stat-label">Rejected</span>
+        </a>
+    </nav>
+
+    {% if submissions %}
+    <div class="efiling-dashboard-card">
+        <div class="efiling-dashboard-tablewrap">
+            <table class="efiling-dashboard-table">
+                <caption>List of e-filing submissions with submission ID, form, case, beneficiary, status, receipt number, creation date, and actions.</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Submission ID</th>
+                        <th scope="col">Form</th>
+                        <th scope="col">Case</th>
+                        <th scope="col">Beneficiary</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Receipt #</th>
+                        <th scope="col">Created</th>
+                        <th scope="col" class="efiling-dashboard-cell-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in submissions %}
+                    <tr>
+                        <td>
+                            <a href="{{ PREFIX }}/efiling/{{ sub.submission_id }}" class="efiling-dashboard-id">
+                                {{ sub.submission_id }}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="efiling-dashboard-form-badge">{{ sub.form_number }}</span>
+                        </td>
+                        <td>
+                            {% if sub.case_number %}
+                            <a href="{{ PREFIX }}/cases/{{ sub.case_id }}" class="efiling-dashboard-link">{{ sub.case_number }}</a>
+                            {% else %}
+                            <span class="efiling-dashboard-placeholder" aria-label="No case">—</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ sub.first_name }} {{ sub.last_name }}</td>
+                        <td>
+                            {% if sub.status == 'draft' %}
+                            <span class="efiling-dashboard-status efiling-dashboard-status--draft">Draft</span>
+                            {% elif sub.status == 'ready' %}
+                            <span class="efiling-dashboard-status efiling-dashboard-status--ready">Ready</span>
+                            {% elif sub.status == 'queued' %}
+                            <span class="efiling-dashboard-status efiling-dashboard-status--queued">Queued</span>
+                            {% elif sub.status == 'submitting' %}
+                            <span class="efiling-dashboard-status efiling-dashboard-status--submitting">Submitting</span>
+                            {% elif sub.status == 'submitted' %}
+                            <span class="efiling-dashboard-status efiling-dashboard-status--submitted">Submitted</span>
+                            {% elif sub.status == 'accepted' %}
+                            <span class="efiling-dashboard-status efiling-dashboard-status--accepted">Accepted</span>
+                            {% elif sub.status == 'rejected' %}
+                            <span class="efiling-dashboard-status efiling-dashboard-status--rejected">Rejected</span>
+                            {% else %}
+                            <span class="efiling-dashboard-status">{{ sub.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sub.receipt_number %}
+                            <span class="efiling-dashboard-receipt">{{ sub.receipt_number }}</span>
+                            {% else %}
+                            <span class="efiling-dashboard-placeholder" aria-label="No receipt">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sub.created_at %}
+                            <span class="efiling-dashboard-date">{{ sub.created_at.strftime('%Y-%m-%d') }}</span>
+                            {% else %}
+                            <span class="efiling-dashboard-placeholder" aria-label="No date">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="efiling-dashboard-cell-end">
+                            <div class="efiling-dashboard-row-actions">
+                                <a href="{{ PREFIX }}/efiling/{{ sub.submission_id }}" class="efiling-dashboard-icon-btn efiling-dashboard-icon-btn--accent" title="View submission" aria-label="View submission {{ sub.submission_id }}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                                <a href="{{ PREFIX }}/efiling/{{ sub.submission_id }}/cover-letter" class="efiling-dashboard-icon-btn" title="Cover letter" aria-label="Cover letter for {{ sub.submission_id }}">
+                                    <i class="fas fa-file-alt" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="efiling-dashboard-card">
+        <div class="efiling-dashboard-empty">
+            <i class="fas fa-paper-plane efiling-dashboard-empty-icon" aria-hidden="true"></i>
+            <h2 class="efiling-dashboard-empty-title">No E-Filing Submissions</h2>
+            <p class="efiling-dashboard-empty-text">Create your first e-filing submission to get started.</p>
+            <a href="{{ PREFIX }}/efiling/new" class="efiling-dashboard-action efiling-dashboard-action--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>New Submission</span>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

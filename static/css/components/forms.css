@@ -1,0 +1,275 @@
+/* ============================================================
+   CaseHub — Forms
+   ------------------------------------------------------------
+   Parts:    .field  .field__label  .field__control  .field__helper  .field__error
+   Controls: .input  .textarea  .select  .checkbox  .radio
+   Lei UX:   Postel — aceitar input bagunçado (normalização em JS).
+             Miller — forms longos em etapas (fieldset/legend).
+             Fitts — inputs ≥ 44px altura em mobile.
+   Note:     font-size: 16px em inputs previne zoom iOS.
+   Depende:  tokens.css, reset.css
+   ============================================================ */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.field__label {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+  line-height: var(--lh-snug);
+}
+
+.field__label[data-required]::after,
+.field__label .required {
+  content: " *";
+  color: var(--danger);
+  margin-left: 2px;
+}
+
+.field__helper {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-snug);
+}
+
+.field__error {
+  font-size: var(--fs-xs);
+  color: var(--danger);
+  line-height: var(--lh-snug);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* -------------------- Base control -------------------- */
+
+.input,
+.textarea,
+.select {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-target-min);
+  padding: var(--space-2) var(--space-3);
+
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);      /* 16px — iOS no-zoom */
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-normal);
+  color: var(--text);
+
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+
+  transition:
+    border-color var(--dur-snappy) var(--ease-organic),
+    box-shadow   var(--dur-snappy) var(--ease-organic),
+    background   var(--dur-snappy) var(--ease-organic);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--text-subtle);
+  opacity: 1;
+}
+
+.input:hover:not(:disabled):not(:focus),
+.textarea:hover:not(:disabled):not(:focus),
+.select:hover:not(:disabled):not(:focus) {
+  border-color: var(--accent);
+}
+
+.input:focus,
+.textarea:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* -------------------- Textarea -------------------- */
+
+.textarea {
+  min-height: calc(var(--tap-target-min) * 2);
+  resize: vertical;
+  line-height: var(--lh-normal);
+}
+
+@supports (field-sizing: content) {
+  .textarea[data-autosize] {
+    field-sizing: content;
+    min-height: 3lh;
+    max-height: 20lh;
+  }
+}
+
+/* -------------------- Select -------------------- */
+
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--space-6);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%236B7280' stroke-width='2'><path d='M3 4.5l3 3 3-3'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  background-size: 12px 12px;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%239CA3AF' stroke-width='2'><path d='M3 4.5l3 3 3-3'/></svg>");
+}
+
+/* -------------------- Validation states -------------------- */
+
+.field[data-invalid="true"] .input,
+.field[data-invalid="true"] .textarea,
+.field[data-invalid="true"] .select,
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"],
+.select[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-bg);
+}
+
+.field[data-valid="true"] .input,
+.input[data-valid="true"] {
+  border-color: var(--success);
+}
+
+/* -------------------- Checkbox / Radio -------------------- */
+
+.checkbox,
+.radio {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  transition:
+    background var(--dur-snappy) var(--ease-organic),
+    border-color var(--dur-snappy) var(--ease-organic),
+    box-shadow var(--dur-snappy) var(--ease-organic);
+}
+
+.checkbox { border-radius: var(--radius-xs); }
+.radio    { border-radius: var(--radius-pill); }
+
+.checkbox:hover:not(:disabled),
+.radio:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.checkbox:focus-visible,
+.radio:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.checkbox:checked,
+.radio:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.checkbox:checked::after {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 10px;
+  margin: 2px auto;
+  border: solid var(--accent-contrast);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.radio:checked::after {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 8px;
+  margin: 5px auto;
+  background: var(--accent-contrast);
+  border-radius: 50%;
+}
+
+.checkbox:disabled,
+.radio:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Inline checkbox/radio + label */
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.field--inline .field__label {
+  font-weight: var(--fw-regular);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* -------------------- Fieldset grouping (Miller) -------------------- */
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.fieldset__legend {
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* -------------------- Form layout helpers -------------------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}

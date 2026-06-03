@@ -1,0 +1,1229 @@
+{% extends "app/base.html" %}
+{% set active_module = 'maestro' %}
+{% block title %}Assistente · Chat · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    /* ── Layout ── */
+    .chat-page {
+        display: flex;
+        height: calc(100vh - 140px);
+        max-height: 860px;
+        background: color-mix(in srgb, var(--surface-card) 82%, var(--surface-app));
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+    }
+
+    /* ── Chat Column ── */
+    .chat-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        overflow: hidden;
+        border-radius: inherit;
+        background: color-mix(in srgb, var(--surface-card) 74%, var(--surface-app));
+    }
+
+    /* ── Header (Liquid Glass) ── */
+    .chat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 24px;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        background: color-mix(in srgb, var(--surface-card) 86%, transparent);
+        border-bottom: 1px solid var(--line);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
+    }
+    .chat-header h5 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--fg-default);
+    }
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.78rem;
+        padding: 4px 12px;
+        border-radius: 20px;
+        background: var(--surface-card-2);
+        color: var(--fg-default);
+        border: 1px solid var(--line);
+    }
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .status-dot.online { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+    .status-dot.offline { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+
+    .toggle-config-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line);
+        background: var(--surface-app);
+        color: var(--fg-default);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+    .toggle-config-btn:hover {
+        border-color: var(--line-strong);
+        color: var(--c-green-d);
+    }
+    .toggle-config-btn.active {
+        background: var(--c-navy);
+        color: var(--c-paper);
+        border-color: var(--c-navy);
+    }
+    .toggle-config-btn svg,
+    .send-btn svg,
+    .welcome-icon svg,
+    .welcome-suggestion-btn svg,
+    .quick-action-btn svg,
+    .sidebar-link svg,
+    .empty-source-icon {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+    }
+
+    /* ── Messages Area ── */
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        background: color-mix(in srgb, var(--surface-app) 58%, var(--surface-card));
+    }
+    .chat-messages::-webkit-scrollbar { width: 6px; }
+    .chat-messages::-webkit-scrollbar-track { background: transparent; }
+    .chat-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 3px; }
+
+    /* ── Message Bubbles ── */
+    .message {
+        display: flex;
+        gap: 12px;
+        max-width: 80%;
+        animation: messageAppear 0.3s cubic-bezier(0.65, 0, 0.35, 1);
+    }
+    @keyframes messageAppear {
+        from { opacity: 0; transform: scale(0.95) translateY(8px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .message.user {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+    }
+    .message.assistant {
+        align-self: flex-start;
+    }
+    .message-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+    }
+    .message.user .message-avatar {
+        background: linear-gradient(135deg, #1C2447, #1a6670);
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(28, 36, 71,0.25);
+    }
+    .message.assistant .message-avatar {
+        background: linear-gradient(135deg, #1C2447 25%, #38bdf8 60%, #1a6670);
+        color: #ffffff;
+        box-shadow: 0 6px 16px rgba(28, 36, 71,0.3);
+        position: relative;
+    }
+    .message.assistant .message-avatar::before {
+        content: '';
+        position: absolute;
+        inset: 10%;
+        border-radius: 50%;
+        background: linear-gradient(rgba(255,255,255,0.4), rgba(0,0,0,0.1), transparent 50%);
+    }
+    .message-bubble {
+        padding: 12px 18px;
+        border-radius: 1.25rem;
+        font-size: 14px;
+        line-height: 1.7;
+        position: relative;
+    }
+    .message.user .message-bubble {
+        background: linear-gradient(135deg, #1C2447, #1a6670 calc(100% - 1rem));
+        color: #ffffff;
+        border-bottom-right-radius: 4px;
+        box-shadow:
+            0 3px 6px rgba(255,255,255,0.15) inset,
+            0 -2px 4px rgba(0,0,0,0.06) inset,
+            0 8px 20px rgba(28, 36, 71,0.2);
+        text-shadow: 0 0 4px rgba(0,0,0,0.15);
+        transform-origin: calc(100% + 12px) 100%;
+    }
+    .message.assistant .message-bubble {
+        background: #ffffff;
+        color: #1a1a1a;
+        border: 1px solid #e5e7eb;
+        border-bottom-left-radius: 4px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+        transform-origin: 0 0;
+    }
+    /* ── Animated text reveal for assistant messages ── */
+    .message.assistant .message-bubble .msg-text {
+        animation: textReveal 0.5s linear forwards;
+        opacity: 0;
+    }
+    @keyframes textReveal {
+        from, 40% { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    /* ── Thinking indicator (spinner) ── */
+    .thinking {
+        display: none;
+        align-self: flex-start;
+        gap: 12px;
+        max-width: 80%;
+        animation: messageAppear 0.3s cubic-bezier(0.65, 0, 0.35, 1);
+    }
+    .thinking.active { display: flex; }
+    .thinking-content {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 20px;
+        background: #ffffff;
+        border-radius: 1.25rem;
+        border-bottom-left-radius: 4px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+        font-size: 13px;
+        color: #6b7280;
+    }
+    .thinking-spinner {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+    .thinking-spinner-line {
+        animation: spinnerLine 1s linear infinite;
+        stroke: #1C2447;
+        stroke-linecap: round;
+        stroke-width: 2;
+    }
+    .thinking-spinner-line:nth-child(1) { animation-delay: -0.875s; }
+    .thinking-spinner-line:nth-child(2) { animation-delay: -0.75s; }
+    .thinking-spinner-line:nth-child(3) { animation-delay: -0.625s; }
+    .thinking-spinner-line:nth-child(4) { animation-delay: -0.5s; }
+    .thinking-spinner-line:nth-child(5) { animation-delay: -0.375s; }
+    .thinking-spinner-line:nth-child(6) { animation-delay: -0.25s; }
+    .thinking-spinner-line:nth-child(7) { animation-delay: -0.125s; }
+    .thinking-spinner-line:nth-child(8) { animation-delay: 0s; }
+    @keyframes spinnerLine {
+        from, 67%, to { opacity: 0.2; }
+        33% { opacity: 1; }
+    }
+
+    /* ── Quick Actions ── */
+    .quick-actions {
+        display: flex;
+        gap: 8px;
+        padding: 12px 24px;
+        overflow-x: auto;
+        border-top: 1px solid rgba(229,231,235,0.6);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        background: color-mix(in srgb, var(--surface-card) 78%, transparent);
+    }
+    .quick-action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        flex: 0 0 auto;
+        width: auto;
+        min-width: max-content;
+        max-width: 220px;
+        white-space: nowrap;
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        background: color-mix(in srgb, var(--surface-card-2) 72%, transparent);
+        color: var(--fg-default);
+        font-size: 13px;
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .quick-action-btn:hover {
+        border-color: var(--line-strong);
+        color: var(--c-green-d);
+        background: color-mix(in srgb, var(--surface-card) 82%, var(--c-green) 8%);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+    }
+
+    /* ── Input Area (Liquid Glass) ── */
+    .chat-input-area {
+        display: flex;
+        gap: 12px;
+        padding: 16px 24px;
+        border-top: 1px solid rgba(229,231,235,0.6);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        background: color-mix(in srgb, var(--surface-card) 88%, transparent);
+    }
+    .chat-input-area textarea {
+        flex: 1;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: 12px 16px;
+        font-size: 14px;
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+        resize: none;
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        max-height: 120px;
+        min-height: 48px;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        background: var(--surface-app);
+        color: var(--fg-default);
+    }
+    .chat-input-area textarea::placeholder {
+        color: #9ca3af;
+        opacity: 0.6;
+    }
+    .chat-input-area textarea:focus {
+        border-color: var(--line-strong);
+        background: var(--surface-card);
+        box-shadow: var(--focus-ring);
+    }
+    .send-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: 1px solid var(--c-navy);
+        background: var(--c-navy);
+        color: var(--c-paper);
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 2px 12px rgba(28, 36, 71,0.3);
+        position: relative;
+        overflow: hidden;
+    }
+    .send-btn::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 50%);
+        pointer-events: none;
+        border-radius: inherit;
+    }
+    .send-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 20px rgba(28, 36, 71,0.4);
+        background: #1a6670;
+        border-color: #1a6670;
+    }
+    .send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    /* ── Welcome card (ai-chat inspired) ── */
+    .welcome-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 60px 24px 40px;
+        max-width: 520px;
+        margin: auto;
+    }
+    .welcome-icon-wrapper {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+    .welcome-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #1C2447 25%, #38bdf8 60%, #1a6670);
+        box-shadow: 0 12px 32px rgba(28, 36, 71,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+    }
+    .welcome-icon::before {
+        content: '';
+        position: absolute;
+        inset: 10%;
+        border-radius: 50%;
+        background: linear-gradient(rgba(255,255,255,0.5), rgba(0,0,0,0.15), transparent 50%);
+    }
+    .welcome-icon i {
+        font-size: 1.5rem;
+        color: #ffffff;
+        position: relative;
+        z-index: 1;
+    }
+    .welcome-card h4 {
+        margin-bottom: 8px;
+        color: var(--fg-default, #1a1a1a);
+        font-weight: 600;
+        font-size: 1.15rem;
+        line-height: 1.4;
+    }
+    .welcome-card p {
+        color: var(--fg-muted, #6b7280);
+        font-size: 14px;
+        line-height: 1.7;
+        margin-bottom: 24px;
+    }
+    .welcome-suggestions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 100%;
+    }
+    .welcome-suggestion-btn {
+        background: color-mix(in srgb, var(--surface-card, #ffffff) 78%, transparent);
+        border-radius: 12px;
+        border: 1px solid var(--line, #e5e7eb);
+        color: var(--fg-default, #374151);
+        cursor: pointer;
+        padding: 12px 16px;
+        text-align: start;
+        font-size: 13px;
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+        transition: all 0.2s;
+        position: relative;
+        z-index: 0;
+    }
+    .welcome-suggestion-btn::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #1C2447, #1a6670 33%, #22c55e);
+        box-shadow: 0 3px 6px rgba(255,255,255,0.15) inset, 0 -2px 4px rgba(0,0,0,0.06) inset;
+        opacity: 0;
+        transition: opacity 0.2s;
+        z-index: -1;
+    }
+    .welcome-suggestion-btn:hover,
+    .welcome-suggestion-btn:focus-visible {
+        color: #ffffff;
+        box-shadow: 0 8px 16px rgba(28, 36, 71,0.2);
+        border-color: transparent;
+        outline: none;
+    }
+    .welcome-suggestion-btn svg,
+    .welcome-suggestion-btn i {
+        color: currentColor !important;
+        opacity: 0.95;
+    }
+    .welcome-suggestion-btn:hover::before,
+    .welcome-suggestion-btn:focus-visible::before {
+        opacity: 1;
+    }
+
+    [data-theme="dark"] .welcome-card h4,
+    [data-theme="dark"] .chat-title h5 {
+        color: rgba(245, 248, 255, 0.96);
+    }
+    [data-theme="dark"] .welcome-card p {
+        color: rgba(217, 226, 240, 0.78);
+    }
+    [data-theme="dark"] .welcome-suggestion-btn {
+        background: rgba(255, 255, 255, 0.045);
+        border-color: rgba(217, 226, 240, 0.24);
+        color: rgba(245, 248, 255, 0.9);
+    }
+    [data-theme="dark"] .welcome-suggestion-btn:hover,
+    [data-theme="dark"] .welcome-suggestion-btn:focus-visible {
+        color: #06111f;
+        border-color: transparent;
+    }
+    [data-theme="dark"] .welcome-suggestion-btn::before {
+        background: linear-gradient(90deg, #cfff4f, #46f2a9 48%, #3bd5ff);
+        box-shadow: 0 2px 8px rgba(207, 255, 79, 0.18), inset 0 1px 0 rgba(255,255,255,0.42);
+    }
+
+    /* ── Suggestion tags (follow-up after bot response) ── */
+    .suggestion-tags {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+    .suggestion-tag {
+        background: #f3f4f6;
+        border: none;
+        border-radius: 6px;
+        color: #374151;
+        cursor: pointer;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+        transition: all 0.2s;
+    }
+    .suggestion-tag:hover {
+        background: #1a1a1a;
+        color: #f3f4f6;
+    }
+    .suggestion-tag:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+
+    /* ── Message timestamp ── */
+    .message-time {
+        font-size: 0.7rem;
+        opacity: 0.5;
+        margin-top: 4px;
+    }
+    .message.user .message-time { text-align: right; color: #9ca3af; }
+    .message.assistant .message-time { color: #9ca3af; }
+
+    /* ══════════════════════════════════════════════════════
+       Config Sidebar
+       ══════════════════════════════════════════════════════ */
+    .config-sidebar {
+        width: 320px;
+        flex-shrink: 0;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        background: rgba(255, 255, 255, 0.85);
+        border-left: 1px solid rgba(229,231,235,0.5);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        transition: width 0.3s ease, opacity 0.3s ease;
+        box-shadow: -2px 0 16px rgba(0,0,0,0.04);
+    }
+    .config-sidebar.collapsed {
+        width: 0;
+        overflow: hidden;
+        border-left: none;
+        opacity: 0;
+        pointer-events: none;
+        visibility: hidden;
+    }
+    .config-sidebar-header {
+        padding: 14px 20px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .config-sidebar-header h6 {
+        margin: 0;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #1a1a1a;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .close-sidebar-btn {
+        background: none;
+        border: none;
+        color: #9ca3af;
+        cursor: pointer;
+        font-size: 1rem;
+        padding: 2px;
+        transition: color 0.2s;
+    }
+    .close-sidebar-btn:hover { color: #1a1a1a; }
+
+    .config-sidebar-body {
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    /* Status section */
+    .sidebar-section {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .sidebar-section-title {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: #9ca3af;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+    }
+    .sidebar-status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        background: rgba(247,247,248,0.6);
+        border-radius: 10px;
+        border: 1px solid rgba(229,231,235,0.5);
+    }
+    .sidebar-status-row .label {
+        font-size: 13px;
+        color: #6b7280;
+    }
+    .sidebar-status-row .value {
+        font-size: 13px;
+        font-weight: 600;
+        color: #1a1a1a;
+    }
+    .sidebar-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 12px;
+    }
+    .sidebar-status-badge.online {
+        background: rgba(34,197,94,0.1);
+        color: #22c55e;
+    }
+    .sidebar-status-badge.offline {
+        background: rgba(239,68,68,0.1);
+        color: #ef4444;
+    }
+    .sidebar-status-badge .sdot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .sidebar-status-badge.online .sdot { background: #22c55e; }
+    .sidebar-status-badge.offline .sdot { background: #ef4444; }
+
+    /* Model name */
+    .model-tag {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 500;
+        color: #1C2447;
+        background: rgba(28, 36, 71,0.08);
+        padding: 3px 10px;
+        border-radius: 8px;
+        font-family: 'Instrument Sans', monospace;
+    }
+
+    /* Quick links */
+    .sidebar-links {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .sidebar-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        text-decoration: none;
+        color: #1a1a1a;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+    .sidebar-link:hover {
+        background: #f0f9ff;
+        border-color: #1C2447;
+        color: #1C2447;
+    }
+    .sidebar-link i {
+        width: 18px;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 0.85rem;
+        transition: color 0.2s;
+    }
+    .sidebar-link:hover i { color: #1C2447; }
+
+    .sidebar-divider {
+        height: 1px;
+        background: #e5e7eb;
+        margin: 4px 0;
+    }
+
+    /* ── Mobile ── */
+    @media (max-width: 768px) {
+        .chat-page {
+            border-radius: var(--radius-md);
+            height: calc(100dvh - 208px);
+            max-height: none;
+            min-width: 0;
+            margin-bottom: 108px;
+        }
+        .chat-header {
+            padding: 12px 14px;
+            gap: 10px;
+        }
+        .chat-header h5 {
+            font-size: 0.95rem;
+        }
+        .header-actions {
+            gap: 8px;
+        }
+        .status-badge {
+            padding: 4px 10px;
+        }
+        .chat-messages {
+            padding: 18px 16px;
+        }
+        .welcome-card {
+            padding: 38px 16px 28px;
+        }
+        .chat-main {
+            width: 100%;
+            min-width: 0;
+        }
+        .config-sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            z-index: calc(var(--z-overlay, 80) + 1);
+            width: min(88vw, 340px);
+            max-width: 340px;
+            border-radius: 0;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.1);
+            opacity: 1;
+            transform: translateX(0);
+            transition: transform 0.22s ease, box-shadow 0.22s ease;
+        }
+        .config-sidebar.collapsed {
+            width: min(88vw, 340px);
+            border-left: 1px solid rgba(229,231,235,0.5);
+            box-shadow: none;
+            opacity: 1;
+            transform: translateX(100%);
+            pointer-events: none;
+            visibility: hidden;
+        }
+        .config-sidebar:not(.collapsed) {
+            visibility: visible;
+        }
+        .quick-actions {
+            padding: 10px 12px;
+            gap: 8px;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .quick-actions::-webkit-scrollbar {
+            display: none;
+        }
+        .quick-action-btn {
+            width: auto !important;
+            min-width: max-content;
+            max-width: none;
+            min-height: 44px;
+            border-radius: 14px;
+            padding: 10px 14px;
+            font-size: 13px;
+            line-height: 1.15;
+        }
+        .chat-input-area {
+            padding: 12px 14px 14px;
+            gap: 10px;
+        }
+        .chat-input-area textarea {
+            min-height: 52px;
+            font-size: 16px;
+        }
+        .send-btn {
+            width: 52px;
+            height: 52px;
+        }
+        .config-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.3);
+            z-index: var(--z-overlay, 80);
+        }
+        .config-overlay.active { display: block; }
+        .message { max-width: 90%; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <!-- Mobile overlay -->
+    <div class="config-overlay" id="configOverlay" onclick="toggleConfig()"></div>
+
+    <div class="chat-page" id="chatPage">
+        <!-- ═══ Chat Main ═══ -->
+        <div class="chat-main">
+            <!-- Header -->
+            <div class="chat-header">
+                <div class="d-flex align-items-center gap-2">
+                    <i data-lucide="bot" style="color: #1C2447;"></i>
+                    <h5>Maestro IA</h5>
+                </div>
+                <div class="header-actions">
+                    <span class="status-badge" id="statusBadge">
+                        <span class="status-dot {{ 'online' if ollama_status.status == 'online' else 'offline' }}" id="statusDot"></span>
+                        <span id="statusText">{{ 'Online' if ollama_status.status == 'online' else 'Offline' }}</span>
+                    </span>
+                    <button class="toggle-config-btn" id="toggleConfigBtn" onclick="toggleConfig()" title="Configurações" aria-expanded="false" aria-controls="configSidebar">
+                        <i data-lucide="sliders-horizontal"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-card" id="welcomeCard">
+                    <div class="welcome-icon-wrapper">
+                        <div class="welcome-icon">
+                            <i data-lucide="sparkles"></i>
+                        </div>
+                    </div>
+                    <h4>Ola! Sou o Maestro IA.</h4>
+                    <p>Seu assistente jurídico inteligente. Posso ajudar com informações sobre processos, prazos, clientes e muito mais.</p>
+                    <div class="welcome-suggestions">
+                        <button class="welcome-suggestion-btn" onclick="sendQuickAction('Faca um resumo geral do escritorio hoje')">
+                            <i data-lucide="clipboard-list" style="color:#1C2447;"></i> Faca um resumo geral do escritório hoje
+                        </button>
+                        <button class="welcome-suggestion-btn" onclick="sendQuickAction('Quais sao os prazos urgentes desta semana?')">
+                            <i data-lucide="triangle-alert" style="color:#1C2447;"></i> Quais sao os prazos urgentes desta semana?
+                        </button>
+                        <button class="welcome-suggestion-btn" onclick="sendQuickAction('Qual o status geral dos processos?')">
+                            <i data-lucide="chart-pie" style="color:#1C2447;"></i> Qual o status geral dos processos?
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thinking Indicator (spinner) -->
+            <div class="thinking" id="thinkingIndicator">
+                <div class="message-avatar" style="background: linear-gradient(135deg, #1C2447 25%, #38bdf8 60%, #1a6670); color: #fff; box-shadow: 0 6px 16px rgba(28, 36, 71,0.3); position: relative;">
+                    <i data-lucide="bot" style="position:relative;z-index:1;"></i>
+                    <span style="position:absolute;inset:10%;border-radius:50%;background:linear-gradient(rgba(255,255,255,0.4),rgba(0,0,0,0.1),transparent 50%);"></span>
+                </div>
+                <div class="thinking-content">
+                    <svg class="thinking-spinner" viewBox="0 0 24 24" fill="none">
+                        <line class="thinking-spinner-line" x1="12" y1="2" x2="12" y2="6" />
+                        <line class="thinking-spinner-line" x1="19.07" y1="4.93" x2="16.24" y2="7.76" />
+                        <line class="thinking-spinner-line" x1="22" y1="12" x2="18" y2="12" />
+                        <line class="thinking-spinner-line" x1="19.07" y1="19.07" x2="16.24" y2="16.24" />
+                        <line class="thinking-spinner-line" x1="12" y1="22" x2="12" y2="18" />
+                        <line class="thinking-spinner-line" x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
+                        <line class="thinking-spinner-line" x1="2" y1="12" x2="6" y2="12" />
+                        <line class="thinking-spinner-line" x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
+                    </svg>
+                    <span>Pensando...</span>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <button class="quick-action-btn" onclick="sendQuickAction('Faca um resumo geral do escritorio hoje')">
+                    <i data-lucide="clipboard-list"></i> Resumo do dia
+                </button>
+                <button class="quick-action-btn" onclick="sendQuickAction('Quais sao os prazos urgentes desta semana?')">
+                    <i data-lucide="triangle-alert"></i> Prazos urgentes
+                </button>
+                <button class="quick-action-btn" onclick="sendQuickAction('Qual o status geral dos processos?')">
+                    <i data-lucide="chart-pie"></i> Status processos
+                </button>
+                <button class="quick-action-btn" onclick="sendQuickAction('Quais tarefas estao pendentes?')">
+                    <i data-lucide="list-checks"></i> Tarefas pendentes
+                </button>
+                <button class="quick-action-btn" onclick="sendQuickAction('Quais clientes foram cadastrados recentemente?')">
+                    <i data-lucide="user-plus"></i> Novos clientes
+                </button>
+            </div>
+
+            <!-- Input Area -->
+            <div class="chat-input-area">
+                <textarea id="chatInput" placeholder="Digite sua mensagem..." rows="1"
+                          onkeydown="handleKeyDown(event)"></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Enviar">
+                    <i data-lucide="send-horizontal"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ═══ Config Sidebar ═══ -->
+        <div class="config-sidebar" id="configSidebar">
+            <div class="config-sidebar-header">
+                <h6>Configurações</h6>
+            </div>
+            <div class="config-sidebar-body">
+                <!-- Status -->
+                <div class="sidebar-section">
+                    <span class="sidebar-section-title">Status do Ollama</span>
+                    <div class="sidebar-status-row">
+                        <span class="label">Conexão</span>
+                        <span class="sidebar-status-badge {{ 'online' if ollama_status.status == 'online' else 'offline' }}" id="sidebarStatusBadge">
+                            <span class="sdot"></span>
+                            <span id="sidebarStatusText">{{ 'Online' if ollama_status.status == 'online' else 'Offline' }}</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Model -->
+                <div class="sidebar-section">
+                    <span class="sidebar-section-title">Modelo Ativo</span>
+                    <div class="sidebar-status-row">
+                        <span class="label">Modelo</span>
+                        {% if ollama_status.models %}
+                        <span class="model-tag" id="sidebarModelName">{{ ollama_status.models[0] }}</span>
+                        {% else %}
+                        <span class="model-tag" id="sidebarModelName" style="color: #9ca3af;">Nenhum</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="sidebar-divider"></div>
+
+                <!-- Fontes de Conhecimento (inline) -->
+                <div class="sidebar-section">
+                    <span class="sidebar-section-title">Fontes de Conhecimento</span>
+                    <div id="fontes-list" style="margin-top:8px;">
+                        <div style="text-align:center;color:#9ca3af;font-size:12px;padding:12px;">
+                            <i data-lucide="folder-open" class="empty-source-icon" style="opacity:0.4;display:block;margin:0 auto 6px;"></i>
+                            Nenhuma fonte adicionada
+                        </div>
+                    </div>
+                    <div style="margin-top:8px;display:flex;gap:6px;">
+                        <button onclick="document.getElementById('fonte-upload').click()" class="sidebar-link" style="flex:1;text-align:center;padding:8px;border:1px dashed #d1d5db;border-radius:8px;background:transparent;cursor:pointer;font-size:11px;color:#6b7280;">
+                            <i data-lucide="upload"></i> Upload
+                        </button>
+                        <input type="file" id="fonte-upload" hidden accept=".pdf,.txt,.docx" onchange="uploadFonte(this)">
+                        <a href="{{ PREFIX }}/assistente/config" class="sidebar-link" style="flex:1;text-align:center;padding:8px;border:1px solid #e5e7eb;border-radius:8px;font-size:11px;color:#6b7280;text-decoration:none;">
+                            <i data-lucide="settings"></i> Config
+                        </a>
+                    </div>
+                </div>
+
+                <div class="sidebar-divider"></div>
+
+                <!-- Links -->
+                <div class="sidebar-section">
+                    <span class="sidebar-section-title">Ações Rápidas</span>
+                    <div class="sidebar-links">
+                        <a href="{{ PREFIX }}/assistente/config" class="sidebar-link">
+                            <i data-lucide="user-cog"></i>
+                            <span>Personalidade</span>
+                        </a>
+                        <a href="{{ PREFIX }}/assistente/config" class="sidebar-link">
+                            <i data-lucide="history"></i>
+                            <span>Histórico</span>
+                        </a>
+                        {% if user and user.user_type == 'admin' %}
+                        <a href="{{ PREFIX }}/assistente/config" class="sidebar-link">
+                            <i data-lucide="settings"></i>
+                            <span>Configuração Completa</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const PREFIX = '{{ PREFIX }}';
+let chatHistory = [];
+let isProcessing = false;
+
+// Load knowledge sources in sidebar
+async function loadFontes() {
+    // /config/fontes é admin-only (403 p/ staff). Sem este guard, staff via 403
+    // no console em toda abertura do Maestro (29/05 Victor, console).
+    var __u = document.querySelector('meta[name="casehub-user"]');
+    if (!__u || __u.dataset.type !== 'admin') return;
+    try {
+        const resp = await fetch(PREFIX + '/assistente/config/fontes');
+        if (resp.ok) {
+            const data = await resp.json();
+            const fontes = Array.isArray(data) ? data : (data.sources || []);
+            const list = document.getElementById('fontes-list');
+            if (fontes.length === 0) {
+                list.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px;padding:12px;"><i data-lucide="folder-open" class="empty-source-icon" style="opacity:0.4;display:block;margin:0 auto 6px;"></i>Nenhuma fonte adicionada</div>';
+            } else {
+                list.innerHTML = fontes.map(f => `
+                    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:#f7f7f8;margin-bottom:4px;font-size:12px;">
+                        <i data-lucide="${f.source_type === 'pdf' ? 'file-text' : f.source_type === 'manual' ? 'pen-line' : 'file'}" style="color:#1C2447;width:18px;height:18px;flex:0 0 18px;"></i>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
+                        <button onclick="removeFonte(${f.id})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:10px;padding:2px;" title="Remover"><i data-lucide="x" style="width:14px;height:14px;"></i></button>
+                    </div>
+                `).join('');
+            }
+            window.CHLucide?.mount?.();
+        }
+    } catch(e) {}
+}
+async function uploadFonte(input) {
+    if (!input.files.length) return;
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    try {
+        const resp = await fetch(PREFIX + '/assistente/config/upload-fonte', { method: 'POST', body: formData });
+        if (resp.ok) { loadFontes(); input.value = ''; }
+    } catch(e) {}
+}
+async function removeFonte(id) {
+    if (!confirm('Remover esta fonte?')) return;
+    try {
+        await fetch(PREFIX + '/assistente/config/fonte/' + id, { method: 'DELETE' });
+        loadFontes();
+    } catch(e) {}
+}
+document.addEventListener('DOMContentLoaded', loadFontes);
+
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
+const thinkingIndicator = document.getElementById('thinkingIndicator');
+const welcomeCard = document.getElementById('welcomeCard');
+const configSidebar = document.getElementById('configSidebar');
+const configOverlay = document.getElementById('configOverlay');
+const toggleConfigBtn = document.getElementById('toggleConfigBtn');
+
+// Auto-resize textarea
+chatInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+}
+
+function toggleConfig() {
+    const isCollapsed = configSidebar.classList.toggle('collapsed');
+    toggleConfigBtn.classList.toggle('active', !isCollapsed);
+    toggleConfigBtn.setAttribute('aria-expanded', String(!isCollapsed));
+    configOverlay.classList.toggle('active', !isCollapsed);
+}
+
+const mobileConfigQuery = window.matchMedia('(max-width: 768px)');
+
+function syncMobileConfigSidebar(event) {
+    if (!configSidebar || !toggleConfigBtn || !configOverlay) return;
+    const isMobile = event ? event.matches : mobileConfigQuery.matches;
+    if (isMobile) {
+        configSidebar.classList.add('collapsed');
+        toggleConfigBtn.classList.remove('active');
+        toggleConfigBtn.setAttribute('aria-expanded', 'false');
+        configOverlay.classList.remove('active');
+    }
+}
+syncMobileConfigSidebar();
+document.addEventListener('DOMContentLoaded', syncMobileConfigSidebar);
+if (mobileConfigQuery.addEventListener) {
+    mobileConfigQuery.addEventListener('change', syncMobileConfigSidebar);
+} else if (mobileConfigQuery.addListener) {
+    mobileConfigQuery.addListener(syncMobileConfigSidebar);
+}
+
+function getTimeStr() {
+    return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function addMessage(role, content) {
+    if (welcomeCard) welcomeCard.style.display = 'none';
+
+    const div = document.createElement('div');
+    div.className = `message ${role}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    if (role === 'user') {
+        avatar.innerHTML = '<i data-lucide="user"></i>';
+    } else {
+        avatar.innerHTML = '<i data-lucide="bot"></i>';
+    }
+
+    const bubbleWrap = document.createElement('div');
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+
+    // Parse markdown-like formatting
+    let html = content
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
+
+    if (role === 'assistant') {
+        bubble.innerHTML = '<span class="msg-text">' + html + '</span>';
+    } else {
+        bubble.innerHTML = html;
+    }
+
+    const time = document.createElement('div');
+    time.className = 'message-time';
+    time.textContent = getTimeStr();
+
+    bubbleWrap.appendChild(bubble);
+    bubbleWrap.appendChild(time);
+
+    // Add suggestion tags after assistant messages
+    if (role === 'assistant') {
+        const tags = document.createElement('div');
+        tags.className = 'suggestion-tags';
+        const suggestions = [
+            'Me conte mais',
+            'Quais os próximos passos?',
+            'Resuma isso'
+        ];
+        suggestions.forEach(text => {
+            const btn = document.createElement('button');
+            btn.className = 'suggestion-tag';
+            btn.textContent = text;
+            btn.onclick = function() {
+                this.disabled = true;
+                sendQuickAction(text);
+            };
+            tags.appendChild(btn);
+        });
+        bubbleWrap.appendChild(tags);
+    }
+
+    div.appendChild(avatar);
+    div.appendChild(bubbleWrap);
+
+    chatMessages.appendChild(div);
+    window.CHLucide?.mount?.();
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function sendQuickAction(text) {
+    chatInput.value = text;
+    sendMessage();
+}
+
+async function sendMessage() {
+    const message = chatInput.value.trim();
+    if (!message || isProcessing) return;
+
+    isProcessing = true;
+    sendBtn.disabled = true;
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+
+    addMessage('user', message);
+    chatHistory.push({ role: 'user', content: message });
+
+    // Show thinking
+    thinkingIndicator.classList.add('active');
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    try {
+        const resp = await fetch(`${PREFIX}/assistente/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, history: chatHistory })
+        });
+        const data = await resp.json();
+
+        thinkingIndicator.classList.remove('active');
+
+        if (data.status === 'offline') {
+            addMessage('assistant', 'O assistente de IA não esta disponível no momento. Verifique se o Ollama esta rodando.');
+            updateStatus('offline');
+        } else if (data.status === 'disabled') {
+            addMessage('assistant', data.response);
+        } else {
+            addMessage('assistant', data.response);
+            chatHistory.push({ role: 'assistant', content: data.response });
+            updateStatus('online');
+        }
+    } catch (err) {
+        thinkingIndicator.classList.remove('active');
+        addMessage('assistant', 'Erro ao se comunicar com o servidor. Tente novamente.');
+        console.error('Chat error:', err);
+    }
+
+    isProcessing = false;
+    sendBtn.disabled = false;
+    chatInput.focus();
+}
+
+function updateStatus(status) {
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    dot.className = `status-dot ${status}`;
+    text.textContent = status === 'online' ? 'Online' : 'Offline';
+
+    // Update sidebar too
+    const sidebarBadge = document.getElementById('sidebarStatusBadge');
+    const sidebarText = document.getElementById('sidebarStatusText');
+    if (sidebarBadge) {
+        sidebarBadge.className = `sidebar-status-badge ${status}`;
+        sidebarText.textContent = status === 'online' ? 'Online' : 'Offline';
+    }
+}
+
+// Check status periodically
+async function checkStatus() {
+    try {
+        const resp = await fetch(`${PREFIX}/assistente/api/status`);
+        const data = await resp.json();
+        updateStatus(data.status);
+
+        // Update model name in sidebar
+        const modelEl = document.getElementById('sidebarModelName');
+        if (modelEl && data.models && data.models.length > 0) {
+            modelEl.textContent = data.models[0];
+            modelEl.style.color = '';
+        }
+    } catch(e) {}
+}
+
+setInterval(checkStatus, 30000);
+chatInput.focus();
+</script>
+{% endblock %}

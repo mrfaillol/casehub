@@ -1,0 +1,297 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Branding · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Admin · Branding</span>
+    <h1>Identidade <em>visual</em> do escritório.</h1>
+    <p class="ch-page-head__sub">Logo, paleta de cores e nome exibido na interface.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/admin">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+{% if success %}
+<section class="ch-card ch-card--compact" role="status" style="border-color: var(--c-green-d); margin-bottom: var(--space-4);">
+  <div style="display: flex; gap: var(--space-2); align-items: center;">
+    <span data-icon="check" data-icon-size="18" style="color: var(--c-green-d);"></span>
+    <span>{{ success }}</span>
+  </div>
+</section>
+{% endif %}
+{% if error %}
+<section class="ch-card ch-card--compact" role="alert" style="border-color: var(--c-danger); margin-bottom: var(--space-4);">
+  <div style="display: flex; gap: var(--space-2); align-items: center;">
+    <span data-icon="x" data-icon-size="18" style="color: var(--c-danger);"></span>
+    <span>{{ error }}</span>
+  </div>
+</section>
+{% endif %}
+
+<div class="ch-grid ch-grid--2" style="gap: var(--space-5); align-items: start;">
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+    <form method="POST" action="{{ PREFIX }}/admin/branding" id="brandingForm" novalidate>
+      <article class="ch-card" style="margin-bottom: var(--space-5);">
+        <header class="ch-card__header">
+          <div>
+            <span class="ch-card__eyebrow">Identidade</span>
+            <h2 class="ch-card__title">Organization Identity</h2>
+          </div>
+          <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+        </header>
+        <div class="ch-field">
+          <label class="ch-field__label" for="inputOrgName">Organization Name</label>
+          <input type="text" id="inputOrgName" name="org_name" class="ch-input"
+                 value="{{ org.name if org else org_name }}"
+                 placeholder="My Law Firm" autocomplete="organization" />
+          <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">
+            Displayed in sidebar, emails, and page titles.
+          </small>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="inputCasePrefix">Case Number Prefix</label>
+          <input type="text" id="inputCasePrefix" name="case_prefix" class="ch-input ch-mono"
+                 maxlength="10" value="{{ org.case_prefix if org else 'CH' }}" placeholder="CH"
+                 style="max-width: 12rem;" />
+          <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">
+            Prefix for case numbers, e.g. CH-2026-001.
+          </small>
+        </div>
+      </article>
+
+      <article class="ch-card" style="margin-bottom: var(--space-5);">
+        <header class="ch-card__header">
+          <div>
+            <span class="ch-card__eyebrow">Paleta</span>
+            <h2 class="ch-card__title">Theme Colors</h2>
+          </div>
+          <span data-icon="target" data-icon-size="20" style="color: var(--c-blue);"></span>
+        </header>
+        <div class="ch-grid ch-grid--3">
+          <div class="ch-field">
+            <label class="ch-field__label" for="inputPrimary">Primary Color</label>
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+              <input type="color" id="inputPrimary" name="primary_color"
+                     value="{{ org.primary_color if org and org.primary_color else '' }}"
+                     data-default-token="--accent"
+                     data-hex-mirror="inputPrimaryHex"
+                     data-preview-var="--brand-primary"
+                     aria-describedby="primaryHelp"
+                     style="width: 44px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: transparent; cursor: pointer;" />
+              <input type="text" id="inputPrimaryHex" class="ch-input ch-mono"
+                     value="{{ org.primary_color if org and org.primary_color else '' }}"
+                     data-color-mirror="inputPrimary"
+                     inputmode="text" autocomplete="off" spellcheck="false"
+                     aria-label="Primary color hex value" />
+            </div>
+            <small id="primaryHelp" style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">Sidebar logo, accents</small>
+          </div>
+          <div class="ch-field">
+            <label class="ch-field__label" for="inputSecondary">Secondary Color</label>
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+              <input type="color" id="inputSecondary" name="secondary_color"
+                     value="{{ org.secondary_color if org and org.secondary_color else '' }}"
+                     data-default-token="--surface-inverse"
+                     data-hex-mirror="inputSecondaryHex"
+                     data-preview-var="--brand-secondary"
+                     aria-describedby="secondaryHelp"
+                     style="width: 44px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: transparent; cursor: pointer;" />
+              <input type="text" id="inputSecondaryHex" class="ch-input ch-mono"
+                     value="{{ org.secondary_color if org and org.secondary_color else '' }}"
+                     data-color-mirror="inputSecondary"
+                     inputmode="text" autocomplete="off" spellcheck="false"
+                     aria-label="Secondary color hex value" />
+            </div>
+            <small id="secondaryHelp" style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">Sidebar background, cards</small>
+          </div>
+          <div class="ch-field">
+            <label class="ch-field__label" for="inputBg">Background Color</label>
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+              <input type="color" id="inputBg" name="bg_color"
+                     value="{{ org_theme_bg if org_theme_bg else '' }}"
+                     data-default-token="--surface-base"
+                     data-hex-mirror="inputBgHex"
+                     data-preview-var="--brand-bg"
+                     aria-describedby="bgHelp"
+                     style="width: 44px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: transparent; cursor: pointer;" />
+              <input type="text" id="inputBgHex" class="ch-input ch-mono"
+                     value="{{ org_theme_bg if org_theme_bg else '' }}"
+                     data-color-mirror="inputBg"
+                     inputmode="text" autocomplete="off" spellcheck="false"
+                     aria-label="Background color hex value" />
+            </div>
+            <small id="bgHelp" style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">Page background</small>
+          </div>
+        </div>
+        <button type="button" id="resetColorsBtn" class="ch-btn ch-btn--sm" style="margin-top: var(--space-3);">
+          <span data-icon="x"></span> Reset to Defaults
+        </button>
+      </article>
+
+      <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-2); justify-content: flex-end; flex-wrap: wrap;">
+        <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/admin">Cancel</a>
+        <button type="submit" class="ch-btn ch-btn--primary">
+          <span data-icon="check"></span> Save Branding Settings
+        </button>
+      </div>
+    </form>
+
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Logo</span>
+          <h2 class="ch-card__title">Logo do escritório</h2>
+        </div>
+        <span data-icon="cube" data-icon-size="20" style="color: var(--c-pollen);"></span>
+      </header>
+      {% if org and org.logo_url %}
+      <div style="display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3); background: var(--surface-card-2); border-radius: var(--radius-sm); margin-bottom: var(--space-3);">
+        <img src="{{ org.logo_url }}" alt="Current organization logo" loading="lazy" style="max-height: 60px; max-width: 200px; object-fit: contain;" />
+        <span style="font-family: var(--mono); font-size: var(--fs-xs); color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.10em;">Current logo</span>
+      </div>
+      {% endif %}
+      <form method="POST" action="{{ PREFIX }}/admin/branding/logo" enctype="multipart/form-data" novalidate>
+        <label for="logoFile" id="logoDropZone"
+               style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-5); border: 2px dashed var(--line); border-radius: var(--radius-md); cursor: pointer; background: var(--surface-card-2); text-align: center;">
+          <span data-icon="cube" data-icon-size="32" style="color: var(--fg-muted);"></span>
+          <span style="font-weight: 600;">Click or drag to upload logo</span>
+          <small style="color: var(--fg-muted); font-size: var(--fs-xs);">PNG, SVG, or JPG. Max 2MB. Recommended: 200x60px</small>
+          <input type="file" name="logo" id="logoFile" accept="image/png,image/jpeg,image/svg+xml" style="display: none;" />
+          <span id="logoFileName" aria-live="polite" class="ch-mono" style="font-size: var(--fs-xs); color: var(--c-green-d);"></span>
+        </label>
+        <div style="display: flex; justify-content: flex-end; margin-top: var(--space-3);">
+          <button type="submit" class="ch-btn">
+            <span data-icon="check"></span> Upload Logo
+          </button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  {# Live preview sidebar #}
+  <aside style="position: sticky; top: calc(var(--topbar-h) + var(--space-4));">
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Preview</span>
+          <h2 class="ch-card__title">Live Preview</h2>
+        </div>
+        <span data-icon="dashboard" data-icon-size="20" style="color: var(--c-info);"></span>
+      </header>
+      <div id="brandPreview" style="border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden;">
+        <div style="display: grid; grid-template-columns: 120px 1fr; min-height: 240px;">
+          <div style="background: var(--brand-secondary, var(--surface-inverse)); color: white; padding: var(--space-3);">
+            <div id="previewLogoText" style="font-weight: 700; font-size: var(--fs-sm); margin-bottom: var(--space-3); color: var(--brand-primary, white);">
+              {{ org.name if org else org_name|default('CaseHub') }}
+            </div>
+            <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--fs-xs); opacity: 0.9;">
+              <li>Dashboard</li>
+              <li>Clients</li>
+              <li>Cases</li>
+              <li>Documents</li>
+              <li>Tasks</li>
+            </ul>
+          </div>
+          <div style="background: var(--brand-bg, var(--surface-app)); padding: var(--space-3);">
+            <div style="font-weight: 600; margin-bottom: var(--space-3); color: var(--brand-primary, var(--fg-default));">
+              <span id="previewOrgName">{{ org.name if org else org_name|default('CaseHub') }}</span>
+            </div>
+            <dl style="display: grid; grid-template-columns: 1fr; gap: var(--space-2); margin: 0;">
+              <div style="display: flex; justify-content: space-between; font-size: var(--fs-xs);"><dt>Active Cases</dt><dd style="margin: 0; font-weight: 600;">12</dd></div>
+              <div style="display: flex; justify-content: space-between; font-size: var(--fs-xs);"><dt>Pending Tasks</dt><dd style="margin: 0; font-weight: 600;">5</dd></div>
+              <div style="display: flex; justify-content: space-between; font-size: var(--fs-xs);"><dt>Documents</dt><dd style="margin: 0; font-weight: 600;">48</dd></div>
+            </dl>
+          </div>
+        </div>
+        <div style="padding: var(--space-2); text-align: center; background: var(--surface-card-2); font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono);">
+          CaseHub v{{ version|default('2.0.0') }}
+        </div>
+      </div>
+    </article>
+  </aside>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  "use strict";
+  var BLANK_HEX_SENTINEL = '#000000';
+  var HEX_RE = /^#[0-9a-fA-F]{6}$/;
+  var preview = document.getElementById('brandPreview');
+  var orgName = document.getElementById('inputOrgName');
+  var previewLogoText = document.getElementById('previewLogoText');
+  var previewOrgName = document.getElementById('previewOrgName');
+
+  function readToken(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function isBlankColor(value) { return !value || value === BLANK_HEX_SENTINEL; }
+  function syncMirror(srcId, dstId) {
+    var src = document.getElementById(srcId);
+    var dst = document.getElementById(dstId);
+    if (src && dst) dst.value = src.value;
+  }
+  function applyDefaultsFromTokens() {
+    var pickers = document.querySelectorAll('input[type="color"][data-default-token]');
+    pickers.forEach(function (input) {
+      if (isBlankColor(input.value)) {
+        var v = readToken(input.dataset.defaultToken);
+        if (v && HEX_RE.test(v)) input.value = v;
+      }
+      if (input.dataset.hexMirror) syncMirror(input.id, input.dataset.hexMirror);
+    });
+  }
+  function updatePreview() {
+    if (!preview) return;
+    document.querySelectorAll('input[type="color"][data-preview-var]').forEach(function (input) {
+      preview.style.setProperty(input.dataset.previewVar, input.value);
+    });
+    var name = (orgName && orgName.value) ? orgName.value : 'CaseHub';
+    if (previewLogoText) previewLogoText.textContent = name;
+    if (previewOrgName) previewOrgName.textContent = name;
+  }
+  function resetColors() {
+    document.querySelectorAll('input[type="color"][data-default-token]').forEach(function (input) {
+      var v = readToken(input.dataset.defaultToken);
+      if (v && HEX_RE.test(v)) input.value = v;
+      if (input.dataset.hexMirror) syncMirror(input.id, input.dataset.hexMirror);
+    });
+    updatePreview();
+  }
+  document.querySelectorAll('input[type="color"][data-hex-mirror]').forEach(function (input) {
+    var handler = function () { syncMirror(input.id, input.dataset.hexMirror); updatePreview(); };
+    input.addEventListener('input', handler);
+    input.addEventListener('change', handler);
+  });
+  document.querySelectorAll('input[type="text"][data-color-mirror]').forEach(function (input) {
+    input.addEventListener('change', function () {
+      if (HEX_RE.test(input.value)) {
+        var dst = document.getElementById(input.dataset.colorMirror);
+        if (dst) dst.value = input.value;
+        updatePreview();
+      }
+    });
+  });
+  if (orgName) orgName.addEventListener('input', updatePreview);
+  var resetBtn = document.getElementById('resetColorsBtn');
+  if (resetBtn) resetBtn.addEventListener('click', resetColors);
+
+  var fileInput = document.getElementById('logoFile');
+  var fileName = document.getElementById('logoFileName');
+  if (fileInput && fileName) {
+    fileInput.addEventListener('change', function () {
+      fileName.textContent = (fileInput.files && fileInput.files[0]) ? fileInput.files[0].name : '';
+    });
+  }
+
+  applyDefaultsFromTokens();
+  updatePreview();
+})();
+</script>
+{% endblock %}

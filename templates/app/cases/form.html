@@ -1,0 +1,424 @@
+{% extends "app/base.html" %}
+{% set active_module = 'processes' %}
+{% set is_edit = case is defined and case and case.id %}
+{% set is_lite = product is defined and product == 'lite' %}
+{% block title %}{% if is_edit %}Editar processo · {{ case.case_name or case.case_number or case.id }}{% else %}Novo processo{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Processos ·
+      {% if is_edit %}Editando {{ case.case_number or 'CASE-%04d'|format(case.id) }}{% else %}Novo cadastro{% endif %}
+    </span>
+    <h1>
+      {% if is_edit %}
+        Editar <em>{{ case.case_name or case.case_number or 'processo' }}</em>
+      {% else %}
+        Cadastrar <em>processo</em>
+      {% endif %}
+    </h1>
+    <p class="ch-page-head__sub">
+      Campos com <span style="color: var(--c-danger);">*</span> são obrigatórios. Vincule sempre a um cliente para liberar prazos, tarefas e financeiro.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{% if is_edit %}{{ PREFIX }}/cases/{{ case.id }}{% else %}{{ PREFIX }}/cases{% endif %}">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<form method="post"
+      action="{% if is_edit %}{{ PREFIX }}/cases/{{ case.id }}/edit{% else %}{{ PREFIX }}/cases/new{% endif %}"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  {# ─── Identificação ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Identificação</span>
+        <h2 class="ch-card__title">Vínculo e nome do processo</h2>
+      </div>
+      <span data-icon="folder" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+
+    <div class="ch-field">
+      <label class="ch-field__label" for="client_id">Cliente <span style="color: var(--c-danger);">*</span></label>
+      <div style="display: flex; gap: var(--space-2); align-items: stretch;">
+        <select class="ch-select" id="client_id" name="client_id" required aria-required="true" style="flex: 1 1 auto;">
+          <option value="">— Selecione o cliente —</option>
+          {% for c in clients %}
+          <option value="{{ c.id }}"
+            {% if (case and case.client_id == c.id) or (not case and selected_client and selected_client.id == c.id) %}selected{% endif %}>
+            {{ c.first_name }} {{ c.last_name }}{% if c.client_number %} · {{ c.client_number }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <button type="button" class="ch-btn ch-btn--ghost" id="ch-new-client-btn"
+                data-quick-create-url="{{ PREFIX }}/cases/api/clients/quick-create"
+                aria-haspopup="dialog" aria-controls="ch-new-client-modal"
+                title="Cadastrar um cliente novo sem sair desta tela">
+          <span data-icon="plus" data-icon-size="14"></span> Novo cliente
+        </button>
+      </div>
+      <p class="ch-field__hint" style="margin: var(--space-1) 0 0; font-size: var(--fs-xs); color: var(--fg-muted);">
+        Não achou o cliente? Crie um perfil novo aqui mesmo — ele já fica selecionado.
+      </p>
+    </div>
+
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="case_number">Número interno</label>
+        <input class="ch-input ch-mono" id="case_number" name="case_number" type="text"
+               value="{{ case.case_number if case else '' }}"
+               placeholder="CASE-0001" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="status">Status <span style="color: var(--c-danger);">*</span></label>
+        <select class="ch-select" id="status" name="status" required>
+          {% if is_lite %}
+            <option value="intake" {% if case and case.status == 'intake' %}selected{% endif %}>Cadastro</option>
+            <option value="document_collection" {% if case and case.status == 'document_collection' %}selected{% endif %}>Coleta de documentos</option>
+            <option value="drafting" {% if case and case.status == 'drafting' %}selected{% endif %}>Elaboração</option>
+            <option value="review" {% if case and case.status == 'review' %}selected{% endif %}>Revisão</option>
+            <option value="filed" {% if case and case.status == 'filed' %}selected{% endif %}>Protocolado</option>
+            <option value="em_andamento" {% if case and case.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+            <option value="approved" {% if case and case.status == 'approved' %}selected{% endif %}>Deferido</option>
+            <option value="denied" {% if case and case.status == 'denied' %}selected{% endif %}>Indeferido</option>
+            <option value="arquivado" {% if case and case.status == 'arquivado' %}selected{% endif %}>Arquivado</option>
+            <option value="closed" {% if case and case.status == 'closed' %}selected{% endif %}>Encerrado</option>
+          {% else %}
+            <option value="intake" {% if not case or case.status == 'intake' %}selected{% endif %}>Intake</option>
+            <option value="document_collection" {% if case and case.status == 'document_collection' %}selected{% endif %}>Document collection</option>
+            <option value="drafting" {% if case and case.status == 'drafting' %}selected{% endif %}>Drafting</option>
+            <option value="review" {% if case and case.status == 'review' %}selected{% endif %}>Review</option>
+            <option value="filed" {% if case and case.status == 'filed' %}selected{% endif %}>Filed</option>
+            <option value="rfe" {% if case and case.status == 'rfe' %}selected{% endif %}>RFE</option>
+            <option value="approved" {% if case and case.status == 'approved' %}selected{% endif %}>Approved</option>
+            <option value="denied" {% if case and case.status == 'denied' %}selected{% endif %}>Denied</option>
+            <option value="closed" {% if case and case.status == 'closed' %}selected{% endif %}>Closed</option>
+          {% endif %}
+        </select>
+      </div>
+    </div>
+
+    <div class="ch-field">
+      <label class="ch-field__label" for="case_name">Nome do processo</label>
+      <input class="ch-input" id="case_name" name="case_name" type="text"
+             value="{{ case.case_name if case else '' }}"
+             placeholder="Identificação curta · ex: 'Reintegração Maria Silva'" />
+    </div>
+  </article>
+
+  {# ─── Tipo & Detalhes ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Tipo & detalhes</span>
+        <h2 class="ch-card__title">
+          {% if is_lite %}Classificação processual{% else %}Visa & filing{% endif %}
+        </h2>
+      </div>
+      <span data-icon="target" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+
+    {% if is_lite %}
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="numero_processo">Número do processo (CNJ)</label>
+        <input class="ch-input ch-mono" id="numero_processo" name="numero_processo" type="text"
+               value="{{ case.numero_processo|default('') }}"
+               placeholder="0000000-00.0000.0.00.0000" inputmode="numeric" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="tipo_acao">Tipo de ação</label>
+        <select class="ch-select" id="tipo_acao" name="tipo_acao">
+          <option value="">— Selecione —</option>
+          <option value="acao_indenizatoria" {% if case and case.tipo_acao == 'acao_indenizatoria' %}selected{% endif %}>Ação indenizatória</option>
+          <option value="acao_trabalhista" {% if case and case.tipo_acao == 'acao_trabalhista' %}selected{% endif %}>Ação trabalhista</option>
+          <option value="execucao_fiscal" {% if case and case.tipo_acao == 'execucao_fiscal' %}selected{% endif %}>Execução fiscal</option>
+          <option value="mandado_seguranca" {% if case and case.tipo_acao == 'mandado_seguranca' %}selected{% endif %}>Mandado de segurança</option>
+          <option value="habeas_corpus" {% if case and case.tipo_acao == 'habeas_corpus' %}selected{% endif %}>Habeas corpus</option>
+          <option value="recurso_especial" {% if case and case.tipo_acao == 'recurso_especial' %}selected{% endif %}>Recurso especial</option>
+          <option value="acao_civil_publica" {% if case and case.tipo_acao == 'acao_civil_publica' %}selected{% endif %}>Ação civil pública</option>
+          <option value="divorcio" {% if case and case.tipo_acao == 'divorcio' %}selected{% endif %}>Divórcio</option>
+          <option value="inventario" {% if case and case.tipo_acao == 'inventario' %}selected{% endif %}>Inventário</option>
+          <option value="outro" {% if case and case.tipo_acao == 'outro' %}selected{% endif %}>Outro</option>
+        </select>
+      </div>
+    </div>
+
+    <details style="margin-top: var(--space-3);">
+      <summary style="cursor: pointer; font-size: var(--fs-sm); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+        Foro e fase processual <span data-icon="chevron_down" data-icon-size="12"></span>
+      </summary>
+      <div class="ch-grid ch-grid--2" style="margin-top: var(--space-3);">
+        <div class="ch-field">
+          <label class="ch-field__label" for="vara">Vara</label>
+          <input class="ch-input" id="vara" name="vara" type="text"
+                 value="{{ case.vara|default('') }}" placeholder="1ª Vara Cível" />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="comarca">Comarca</label>
+          <input class="ch-input" id="comarca" name="comarca" type="text"
+                 value="{{ case.comarca|default('') }}" placeholder="Juiz de Fora" />
+        </div>
+      </div>
+      <div class="ch-grid ch-grid--2">
+        <div class="ch-field">
+          <label class="ch-field__label" for="tribunal">Tribunal</label>
+          <select class="ch-select" id="tribunal" name="tribunal">
+            <option value="">— Selecione —</option>
+            {% set tribunais = ['TJMG','TJSP','TJRJ','TRF1','TRF3','TRT3','TST','STJ','STF'] %}
+            {% for t in tribunais %}
+              <option value="{{ t }}" {% if case and case.tribunal == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+            <option value="outro" {% if case and case.tribunal == 'outro' %}selected{% endif %}>Outro</option>
+          </select>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="fase_processual">Fase processual</label>
+          <select class="ch-select" id="fase_processual" name="fase_processual">
+            <option value="">— Selecione —</option>
+            <option value="conhecimento" {% if case and case.fase_processual == 'conhecimento' %}selected{% endif %}>Conhecimento</option>
+            <option value="instrucao" {% if case and case.fase_processual == 'instrucao' %}selected{% endif %}>Instrução</option>
+            <option value="julgamento" {% if case and case.fase_processual == 'julgamento' %}selected{% endif %}>Julgamento</option>
+            <option value="recursal" {% if case and case.fase_processual == 'recursal' %}selected{% endif %}>Recursal</option>
+            <option value="execucao" {% if case and case.fase_processual == 'execucao' %}selected{% endif %}>Execução</option>
+            <option value="cumprimento_sentenca" {% if case and case.fase_processual == 'cumprimento_sentenca' %}selected{% endif %}>Cumprimento de sentença</option>
+            <option value="arquivado" {% if case and case.fase_processual == 'arquivado' %}selected{% endif %}>Arquivado</option>
+          </select>
+        </div>
+      </div>
+      <div class="ch-grid ch-grid--2">
+        <div class="ch-field">
+          <label class="ch-field__label" for="polo_ativo">Polo ativo (autor)</label>
+          <input class="ch-input" id="polo_ativo" name="polo_ativo" type="text"
+                 value="{{ case.polo_ativo|default('') }}" />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="polo_passivo">Polo passivo (réu)</label>
+          <input class="ch-input" id="polo_passivo" name="polo_passivo" type="text"
+                 value="{{ case.polo_passivo|default('') }}" />
+        </div>
+      </div>
+    </details>
+    {% else %}
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="visa_type">Visa type</label>
+        <select class="ch-select" id="visa_type" name="visa_type">
+          <option value="">— Select —</option>
+          {% set visas = ['EB-2 NIW','EB-1A','EB-1B','H-1B','L-1A','L-1B','O-1A','O-1B','J-1','F-1 OPT','F-1 STEM OPT','B-1/B-2','Green Card','I-485 AOS','I-140','I-130','Naturalization'] %}
+          {% for v in visas %}
+            <option value="{{ v }}" {% if case and case.visa_type == v %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="receipt_number">Receipt number</label>
+        <input class="ch-input ch-mono" id="receipt_number" name="receipt_number" type="text"
+               value="{{ case.receipt_number|default('') }}" placeholder="MSC2390000000" />
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="priority">Prioridade</label>
+        <select class="ch-select" id="priority" name="priority">
+          <option value="low" {% if case and case.priority == 'low' %}selected{% endif %}>{% if is_lite %}Baixa{% else %}Low{% endif %}</option>
+          <option value="medium" {% if not case or case.priority == 'medium' %}selected{% endif %}>{% if is_lite %}Média{% else %}Medium{% endif %}</option>
+          <option value="high" {% if case and case.priority == 'high' %}selected{% endif %}>{% if is_lite %}Alta{% else %}High{% endif %}</option>
+          <option value="urgent" {% if case and case.priority == 'urgent' %}selected{% endif %}>{% if is_lite %}Urgente{% else %}Urgent{% endif %}</option>
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="case_value">
+          {% if is_lite %}Valor da causa (R$){% else %}Case value ({{ currency_symbol|default('$') }}){% endif %}
+        </label>
+        <input class="ch-input ch-mono" id="case_value" name="case_value" type="number" step="0.01"
+               value="{{ case.case_value if case and case.case_value else '' }}" inputmode="decimal" />
+      </div>
+    </div>
+  </article>
+
+  {# ─── Datas ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Datas</span>
+        <h2 class="ch-card__title">{% if is_lite %}Marcos do processo{% else %}Important dates{% endif %}</h2>
+      </div>
+      <span data-icon="calendar" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-grid {% if not is_lite %}ch-grid--3{% else %}ch-grid--2{% endif %}">
+      <div class="ch-field">
+        <label class="ch-field__label" for="filing_date">{% if is_lite %}Data de protocolo{% else %}Filing date{% endif %}</label>
+        <input class="ch-input ch-mono" id="filing_date" name="filing_date" type="date"
+               value="{{ case.filing_date.strftime('%Y-%m-%d') if case and case.filing_date else '' }}" />
+      </div>
+      {% if not is_lite %}
+      <div class="ch-field">
+        <label class="ch-field__label" for="priority_date">Priority date</label>
+        <input class="ch-input ch-mono" id="priority_date" name="priority_date" type="date"
+               value="{{ case.priority_date.strftime('%Y-%m-%d') if case and case.priority_date else '' }}" />
+      </div>
+      {% endif %}
+      <div class="ch-field">
+        <label class="ch-field__label" for="expiration_date">{% if is_lite %}Data de expiração{% else %}Expiration date{% endif %}</label>
+        <input class="ch-input ch-mono" id="expiration_date" name="expiration_date" type="date"
+               value="{{ case.expiration_date.strftime('%Y-%m-%d') if case and case.expiration_date else '' }}" />
+      </div>
+    </div>
+  </article>
+
+  {# ─── Observações ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Observações</span>
+        <h2 class="ch-card__title">Notas internas</h2>
+      </div>
+      <span data-icon="file" data-icon-size="20" style="color: var(--fg-muted);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="notes">{% if is_lite %}Observações{% else %}Notes{% endif %}</label>
+      <textarea class="ch-textarea" id="notes" name="notes" rows="5"
+                placeholder="Contexto interno, estratégia, alertas…">{{ case.notes if case else '' }}</textarea>
+    </div>
+  </article>
+
+  {# ─── Campos personalizados ─── #}
+  {% if custom_fields and custom_fields|length > 0 %}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Customização</span>
+        <h2 class="ch-card__title">Campos personalizados</h2>
+      </div>
+      <span data-icon="settings" data-icon-size="20" style="color: var(--fg-muted);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      {% for field in custom_fields %}
+      <div class="ch-field">
+        <label class="ch-field__label" for="cf_{{ field.field_name }}">
+          {{ field.field_label }}
+          {% if field.required %}<span style="color: var(--c-danger);">*</span>{% endif %}
+        </label>
+        {% if field.field_type == 'text' %}
+          <input class="ch-input" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" type="text"
+                 value="{{ field.value or '' }}" {% if field.required %}required{% endif %} />
+        {% elif field.field_type == 'textarea' %}
+          <textarea class="ch-textarea" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" rows="3"
+                    {% if field.required %}required{% endif %}>{{ field.value or '' }}</textarea>
+        {% elif field.field_type == 'number' %}
+          <input class="ch-input ch-mono" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" type="number"
+                 value="{{ field.value or '' }}" {% if field.required %}required{% endif %} />
+        {% elif field.field_type == 'date' %}
+          <input class="ch-input ch-mono" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" type="date"
+                 value="{{ field.value or '' }}" {% if field.required %}required{% endif %} />
+        {% elif field.field_type == 'select' %}
+          <select class="ch-select" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}"
+                  {% if field.required %}required{% endif %}>
+            <option value="">— Selecione —</option>
+            {% for opt in (field.options or []) %}
+              <option value="{{ opt }}" {% if field.value == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        {% elif field.field_type == 'checkbox' %}
+          <label class="ch-checkbox">
+            <input type="checkbox" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" value="true"
+                   {% if field.value == 'true' or field.value == true %}checked{% endif %}
+                   {% if field.required %}required{% endif %} />
+            {% if is_lite %}Sim{% else %}Yes{% endif %}
+          </label>
+        {% else %}
+          <input class="ch-input" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" type="text"
+                 value="{{ field.value or '' }}" {% if field.required %}required{% endif %} />
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+  {% endif %}
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      {% if is_edit %}
+        Atualizando ID #{{ case.id }}
+      {% else %}
+        Novo cadastro
+      {% endif %}
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{% if is_edit %}{{ PREFIX }}/cases/{{ case.id }}{% else %}{{ PREFIX }}/cases{% endif %}">Cancelar</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span>
+        {% if is_edit %}Salvar alterações{% else %}Cadastrar processo{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+
+{# ─── Modal: criar cliente novo sem sair do cadastro de processo ─── #}
+<div class="ch-overlay" id="ch-new-client-modal" hidden aria-hidden="true">
+  <div class="ch-modal ch-modal--sm" role="dialog" aria-modal="true" aria-labelledby="ch-new-client-title">
+    <header class="ch-modal__header">
+      <div>
+        <span class="ch-card__eyebrow">Novo cliente</span>
+        <h2 class="ch-modal__title" id="ch-new-client-title">Cadastro rápido</h2>
+        <p class="ch-modal__subtitle">Só o essencial. Você completa o perfil depois em Clientes.</p>
+      </div>
+      <button type="button" class="ch-modal__close" data-new-client-close aria-label="Fechar">
+        <span data-icon="x" data-icon-size="16"></span>
+      </button>
+    </header>
+    <div class="ch-modal__body">
+      <form id="ch-new-client-form" style="display: flex; flex-direction: column; gap: var(--space-4);">
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field" style="margin-bottom: 0;">
+            <label class="ch-field__label" for="nc_first_name">Nome <span style="color: var(--c-danger);">*</span></label>
+            <input class="ch-input" id="nc_first_name" name="first_name" type="text" required autocomplete="off" />
+          </div>
+          <div class="ch-field" style="margin-bottom: 0;">
+            <label class="ch-field__label" for="nc_last_name">Sobrenome <span style="color: var(--c-danger);">*</span></label>
+            <input class="ch-input" id="nc_last_name" name="last_name" type="text" required autocomplete="off" />
+          </div>
+        </div>
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field" style="margin-bottom: 0;">
+            <label class="ch-field__label" for="nc_email">E-mail</label>
+            <input class="ch-input" id="nc_email" name="email" type="email" autocomplete="off" />
+          </div>
+          <div class="ch-field" style="margin-bottom: 0;">
+            <label class="ch-field__label" for="nc_phone">Telefone</label>
+            <input class="ch-input ch-mono" id="nc_phone" name="phone" type="tel" autocomplete="off" />
+          </div>
+        </div>
+        <div class="ch-field" style="margin-bottom: 0;">
+          <label class="ch-field__label" for="nc_cpf">CPF</label>
+          <input class="ch-input ch-mono" id="nc_cpf" name="cpf" type="text" inputmode="numeric"
+                 placeholder="000.000.000-00" autocomplete="off" />
+        </div>
+        <p class="ch-new-client-error" id="ch-new-client-error" role="alert" hidden
+           style="margin: 0; font-size: var(--fs-sm); color: var(--c-danger);"></p>
+      </form>
+    </div>
+    <div class="ch-modal__footer">
+      <button type="button" class="ch-btn ch-btn--ghost" data-new-client-close>Cancelar</button>
+      <button type="button" class="ch-btn ch-btn--primary" id="ch-new-client-save">
+        <span data-icon="check" data-icon-size="14"></span> Criar e selecionar
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script defer src="{{ asset_url('js/app/cases-new-client.js') }}"></script>
+{% endblock %}

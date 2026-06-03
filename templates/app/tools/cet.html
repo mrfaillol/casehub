@@ -1,0 +1,246 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Cet · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tools-cet.css">
+{% endblock %}
+{% block content %}
+<main class="tools-cet-main" aria-labelledby="tools-cet-title">
+    <header class="tools-cet-header tools-cet-no-print">
+        <div class="tools-cet-heading">
+            <h1 id="tools-cet-title" class="tools-cet-title">
+                <i class="fas fa-receipt" aria-hidden="true"></i>
+                <span>CET - Custo Efetivo Total</span>
+            </h1>
+            <p class="tools-cet-subtitle">Cálculo conforme Resolução BCB 3.517/2007</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-cet-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="tools-cet-alert tools-cet-alert--danger" role="alert">
+        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <div class="tools-cet-grid{% if not resultado %} tools-cet-grid--single{% endif %}">
+        <section class="tools-cet-column" aria-labelledby="tools-cet-form-title">
+            <h2 id="tools-cet-form-title" class="tools-cet-sr-only">Dados para cálculo</h2>
+            <form class="tools-cet-form" method="POST" action="{{ PREFIX }}/tools/cet/calcular">
+                <div class="tools-cet-card">
+                    <div class="tools-cet-card-body">
+                        <div class="tools-cet-section-title">Dados do Empréstimo</div>
+                        <div class="tools-cet-fields">
+                            <div class="tools-cet-field">
+                                <label class="tools-cet-label" for="tools-cet-valor">Valor do Empréstimo (R$)</label>
+                                <input type="number" class="tools-cet-input" id="tools-cet-valor" name="valor_emprestimo"
+                                       value="{{ form.valor_emprestimo if form else '' }}" step="0.01" min="0" required
+                                       placeholder="Ex: 10000.00">
+                            </div>
+                            <div class="tools-cet-field">
+                                <label class="tools-cet-label" for="tools-cet-prazo">Prazo (meses)</label>
+                                <input type="number" class="tools-cet-input" id="tools-cet-prazo" name="prazo_meses"
+                                       value="{{ form.prazo_meses if form else '' }}" min="1" required
+                                       placeholder="Ex: 12">
+                            </div>
+                            <div class="tools-cet-field tools-cet-field--full">
+                                <label class="tools-cet-label" for="tools-cet-taxa">Taxa Nominal (% ao mês)</label>
+                                <input type="number" class="tools-cet-input" id="tools-cet-taxa" name="taxa_nominal"
+                                       value="{{ form.taxa_nominal if form else '' }}" step="0.01" min="0" required
+                                       placeholder="Ex: 2.00">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tools-cet-card">
+                    <div class="tools-cet-card-body">
+                        <div class="tools-cet-section-title">Custos Adicionais</div>
+                        <div class="tools-cet-fields">
+                            <div class="tools-cet-field">
+                                <label class="tools-cet-label" for="tools-cet-tac">TAC - Tarifa de Abertura (R$)</label>
+                                <input type="number" class="tools-cet-input" id="tools-cet-tac" name="tac"
+                                       value="{{ form.tac if form else '0' }}" step="0.01" min="0"
+                                       placeholder="Ex: 500.00">
+                            </div>
+                            <div class="tools-cet-field">
+                                <label class="tools-cet-label" for="tools-cet-iof">IOF (%)</label>
+                                <input type="number" class="tools-cet-input" id="tools-cet-iof" name="iof_percentual"
+                                       value="{{ form.iof_percentual if form else '0' }}" step="0.01" min="0"
+                                       placeholder="Ex: 3.00">
+                            </div>
+                            <div class="tools-cet-field">
+                                <label class="tools-cet-label" for="tools-cet-seguro">Seguro Mensal (R$)</label>
+                                <input type="number" class="tools-cet-input" id="tools-cet-seguro" name="seguro_mensal"
+                                       value="{{ form.seguro_mensal if form else '0' }}" step="0.01" min="0"
+                                       placeholder="Ex: 30.00">
+                            </div>
+                            <div class="tools-cet-field">
+                                <label class="tools-cet-label" for="tools-cet-outras">Outras Tarifas (R$)</label>
+                                <input type="number" class="tools-cet-input" id="tools-cet-outras" name="outras_tarifas"
+                                       value="{{ form.outras_tarifas if form else '0' }}" step="0.01" min="0"
+                                       placeholder="Ex: 0.00">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="tools-cet-cta">
+                    <i class="fas fa-calculator" aria-hidden="true"></i>
+                    <span>Calcular CET</span>
+                </button>
+            </form>
+        </section>
+
+        {% if resultado %}
+        <section class="tools-cet-column" aria-labelledby="tools-cet-result-title">
+            <h2 id="tools-cet-result-title" class="tools-cet-sr-only">Resultado do cálculo</h2>
+
+            <article class="tools-cet-card tools-cet-card--highlight" aria-labelledby="tools-cet-compare-title">
+                <div class="tools-cet-card-body">
+                    <h3 id="tools-cet-compare-title" class="tools-cet-card-title tools-cet-card-title--danger">
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                        <span>Taxa Nominal vs CET Real</span>
+                    </h3>
+                    <dl class="tools-cet-metrics">
+                        <div class="tools-cet-metric">
+                            <dd class="tools-cet-metric-value tools-cet-metric-value--accent">{{ resultado.taxa_nominal }}%</dd>
+                            <dt class="tools-cet-metric-label">Taxa nominal/mês</dt>
+                        </div>
+                        <div class="tools-cet-metric">
+                            <dd class="tools-cet-metric-value tools-cet-metric-value--danger">{{ resultado.cet_mensal }}%</dd>
+                            <dt class="tools-cet-metric-label">CET mensal</dt>
+                        </div>
+                        <div class="tools-cet-metric">
+                            <dd class="tools-cet-metric-value tools-cet-metric-value--accent">{{ resultado.taxa_anual_nominal }}%</dd>
+                            <dt class="tools-cet-metric-label">Taxa nominal/ano</dt>
+                        </div>
+                        <div class="tools-cet-metric">
+                            <dd class="tools-cet-metric-value tools-cet-metric-value--danger">{{ resultado.cet_anual }}%</dd>
+                            <dt class="tools-cet-metric-label">CET anual</dt>
+                        </div>
+                    </dl>
+                    <div class="tools-cet-badge-row">
+                        <span class="tools-cet-badge tools-cet-badge--danger">
+                            Diferença: +{{ resultado.diferenca_anual }}% a.a.
+                        </span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="tools-cet-card" aria-labelledby="tools-cet-composicao-title">
+                <div class="tools-cet-card-body">
+                    <h3 id="tools-cet-composicao-title" class="tools-cet-card-title">
+                        <i class="fas fa-chart-pie" aria-hidden="true"></i>
+                        <span>Composição do Custo</span>
+                    </h3>
+
+                    <div class="tools-cet-table-wrap">
+                        <table class="tools-cet-table">
+                            <caption class="tools-cet-sr-only">Valor líquido recebido</caption>
+                            <tbody>
+                                <tr>
+                                    <td>Valor emprestado</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.valor_emprestimo) }}</td>
+                                </tr>
+                                <tr class="tools-cet-table-row--deduction">
+                                    <td>(−) TAC</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.tac) }}</td>
+                                </tr>
+                                <tr class="tools-cet-table-row--deduction">
+                                    <td>(−) IOF ({{ resultado.iof_percentual }}%)</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.iof_valor) }}</td>
+                                </tr>
+                                <tr class="tools-cet-table-row--deduction">
+                                    <td>(−) Outras tarifas</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.outras_tarifas) }}</td>
+                                </tr>
+                                <tr class="tools-cet-table-row--total">
+                                    <td>= Valor líquido recebido</td>
+                                    <td class="tools-cet-table-amount tools-cet-amount--success">R$ {{ "%.2f"|format(resultado.valor_liquido) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="tools-cet-table-wrap">
+                        <table class="tools-cet-table">
+                            <caption class="tools-cet-sr-only">Parcela real</caption>
+                            <tbody>
+                                <tr>
+                                    <td>Parcela nominal (sem seguro)</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.parcela_nominal) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>(+) Seguro mensal</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.seguro_mensal) }}</td>
+                                </tr>
+                                <tr class="tools-cet-table-row--total">
+                                    <td>= Parcela real</td>
+                                    <td class="tools-cet-table-amount tools-cet-amount--danger">R$ {{ "%.2f"|format(resultado.parcela_real) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="tools-cet-table-wrap">
+                        <table class="tools-cet-table">
+                            <caption class="tools-cet-sr-only">Custo total do empréstimo</caption>
+                            <tbody>
+                                <tr>
+                                    <td>Total juros ({{ resultado.prazo_meses }} parcelas)</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.custo_juros) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Total seguro</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.total_seguro) }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Custos iniciais (TAC + IOF + tarifas)</td>
+                                    <td class="tools-cet-table-amount">R$ {{ "%.2f"|format(resultado.custos_iniciais) }}</td>
+                                </tr>
+                                <tr class="tools-cet-table-row--total-grand">
+                                    <td>Custo total do empréstimo</td>
+                                    <td class="tools-cet-table-amount tools-cet-amount--danger">R$ {{ "%.2f"|format(resultado.custo_total) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </article>
+
+            <article class="tools-cet-card" aria-labelledby="tools-cet-legal-title">
+                <div class="tools-cet-card-body">
+                    <h3 id="tools-cet-legal-title" class="tools-cet-card-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-cet-legal">
+                        {% for ref in resultado.fundamentacao %}
+                        <li>
+                            <i class="fas fa-paragraph" aria-hidden="true"></i>
+                            <span>{{ ref }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </article>
+
+            <div class="tools-cet-actions tools-cet-no-print">
+                <button type="button" onclick="window.print()" class="tools-cet-ghost">
+                    <i class="fas fa-print" aria-hidden="true"></i>
+                    <span>Imprimir</span>
+                </button>
+            </div>
+        </section>
+        {% endif %}
+    </div>
+</main>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

@@ -1,0 +1,125 @@
+# Auto-Healer ILC - Playbooks (Base de Conhecimento)
+# Cada playbook: match pattern -> nivel de resposta -> acao
+# Niveis: 0=observar, 1=notificar, 2=mitigar, 3=remediar, 4=escalar
+
+playbooks:
+
+  # === NIVEL 0: OBSERVAR (log only) ===
+
+  json_parse_nonfatal:
+    name: JSON Parse Warning (non-fatal)
+    match_log: 'JSON parse failed'
+    service: whatsapp-bot
+    level: 0
+    action: log_only
+    reason: Erro nao-fatal no lead-monitor, bot continua operando
+
+  lead_monitor_info:
+    name: Lead Monitor Info
+    match_log: 'Erro ao gerar resumo'
+    service: whatsapp-bot
+    level: 0
+    action: log_only
+    reason: Resumo de lead falhou mas nao impacta operacao
+
+  # === NIVEL 1: NOTIFICAR (alerta, sem acao) ===
+
+  db_schema_mismatch:
+    name: Database Schema Error
+    match_log: 'column .* does not exist'
+    source: postgresql
+    level: 1
+    action: notify
+    reason: Erro de schema requer correcao no codigo - nao pode ser auto-fixado
+
+  whatsapp_disconnected:
+    name: WhatsApp Disconnected
+    match_api: 'connected=false'
+    service: whatsapp-bot
+    level: 1
+    action: notify
+    message: 'WhatsApp desconectado. Escanear QR: https://legacy.example/whatsapp/qr'
+    reason: Reconexao requer scan fisico de QR code
+
+  port_conflict:
+    name: Port Already In Use
+    match_log: 'EADDRINUSE|address already in use'
+    service: '*'
+    level: 1
+    action: notify
+    reason: Processo orfao ocupando porta - requer investigacao
+
+  # === NIVEL 2: MITIGAR (restart seguro) ===
+
+  service_offline:
+    name: Service Offline
+    match_status: 'stopped|errored'
+    service: '*'
+    level: 2
+    action: pm2_restart
+    verify: health_check
+    max_attempts: 3
+    cooldown_sec: 600
+
+  memory_critical:
+    name: System Memory Critical
+    match_metric: 'system_memory_percent > 90'
+    level: 2
+    action: restart_heaviest_noncritical
+    verify: memory_below_85
+    max_attempts: 1
+    cooldown_sec: 3600
+
+  disk_critical:
+    name: Disk Space Critical
+    match_metric: 'disk_percent > 90'
+    level: 2
+    action: cleanup_old_logs
+    verify: disk_below_85
+    max_attempts: 1
+    cooldown_sec: 3600
+    cleanup_targets:
+      - /root/.pm2/logs/*.log  # Rotate PM2 logs
+      - /var/log/casehub/*.log  # Old casehub logs
+
+  # === NIVEL 3: REMEDIAR (fix + restart) ===
+
+  syntax_error_bot:
+    name: SyntaxError in WhatsApp Bot
+    match_log: 'SyntaxError'
+    service: whatsapp-bot
+    level: 3
+    action: revert_to_backup
+    target_file: server.js
+    backup_source: /var/www/legacy.example/whatsapp-bot/backups/
+    verify: service_starts_clean
+    max_attempts: 1
+    fallback: escalate
+
+  crash_loop_detected:
+    name: Real Crash Loop
+    match_computed: 'restart_delta > 10 AND uptime_sec < 300'
+    service: '*'
+    level: 3
+    action: diagnose_and_fix
+    steps:
+      - read_error_log_last_50
+      - match_against_playbooks
+      - if_match_apply_fix
+      - if_no_match_escalate
+    max_attempts: 1
+    fallback: escalate
+
+  # === NIVEL 4: ESCALAR (problema desconhecido) ===
+
+  unknown_critical:
+    name: Unknown Critical Error
+    match: no_playbook_match
+    level: 4
+    action: escalate_urgent
+    include_in_alert:
+      - error_log_tail_50
+      - system_metrics
+      - recent_pm2_events
+      - recent_file_changes
+    reason: Erro nao reconhecido nos playbooks - requer analise humana

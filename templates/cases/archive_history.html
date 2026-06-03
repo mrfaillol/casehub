@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Case History - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/cases-archive-history.css">
+{% endblock %}
+
+{% block content %}
+<main class="cases-archive-history-main" role="main" aria-labelledby="cases-archive-history-title">
+    <header class="cases-archive-history-header">
+        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-archive-history-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Case</span>
+        </a>
+        <h1 id="cases-archive-history-title" class="cases-archive-history-title">
+            <i class="fas fa-history" aria-hidden="true"></i>
+            <span>Archive/Close History</span>
+        </h1>
+        <p class="cases-archive-history-subtitle">{{ case.case_number }} &mdash; {{ case.case_name }}</p>
+    </header>
+
+    <section class="cases-archive-history-card" aria-labelledby="cases-archive-history-card-title">
+        <header class="cases-archive-history-card-header">
+            <h2 id="cases-archive-history-card-title" class="cases-archive-history-card-title">
+                <i class="fas fa-list-alt" aria-hidden="true"></i>
+                <span>Status Change History</span>
+            </h2>
+        </header>
+
+        {% if history %}
+        <div class="cases-archive-history-table-wrapper" role="region" aria-labelledby="cases-archive-history-card-title" tabindex="0">
+            <table class="cases-archive-history-table">
+                <caption class="cases-archive-history-caption">
+                    Archive and close history for case {{ case.case_number }}. Columns: date, action, reason, status change, user, and notes.
+                </caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Action</th>
+                        <th scope="col">Reason</th>
+                        <th scope="col">Status Change</th>
+                        <th scope="col">By</th>
+                        <th scope="col">Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in history %}
+                    <tr>
+                        <td class="cases-archive-history-date">
+                            {% if h.created_at %}
+                                <time datetime="{{ h.created_at.isoformat() }}">{{ h.created_at.strftime('%Y-%m-%d %H:%M') }}</time>
+                            {% else %}
+                                &mdash;
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if h.action == 'close' %}
+                                <span class="cases-archive-history-badge cases-archive-history-badge--close">
+                                    <i class="fas fa-times-circle" aria-hidden="true"></i>
+                                    <span>Closed</span>
+                                </span>
+                            {% elif h.action == 'archive' %}
+                                <span class="cases-archive-history-badge cases-archive-history-badge--archive">
+                                    <i class="fas fa-archive" aria-hidden="true"></i>
+                                    <span>Archived</span>
+                                </span>
+                            {% elif h.action == 'reopen' %}
+                                <span class="cases-archive-history-badge cases-archive-history-badge--reopen">
+                                    <i class="fas fa-undo" aria-hidden="true"></i>
+                                    <span>Reopened</span>
+                                </span>
+                            {% else %}
+                                <span class="cases-archive-history-badge cases-archive-history-badge--info">
+                                    <span>{{ h.action }}</span>
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="cases-archive-history-reason">{{ h.reason_label or '—' }}</td>
+                        <td>
+                            <span class="cases-archive-history-status">
+                                <span class="cases-archive-history-sr-only">Changed from</span>
+                                <span class="cases-archive-history-status-from">{{ h.previous_status }}</span>
+                                <i class="fas fa-arrow-right cases-archive-history-status-arrow" aria-hidden="true"></i>
+                                <span class="cases-archive-history-sr-only">to</span>
+                                <span class="cases-archive-history-status-to">{{ h.new_status }}</span>
+                            </span>
+                        </td>
+                        <td class="cases-archive-history-user">{{ h.user_name or 'System' }}</td>
+                        <td class="cases-archive-history-notes">{{ h.notes or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="cases-archive-history-empty">
+            <i class="fas fa-inbox cases-archive-history-empty-icon" aria-hidden="true"></i>
+            <p class="cases-archive-history-empty-text">No archive/close history for this case.</p>
+        </div>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}{{ email.subject }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/emails-view.css">
+{% endblock %}
+
+{% block content %}
+<main class="emails-view" aria-labelledby="emails-view-title">
+    <header class="emails-view__topbar">
+        <a href="{{ PREFIX }}/emails" class="emails-view__back" aria-label="{% if product == 'lite' %}Voltar aos E-mails{% else %}Back to Emails{% endif %}">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar{% else %}Back{% endif %}</span>
+        </a>
+        <div class="emails-view__actions" role="toolbar" aria-label="{% if product == 'lite' %}Ações do e-mail{% else %}Email actions{% endif %}">
+            <a href="{{ PREFIX }}/emails/compose-v2?to_email={{ email.sender|urlencode }}&subject={{ ('Re: ' ~ email.subject)|urlencode }}&reply_to={{ email.id }}" class="emails-view__action emails-view__action--primary">
+                <i class="fas fa-reply" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Responder{% else %}Reply{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/emails/compose-v2?to_email={{ email.sender|urlencode }}&subject={{ ('Re: ' ~ email.subject)|urlencode }}&reply_to={{ email.id }}&reply_all=1" class="emails-view__action">
+                <i class="fas fa-reply-all" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Responder a Todos{% else %}Reply All{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/emails/compose-v2?subject={{ ('Fwd: ' ~ email.subject)|urlencode }}&forward_from={{ email.id }}" class="emails-view__action">
+                <i class="fas fa-share" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Encaminhar{% else %}Forward{% endif %}</span>
+            </a>
+            <button type="button" class="emails-view__action emails-view__action--warning" data-action="archive" data-email-id="{{ email.id }}">
+                <i class="fas fa-archive" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Arquivar{% else %}Archive{% endif %}</span>
+            </button>
+            <button type="button" class="emails-view__action emails-view__action--danger" data-action="delete" data-email-id="{{ email.id }}">
+                <i class="fas fa-trash" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</span>
+            </button>
+            <span class="emails-view__divider" aria-hidden="true"></span>
+            <a href="{{ PREFIX }}/tasks/new?title=Follow up: {{ email.subject|urlencode }}&client_id={{ email.client_id or '' }}" class="emails-view__action emails-view__action--warning">
+                <i class="fas fa-tasks" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Tarefa{% else %}Task{% endif %}</span>
+            </a>
+            <a href="{{ PREFIX }}/notes/new?client_id={{ email.client_id or '' }}&content={{ email.body_text[:200]|urlencode if email.body_text else '' }}" class="emails-view__action emails-view__action--info">
+                <i class="fas fa-sticky-note" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Nota{% else %}Note{% endif %}</span>
+            </a>
+            {% if not email.client_id %}
+            <button type="button" class="emails-view__action emails-view__action--success" data-action="create-client" data-sender="{{ email.sender|e }}">
+                <i class="fas fa-user-plus" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Novo Cliente{% else %}New Client{% endif %}</span>
+            </button>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="emails-view__layout">
+        <section class="emails-view__main" aria-label="{% if product == 'lite' %}Conteúdo do e-mail{% else %}Email content{% endif %}">
+            <article class="emails-view__header">
+                <h1 id="emails-view-title" class="emails-view__title">
+                    <i class="fas fa-envelope emails-view__title-icon" aria-hidden="true"></i>
+                    <span>{{ email.subject or '(No Subject)' }}</span>
+                </h1>
+
+                <div class="emails-view__meta-grid">
+                    <dl class="emails-view__meta-list">
+                        <div class="emails-view__meta-row">
+                            <dt class="emails-view__meta-label">{% if product == "lite" %}De{% else %}From{% endif %}:</dt>
+                            <dd class="emails-view__meta-value">{{ email.sender }}</dd>
+                        </div>
+                        <div class="emails-view__meta-row">
+                            <dt class="emails-view__meta-label">{% if product == "lite" %}Para{% else %}To{% endif %}:</dt>
+                            <dd class="emails-view__meta-value">{{ email.recipients }}</dd>
+                        </div>
+                        {% if email.cc %}
+                        <div class="emails-view__meta-row">
+                            <dt class="emails-view__meta-label">CC:</dt>
+                            <dd class="emails-view__meta-value">{{ email.cc }}</dd>
+                        </div>
+                        {% endif %}
+                        <div class="emails-view__meta-row">
+                            <dt class="emails-view__meta-label">{% if product == "lite" %}Data{% else %}Date{% endif %}:</dt>
+                            <dd class="emails-view__meta-value">{{ email.received_at.strftime('%B %d, %Y at %H:%M') if email.received_at else '-' }}</dd>
+                        </div>
+                    </dl>
+
+                    <form method="post" action="{{ PREFIX }}/emails/{{ email.id }}/link" class="emails-view__link-form" aria-label="{% if product == 'lite' %}Vincular a cliente ou caso{% else %}Link to client or case{% endif %}">
+                        <label class="visually-hidden" for="emails-view-link-client">{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</label>
+                        <select id="emails-view-link-client" class="emails-view__select" name="client_id" aria-label="{% if product == 'lite' %}Vincular a Cliente{% else %}Link to Client{% endif %}">
+                            <option value="">{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</option>
+                            {% for client in clients %}
+                            <option value="{{ client.id }}" {% if email.client_id == client.id %}selected{% endif %}>
+                                {{ client.first_name }} {{ client.last_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <label class="visually-hidden" for="emails-view-link-case">{% if product == "lite" %}Vincular a Caso{% else %}Link to Case{% endif %}</label>
+                        <select id="emails-view-link-case" class="emails-view__select" name="case_id" aria-label="{% if product == 'lite' %}Vincular a Caso{% else %}Link to Case{% endif %}">
+                            <option value="">{% if product == "lite" %}Vincular a Caso{% else %}Link to Case{% endif %}</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}" {% if email.case_id == case.id %}selected{% endif %}>
+                                {{ case.case_name or case.case_number or ('Case #' ~ case.id) }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="emails-view__action emails-view__link-submit">
+                            <i class="fas fa-link" aria-hidden="true"></i>
+                            <span>{% if product == "lite" %}Vincular{% else %}Link{% endif %}</span>
+                        </button>
+                    </form>
+                </div>
+
+                {% if email.client_id or email.case_id %}
+                <div class="emails-view__badges">
+                    {% if email.client_id %}
+                    <a href="{{ PREFIX }}/clients/{{ email.client_id }}" class="emails-view__badge emails-view__badge--client">
+                        <i class="fas fa-user" aria-hidden="true"></i>
+                        <span>{{ email.first_name }} {{ email.last_name }}</span>
+                    </a>
+                    {% endif %}
+                    {% if email.case_id %}
+                    <a href="{{ PREFIX }}/cases/{{ email.case_id }}" class="emails-view__badge emails-view__badge--case">
+                        <i class="fas fa-folder" aria-hidden="true"></i>
+                        <span>{{ email.case_name or ('Case #' ~ email.case_id) }}</span>
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </article>
+
+            <article class="emails-view__body-card" aria-label="{% if product == 'lite' %}Corpo do e-mail{% else %}Email body{% endif %}">
+                {% if email.body_html %}
+                <iframe
+                    class="emails-view__body-iframe"
+                    title="{% if product == 'lite' %}Conteúdo do e-mail{% else %}Email content{% endif %}"
+                    sandbox="allow-popups allow-popups-to-escape-sandbox"
+                    referrerpolicy="no-referrer"
+                    srcdoc="{{ email.body_html | e }}"
+                    loading="lazy"></iframe>
+                {% elif email.body_text %}
+                <pre class="emails-view__body-pre">{{ email.body_text }}</pre>
+                {% else %}
+                <p class="emails-view__body-empty">{% if product == "lite" %}(Sem conteúdo){% else %}(No content){% endif %}</p>
+                {% endif %}
+            </article>
+
+            {% if attachments %}
+            <section class="emails-view__attachments" aria-label="{% if product == 'lite' %}Anexos{% else %}Attachments{% endif %}">
+                <header class="emails-view__attachments-header">
+                    <i class="fas fa-paperclip" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Anexos{% else %}Attachments{% endif %} ({{ attachments|length }})</span>
+                </header>
+                <ul class="emails-view__attachments-grid" role="list">
+                    {% for att in attachments %}
+                    {% set ext = att.filename.split('.')[-1]|lower %}
+                    <li class="emails-view__attachment">
+                        {% if ext == 'pdf' %}
+                        <i class="fas fa-file-pdf emails-view__attachment-icon emails-view__attachment-icon--pdf" aria-hidden="true"></i>
+                        {% elif ext in ['jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                        <i class="fas fa-file-image emails-view__attachment-icon emails-view__attachment-icon--image" aria-hidden="true"></i>
+                        {% elif ext in ['doc', 'docx'] %}
+                        <i class="fas fa-file-word emails-view__attachment-icon emails-view__attachment-icon--word" aria-hidden="true"></i>
+                        {% elif ext in ['xls', 'xlsx'] %}
+                        <i class="fas fa-file-excel emails-view__attachment-icon emails-view__attachment-icon--excel" aria-hidden="true"></i>
+                        {% else %}
+                        <i class="fas fa-file emails-view__attachment-icon" aria-hidden="true"></i>
+                        {% endif %}
+                        <div class="emails-view__attachment-info">
+                            <div class="emails-view__attachment-name" title="{{ att.filename }}">{{ att.filename }}</div>
+                            <div class="emails-view__attachment-size">{{ (att.file_size / 1024)|round(1) }} KB</div>
+                        </div>
+                        <div class="emails-view__attachment-actions">
+                            {% if ext in ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'] %}
+                            <a href="{{ PREFIX }}/emails/attachments/{{ att.id }}/preview" target="_blank" rel="noopener" class="emails-view__attachment-btn" aria-label="{% if product == 'lite' %}Visualizar{% else %}Preview{% endif %} {{ att.filename }}">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                            </a>
+                            {% endif %}
+                            <a href="{{ PREFIX }}/emails/attachments/{{ att.id }}/download" class="emails-view__attachment-btn" aria-label="{% if product == 'lite' %}Baixar{% else %}Download{% endif %} {{ att.filename }}">
+                                <i class="fas fa-download" aria-hidden="true"></i>
+                            </a>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            {% endif %}
+        </section>
+
+        <aside class="emails-view__aside" aria-label="{% if product == 'lite' %}Histórico da conversa{% else %}Conversation thread{% endif %}">
+            <nav class="emails-view__thread">
+                <h2 class="emails-view__thread-title">
+                    <i class="fas fa-comments" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Histórico{% else %}Conversation{% endif %}</span>
+                </h2>
+
+                {% if thread_emails %}
+                <p class="emails-view__thread-count">
+                    {{ thread_emails|length }} {% if product == "lite" %}e-mail(s) relacionado(s){% else %}related email(s){% endif %}
+                </p>
+                <ul class="emails-view__thread-list" role="list">
+                    {% for thread in thread_emails %}
+                    <li>
+                        <a href="{{ PREFIX }}/emails/{{ thread.id }}"
+                           class="emails-view__thread-item {% if thread.id == email.id %}emails-view__thread-item--current{% endif %}"
+                           {% if thread.id == email.id %}aria-current="page"{% endif %}>
+                            <div class="emails-view__thread-item-subject">
+                                {% if not thread.is_read %}<span class="emails-view__thread-unread-dot" aria-label="{% if product == 'lite' %}Não lido{% else %}Unread{% endif %}"></span>{% endif %}
+                                <span>{{ thread.subject or '(No Subject)' }}</span>
+                            </div>
+                            {% if thread.preview %}
+                            <div class="emails-view__thread-item-preview">{{ thread.preview }}</div>
+                            {% endif %}
+                            <div class="emails-view__thread-item-meta">
+                                <i class="fas fa-clock" aria-hidden="true"></i>
+                                <span>{{ thread.received_at.strftime('%b %d, %H:%M') if thread.received_at else '-' }}</span>
+                            </div>
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="emails-view__thread-empty">
+                    <i class="fas fa-inbox emails-view__thread-empty-icon" aria-hidden="true"></i>
+                    <p>{% if product == "lite" %}Nenhum outro e-mail nesta conversa{% else %}No other emails in this conversation{% endif %}</p>
+                </div>
+                {% endif %}
+            </nav>
+        </aside>
+    </div>
+</main>
+
+<script>
+(function () {
+    const PREFIX = '{{ PREFIX }}';
+    const COPY = {
+        deleteConfirm: '{% if product == "lite" %}Excluir este e-mail? Esta ação não pode ser desfeita.{% else %}Delete this email? This cannot be undone.{% endif %}',
+        archiveConfirm: '{% if product == "lite" %}Arquivar este e-mail?{% else %}Archive this email?{% endif %}',
+        deleteError: '{% if product == "lite" %}Erro ao excluir e-mail{% else %}Error deleting email{% endif %}',
+        archiveError: '{% if product == "lite" %}Erro ao arquivar e-mail{% else %}Error archiving email{% endif %}'
+    };
+
+    function bulkOperation(operation, id, errorMsg) {
+        const form = new FormData();
+        form.append('operation', operation);
+        form.append('email_ids', JSON.stringify([id]));
+        return fetch(`${PREFIX}/emails/bulk`, { method: 'POST', body: form })
+            .then(function (r) {
+                if (r.ok || r.redirected) {
+                    window.location.href = `${PREFIX}/emails`;
+                } else {
+                    alert(errorMsg);
+                }
+            })
+            .catch(function (err) { alert(errorMsg + ': ' + err); });
+    }
+
+    function createClientFromSender(sender) {
+        let name = sender;
+        let email = '';
+        if (sender.indexOf('<') !== -1) {
+            const parts = sender.split('<');
+            name = parts[0].trim();
+            email = parts[1].replace('>', '').trim();
+        } else if (sender.indexOf('@') !== -1) {
+            email = sender;
+            name = sender.split('@')[0];
+        }
+        const nameParts = name.split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        window.location.href = `${PREFIX}/clients/new?first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}&email=${encodeURIComponent(email)}`;
+    }
+
+    document.addEventListener('click', function (e) {
+        const trigger = e.target.closest('[data-action]');
+        if (!trigger) return;
+        const action = trigger.getAttribute('data-action');
+        if (action === 'archive') {
+            e.preventDefault();
+            const id = parseInt(trigger.getAttribute('data-email-id'), 10);
+            if (window.confirm(COPY.archiveConfirm)) bulkOperation('archive', id, COPY.archiveError);
+        } else if (action === 'delete') {
+            e.preventDefault();
+            const id = parseInt(trigger.getAttribute('data-email-id'), 10);
+            if (window.confirm(COPY.deleteConfirm)) bulkOperation('delete', id, COPY.deleteError);
+        } else if (action === 'create-client') {
+            e.preventDefault();
+            createClientFromSender(trigger.getAttribute('data-sender') || '');
+        }
+    });
+})();
+</script>
+{% endblock %}

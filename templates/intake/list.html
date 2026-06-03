@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Intake Packages - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="fas fa-inbox me-2"></i>Intake Packages</h2>
+            <p class="text-muted mb-0">Manage client intake questionnaires and document requests</p>
+        </div>
+        <a href="{{ PREFIX }}/intake/new" class="btn btn-primary glass-btn glass-btn--primary">
+            <i class="fas fa-plus me-1"></i>New Package
+        </a>
+    </div>
+
+    <!-- Status Filter Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-center {% if not selected_status %}border-primary{% endif %}">
+                <a href="{{ PREFIX }}/intake" class="card-body text-decoration-none">
+                    <div class="h3 mb-0">{{ packages|length }}</div>
+                    <small class="text-muted">All</small>
+                </a>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center {% if selected_status == 'draft' %}border-primary{% endif %}">
+                <a href="{{ PREFIX }}/intake?status=draft" class="card-body text-decoration-none">
+                    <div class="h3 mb-0 text-secondary">{{ status_counts.get('draft', 0) }}</div>
+                    <small class="text-muted">Draft</small>
+                </a>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center {% if selected_status == 'sent' %}border-primary{% endif %}">
+                <a href="{{ PREFIX }}/intake?status=sent" class="card-body text-decoration-none">
+                    <div class="h3 mb-0 text-info">{{ status_counts.get('sent', 0) }}</div>
+                    <small class="text-muted">Sent</small>
+                </a>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center {% if selected_status == 'in_progress' %}border-primary{% endif %}">
+                <a href="{{ PREFIX }}/intake?status=in_progress" class="card-body text-decoration-none">
+                    <div class="h3 mb-0 text-warning">{{ status_counts.get('in_progress', 0) }}</div>
+                    <small class="text-muted">In Progress</small>
+                </a>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center {% if selected_status == 'completed' %}border-primary{% endif %}">
+                <a href="{{ PREFIX }}/intake?status=completed" class="card-body text-decoration-none">
+                    <div class="h3 mb-0 text-success">{{ status_counts.get('completed', 0) }}</div>
+                    <small class="text-muted">Completed</small>
+                </a>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center {% if selected_status == 'expired' %}border-primary{% endif %}">
+                <a href="{{ PREFIX }}/intake?status=expired" class="card-body text-decoration-none">
+                    <div class="h3 mb-0 text-danger">{{ status_counts.get('expired', 0) }}</div>
+                    <small class="text-muted">Expired</small>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if overdue_count > 0 %}
+    <div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+        <i class="fas fa-exclamation-triangle me-3 fa-lg"></i>
+        <div>
+            <strong>{{ overdue_count }} overdue questionnaire{{ 's' if overdue_count > 1 else '' }}</strong>
+            &mdash; Sent more than {{ 5 }} days ago without completion. Follow up with the client.
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Packages List -->
+    {% if packages %}
+    <div class="card glass-card">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Package</th>
+                        <th>Case</th>
+                        <th>Client</th>
+                        <th>Progress</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pkg in packages %}
+                    {% set is_overdue = pkg.package_id in overdue_info %}
+                    <tr{% if is_overdue %} class="table-danger" style="border-left: 4px solid #ef4444;"{% endif %}>
+                        <td>
+                            <a href="{{ PREFIX }}/intake/{{ pkg.package_id }}" class="text-decoration-none fw-medium">
+                                {{ pkg.name }}
+                            </a>
+                            <br>
+                            <small class="text-muted font-monospace">{{ pkg.package_id }}</small>
+                        </td>
+                        <td>
+                            {% if pkg.case_number %}
+                            <a href="{{ PREFIX }}/cases/{{ pkg.case_id }}">{{ pkg.case_number }}</a>
+                            <br>
+                            <small class="text-muted">{{ pkg.visa_type or '' }}</small>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ pkg.first_name }} {{ pkg.last_name }}
+                            {% if pkg.email %}
+                            <br>
+                            <small class="text-muted">{{ pkg.email }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set pct = ((pkg.completed_count or 0) / (pkg.item_count or 1) * 100)|int %}
+                            <div class="progress" style="height: 8px; width: 100px;">
+                                <div class="progress-bar {% if pct == 100 %}bg-success{% elif pct > 50 %}bg-info{% else %}bg-warning{% endif %}"
+                                     role="progressbar" style="width: {{ pct }}%"></div>
+                            </div>
+                            <small class="text-muted">{{ pkg.completed_count or 0 }}/{{ pkg.item_count or 0 }} items</small>
+                        </td>
+                        <td>
+                            {% if pkg.status == 'draft' %}
+                            <span class="badge bg-secondary">Draft</span>
+                            {% elif pkg.status == 'sent' %}
+                            <span class="badge bg-info">Sent</span>
+                            {% elif pkg.status == 'in_progress' %}
+                            <span class="badge bg-warning text-dark">In Progress</span>
+                            {% elif pkg.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                            {% elif pkg.status == 'expired' %}
+                            <span class="badge bg-danger">Expired</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark">{{ pkg.status }}</span>
+                            {% endif %}
+                            {% if is_overdue %}
+                            <br>
+                            <span class="badge bg-danger mt-1" style="animation: pulse-red 1.5s infinite;">
+                                <i class="fas fa-clock me-1"></i>OVERDUE ({{ overdue_info[pkg.package_id] }}d)
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ pkg.created_at.strftime('%Y-%m-%d') if pkg.created_at else '-' }}
+                            {% if pkg.sent_at %}
+                            <br><small class="text-muted">Sent: {{ pkg.sent_at.strftime('%Y-%m-%d') }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ PREFIX }}/intake/{{ pkg.package_id }}" class="btn btn-outline-primary glass-btn glass-btn--ghost" title="View">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if pkg.status == 'draft' %}
+                                <form method="POST" action="{{ PREFIX }}/intake/{{ pkg.package_id }}/send" class="d-inline">
+                                    <button type="submit" class="btn btn-outline-success" title="Send">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card glass-card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+            <h4>No Intake Packages</h4>
+            <p class="text-muted">Create intake packages to collect documents and information from clients.</p>
+            <a href="{{ PREFIX }}/intake/new" class="btn btn-primary glass-btn glass-btn--primary">
+                <i class="fas fa-plus me-1"></i>Create Package
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+@keyframes pulse-red {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+</style>
+{% endblock %}

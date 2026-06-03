@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Tempo de Contribuição - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-tempo-contribuicao.css">
+{% endblock %}
+
+{% block content %}
+<div class="tempo-contrib-main" aria-labelledby="tempo-contrib-title">
+    <header class="tempo-contrib-header tempo-contrib-no-print">
+        <div class="tempo-contrib-header-text">
+            <h1 id="tempo-contrib-title" class="tempo-contrib-title">
+                <i class="fas fa-hourglass-start" aria-hidden="true"></i>
+                <span>Simulação de Tempo de Contribuição</span>
+            </h1>
+            <p class="tempo-contrib-subtitle">EC 103/2019, Art. 15-20</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tempo-contrib-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="tempo-contrib-alert" role="alert">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <div class="tempo-contrib-grid {% if resultado %}tempo-contrib-grid--with-result{% endif %}">
+        <div class="tempo-contrib-form-col {% if not resultado %}tempo-contrib-form-col--centered{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/tempo-contribuicao/calcular" class="tempo-contrib-form">
+                <section class="tempo-contrib-card" aria-labelledby="tempo-contrib-form-title">
+                    <header class="tempo-contrib-card-header">
+                        <h2 id="tempo-contrib-form-title" class="tempo-contrib-card-title">
+                            <i class="fas fa-user" aria-hidden="true"></i>
+                            <span>Dados da Simulação</span>
+                        </h2>
+                    </header>
+                    <div class="tempo-contrib-card-body">
+                        <fieldset class="tempo-contrib-fieldset">
+                            <legend class="tempo-contrib-section-title">Dados Pessoais</legend>
+                            <div class="tempo-contrib-row">
+                                <div class="tempo-contrib-field">
+                                    <label class="tempo-contrib-label" for="data_nascimento">Data de Nascimento</label>
+                                    <input type="date" class="tempo-contrib-input" id="data_nascimento" name="data_nascimento"
+                                           value="{{ form.data_nascimento if form else '' }}" required aria-required="true">
+                                </div>
+                                <div class="tempo-contrib-field">
+                                    <label class="tempo-contrib-label" for="sexo">Sexo</label>
+                                    <select class="tempo-contrib-select" id="sexo" name="sexo" required aria-required="true">
+                                        <option value="F" {% if form and form.sexo == 'F' %}selected{% endif %}>Feminino</option>
+                                        <option value="M" {% if form and form.sexo == 'M' %}selected{% endif %}>Masculino</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="tempo-contrib-fieldset">
+                            <legend class="tempo-contrib-section-title">Tempo de Contribuição Já Computado</legend>
+                            <div class="tempo-contrib-row tempo-contrib-row--thirds">
+                                <div class="tempo-contrib-field">
+                                    <label class="tempo-contrib-label" for="anos_contribuicao">Anos</label>
+                                    <input type="number" class="tempo-contrib-input" id="anos_contribuicao" name="anos_contribuicao"
+                                           min="0" value="{{ form.anos_contribuicao if form else '0' }}">
+                                </div>
+                                <div class="tempo-contrib-field">
+                                    <label class="tempo-contrib-label" for="meses_contribuicao">Meses</label>
+                                    <input type="number" class="tempo-contrib-input" id="meses_contribuicao" name="meses_contribuicao"
+                                           min="0" max="11" value="{{ form.meses_contribuicao if form else '0' }}">
+                                </div>
+                                <div class="tempo-contrib-field">
+                                    <label class="tempo-contrib-label" for="dias_contribuicao">Dias</label>
+                                    <input type="number" class="tempo-contrib-input" id="dias_contribuicao" name="dias_contribuicao"
+                                           min="0" max="29" value="{{ form.dias_contribuicao if form else '0' }}">
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <div class="tempo-contrib-field">
+                            <label class="tempo-contrib-label" for="data_inicio_contribuicao">Data de Início da Contribuição</label>
+                            <input type="date" class="tempo-contrib-input" id="data_inicio_contribuicao" name="data_inicio_contribuicao"
+                                   value="{{ form.data_inicio_contribuicao if form else '' }}" required aria-required="true"
+                                   aria-describedby="tempo-contrib-inicio-hint">
+                            <span id="tempo-contrib-inicio-hint" class="tempo-contrib-hint">Usado para calcular regra de transição (pedágio 100%)</span>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="tempo-contrib-actions tempo-contrib-no-print">
+                    <button type="submit" class="tempo-contrib-btn tempo-contrib-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/tempo-contribuicao" class="tempo-contrib-btn tempo-contrib-btn--secondary">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <div class="tempo-contrib-result-col" id="resultado">
+            <section class="tempo-contrib-card" aria-labelledby="tempo-contrib-regra-geral-title">
+                <header class="tempo-contrib-card-header tempo-contrib-card-header--accent">
+                    <h2 id="tempo-contrib-regra-geral-title" class="tempo-contrib-card-title">
+                        <i class="fas fa-hourglass-start" aria-hidden="true"></i>
+                        <span>Resultado — Regra Geral</span>
+                    </h2>
+                    <button type="button" class="tempo-contrib-btn tempo-contrib-btn--ghost tempo-contrib-no-print" onclick="window.print()">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+                <div class="tempo-contrib-card-body tempo-contrib-card-body--flush">
+                    <div class="tempo-contrib-table-wrap">
+                        <table class="tempo-contrib-table">
+                            <caption class="tempo-contrib-sr-only">Resumo da simulação pela regra geral de aposentadoria.</caption>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Sexo</th>
+                                    <td class="tempo-contrib-td-value">{{ resultado.sexo_label }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Idade Atual</th>
+                                    <td class="tempo-contrib-td-value">{{ resultado.idade_anos }} anos</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Idade Mínima Exigida</th>
+                                    <td class="tempo-contrib-td-value">{{ resultado.idade_minima }} anos</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Falta de Idade</th>
+                                    <td class="tempo-contrib-td-value">
+                                        {% if resultado.falta_idade_anos > 0 %}
+                                            <span class="tempo-contrib-status tempo-contrib-status--danger">{{ resultado.falta_idade_anos }} anos</span>
+                                        {% else %}
+                                            <span class="tempo-contrib-status tempo-contrib-status--success">
+                                                <i class="fas fa-check" aria-hidden="true"></i>
+                                                <span>Cumprido</span>
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr class="tempo-contrib-row-section">
+                                    <td colspan="2">Contribuição</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Tempo Computado</th>
+                                    <td class="tempo-contrib-td-value">{{ resultado.total_anos_contrib }} anos</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Contribuição Mínima</th>
+                                    <td class="tempo-contrib-td-value">{{ resultado.contrib_minima_anos }} anos</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Falta de Contribuição</th>
+                                    <td class="tempo-contrib-td-value">
+                                        {% if resultado.falta_contrib_anos > 0 or resultado.falta_contrib_meses > 0 %}
+                                            <span class="tempo-contrib-status tempo-contrib-status--danger">{{ resultado.falta_contrib_anos }}a {{ resultado.falta_contrib_meses }}m {{ resultado.falta_contrib_dias }}d</span>
+                                        {% else %}
+                                            <span class="tempo-contrib-status tempo-contrib-status--success">
+                                                <i class="fas fa-check" aria-hidden="true"></i>
+                                                <span>Cumprido</span>
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr class="tempo-contrib-row-total">
+                                    <th scope="row">Data Estimada (Regra Geral)</th>
+                                    <td class="tempo-contrib-td-value"><strong>{{ resultado.data_estimada }}</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tempo-contrib-card" aria-labelledby="tempo-contrib-pedagio-title">
+                <header class="tempo-contrib-card-header tempo-contrib-card-header--warning">
+                    <h2 id="tempo-contrib-pedagio-title" class="tempo-contrib-card-title">
+                        <i class="fas fa-road" aria-hidden="true"></i>
+                        <span>Regra de Transição — Pedágio 100%</span>
+                    </h2>
+                </header>
+                <div class="tempo-contrib-card-body tempo-contrib-card-body--flush">
+                    <div class="tempo-contrib-table-wrap">
+                        <table class="tempo-contrib-table">
+                            <caption class="tempo-contrib-sr-only">Resumo da simulação pela regra de transição pedágio 100%.</caption>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Tempo que faltava em 13/11/2019</th>
+                                    <td class="tempo-contrib-td-value">{{ resultado.faltava_reforma }} anos</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Pedágio (2x o que faltava)</th>
+                                    <td class="tempo-contrib-td-value">{{ resultado.pedagio_100 }} anos</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Pedágio Restante</th>
+                                    <td class="tempo-contrib-td-value">{{ resultado.pedagio_restante_anos }}a {{ resultado.pedagio_restante_meses }}m</td>
+                                </tr>
+                                <tr class="tempo-contrib-row-total tempo-contrib-row-total--warning">
+                                    <th scope="row">Data Estimada (Pedágio 100%)</th>
+                                    <td class="tempo-contrib-td-value"><strong>{{ resultado.data_pedagio_final }}</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="tempo-contrib-card" aria-labelledby="tempo-contrib-legal-title">
+                <div class="tempo-contrib-footer">
+                    <h2 id="tempo-contrib-legal-title" class="tempo-contrib-footer-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h2>
+                    <ul class="tempo-contrib-footer-list">
+                        <li><strong>EC 103/2019, Art. 15</strong> — Regra geral: idade mínima + tempo de contribuição</li>
+                        <li><strong>EC 103/2019, Art. 16</strong> — Regra de transição por pontos</li>
+                        <li><strong>EC 103/2019, Art. 17</strong> — Pedágio de 50%</li>
+                        <li><strong>EC 103/2019, Art. 20</strong> — Pedágio de 100%</li>
+                        <li><strong>Homem:</strong> 65 anos de idade + 20 anos de contribuição</li>
+                        <li><strong>Mulher:</strong> 62 anos de idade + 15 anos de contribuição</li>
+                    </ul>
+                    <p class="tempo-contrib-footer-note">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Simulação estimativa. Consulte o INSS para cálculo oficial com todas as regras de transição aplicáveis.</span>
+                    </p>
+                </div>
+            </section>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var el = document.getElementById('resultado');
+        if (el && window.innerWidth < 960) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,144 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% set is_edit = item is defined and item and item.id %}
+{% block title %}{% if is_edit %}Editar item · {{ item.description|default('Item') }}{% else %}Novo item de cobrança{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Financeiro · Itens ·
+      {% if is_edit %}Editando #{{ item.id }}{% else %}Novo lançamento{% endif %}
+    </span>
+    <h1>
+      {% if is_edit %}
+        Editar <em>item de cobrança</em>
+      {% else %}
+        Lançar <em>novo item</em>
+      {% endif %}
+    </h1>
+    <p class="ch-page-head__sub">
+      Campos com <span style="color: var(--c-danger);">*</span> são obrigatórios. Honorários, taxas, despesas e pagamentos recebidos.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<form method="post"
+      action="{% if is_edit %}{{ PREFIX }}/billing/items/{{ item.id }}/edit{% else %}{{ PREFIX }}/billing/items/new{% endif %}"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  {# ─── Vínculo & descrição ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Vínculo</span>
+        <h2 class="ch-card__title">Processo & descrição</h2>
+      </div>
+      <span data-icon="folder" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="case_id">Processo <span style="color: var(--c-danger);">*</span></label>
+      <select class="ch-select" id="case_id" name="case_id" required>
+        <option value="">— Selecione o processo —</option>
+        {% for c in cases %}
+        <option value="{{ c.id }}"
+                {% if (item and item.case_id == c.id) or (selected_case_id and selected_case_id == c.id) %}selected{% endif %}>
+          {{ c.case_number or c.case_name or ('Case #' ~ c.id) }}
+          {% if c.case_name and c.case_number %} · {{ c.case_name }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="description">Descrição <span style="color: var(--c-danger);">*</span></label>
+      <input class="ch-input" id="description" name="description" type="text" required minlength="2"
+             value="{{ item.description if item else '' }}"
+             placeholder="Honorários iniciais, taxa de protocolo, despesa de cartório…" />
+    </div>
+  </article>
+
+  {# ─── Valor & tipo ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Lançamento</span>
+        <h2 class="ch-card__title">Valor, tipo & status</h2>
+      </div>
+      <span data-icon="billing" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="amount">Valor (R$) <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input ch-mono" id="amount" name="amount" type="number"
+               step="0.01" min="0" inputmode="decimal" required
+               value="{{ item.amount if item else '' }}" placeholder="0,00" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="item_type">Tipo</label>
+        <select class="ch-select" id="item_type" name="item_type">
+          <option value="fee" {% if not item or item.item_type == 'fee' %}selected{% endif %}>Honorário</option>
+          <option value="filing_fee" {% if item and item.item_type == 'filing_fee' %}selected{% endif %}>Taxa</option>
+          <option value="expense" {% if item and item.item_type == 'expense' %}selected{% endif %}>Despesa</option>
+          <option value="payment" {% if item and item.item_type == 'payment' %}selected{% endif %}>Pagamento recebido</option>
+        </select>
+      </div>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="status">Status</label>
+        <select class="ch-select" id="status" name="status">
+          <option value="pending" {% if not item or item.status == 'pending' %}selected{% endif %}>Pendente</option>
+          <option value="invoiced" {% if item and item.status == 'invoiced' %}selected{% endif %}>Faturado</option>
+          <option value="paid" {% if item and item.status == 'paid' %}selected{% endif %}>Pago</option>
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="due_date">Vencimento</label>
+        <input class="ch-input ch-mono" id="due_date" name="due_date" type="date"
+               value="{{ item.due_date.strftime('%Y-%m-%d') if item and item.due_date else '' }}" />
+      </div>
+    </div>
+  </article>
+
+  {# ─── Observações ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Notas internas</span>
+        <h2 class="ch-card__title">Observações</h2>
+      </div>
+      <span data-icon="file" data-icon-size="20" style="color: var(--fg-muted);"></span>
+    </header>
+    <div class="ch-field">
+      <label class="ch-field__label" for="notes">Detalhes adicionais</label>
+      <textarea class="ch-textarea" id="notes" name="notes" rows="4"
+                placeholder="Contexto, parcelamento, referências internas…">{{ item.notes if item else '' }}</textarea>
+    </div>
+  </article>
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      {% if is_edit %}
+        Atualizando ID #{{ item.id }}
+      {% else %}
+        Novo lançamento
+      {% endif %}
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/billing">Cancelar</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span>
+        {% if is_edit %}Salvar alterações{% else %}Lançar item{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

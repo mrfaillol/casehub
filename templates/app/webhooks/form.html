@@ -1,0 +1,102 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Webhooks · Form · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/webhooks" class="text-muted text-decoration-none">
+        <i class="fas fa-arrow-left me-1"></i> Back to Webhooks
+    </a>
+    <h2 class="mt-2"><i class="fas fa-link me-2"></i>{{ action }} Webhook</h2>
+</div>
+
+<form method="post" action="{% if webhook %}{{ PREFIX }}/webhooks/{{ webhook.id }}/edit{% else %}{{ PREFIX }}/webhooks/new{% endif %}">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card glass-card">
+                <div class="card-header">Webhook Configuration</div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Entity Type *</label>
+                            <select class="form-select glass-input" name="entity_type" required>
+                                {% for et in entity_types %}
+                                <option value="{{ et }}" {% if webhook and webhook.entity_type == et %}selected{% endif %}>{{ et|capitalize }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Entity ID (optional)</label>
+                            <input type="number" class="form-control glass-input" name="entity_id" 
+                                   value="{{ webhook.entity_id if webhook and webhook.entity_id else '' }}"
+                                   placeholder="Leave empty for all entities">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Event Type *</label>
+                        <select class="form-select glass-input" name="event_type" required>
+                            {% for et in event_types %}
+                            <option value="{{ et }}" {% if webhook and webhook.event_type == et %}selected{% endif %}>{{ et }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Webhook URL *</label>
+                        <input type="url" class="form-control glass-input" name="webhook_url" required
+                               value="{{ webhook.webhook_url if webhook else '' }}"
+                               placeholder="https://your-server.com/webhook">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Custom Headers (JSON)</label>
+                        <textarea class="form-control font-monospace" name="headers" rows="3"
+                                  placeholder='{"Authorization": "Bearer token123"}'>{{ webhook.headers if webhook and webhook.headers else '' }}</textarea>
+                        <small class="text-muted">Optional. Add custom HTTP headers in JSON format.</small>
+                    </div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" name="enabled" value="true"
+                               {% if not webhook or webhook.enabled %}checked{% endif %}>
+                        <label class="form-check-label">Enabled</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card glass-card">
+                <div class="card-header">Info</div>
+                <div class="card-body">
+                    <p class="small text-muted">
+                        Webhooks allow you to receive HTTP POST notifications when events occur in your CaseHub.
+                    </p>
+                    <p class="small text-muted">
+                        The payload will include:
+                    </p>
+                    <pre class="bg-dark text-light p-2 rounded small">{
+  "event_type": "...",
+  "entity_type": "...",
+  "entity_id": 123,
+  "timestamp": "...",
+  "data": {...}
+}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
+            <i class="fas fa-save me-1"></i> {{ action }} Webhook
+        </button>
+        <a href="{{ PREFIX }}/webhooks" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

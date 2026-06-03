@@ -1,0 +1,250 @@
+{% extends "app/base.html" %}
+{% set active_module = 'md' %}
+{% block title %}CaseHub.md · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ asset_url('css/app/casehub-md.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Workspace · Editor</span>
+    <h1>CaseHub.md</h1>
+    <p class="ch-page-head__sub">Editor Markdown, preview e Drive no workspace.</p>
+  </div>
+</section>
+
+<section class="ch-md"
+         data-casehub-md
+         data-prefix="{{ PREFIX }}"
+         data-doc-id="{{ request.query_params.get('doc') or request.query_params.get('doc_id') or request.query_params.get('d') or '' }}"
+         aria-label="CaseHub.md">
+  <div class="ch-md__frame">
+    <div class="ch-md__chrome">
+      <button class="ch-md__icon-btn ch-md__drawer-open"
+              type="button"
+              data-md-drawer-open
+              aria-label="Abrir documentos do Drive"
+              aria-expanded="false"
+              title="Documentos">
+        <i data-lucide="folder-open"></i>
+      </button>
+      <div class="ch-md__file">
+        <label class="ch-md__file-label" for="chMdTitle">
+          <i data-lucide="file-pen-line"></i>
+          <span class="ch-md__file-label-text">Nome do arquivo</span>
+        </label>
+        <input class="ch-md__title-input" id="chMdTitle" type="text" value="CaseHub.md" autocomplete="off" />
+        <span class="ch-md__doc-id">doc <span id="chMdDocId">...</span></span>
+      </div>
+      <div class="ch-md__chrome-actions" aria-label="Exportações do arquivo">
+        <span class="ch-md__status" id="chMdStatus" role="status" aria-live="polite">Inicializando</span>
+        <button class="ch-md__tool ch-md__tool--label" type="button" data-md-action="save" title="Salvar Markdown no Google Drive">
+          <i data-lucide="save"></i> <span class="ch-md__tool-text">Drive</span>
+        </button>
+        <button class="ch-md__tool ch-md__tool--label" type="button" data-md-action="google-doc" title="Exportar para Google Docs">
+          <i data-lucide="file-text"></i> <span class="ch-md__tool-text">Google Docs</span>
+        </button>
+        <button class="ch-md__tool ch-md__tool--label" type="button" data-md-action="docx" title="Exportar DOCX">
+          <i data-lucide="download"></i> <span class="ch-md__tool-text">DOCX</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="ch-md__toolbar" role="toolbar" aria-label="Ferramentas do editor">
+      <button class="ch-md__tool" type="button" data-md-action="bold" title="Negrito" aria-label="Negrito"><i data-lucide="bold"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="italic" title="Itálico" aria-label="Itálico"><i data-lucide="italic"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="strike" title="Tachado" aria-label="Tachado"><i data-lucide="strikethrough"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="h1" title="Título 1">H1</button>
+      <button class="ch-md__tool" type="button" data-md-action="h2" title="Título 2">H2</button>
+      <button class="ch-md__tool" type="button" data-md-action="h3" title="Título 3">H3</button>
+      <button class="ch-md__tool" type="button" data-md-action="bullet" title="Lista" aria-label="Lista"><i data-lucide="list"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="ordered" title="Lista numerada" aria-label="Lista numerada"><i data-lucide="list-ordered"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="quote" title="Citação" aria-label="Citação"><i data-lucide="quote"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="code" title="Código" aria-label="Código"><i data-lucide="braces"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="link" title="Link" aria-label="Link"><i data-lucide="link"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="table" title="Tabela" aria-label="Tabela"><i data-lucide="table"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="ocr" title="OCR" aria-label="OCR"><i data-lucide="scan-text"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="maestro" title="Maestro" aria-label="Maestro"><i data-lucide="sparkles"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="refresh" title="Atualizar Drive" aria-label="Atualizar Drive"><i data-lucide="refresh-cw"></i></button>
+      <button class="ch-md__tool" type="button" data-md-action="docx-oab" title="Exportar DOCX OAB">OAB</button>
+      <span class="ch-md__toolbar-sep" aria-hidden="true"></span>
+      <button class="ch-md__tool ch-md__tool--toggle"
+              type="button"
+              data-md-paper-toggle
+              aria-pressed="false"
+              title="Alternar folha clara/escura"
+              aria-label="Alternar fundo da folha entre claro e escuro">
+        <i data-lucide="sun" class="ch-md__paper-icon ch-md__paper-icon--light"></i>
+        <i data-lucide="moon" class="ch-md__paper-icon ch-md__paper-icon--dark"></i>
+      </button>
+      <button class="ch-md__tool ch-md__tool--toggle"
+              type="button"
+              data-md-view-toggle
+              aria-pressed="false"
+              title="Mostrar/ocultar fonte Markdown"
+              aria-label="Mostrar/ocultar fonte Markdown"><i data-lucide="code"></i></button>
+    </div>
+
+    <div class="ch-md__body">
+      <aside class="ch-md__docs" aria-label="Documentos do Drive">
+        <div class="ch-md__docs-head">
+          <div>
+            <h2>Drive</h2>
+            <p>Documentos</p>
+          </div>
+          <button class="ch-md__icon-btn ch-md__drawer-close"
+                  type="button"
+                  data-md-drawer-close
+                  aria-label="Fechar documentos">
+            <i data-lucide="x"></i>
+          </button>
+          <button class="ch-md__tool ch-md__docs-refresh" type="button" data-md-action="refresh" title="Atualizar" aria-label="Atualizar documentos">
+            <i data-lucide="refresh-cw"></i>
+          </button>
+        </div>
+        <div class="ch-md__explorer" aria-label="Explorador de documentos CaseHub.md">
+          <div class="ch-md__explorer-col" aria-label="Fontes">
+            <button class="ch-md__explorer-item is-active" type="button" data-md-explorer-source="all">
+              <i data-lucide="layers"></i>
+              <span>Todos</span>
+            </button>
+            <button class="ch-md__explorer-item" type="button" data-md-explorer-source="drive">
+              <i data-lucide="cloud"></i>
+              <span>Drive</span>
+            </button>
+            <button class="ch-md__explorer-item" type="button" data-md-explorer-source="local">
+              <i data-lucide="hard-drive"></i>
+              <span>Local</span>
+            </button>
+          </div>
+          <div class="ch-md__explorer-col" id="chMdExplorerFolders" aria-label="Pastas"></div>
+          <div class="ch-md__explorer-col ch-md__explorer-col--docs" id="chMdDocList" aria-label="Documentos"></div>
+        </div>
+      </aside>
+      <div class="ch-md__scrim" data-md-drawer-scrim aria-hidden="true"></div>
+
+      <div class="ch-md__workspace" data-view="doc" aria-label="Documento">
+        <section class="ch-md__pane ch-md__pane--preview" aria-label="Documento">
+          <div class="ch-md__pane-head">
+            <h2>Documento</h2>
+            <span class="ch-md__pane-hint">editável</span>
+          </div>
+          <article class="ch-md__preview"
+                   id="chMdPreview"
+                   contenteditable="true"
+                   role="textbox"
+                   aria-multiline="true"
+                   aria-label="Preview Markdown editável"
+                   spellcheck="true"
+                   tabindex="0"></article>
+        </section>
+
+        <section class="ch-md__pane ch-md__pane--source" aria-label="Markdown fonte">
+          <div class="ch-md__pane-head">
+            <h2>Markdown</h2>
+            <span class="ch-md__pane-hint">fonte</span>
+          </div>
+          <label class="sr-only" for="chMdSource">Conteúdo Markdown</label>
+          <textarea class="ch-md__source" id="chMdSource" spellcheck="false"></textarea>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <input class="ch-md__hidden-input"
+         type="file"
+         id="chMdOcrInput"
+         accept="application/pdf,image/png,image/jpeg,image/tiff,image/webp,image/bmp"
+         aria-hidden="true" />
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script defer src="{{ asset_url('js/app/casehub-md.js') }}"></script>
+<script>
+(function () {
+  var root = document.querySelector('[data-casehub-md]');
+  if (!root) return;
+  var workspace = root.querySelector('.ch-md__workspace');
+  var viewToggle = root.querySelector('[data-md-view-toggle]');
+  var paperToggle = root.querySelector('[data-md-paper-toggle]');
+
+  /* ── View: documento × split (preview + fonte markdown) ───────── */
+  if (workspace && viewToggle) {
+    var VIEW_KEY = 'casehub-md:view';
+    var initialView = 'doc';
+    try {
+      var savedView = localStorage.getItem(VIEW_KEY);
+      if (savedView === 'doc' || savedView === 'split') initialView = savedView;
+    } catch (_) {}
+
+    var applyView = function (view) {
+      workspace.setAttribute('data-view', view);
+      viewToggle.setAttribute('aria-pressed', view === 'split' ? 'true' : 'false');
+      viewToggle.classList.toggle('is-active', view === 'split');
+      try { localStorage.setItem(VIEW_KEY, view); } catch (_) {}
+    };
+
+    applyView(initialView);
+    viewToggle.addEventListener('click', function () {
+      applyView(workspace.getAttribute('data-view') === 'doc' ? 'split' : 'doc');
+    });
+  }
+
+  /* ── Folha: fundo claro × escuro, INDEPENDENTE do tema do shell ──
+     Light = fundo branco + texto preto. Dark = fundo grafite + texto
+     branco. Persistido por usuário; default = claro (folha de papel). */
+  if (paperToggle) {
+    var PAPER_KEY = 'casehub-md:paper';
+    var initialPaper = 'light';
+    try {
+      var savedPaper = localStorage.getItem(PAPER_KEY);
+      if (savedPaper === 'light' || savedPaper === 'dark') initialPaper = savedPaper;
+    } catch (_) {}
+
+    var applyPaper = function (mode) {
+      root.setAttribute('data-md-paper', mode);
+      paperToggle.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
+      paperToggle.classList.toggle('is-active', mode === 'dark');
+      var label = mode === 'dark' ? 'Folha escura (texto branco)' : 'Folha clara (texto preto)';
+      paperToggle.setAttribute('title', 'Alternar folha clara/escura — ' + label);
+      try { localStorage.setItem(PAPER_KEY, mode); } catch (_) {}
+    };
+
+    applyPaper(initialPaper);
+    paperToggle.addEventListener('click', function () {
+      applyPaper(root.getAttribute('data-md-paper') === 'dark' ? 'light' : 'dark');
+    });
+  }
+
+  /* ── Drive drawer (mobile slide-over) ─────────────────────────── */
+  var drawerOpenBtn = root.querySelector('[data-md-drawer-open]');
+  var drawerCloseBtn = root.querySelector('[data-md-drawer-close]');
+  var scrim = root.querySelector('[data-md-drawer-scrim]');
+
+  var setDrawer = function (open) {
+    root.classList.toggle('is-drawer-open', open);
+    if (drawerOpenBtn) drawerOpenBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (scrim) scrim.setAttribute('aria-hidden', open ? 'false' : 'true');
+  };
+
+  if (drawerOpenBtn) drawerOpenBtn.addEventListener('click', function () { setDrawer(true); });
+  if (drawerCloseBtn) drawerCloseBtn.addEventListener('click', function () { setDrawer(false); });
+  if (scrim) scrim.addEventListener('click', function () { setDrawer(false); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && root.classList.contains('is-drawer-open')) setDrawer(false);
+  });
+  // Pick a doc on mobile → close the drawer so the sheet is visible.
+  var docList = root.querySelector('#chMdDocList');
+  if (docList) {
+    docList.addEventListener('click', function (e) {
+      if (e.target.closest('[data-doc-id]') && window.matchMedia('(max-width: 880px)').matches) {
+        setDrawer(false);
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Management - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/workflow-overview.css">
+{% endblock %}
+
+{% block content %}
+{% macro status_badge_class(status) -%}
+{%- if status == 'approved' -%}workflow-overview-badge--success
+{%- elif status == 'denied' -%}workflow-overview-badge--danger
+{%- elif status == 'rfe' -%}workflow-overview-badge--warning
+{%- elif status == 'filed' -%}workflow-overview-badge--info
+{%- else -%}workflow-overview-badge--neutral
+{%- endif -%}
+{%- endmacro %}
+
+<main class="workflow-overview-main" aria-labelledby="workflow-overview-title">
+    <header class="workflow-overview-header">
+        <h1 id="workflow-overview-title" class="workflow-overview-title">
+            <i class="fas fa-project-diagram workflow-overview-title-icon" aria-hidden="true"></i>
+            <span>Workflow Management</span>
+        </h1>
+    </header>
+
+    <div class="workflow-overview-grid">
+        <section class="workflow-overview-card" aria-labelledby="workflow-overview-visa-types-title">
+            <header class="workflow-overview-card-header" id="workflow-overview-visa-types-title">
+                <i class="fas fa-sitemap workflow-overview-card-icon" aria-hidden="true"></i>
+                <span>Available Workflows by Visa Type</span>
+            </header>
+            <div class="workflow-overview-card-body">
+                {% if visa_types %}
+                <ul class="workflow-overview-list" role="list">
+                    {% for visa_type in visa_types %}
+                    <li class="workflow-overview-item">
+                        <details class="workflow-overview-disclosure">
+                            <summary class="workflow-overview-summary">
+                                <i class="fas fa-chevron-right workflow-overview-summary-chevron" aria-hidden="true"></i>
+                                <span class="workflow-overview-summary-code">{{ visa_type.code }}</span>
+                                <span class="workflow-overview-summary-name">{{ visa_type.name }}</span>
+                            </summary>
+                            <div class="workflow-overview-disclosure-body">
+                                <p class="workflow-overview-disclosure-label">Status flow</p>
+                                <ol class="workflow-overview-flow" aria-label="Status flow for {{ visa_type.code }}">
+                                    {% for status in visa_type.statuses %}
+                                    <li class="workflow-overview-flow-item">
+                                        <span class="workflow-overview-badge {{ status_badge_class(status) }}">
+                                            {{ status | replace('_', ' ') | title }}
+                                        </span>
+                                        {% if not loop.last %}
+                                        <i class="fas fa-arrow-right workflow-overview-flow-arrow" aria-hidden="true"></i>
+                                        {% endif %}
+                                    </li>
+                                    {% endfor %}
+                                </ol>
+                            </div>
+                        </details>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="workflow-overview-empty">No visa workflows configured.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <aside class="workflow-overview-card" aria-labelledby="workflow-overview-about-title">
+            <header class="workflow-overview-card-header" id="workflow-overview-about-title">
+                <i class="fas fa-info-circle workflow-overview-card-icon" aria-hidden="true"></i>
+                <span>About Workflows</span>
+            </header>
+            <div class="workflow-overview-card-body">
+                <p class="workflow-overview-about-text">The workflow system automatically:</p>
+                <ul class="workflow-overview-about-list">
+                    <li><strong>Validates transitions</strong> — ensures cases can only move to allowed statuses</li>
+                    <li><strong>Creates tasks</strong> — generates relevant tasks when status changes</li>
+                    <li><strong>Logs history</strong> — tracks all status changes in audit log</li>
+                    <li><strong>Shows progress</strong> — visual progress indicator on case pages</li>
+                </ul>
+
+                <h2 class="workflow-overview-legend-title">Status colors</h2>
+                <ul class="workflow-overview-legend" role="list">
+                    <li><span class="workflow-overview-badge workflow-overview-badge--neutral">Initial</span></li>
+                    <li><span class="workflow-overview-badge workflow-overview-badge--info">Filed</span></li>
+                    <li><span class="workflow-overview-badge workflow-overview-badge--warning">RFE</span></li>
+                    <li><span class="workflow-overview-badge workflow-overview-badge--success">Approved</span></li>
+                    <li><span class="workflow-overview-badge workflow-overview-badge--danger">Denied</span></li>
+                </ul>
+            </div>
+        </aside>
+    </div>
+</main>
+{% endblock %}

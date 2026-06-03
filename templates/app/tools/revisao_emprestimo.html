@@ -1,0 +1,340 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Revisao_Emprestimo · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tools-revisao-emprestimo.css">
+{% endblock %}
+{% block content %}
+<div class="tools-re-main" aria-labelledby="tools-re-title">
+    <header class="tools-re-header tools-re-no-print">
+        <div class="tools-re-heading">
+            <h1 id="tools-re-title" class="tools-re-title">
+                <i class="fas fa-search-dollar" aria-hidden="true"></i>
+                <span>Revisão de Empréstimo</span>
+            </h1>
+            <p class="tools-re-subtitle">Comparativo entre taxa contratada e taxa correta (média BCB)</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-re-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="tools-re-alert tools-re-no-print" role="alert">
+        <i class="fas fa-exclamation-triangle tools-re-alert-icon" aria-hidden="true"></i>
+        <p class="tools-re-alert-message">{{ error }}</p>
+        <button type="button"
+                class="tools-re-alert-close"
+                data-tools-re-alert-dismiss
+                aria-label="Fechar aviso">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="tools-re-grid{% if resultado %} tools-re-grid--with-result{% endif %}">
+        <div class="tools-re-column">
+            <form method="POST"
+                  action="{{ PREFIX }}/tools/revisao-emprestimo/calcular"
+                  class="tools-re-form"
+                  aria-labelledby="tools-re-form-title">
+                <section class="tools-re-card" aria-labelledby="tools-re-form-title">
+                    <header class="tools-re-card-header">
+                        <h2 id="tools-re-form-title" class="tools-re-card-title">
+                            <i class="fas fa-calculator" aria-hidden="true"></i>
+                            <span>Dados do Empréstimo</span>
+                        </h2>
+                    </header>
+                    <div class="tools-re-card-body">
+                        <fieldset class="tools-re-fieldset">
+                            <legend class="tools-re-legend">Principal e Taxas</legend>
+
+                            <div class="tools-re-field">
+                                <label class="tools-re-label" for="valor_emprestado">Valor Emprestado (R$)</label>
+                                <div class="tools-re-input-group">
+                                    <span class="tools-re-addon" aria-hidden="true">R$</span>
+                                    <input type="number"
+                                           class="tools-re-input"
+                                           id="valor_emprestado"
+                                           name="valor_emprestado"
+                                           step="0.01"
+                                           min="0"
+                                           inputmode="decimal"
+                                           placeholder="Ex: 10000.00"
+                                           value="{{ form.valor_emprestado if form else '' }}"
+                                           aria-required="true"
+                                           required>
+                                </div>
+                            </div>
+
+                            <div class="tools-re-field-row">
+                                <div class="tools-re-field">
+                                    <label class="tools-re-label" for="taxa_contratada">Taxa Contratada (% ao mês)</label>
+                                    <div class="tools-re-input-group">
+                                        <input type="number"
+                                               class="tools-re-input"
+                                               id="taxa_contratada"
+                                               name="taxa_contratada"
+                                               step="0.01"
+                                               min="0"
+                                               inputmode="decimal"
+                                               placeholder="Ex: 3.00"
+                                               value="{{ form.taxa_contratada if form else '' }}"
+                                               aria-required="true"
+                                               required>
+                                        <span class="tools-re-addon" aria-hidden="true">%/mês</span>
+                                    </div>
+                                </div>
+                                <div class="tools-re-field">
+                                    <label class="tools-re-label" for="taxa_correta">Taxa Correta / BCB (% ao mês)</label>
+                                    <div class="tools-re-input-group">
+                                        <input type="number"
+                                               class="tools-re-input"
+                                               id="taxa_correta"
+                                               name="taxa_correta"
+                                               step="0.01"
+                                               min="0"
+                                               inputmode="decimal"
+                                               placeholder="Ex: 1.50"
+                                               value="{{ form.taxa_correta if form else '' }}"
+                                               aria-describedby="tools-re-taxa-correta-help"
+                                               aria-required="true"
+                                               required>
+                                        <span class="tools-re-addon" aria-hidden="true">%/mês</span>
+                                    </div>
+                                    <p id="tools-re-taxa-correta-help" class="tools-re-help">
+                                        Consulte a taxa média em
+                                        <a href="https://www.bcb.gov.br/estatisticas/txjuros"
+                                           target="_blank"
+                                           rel="noopener noreferrer">bcb.gov.br</a>
+                                    </p>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="tools-re-fieldset">
+                            <legend class="tools-re-legend">Prazo e Parcela</legend>
+
+                            <div class="tools-re-field-row">
+                                <div class="tools-re-field">
+                                    <label class="tools-re-label" for="prazo_meses">Prazo (meses)</label>
+                                    <input type="number"
+                                           class="tools-re-input"
+                                           id="prazo_meses"
+                                           name="prazo_meses"
+                                           min="1"
+                                           inputmode="numeric"
+                                           placeholder="Ex: 24"
+                                           value="{{ form.prazo_meses if form else '' }}"
+                                           aria-required="true"
+                                           required>
+                                </div>
+                                <div class="tools-re-field">
+                                    <label class="tools-re-label" for="parcela_atual">
+                                        Parcela Atual (R$)
+                                        <span class="tools-re-label-hint">(opcional)</span>
+                                    </label>
+                                    <div class="tools-re-input-group">
+                                        <span class="tools-re-addon" aria-hidden="true">R$</span>
+                                        <input type="number"
+                                               class="tools-re-input"
+                                               id="parcela_atual"
+                                               name="parcela_atual"
+                                               step="0.01"
+                                               min="0"
+                                               inputmode="decimal"
+                                               placeholder="Deixe em branco para calcular"
+                                               value="{{ form.parcela_atual if form else '' }}"
+                                               aria-describedby="tools-re-parcela-help">
+                                    </div>
+                                    <p id="tools-re-parcela-help" class="tools-re-help">
+                                        Se vazio, será calculada pela taxa contratada.
+                                    </p>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+                </section>
+
+                <div class="tools-re-actions tools-re-no-print">
+                    <button type="submit" class="tools-re-btn tools-re-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular Revisão</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/revisao-emprestimo" class="tools-re-btn">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <div class="tools-re-column" id="resultado">
+            {% set sem_cobranca = resultado.total_pago_a_mais is not none and resultado.total_pago_a_mais <= 0 %}
+
+            <section class="tools-re-card tools-re-card--highlight {% if sem_cobranca %}tools-re-card--success{% else %}tools-re-card--danger{% endif %}"
+                     role="alert"
+                     aria-live="polite"
+                     aria-labelledby="tools-re-summary-title">
+                <header class="tools-re-card-header">
+                    <h2 id="tools-re-summary-title" class="tools-re-card-title">
+                        {% if sem_cobranca %}
+                        <i class="fas fa-check-circle" aria-hidden="true"></i>
+                        <span>Sem Cobrança Indevida</span>
+                        {% else %}
+                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        <span>Valor Pago a Mais</span>
+                        {% endif %}
+                    </h2>
+                    <button type="button"
+                            class="tools-re-btn tools-re-btn--ghost tools-re-btn--sm tools-re-no-print"
+                            data-tools-re-print
+                            aria-label="Imprimir resultado">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+                <div class="tools-re-card-body">
+                    {% if sem_cobranca %}
+                    <p class="tools-re-summary-note">
+                        A taxa contratada não excede a taxa correta informada. Nenhum valor a restituir.
+                    </p>
+                    {% else %}
+                    <dl class="tools-re-metrics">
+                        <div class="tools-re-metric">
+                            <dt class="tools-re-metric-label">Total pago a mais</dt>
+                            <dd class="tools-re-metric-value tools-re-metric-value--danger">
+                                R$ {{ "%.2f"|format(resultado.total_pago_a_mais) }}
+                            </dd>
+                        </div>
+                        <div class="tools-re-metric">
+                            <dt class="tools-re-metric-label">Diferença mensal</dt>
+                            <dd class="tools-re-metric-value tools-re-metric-value--warning">
+                                R$ {{ "%.2f"|format(resultado.diferenca_mensal) }}
+                            </dd>
+                        </div>
+                        <div class="tools-re-metric">
+                            <dt class="tools-re-metric-label">Economia possível</dt>
+                            <dd class="tools-re-metric-value tools-re-metric-value--info">
+                                {{ resultado.economia_percentual }}%
+                            </dd>
+                        </div>
+                    </dl>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="tools-re-card" aria-labelledby="tools-re-compare-title">
+                <header class="tools-re-card-header">
+                    <h2 id="tools-re-compare-title" class="tools-re-card-title">
+                        <i class="fas fa-table" aria-hidden="true"></i>
+                        <span>Comparativo</span>
+                    </h2>
+                </header>
+                <div class="tools-re-card-body tools-re-card-body--flush">
+                    <div class="tools-re-table-wrap">
+                        <table class="tools-re-table">
+                            <caption class="tools-re-sr-only">
+                                Comparativo entre taxa contratada e taxa correta de referência
+                            </caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Item</th>
+                                    <th scope="col" class="tools-re-th--contratada">Taxa Contratada</th>
+                                    <th scope="col" class="tools-re-th--correta">Taxa Correta</th>
+                                    <th scope="col">Diferença</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th scope="row">Taxa mensal</th>
+                                    <td class="tools-re-cell--contratada">{{ "%.2f"|format(resultado.taxa_contratada) }}%</td>
+                                    <td class="tools-re-cell--correta">{{ "%.2f"|format(resultado.taxa_correta) }}%</td>
+                                    <td>{{ "%.2f"|format(resultado.taxa_contratada - resultado.taxa_correta) }}%</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Parcela mensal</th>
+                                    <td class="tools-re-cell--contratada">R$ {{ "%.2f"|format(resultado.parcela_contratada) }}</td>
+                                    <td class="tools-re-cell--correta">R$ {{ "%.2f"|format(resultado.parcela_correta) }}</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.diferenca_mensal) }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Total pago</th>
+                                    <td class="tools-re-cell--contratada">R$ {{ "%.2f"|format(resultado.total_contratado) }}</td>
+                                    <td class="tools-re-cell--correta">R$ {{ "%.2f"|format(resultado.total_correto) }}</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.total_pago_a_mais) }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Total juros</th>
+                                    <td class="tools-re-cell--contratada">R$ {{ "%.2f"|format(resultado.juros_total_contratado) }}</td>
+                                    <td class="tools-re-cell--correta">R$ {{ "%.2f"|format(resultado.juros_total_correto) }}</td>
+                                    <td>R$ {{ "%.2f"|format(resultado.juros_total_contratado - resultado.juros_total_correto) }}</td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="tools-re-row--total">
+                                    <th scope="row">Valor a Restituir</th>
+                                    <td colspan="3">R$ {{ "%.2f"|format(resultado.restituir) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                <footer class="tools-re-card-footer">
+                    <h3 class="tools-re-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-re-legal-list">
+                        {% for ref in resultado.fundamentacao %}
+                        <li>{{ ref }}</li>
+                        {% endfor %}
+                    </ul>
+                </footer>
+            </section>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script type="module">
+(function () {
+    'use strict';
+
+    var parcelaInput = document.getElementById('parcela_atual');
+    if (parcelaInput && parcelaInput.form) {
+        parcelaInput.form.addEventListener('submit', function () {
+            if (parcelaInput.value.trim() === '') {
+                parcelaInput.value = '0';
+            }
+        });
+    }
+
+    var dismissBtn = document.querySelector('[data-tools-re-alert-dismiss]');
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', function () {
+            var alert = dismissBtn.closest('.tools-re-alert');
+            if (alert) alert.remove();
+        });
+    }
+
+    var printBtn = document.querySelector('[data-tools-re-print]');
+    if (printBtn) {
+        printBtn.addEventListener('click', function () { window.print(); });
+    }
+
+    {% if resultado %}
+    var resultEl = document.getElementById('resultado');
+    if (resultEl && window.matchMedia('(max-width: 992px)').matches) {
+        var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        resultEl.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+    {% endif %}
+})();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

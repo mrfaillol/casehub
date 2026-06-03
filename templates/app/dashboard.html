@@ -1,0 +1,305 @@
+{% extends "app/base.html" %}
+{% set active_module = 'dashboard' %}
+{% set dash = basic_dashboard|default({}) %}
+{% block title %}Painel · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Painel · {{ dash.date_label|default('Hoje') }}</span>
+    <h1>Olá, <em>{{ dash.user_first_name|default('Doutor(a)') }}</em>.</h1>
+    <p class="ch-page-head__sub">
+      Visão direta do escritório:
+      tarefas, compromissos da semana, prazos críticos, casos fechados e resumo operacional.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks">
+      <span data-icon="tasks"></span> Tarefas
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/cases/new">
+      <span data-icon="plus"></span> Novo caso
+    </a>
+  </div>
+</section>
+
+<section class="ch-md-invite" aria-labelledby="ch-md-invite-title">
+  <div class="ch-md-invite__icon" aria-hidden="true">
+    <i data-lucide="file-pen-line"></i>
+  </div>
+  <div class="ch-md-invite__body">
+    <span class="ch-card__eyebrow">Escrita do escritório</span>
+    <h2 id="ch-md-invite-title">Use o CaseHub.md antes de abrir o Google Docs.</h2>
+    <p>
+      Redija notas, resumos e peças rápidas dentro do workspace. Quando quiser continuar fora do CaseHub,
+      conecte sua conta Google e exporte o documento para Google Docs ou Drive.
+    </p>
+  </div>
+  <div class="ch-md-invite__actions">
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/casehub-md">
+      <i data-lucide="file-plus-2"></i> Abrir CaseHub.md
+    </a>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/integrations">
+      <i data-lucide="plug"></i> Conectar Google
+    </a>
+  </div>
+</section>
+
+{# ─────────── KPI grid ─────────── #}
+<section class="ch-grid ch-grid--3" style="margin-bottom: var(--space-6);">
+  {% for metric in (dash.metrics or []) %}
+    {% set delta = metric.delta or {'label': '0%', 'direction': 'flat'} %}
+    {% set spark = metric.sparkline or {'points': '', 'area': '', 'trend': 'flat'} %}
+    <article class="ch-kpi {% if delta.direction == 'down' %}is-warn{% endif %} {% if loop.first %}ch-kpi--hero{% endif %}">
+      <span class="ch-kpi__label">{{ metric.label }}</span>
+      <div class="ch-kpi__row">
+        <span class="ch-kpi__value">
+          {{ metric.value }}{% if metric.unit %}<em>{{ metric.unit }}</em>{% endif %}
+        </span>
+        <span class="ch-kpi__spark" aria-hidden="true">
+          {% if spark.points %}
+          <svg class="ch-sparkline" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+            <polygon class="area" points="{{ spark.area }}"></polygon>
+            <polyline points="{{ spark.points }}" fill="none"></polyline>
+          </svg>
+          {% endif %}
+        </span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);">
+        <span class="ch-kpi__delta is-{{ delta.direction }}">
+          <span data-icon="{% if delta.direction == 'down' %}arrow_down{% elif delta.direction == 'up' %}arrow_up{% else %}chart{% endif %}" data-icon-size="12"></span>
+          {{ delta.label }}
+        </span>
+        <span class="ch-kpi__hint">vs. período anterior</span>
+      </div>
+    </article>
+  {% else %}
+    <article class="ch-kpi">
+      <span class="ch-kpi__label">Sem métricas</span>
+      <span class="ch-kpi__value">—</span>
+      <span class="ch-kpi__hint">Comece criando seu primeiro caso para ver dados aqui.</span>
+    </article>
+  {% endfor %}
+</section>
+
+{# ─────────── Linha 1: Tarefas hoje · Prazos semana ─────────── #}
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-6);">
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Hoje</span>
+        <h2 class="ch-card__title">Tarefas em aberto</h2>
+        <p class="ch-card__subtitle">Próximas 5 — atrasadas em destaque.</p>
+      </div>
+      <a class="ch-card__action" href="{{ PREFIX }}/tasks">
+        Ver todas <span data-icon="chevron_right" data-icon-size="14"></span>
+      </a>
+    </header>
+    {% if dash.tasks_today %}
+      <div class="ch-list" role="list">
+        {% for task in dash.tasks_today %}
+        <a class="ch-list__row" href="{{ PREFIX }}/tasks" role="listitem">
+          <span class="ch-list__icon" aria-hidden="true"><span data-icon="check"></span></span>
+          <div class="ch-list__body">
+            <h3 class="ch-list__title">{{ task.title }}</h3>
+            <p class="ch-list__meta">{{ task.case_ref }}</p>
+          </div>
+          <div class="ch-list__right">
+            <span class="ch-pill {% if task.overdue %}ch-pill--danger{% else %}ch-pill--info{% endif %}">
+              <span class="dot" aria-hidden="true"></span>{{ task.due }}
+            </span>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="ch-empty">
+        <span class="ch-empty__icon" aria-hidden="true"><span data-icon="check"></span></span>
+        <h3>Tudo em dia</h3>
+        <p>Sem tarefas pendentes. Cadastre uma nova ou aproveite o momento.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Próximos 7 dias</span>
+        <h2 class="ch-card__title">Prazos processuais</h2>
+        <p class="ch-card__subtitle">Vencimentos críticos com ≤2 dias destacados.</p>
+      </div>
+      <a class="ch-card__action" href="{{ PREFIX }}/controladoria">
+        Controladoria <span data-icon="chevron_right" data-icon-size="14"></span>
+      </a>
+    </header>
+    {% if dash.deadlines_week %}
+      <div class="ch-list" role="list">
+        {% for d in dash.deadlines_week %}
+        <a class="ch-list__row" href="{{ PREFIX }}/controladoria" role="listitem">
+          <span class="ch-list__icon" aria-hidden="true"
+                style="{% if d.urgent %}background: rgba(185,28,28,0.08); color: var(--c-danger);{% endif %}">
+            <strong style="font-family: var(--mono); font-size: 11px; line-height: 1;">
+              {{ '%02d'|format(d.day) }}<br>{{ d.month }}
+            </strong>
+          </span>
+          <div class="ch-list__body">
+            <h3 class="ch-list__title">{{ d.title }}</h3>
+            <p class="ch-list__meta">{{ d.case_ref }}</p>
+          </div>
+          <div class="ch-list__right">
+            {% if d.urgent %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>Urgente</span>
+            {% else %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ d.day }}/{{ d.month }}</span>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="ch-empty">
+        <span class="ch-empty__icon" aria-hidden="true"><span data-icon="calendar"></span></span>
+        <h3>Sem prazos próximos</h3>
+        <p>Nada nos próximos 7 dias. Cadastre prazos no módulo Controladoria.</p>
+      </div>
+    {% endif %}
+  </article>
+</section>
+
+{# ─────────── Linha 2: Atividade · Time ─────────── #}
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-6);">
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Pulse</span>
+        <h2 class="ch-card__title">Atividade recente</h2>
+      </div>
+      <a class="ch-card__action" href="{{ PREFIX }}/audit">
+        Auditoria <span data-icon="chevron_right" data-icon-size="14"></span>
+      </a>
+    </header>
+    {% if dash.activity %}
+      <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-3);">
+        {% for a in dash.activity %}
+        <li style="display:flex; align-items:flex-start; gap: var(--space-3);">
+          <span class="ch-pill ch-mono" style="background: var(--surface-card-2); border-color: var(--line);">{{ a.time }}</span>
+          <p style="margin:0; font-size: var(--fs-sm); color: var(--fg-default); line-height: var(--lh-snug);">
+            <strong>{{ a.actor }}</strong>
+            <span style="color: var(--fg-muted);">{{ a.verb }}</span>
+            <span>{{ a.target }}</span>
+          </p>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="ch-empty">
+        <span class="ch-empty__icon" aria-hidden="true"><span data-icon="inbox"></span></span>
+        <h3>Sem atividade ainda</h3>
+        <p>Tudo aparece aqui à medida que clientes, casos e tarefas são criados.</p>
+      </div>
+    {% endif %}
+  </article>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Time</span>
+        <h2 class="ch-card__title">Online agora</h2>
+      </div>
+      <a class="ch-card__action" href="{{ PREFIX }}/settings">
+        Equipe <span data-icon="chevron_right" data-icon-size="14"></span>
+      </a>
+    </header>
+    {% if dash.team %}
+      <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap: var(--space-2);">
+        {% for member in dash.team %}
+        <li style="display:flex; align-items:center; gap: var(--space-3);">
+          <span class="ch-list__icon" style="background: var(--c-navy); color: var(--c-paper); font-family: var(--display); font-weight: 700;">
+            {{ member.initials }}
+          </span>
+          <div style="flex:1; min-width:0;">
+            <p style="margin:0; font-size: var(--fs-sm); font-weight: 600; color: var(--fg-default);">
+              {{ member.name }}
+            </p>
+            <p style="margin:0; font-size: var(--fs-xs); color: var(--fg-muted);">{{ member.city }}</p>
+          </div>
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ '%02d:%02d'|format(member.hour, member.minute) }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="ch-empty">
+        <span class="ch-empty__icon" aria-hidden="true"><span data-icon="clients"></span></span>
+        <h3>Time vazio</h3>
+        <p>Cadastre membros do escritório nas configurações.</p>
+      </div>
+    {% endif %}
+  </article>
+</section>
+
+{# ─────────── Casos recentes (tabela) ─────────── #}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-6);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Processos</span>
+      <h2 class="ch-card__title">Atualizados recentemente</h2>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/cases">
+      Ver todos <span data-icon="chevron_right" data-icon-size="14"></span>
+    </a>
+  </header>
+  {% if dash.recent_cases %}
+    <div class="ch-table-wrap">
+      <table class="ch-table ch-table--responsive">
+        <thead>
+          <tr>
+            <th>Processo</th>
+            <th>Cliente</th>
+            <th>Status</th>
+            <th>Última atividade</th>
+            <th>Próximo prazo</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in dash.recent_cases %}
+          <tr>
+            <td data-label="Processo">
+              <strong style="display:block; color: var(--fg-default);">{{ c.ref }}</strong>
+              <span style="color: var(--fg-muted); font-size: var(--fs-xs);">{{ c.title }}</span>
+            </td>
+            <td data-label="Cliente">{{ c.client }}</td>
+            <td data-label="Status">
+              {% if c.status == 'closed' %}
+                <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ c.status_label }}</span>
+              {% elif c.status == 'review' %}
+                <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ c.status_label }}</span>
+              {% else %}
+                <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ c.status_label }}</span>
+              {% endif %}
+            </td>
+            <td data-label="Atividade" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">{{ c.last_activity }}</td>
+            <td data-label="Próximo" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">{{ c.next_date }}</td>
+            <td data-label="" style="text-align: right;">
+              <a class="ch-chip" href="{{ PREFIX }}/cases" aria-label="Abrir processo {{ c.ref }}">
+                <span data-icon="chevron_right" data-icon-size="14"></span>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="ch-empty">
+      <span class="ch-empty__icon" aria-hidden="true"><span data-icon="folder"></span></span>
+      <h3>Sem processos cadastrados</h3>
+      <p>Cadastre seu primeiro processo para começar a operar.</p>
+      <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/cases/new" style="margin-top: var(--space-3);">
+        <span data-icon="plus"></span> Cadastrar processo
+      </a>
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}

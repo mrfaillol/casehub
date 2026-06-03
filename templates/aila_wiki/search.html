@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Busca: {{ query }} - AILA Wiki{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1"><i class="fas fa-search me-2"></i>Resultados da Busca</h2>
+        {% if query %}
+        <p class="text-muted mb-0">{{ total_results }} resultado(s) para "{{ query }}"</p>
+        {% endif %}
+    </div>
+    <a href="{{ PREFIX }}/aila-wiki" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Voltar
+    </a>
+</div>
+
+<!-- Search Form -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form action="{{ PREFIX }}/aila-wiki/search" method="get" class="row g-2">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="text" name="q" class="form-control form-control-lg"
+                           value="{{ query }}" placeholder="Buscar..." required minlength="2">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select name="source" class="form-select form-select-lg">
+                    <option value="all" {% if source == 'all' %}selected{% endif %}>Todas as fontes</option>
+                    <option value="wiki" {% if source == 'wiki' %}selected{% endif %}>Apenas Wiki</option>
+                    <option value="aila" {% if source == 'aila' %}selected{% endif %}>Apenas AILA</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary glass-btn glass-btn--primary btn-lg w-100">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if query %}
+<!-- Results Tabs -->
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="wiki-tab" data-bs-toggle="tab" data-bs-target="#wiki-results"
+                type="button" role="tab" aria-controls="wiki-results" aria-selected="true">
+            <i class="fas fa-book me-1"></i> Wiki
+            <span class="badge bg-primary ms-1">{{ wiki_results | length }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="aila-tab" data-bs-toggle="tab" data-bs-target="#aila-results"
+                type="button" role="tab" aria-controls="aila-results" aria-selected="false">
+            <i class="fas fa-graduation-cap me-1"></i> AILA Docs
+            <span class="badge bg-info ms-1">{{ aila_results | length }}</span>
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Wiki Results -->
+    <div class="tab-pane fade show active" id="wiki-results" role="tabpanel" aria-labelledby="wiki-tab">
+        {% if wiki_results %}
+        <div class="list-group">
+            {% for article in wiki_results %}
+            <a href="{{ PREFIX }}/aila-wiki/article/{{ article.slug }}"
+               class="list-group-item list-group-item-action">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">
+                            <i class="fas fa-file-alt me-2 text-muted"></i>
+                            {{ article.title }}
+                        </h6>
+                        <p class="mb-1 text-muted small">{{ article.summary }}</p>
+                        <div class="mt-1">
+                            <span class="badge bg-dark">{{ article.category }}</span>
+                            {% for tag in article.tags[:3] %}
+                            <span class="badge bg-secondary">{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        {% if article.relevance %}
+                        <span class="badge bg-success">Score: {{ article.relevance }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-secondary text-center py-4">
+            <i class="fas fa-folder-open fa-2x mb-3 opacity-50"></i>
+            <p class="mb-0">Nenhum artigo encontrado na Wiki para "{{ query }}"</p>
+            <small class="text-muted">Tente termos diferentes ou busque nos documentos AILA</small>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- AILA Results -->
+    <div class="tab-pane fade" id="aila-results" role="tabpanel" aria-labelledby="aila-tab">
+        {% if aila_results %}
+        <div class="list-group">
+            {% for result in aila_results %}
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <i class="fas fa-file-pdf me-2 text-danger"></i>
+                        <strong>{{ result.source }}</strong>
+                    </div>
+                    <span class="badge bg-success">
+                        {{ (result.relevance * 100) | round | int }}% relevante
+                    </span>
+                </div>
+                <p class="mb-0 small text-muted" style="line-height: 1.6;">
+                    {{ result.content[:400] }}{% if result.content | length > 400 %}...{% endif %}
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="text-center mt-4">
+            <p class="text-muted small mb-2">
+                <i class="fas fa-info-circle me-1"></i>
+                Estes resultados vem da base AILA com 30.913 documentos indexados
+            </p>
+        </div>
+        {% else %}
+        <div class="alert alert-secondary text-center py-4">
+            <i class="fas fa-search fa-2x mb-3 opacity-50"></i>
+            <p class="mb-0">Nenhum documento AILA encontrado para "{{ query }}"</p>
+            <small class="text-muted">Tente termos mais especificos sobre direito imigratorio</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<!-- No Query -->
+<div class="card glass-card">
+    <div class="card-body text-center py-5">
+        <i class="fas fa-search fa-3x mb-3 text-muted"></i>
+        <h5>Digite algo para buscar</h5>
+        <p class="text-muted">
+            Busque artigos na Wiki ou documentos na base AILA (30.913 docs)
+        </p>
+        <div class="mt-4">
+            <h6 class="text-muted mb-3">Sugestoes de busca:</h6>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                <a href="{{ PREFIX }}/aila-wiki/search?q=H-1B" class="btn btn-outline-secondary btn-sm">H-1B</a>
+                <a href="{{ PREFIX }}/aila-wiki/search?q=EB-1A" class="btn btn-outline-secondary btn-sm">EB-1A</a>
+                <a href="{{ PREFIX }}/aila-wiki/search?q=NIW" class="btn btn-outline-secondary btn-sm">NIW</a>
+                <a href="{{ PREFIX }}/aila-wiki/search?q=RFE" class="btn btn-outline-secondary btn-sm">RFE</a>
+                <a href="{{ PREFIX }}/aila-wiki/search?q=PERM" class="btn btn-outline-secondary btn-sm">PERM</a>
+                <a href="{{ PREFIX }}/aila-wiki/search?q=green card" class="btn btn-outline-secondary btn-sm">Green Card</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Alerta de Prazo — {{ org_name }}</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: var(--font-family-sans);
+            background: var(--surface-sunken);
+            color: var(--text-primary);
+            padding: var(--space-5);
+            line-height: var(--line-height-base);
+        }
+        .email-wrapper {
+            max-width: 600px;
+            margin: 0 auto;
+            background: var(--surface-raised);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--elevation-1);
+        }
+        .email-header {
+            background: var(--accent);
+            padding: var(--space-5) var(--space-8);
+            color: var(--text-on-accent);
+        }
+        .email-header h1 {
+            margin: 0;
+            font-size: var(--font-size-xl);
+            font-weight: var(--font-weight-semibold);
+            line-height: var(--line-height-tight);
+        }
+        .email-header .org {
+            margin: var(--space-1) 0 0;
+            opacity: 0.85;
+            font-size: var(--font-size-sm);
+        }
+        .email-body {
+            padding: var(--space-8);
+        }
+        .email-body p {
+            margin: 0 0 var(--space-3);
+            font-size: var(--font-size-base);
+        }
+        .prazo-card {
+            background: var(--surface-sunken);
+            border-left: 4px solid var(--accent);
+            padding: var(--space-4) var(--space-5);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            margin: var(--space-5) 0;
+        }
+        .prazo-card.is-danger {
+            border-left-color: var(--status-danger);
+        }
+        .prazo-card.is-warning {
+            border-left-color: var(--status-warning);
+        }
+        .prazo-tipo {
+            margin: 0;
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-md);
+            color: var(--text-primary);
+        }
+        .prazo-meta {
+            margin: var(--space-1) 0 0;
+            color: var(--text-secondary);
+            font-size: var(--font-size-sm);
+        }
+        .prazo-meta:first-of-type {
+            margin-top: var(--space-2);
+        }
+        .prazo-meta .label {
+            font-weight: var(--font-weight-regular);
+        }
+        .prazo-restante {
+            margin: var(--space-2) 0 0;
+            font-weight: var(--font-weight-semibold);
+            color: var(--status-warning);
+            font-size: var(--font-size-sm);
+        }
+        .prazo-card.is-danger .prazo-restante {
+            color: var(--status-danger);
+        }
+        .cta-button {
+            display: inline-block;
+            background: var(--accent);
+            color: var(--text-on-accent);
+            text-decoration: none;
+            padding: var(--space-3) var(--space-6);
+            border-radius: var(--radius-md);
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-base);
+            transition: background var(--motion-base) var(--motion-curve-organic);
+        }
+        .cta-button:hover,
+        .cta-button:focus {
+            background: var(--accent-hover);
+        }
+        .cta-button:focus-visible {
+            outline: 2px solid var(--border-focus);
+            outline-offset: 2px;
+        }
+        .email-footer {
+            margin-top: var(--space-6);
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .cta-button {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="email-wrapper" role="article" aria-label="Alerta de prazo processual">
+        <header class="email-header">
+            <h1>⏰ Alerta de Prazo</h1>
+            <p class="org">{{ org_name }}</p>
+        </header>
+        <section class="email-body">
+            <p>Olá <strong>{{ responsavel }}</strong>,</p>
+            <p>O prazo a seguir {{ 'vence hoje' if dias_restantes == 0 else 'está próximo do vencimento' }}:</p>
+
+            {% set severity_class = 'is-danger' if dias_restantes <= 1 else ('is-warning' if dias_restantes <= 3 else '') %}
+            <article class="prazo-card {{ severity_class }}">
+                <p class="prazo-tipo">{{ tipo_prazo }}</p>
+                <p class="prazo-meta"><span class="label">Processo:</span> {{ numero_processo }}</p>
+                <p class="prazo-meta"><span class="label">Cliente:</span> {{ cliente }}</p>
+                <p class="prazo-meta"><span class="label">Vencimento:</span> {{ data_vencimento }}</p>
+                <p class="prazo-restante" aria-live="polite">{{ dias_restantes }} dia(s) restante(s)</p>
+            </article>
+
+            <a class="cta-button" href="{{ base_url }}/controladoria" role="button">Ver na Controladoria</a>
+
+            <p class="email-footer">Este é um alerta automático do CaseHub. Para configurar suas notificações, acesse Configurações &gt; Notificações.</p>
+        </section>
+    </main>
+</body>
+</html>

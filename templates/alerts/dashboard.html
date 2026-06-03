@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Painel de Alertas{% else %}Alerts Dashboard{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/alerts-dashboard.css">
+{% endblock %}
+
+{% block content %}
+<main class="alerts-dashboard-main" aria-labelledby="alerts-dashboard-title">
+    <header class="alerts-dashboard-header">
+        <h1 id="alerts-dashboard-title" class="alerts-dashboard-title">
+            <i class="fas fa-bell alerts-dashboard-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Painel de Alertas{% else %}Alerts Dashboard{% endif %}</span>
+        </h1>
+        <p class="alerts-dashboard-subtitle">
+            {% if product == "lite" %}Vencimento de documentos, prazos e tarefas atrasadas{% else %}Document expirations, deadlines, and overdue tasks{% endif %}
+        </p>
+    </header>
+
+    <ul class="alerts-dashboard-summary" role="list" aria-label="{% if product == 'lite' %}Resumo de alertas{% else %}Alerts summary{% endif %}">
+        <li class="alerts-dashboard-summary-card alerts-dashboard-summary-card--danger">
+            <span class="alerts-dashboard-summary-count">{{ summary.priority_counts.critical }}</span>
+            <h2 class="alerts-dashboard-summary-label">{% if product == "lite" %}Crítico{% else %}Critical{% endif %}</h2>
+            <p class="alerts-dashboard-summary-hint">
+                <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Atenção imediata{% else %}Immediate attention{% endif %}</span>
+            </p>
+        </li>
+        <li class="alerts-dashboard-summary-card alerts-dashboard-summary-card--warning">
+            <span class="alerts-dashboard-summary-count">{{ summary.priority_counts.high }}</span>
+            <h2 class="alerts-dashboard-summary-label">{% if product == "lite" %}Alta Prioridade{% else %}High Priority{% endif %}</h2>
+            <p class="alerts-dashboard-summary-hint">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Em até 14 dias{% else %}Within 14 days{% endif %}</span>
+            </p>
+        </li>
+        <li class="alerts-dashboard-summary-card alerts-dashboard-summary-card--info">
+            <span class="alerts-dashboard-summary-count">{{ summary.priority_counts.medium }}</span>
+            <h2 class="alerts-dashboard-summary-label">{% if product == "lite" %}Média Prioridade{% else %}Medium Priority{% endif %}</h2>
+            <p class="alerts-dashboard-summary-hint">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Em até 30 dias{% else %}Within 30 days{% endif %}</span>
+            </p>
+        </li>
+        <li class="alerts-dashboard-summary-card alerts-dashboard-summary-card--accent">
+            <span class="alerts-dashboard-summary-count">{{ summary.priority_counts.total }}</span>
+            <h2 class="alerts-dashboard-summary-label">{% if product == "lite" %}Total de Alertas{% else %}Total Alerts{% endif %}</h2>
+            <p class="alerts-dashboard-summary-hint">
+                <i class="fas fa-bell" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Todos ativos{% else %}All active{% endif %}</span>
+            </p>
+        </li>
+    </ul>
+
+    <nav class="alerts-dashboard-tabs" aria-label="{% if product == 'lite' %}Categorias de alertas{% else %}Alert categories{% endif %}">
+        <a class="alerts-dashboard-tab{% if active_tab == 'expiring' %} is-active{% endif %}"
+           href="{{ PREFIX }}/alerts?tab=expiring"
+           {% if active_tab == 'expiring' %}aria-current="page"{% endif %}>
+            <i class="fas fa-clock" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Documentos a Vencer{% else %}Expiring Documents{% endif %}</span>
+            <span class="alerts-dashboard-tab-count alerts-dashboard-tab-count--warning" aria-label="{{ summary.expiring_documents.count }} {% if product == 'lite' %}itens{% else %}items{% endif %}">{{ summary.expiring_documents.count }}</span>
+        </a>
+        <a class="alerts-dashboard-tab{% if active_tab == 'expired' %} is-active{% endif %}"
+           href="{{ PREFIX }}/alerts?tab=expired"
+           {% if active_tab == 'expired' %}aria-current="page"{% endif %}>
+            <i class="fas fa-times-circle" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Vencidos{% else %}Expired{% endif %}</span>
+            <span class="alerts-dashboard-tab-count alerts-dashboard-tab-count--danger" aria-label="{{ summary.expired_documents.count }} {% if product == 'lite' %}itens{% else %}items{% endif %}">{{ summary.expired_documents.count }}</span>
+        </a>
+        <a class="alerts-dashboard-tab{% if active_tab == 'deadlines' %} is-active{% endif %}"
+           href="{{ PREFIX }}/alerts?tab=deadlines"
+           {% if active_tab == 'deadlines' %}aria-current="page"{% endif %}>
+            <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Prazos{% else %}Deadlines{% endif %}</span>
+            <span class="alerts-dashboard-tab-count alerts-dashboard-tab-count--info" aria-label="{{ summary.upcoming_deadlines.count }} {% if product == 'lite' %}itens{% else %}items{% endif %}">{{ summary.upcoming_deadlines.count }}</span>
+        </a>
+        <a class="alerts-dashboard-tab{% if active_tab == 'tasks' %} is-active{% endif %}"
+           href="{{ PREFIX }}/alerts?tab=tasks"
+           {% if active_tab == 'tasks' %}aria-current="page"{% endif %}>
+            <i class="fas fa-tasks" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Tarefas Atrasadas{% else %}Overdue Tasks{% endif %}</span>
+            <span class="alerts-dashboard-tab-count alerts-dashboard-tab-count--neutral" aria-label="{{ summary.overdue_tasks.count }} {% if product == 'lite' %}itens{% else %}items{% endif %}">{{ summary.overdue_tasks.count }}</span>
+        </a>
+    </nav>
+
+    {% if active_tab == 'expiring' %}
+    <section class="alerts-dashboard-panel" aria-labelledby="alerts-dashboard-panel-expiring">
+        <header class="alerts-dashboard-panel-header">
+            <h2 id="alerts-dashboard-panel-expiring" class="alerts-dashboard-panel-title">
+                <i class="fas fa-clock alerts-dashboard-panel-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Documentos a Vencer{% else %}Documents Expiring Soon{% endif %}</span>
+            </h2>
+            <a href="{{ PREFIX }}/alerts/expiring-documents" class="alerts-dashboard-btn alerts-dashboard-btn--accent">
+                <span>{% if product == "lite" %}Ver Todos{% else %}View All{% endif %}</span>
+            </a>
+        </header>
+        {% if items %}
+        <div class="alerts-dashboard-table-wrap" role="region" aria-labelledby="alerts-dashboard-panel-expiring" tabindex="0">
+            <table class="alerts-dashboard-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Documento{% else %}Document{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Processo{% else %}Case{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Vencimento{% else %}Expires{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Dias Restantes{% else %}Days Left{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in items %}
+                    <tr>
+                        <td>
+                            <i class="fas fa-file-alt alerts-dashboard-table-icon" aria-hidden="true"></i>
+                            {{ doc.name }}
+                            <small class="alerts-dashboard-table-meta">{{ doc.type or (product == "lite" and "Documento" or "Document") }}</small>
+                        </td>
+                        <td>
+                            {% if doc.client_name %}
+                            <a href="{{ PREFIX }}/clients/{{ doc.client_id }}" class="alerts-dashboard-table-link">{{ doc.client_name }}</a>
+                            {% else %}
+                            <span class="alerts-dashboard-table-empty">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if doc.case_number %}
+                            <a href="{{ PREFIX }}/cases/{{ doc.case_id }}" class="alerts-dashboard-table-link alerts-dashboard-table-mono">{{ doc.case_number }}</a>
+                            {% else %}
+                            <span class="alerts-dashboard-table-empty">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="alerts-dashboard-table-mono">{{ doc.expiration_date }}</td>
+                        <td>
+                            {% if doc.days_until_expiry <= 7 %}
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--danger">{{ doc.days_until_expiry }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                            {% elif doc.days_until_expiry <= 14 %}
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--warning">{{ doc.days_until_expiry }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                            {% elif doc.days_until_expiry <= 30 %}
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--info">{{ doc.days_until_expiry }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                            {% else %}
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--neutral">{{ doc.days_until_expiry }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ PREFIX }}/documents/{{ doc.id }}"
+                               class="alerts-dashboard-btn alerts-dashboard-btn--accent alerts-dashboard-btn--icon"
+                               aria-label="{% if product == 'lite' %}Ver documento {{ doc.name }}{% else %}View document {{ doc.name }}{% endif %}">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alerts-dashboard-empty">
+            <i class="fas fa-check-circle alerts-dashboard-empty-icon" aria-hidden="true"></i>
+            <h3 class="alerts-dashboard-empty-title">{% if product == "lite" %}Nenhum Documento a Vencer{% else %}No Expiring Documents{% endif %}</h3>
+            <p class="alerts-dashboard-empty-text">{% if product == "lite" %}Todos os documentos estão em dia.{% else %}All documents are up to date.{% endif %}</p>
+        </div>
+        {% endif %}
+    </section>
+
+    {% elif active_tab == 'expired' %}
+    <section class="alerts-dashboard-panel" aria-labelledby="alerts-dashboard-panel-expired">
+        <header class="alerts-dashboard-panel-header">
+            <h2 id="alerts-dashboard-panel-expired" class="alerts-dashboard-panel-title">
+                <i class="fas fa-times-circle alerts-dashboard-panel-title-icon alerts-dashboard-panel-title-icon--danger" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Documentos Vencidos{% else %}Expired Documents{% endif %}</span>
+            </h2>
+        </header>
+        {% if items %}
+        <div class="alerts-dashboard-table-wrap" role="region" aria-labelledby="alerts-dashboard-panel-expired" tabindex="0">
+            <table class="alerts-dashboard-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Documento{% else %}Document{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Processo{% else %}Case{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Venceu Em{% else %}Expired On{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Dias Vencido{% else %}Days Overdue{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in items %}
+                    <tr class="alerts-dashboard-table-row--danger">
+                        <td>
+                            <i class="fas fa-file-alt alerts-dashboard-table-icon" aria-hidden="true"></i>
+                            {{ doc.name }}
+                        </td>
+                        <td>{{ doc.client_name or '—' }}</td>
+                        <td class="alerts-dashboard-table-mono">{{ doc.case_number or '—' }}</td>
+                        <td class="alerts-dashboard-table-mono">{{ doc.expiration_date }}</td>
+                        <td>
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--danger">{{ doc.days_expired }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                        </td>
+                        <td>
+                            <a href="{{ PREFIX }}/documents/{{ doc.id }}"
+                               class="alerts-dashboard-btn alerts-dashboard-btn--danger alerts-dashboard-btn--icon"
+                               aria-label="{% if product == 'lite' %}Ver documento {{ doc.name }}{% else %}View document {{ doc.name }}{% endif %}">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alerts-dashboard-empty">
+            <i class="fas fa-check-circle alerts-dashboard-empty-icon" aria-hidden="true"></i>
+            <h3 class="alerts-dashboard-empty-title">{% if product == "lite" %}Nenhum Documento Vencido{% else %}No Expired Documents{% endif %}</h3>
+        </div>
+        {% endif %}
+    </section>
+
+    {% elif active_tab == 'deadlines' %}
+    <section class="alerts-dashboard-panel" aria-labelledby="alerts-dashboard-panel-deadlines">
+        <header class="alerts-dashboard-panel-header">
+            <h2 id="alerts-dashboard-panel-deadlines" class="alerts-dashboard-panel-title">
+                <i class="fas fa-calendar-alt alerts-dashboard-panel-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Prazos Próximos{% else %}Upcoming Case Deadlines{% endif %}</span>
+            </h2>
+        </header>
+        {% if items %}
+        <div class="alerts-dashboard-table-wrap" role="region" aria-labelledby="alerts-dashboard-panel-deadlines" tabindex="0">
+            <table class="alerts-dashboard-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Processo{% else %}Case{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Tipo{% else %}Visa Type{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Prazo{% else %}Deadline{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Dias Restantes{% else %}Days Left{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>
+                            <a href="{{ PREFIX }}/cases/{{ item.case_id }}" class="alerts-dashboard-table-link alerts-dashboard-table-mono">{{ item.case_number }}</a>
+                            <small class="alerts-dashboard-table-meta">{{ item.case_name }}</small>
+                        </td>
+                        <td>{{ item.client_name or '—' }}</td>
+                        <td>
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--accent">{{ item.visa_type }}</span>
+                        </td>
+                        <td class="alerts-dashboard-table-mono">{{ item.deadline_date }}</td>
+                        <td>{{ item.deadline_type|title }}</td>
+                        <td>
+                            {% if item.days_until <= 7 %}
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--danger">{{ item.days_until }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                            {% elif item.days_until <= 14 %}
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--warning">{{ item.days_until }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                            {% else %}
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--info">{{ item.days_until }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alerts-dashboard-empty">
+            <i class="fas fa-check-circle alerts-dashboard-empty-icon" aria-hidden="true"></i>
+            <h3 class="alerts-dashboard-empty-title">{% if product == "lite" %}Nenhum Prazo Próximo{% else %}No Upcoming Deadlines{% endif %}</h3>
+        </div>
+        {% endif %}
+    </section>
+
+    {% elif active_tab == 'tasks' %}
+    <section class="alerts-dashboard-panel" aria-labelledby="alerts-dashboard-panel-tasks">
+        <header class="alerts-dashboard-panel-header">
+            <h2 id="alerts-dashboard-panel-tasks" class="alerts-dashboard-panel-title">
+                <i class="fas fa-tasks alerts-dashboard-panel-title-icon" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Tarefas Atrasadas{% else %}Overdue Tasks{% endif %}</span>
+            </h2>
+        </header>
+        {% if items %}
+        <div class="alerts-dashboard-table-wrap" role="region" aria-labelledby="alerts-dashboard-panel-tasks" tabindex="0">
+            <table class="alerts-dashboard-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Tarefa{% else %}Task{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Processo{% else %}Case{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Responsável{% else %}Assigned To{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Prazo{% else %}Deadline{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Dias Atrasado{% else %}Days Overdue{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in items %}
+                    <tr class="alerts-dashboard-table-row--warning">
+                        <td>
+                            <strong>{{ task.title }}</strong>
+                            {% if task.description %}
+                            <small class="alerts-dashboard-table-meta">{{ task.description[:50] }}…</small>
+                            {% endif %}
+                        </td>
+                        <td class="alerts-dashboard-table-mono">{{ task.case_number or '—' }}</td>
+                        <td>{{ task.assigned_to or (product == "lite" and "Não atribuído" or "Unassigned") }}</td>
+                        <td class="alerts-dashboard-table-mono">{{ task.deadline }}</td>
+                        <td>
+                            <span class="alerts-dashboard-badge alerts-dashboard-badge--danger">{{ task.days_overdue }} {% if product == "lite" %}dias{% else %}days{% endif %}</span>
+                        </td>
+                        <td>
+                            <a href="{{ PREFIX }}/tasks/{{ task.id }}"
+                               class="alerts-dashboard-btn alerts-dashboard-btn--warning alerts-dashboard-btn--icon"
+                               aria-label="{% if product == 'lite' %}Editar tarefa {{ task.title }}{% else %}Edit task {{ task.title }}{% endif %}">
+                                <i class="fas fa-edit" aria-hidden="true"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alerts-dashboard-empty">
+            <i class="fas fa-check-circle alerts-dashboard-empty-icon" aria-hidden="true"></i>
+            <h3 class="alerts-dashboard-empty-title">{% if product == "lite" %}Nenhuma Tarefa Atrasada{% else %}No Overdue Tasks{% endif %}</h3>
+            <p class="alerts-dashboard-empty-text">{% if product == "lite" %}Todas as tarefas estão em dia.{% else %}All tasks are on schedule.{% endif %}</p>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+</main>
+{% endblock %}

@@ -1,0 +1,56 @@
+# ============================================
+# CaseHub Lite - Slim Docker Image
+# No ML/NLP, no Google APIs — ~60% smaller
+# ============================================
+
+# Stage 1: Builder - Install dependencies
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements-lite.txt .
+RUN pip install --no-cache-dir -r requirements-lite.txt
+
+# Stage 2: Runtime - Minimal production image
+FROM python:3.12-slim AS runtime
+
+ENV CASEHUB_PRODUCT=lite
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl libpq5 libmagic1 tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=America/Sao_Paulo
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN useradd -m -u 1000 -s /bin/bash appuser
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+COPY . .
+
+RUN mkdir -p uploads/documents uploads/avatars uploads/email_attachments \
+    logs storage/temp \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8001/health || exit 1
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]

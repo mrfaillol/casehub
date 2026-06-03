@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Novo Checklist{% else %}New Checklist{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/checklists-select-case.css">
+{% endblock %}
+
+{% block content %}
+<section class="checklists-select-case-main" aria-labelledby="checklists-select-case-title">
+    <header class="checklists-select-case-header">
+        <a href="{{ PREFIX }}/checklists" class="checklists-select-case-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar aos Checklists{% else %}Back to Checklists{% endif %}</span>
+        </a>
+        <h1 id="checklists-select-case-title" class="checklists-select-case-title">
+            <i class="fas fa-clipboard-check" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Novo Checklist de Documentos{% else %}New Document Checklist{% endif %}</span>
+        </h1>
+        {% if selected_client %}
+        <p class="checklists-select-case-subtitle">
+            {% if product == "lite" %}Selecione um processo existente ou crie um novo para {% else %}Select an existing case or create a new one for {% endif %}<span class="checklists-select-case-subtitle-strong">{{ selected_client.first_name }} {{ selected_client.last_name }}</span>.
+        </p>
+        {% else %}
+        <p class="checklists-select-case-subtitle">
+            {% if product == "lite" %}Passo 1: Selecione um cliente para criar o checklist.{% else %}Step 1: Select a client to create a checklist for.{% endif %}
+        </p>
+        {% endif %}
+    </header>
+
+    {% if selected_client %}
+    {# ======== STEP 2: Select or create case for this client ======== #}
+    <div class="checklists-select-case-client-bar">
+        <span class="checklists-select-case-client-name">
+            <i class="fas fa-user" aria-hidden="true"></i>
+            <span>{{ selected_client.first_name }} {{ selected_client.last_name }}</span>
+        </span>
+        <a href="{{ PREFIX }}/checklists/new" class="checklists-select-case-action checklists-select-case-action--ghost checklists-select-case-action--sm">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Trocar Cliente{% else %}Change Client{% endif %}</span>
+        </a>
+    </div>
+
+    <div
+        id="checklists-select-case-banner"
+        class="checklists-select-case-banner"
+        role="alert"
+        aria-live="polite"
+    ></div>
+
+    {% if client_cases %}
+    <section class="checklists-select-case-card" aria-labelledby="checklists-select-case-cases-title">
+        <header class="checklists-select-case-card-header">
+            <span class="checklists-select-case-card-header-leading" id="checklists-select-case-cases-title">
+                <i class="fas fa-folder" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Processos Existentes{% else %}Existing Cases{% endif %}</span>
+            </span>
+        </header>
+        <div class="checklists-select-case-tablewrap">
+            <table class="checklists-select-case-table">
+                <caption>
+                    {% if product == "lite" %}Lista de processos existentes do cliente, com número, nome, status e ação.{% else %}Existing cases for the client, with number, name, visa type, status, and action.{% endif %}
+                </caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Nº Processo{% else %}Case #{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Nome do Processo{% else %}Case Name{% endif %}</th>
+                        {% if product != "lite" %}<th scope="col">Visa Type</th>{% endif %}
+                        <th scope="col">Status</th>
+                        <th scope="col" class="checklists-select-case-cell-end">
+                            <span class="checklists-select-case-visually-hidden">{% if product == "lite" %}Ação{% else %}Action{% endif %}</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in client_cases %}
+                    <tr>
+                        <td><span class="checklists-select-case-case-number">{{ item.case.case_number or "—" }}</span></td>
+                        <td>{{ item.case.case_name or "—" }}</td>
+                        {% if product != "lite" %}<td>{{ item.case.visa_type or "—" }}</td>{% endif %}
+                        <td><span class="checklists-select-case-status">{{ item.case.status }}</span></td>
+                        <td class="checklists-select-case-cell-end">
+                            {% if item.has_checklist %}
+                            <a href="{{ PREFIX }}/cases/{{ item.case.id }}/checklist" class="checklists-select-case-action checklists-select-case-action--primary checklists-select-case-action--sm">
+                                <i class="fas fa-clipboard-check" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Ver Checklist{% else %}View Checklist{% endif %}</span>
+                            </a>
+                            {% else %}
+                            <span class="checklists-select-case-placeholder">{% if product == "lite" %}Tipo não suportado{% else %}Visa type not supported{% endif %}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+
+    {% if product != "lite" %}
+    <section class="checklists-select-case-card" aria-labelledby="checklists-select-case-quick-title">
+        <header class="checklists-select-case-card-header">
+            <span class="checklists-select-case-card-header-leading" id="checklists-select-case-quick-title">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>Create New Case with Checklist</span>
+            </span>
+        </header>
+        <div class="checklists-select-case-card-body">
+            <p class="checklists-select-case-description">Select a visa type to automatically create a case and generate its document checklist.</p>
+            <div class="checklists-select-case-quick-list" id="checklists-select-case-quick-buttons">
+                {% for vt in supported_visa_types %}
+                <button
+                    type="button"
+                    class="checklists-select-case-quick"
+                    data-visa-type="{{ vt.key }}"
+                >
+                    {% if vt.key == 'EB-1A' %}<i class="fas fa-star" aria-hidden="true"></i>
+                    {% elif vt.key == 'EB-2 NIW' %}<i class="fas fa-award" aria-hidden="true"></i>
+                    {% elif vt.key == 'O-1A' %}<i class="fas fa-globe" aria-hidden="true"></i>
+                    {% else %}<i class="fas fa-file" aria-hidden="true"></i>{% endif %}
+                    <span class="checklists-select-case-quick-key">{{ vt.key }}</span>
+                    <span class="checklists-select-case-quick-label">{{ vt.label }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
+    {% else %}
+    {# ======== STEP 1: Select client ======== #}
+    <div class="checklists-select-case-card">
+        <div class="checklists-select-case-card-body">
+            <label for="checklists-select-case-search" class="checklists-select-case-visually-hidden">
+                {% if product == "lite" %}Buscar clientes{% else %}Search clients{% endif %}
+            </label>
+            <input
+                type="text"
+                id="checklists-select-case-search"
+                class="checklists-select-case-input"
+                placeholder="{% if product == 'lite' %}Buscar clientes por nome...{% else %}Search clients by name...{% endif %}"
+                autocomplete="off"
+            >
+        </div>
+    </div>
+
+    <section class="checklists-select-case-card" aria-labelledby="checklists-select-case-clients-title">
+        <header class="checklists-select-case-card-header">
+            <span class="checklists-select-case-card-header-leading" id="checklists-select-case-clients-title">
+                <span class="checklists-select-case-card-header-count">{{ clients|length }}</span>
+                <span>{% if product == "lite" %}clientes{% else %}clients{% endif %}</span>
+            </span>
+        </header>
+        <div class="checklists-select-case-tablewrap">
+            <table class="checklists-select-case-table" id="checklists-select-case-clients-table">
+                <caption>
+                    {% if product == "lite" %}Lista de clientes com nome, email, telefone, status e ação para selecionar.{% else %}List of clients with name, email, phone, status, and select action.{% endif %}
+                </caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Nome{% else %}Name{% endif %}</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="checklists-select-case-cell-end">
+                            <span class="checklists-select-case-visually-hidden">{% if product == "lite" %}Ação{% else %}Action{% endif %}</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in clients %}
+                    <tr class="checklists-select-case-client-row" data-name="{{ client.first_name|lower }} {{ client.last_name|lower }}">
+                        <td><strong>{{ client.first_name }} {{ client.last_name }}</strong></td>
+                        <td>{{ client.email or "—" }}</td>
+                        <td>{{ client.phone or "—" }}</td>
+                        <td><span class="checklists-select-case-status">{{ client.status or "—" }}</span></td>
+                        <td class="checklists-select-case-cell-end">
+                            <a href="{{ PREFIX }}/checklists/new?client_id={{ client.id }}" class="checklists-select-case-action checklists-select-case-action--primary checklists-select-case-action--sm">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                <span>{% if product == "lite" %}Selecionar{% else %}Select{% endif %}</span>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr class="checklists-select-case-empty-row">
+                        <td colspan="5">
+                            {% if product == "lite" %}
+                            Nenhum cliente encontrado. <a href="{{ PREFIX }}/clients/new">Crie um cliente primeiro.</a>
+                            {% else %}
+                            No clients found. <a href="{{ PREFIX }}/clients/new">Create a client first.</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var search = document.getElementById('checklists-select-case-search');
+    if (search) {
+        search.addEventListener('input', function () {
+            var q = search.value.toLowerCase();
+            var rows = document.querySelectorAll('.checklists-select-case-client-row');
+            rows.forEach(function (row) {
+                var name = row.getAttribute('data-name') || '';
+                row.style.display = name.indexOf(q) !== -1 ? '' : 'none';
+            });
+        });
+    }
+
+    {% if selected_client and product != "lite" %}
+    var quickContainer = document.getElementById('checklists-select-case-quick-buttons');
+    var banner = document.getElementById('checklists-select-case-banner');
+    if (quickContainer) {
+        quickContainer.addEventListener('click', function (event) {
+            var btn = event.target.closest('[data-visa-type]');
+            if (!btn) return;
+            createQuickChecklist(btn.getAttribute('data-visa-type'));
+        });
+    }
+
+    function showError(message) {
+        if (!banner) return;
+        banner.textContent = message;
+        banner.setAttribute('data-active', 'true');
+    }
+
+    async function createQuickChecklist(visaType) {
+        var btns = quickContainer ? quickContainer.querySelectorAll('button') : [];
+        btns.forEach(function (b) {
+            b.disabled = true;
+            b.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> <span>Creating...</span>';
+        });
+        try {
+            var res = await fetch('{{ PREFIX }}/api/clients/{{ selected_client.id }}/quick-checklist', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({visa_type: visaType})
+            });
+            var data = await res.json();
+            if (data.case_id) {
+                window.location.href = '{{ PREFIX }}/cases/' + data.case_id + '/checklist';
+            } else {
+                showError(data.error || 'Error creating checklist');
+                location.reload();
+            }
+        } catch (e) {
+            showError('Error: ' + e.message);
+            location.reload();
+        }
+    }
+    {% endif %}
+})();
+</script>
+{% endblock %}

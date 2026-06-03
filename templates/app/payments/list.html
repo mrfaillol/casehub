@@ -1,0 +1,129 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Pagamentos · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Financeiro · Pagamentos online</span>
+    <h1>Recebimentos em <em>tempo real</em>.</h1>
+    <p class="ch-page-head__sub">Resumo das faturas pagas, pendentes e do status da integração de pagamentos.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices">
+      <span data-icon="docs"></span> Faturas
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/billing">
+      <span data-icon="billing"></span> Faturamento
+    </a>
+  </div>
+</section>
+
+{# KPI tiles — reaproveita pattern do billing/list.html #}
+{% set _paid = stats.total_paid|default(0)|float %}
+{% set _pending = stats.total_pending|default(0)|float %}
+{% set _total = _paid + _pending %}
+<section class="ch-grid ch-grid--4" style="margin-bottom: var(--space-6);">
+  <article class="ch-kpi ch-kpi--hero">
+    <span class="ch-kpi__label">Total recebido</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.2f"|format(_paid) }}</span>
+    </div>
+    <span class="ch-kpi__hint">{{ stats.paid_invoices|default(0) }} fatura(s) paga(s)</span>
+  </article>
+  <article class="ch-kpi {% if _pending > 0 %}is-warn{% endif %}">
+    <span class="ch-kpi__label">Pendente</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.2f"|format(_pending) }}</span>
+    </div>
+    <span class="ch-kpi__hint">{{ stats.pending_invoices|default(0) }} aguardando</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">Receita total</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value">R$ {{ "%.2f"|format(_total) }}</span>
+    </div>
+    <span class="ch-kpi__hint">Pago + pendente</span>
+  </article>
+  <article class="ch-kpi {% if stripe_configured %}is-ok{% else %}is-danger{% endif %}">
+    <span class="ch-kpi__label">Stripe</span>
+    <div class="ch-kpi__row">
+      <span class="ch-kpi__value" style="font-size: var(--fs-2xl);">
+        {% if stripe_configured %}Ativo{% else %}Inativo{% endif %}
+      </span>
+    </div>
+    <span class="ch-kpi__hint">
+      {% if stripe_configured %}Pagamentos online habilitados{% else %}Configure as chaves de API{% endif %}
+    </span>
+  </article>
+</section>
+
+{# Quick actions #}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Atalhos</span>
+      <h2 class="ch-card__title">Operações rápidas</h2>
+    </div>
+    <span data-icon="bolt" data-icon-size="20" style="color: var(--c-pollen);"></span>
+  </header>
+  <div class="ch-grid ch-grid--3">
+    <a class="ch-card ch-card--compact ch-card--interactive" href="{{ PREFIX }}/invoices" style="text-decoration: none;">
+      <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <span data-icon="docs" data-icon-size="22" style="color: var(--c-green-d);"></span>
+        <div>
+          <strong style="display: block; color: var(--fg-default);">Ver todas as faturas</strong>
+          <span style="color: var(--fg-muted); font-size: var(--fs-xs);">Acompanhe e cobre faturas</span>
+        </div>
+      </div>
+    </a>
+    <a class="ch-card ch-card--compact ch-card--interactive" href="{{ PREFIX }}/billing" style="text-decoration: none;">
+      <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <span data-icon="billing" data-icon-size="22" style="color: var(--c-blue);"></span>
+        <div>
+          <strong style="display: block; color: var(--fg-default);">Itens de faturamento</strong>
+          <span style="color: var(--fg-muted); font-size: var(--fs-xs);">Lançamentos e honorários</span>
+        </div>
+      </div>
+    </a>
+    <a class="ch-card ch-card--compact ch-card--interactive" href="{{ PREFIX }}/reports/billing" style="text-decoration: none;">
+      <div style="display: flex; align-items: center; gap: var(--space-3);">
+        <span data-icon="chart" data-icon-size="22" style="color: var(--c-pollen);"></span>
+        <div>
+          <strong style="display: block; color: var(--fg-default);">Relatórios financeiros</strong>
+          <span style="color: var(--fg-muted); font-size: var(--fs-xs);">Receita, recebido, projeção</span>
+        </div>
+      </div>
+    </a>
+  </div>
+</section>
+
+{% if not stripe_configured %}
+{# Setup guide — mantém info crítica do legacy #}
+<section class="ch-card" style="margin-bottom: var(--space-5); border-left: 4px solid var(--c-info);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Configuração</span>
+      <h2 class="ch-card__title">Ative pagamentos via Stripe</h2>
+    </div>
+    <span data-icon="settings" data-icon-size="20" style="color: var(--c-info);"></span>
+  </header>
+  <p style="color: var(--fg-default); margin-bottom: var(--space-3);">
+    Para receber pagamentos online dos clientes, configure a integração Stripe:
+  </p>
+  <ol style="color: var(--fg-default); padding-left: var(--space-4); line-height: var(--lh-base);">
+    <li>Crie uma conta em <a href="https://stripe.com" target="_blank" rel="noopener" style="color: var(--c-green-d);">stripe.com</a></li>
+    <li>No painel Stripe, obtenha as chaves de API (modo <em>test</em> ou <em>live</em>)</li>
+    <li>Defina as variáveis de ambiente no servidor:
+      <pre class="ch-mono" style="background: var(--surface-raised, var(--c-cream-d, #f5f3ee)); border: 1px solid var(--line); border-radius: var(--radius-md, 8px); padding: var(--space-3); margin-top: var(--space-2); font-size: var(--fs-xs); overflow-x: auto;">STRIPE_SECRET_KEY=sk_live_xxxxx
+STRIPE_PUBLISHABLE_KEY=pk_live_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx</pre>
+    </li>
+    <li>Reinicie o {{ org_name|default('CaseHub') }}</li>
+  </ol>
+  <p style="color: var(--fg-muted); font-size: var(--fs-sm); margin-top: var(--space-3);">
+    <strong style="color: var(--fg-default);">Dica:</strong> Para testes, use chaves <code class="ch-mono">sk_test_</code> e <code class="ch-mono">pk_test_</code>.
+  </p>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block title %}USCIS Forms Library - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/uscis-forms-library.css">
+{% endblock %}
+
+{% block content %}
+<div class="uscis-forms-library-main" aria-labelledby="uscis-forms-library-title">
+    <header class="uscis-forms-library-header">
+        <div class="uscis-forms-library-heading">
+            <h1 id="uscis-forms-library-title" class="uscis-forms-library-title">
+                <i class="fas fa-file-alt" aria-hidden="true"></i>
+                <span>USCIS Forms Library</span>
+            </h1>
+            <p class="uscis-forms-library-subtitle">Browse, search, and auto-fill USCIS immigration forms</p>
+        </div>
+        <div class="uscis-forms-library-badges" role="group" aria-label="Library summary">
+            <span class="uscis-forms-library-badge uscis-forms-library-badge--success">
+                <i class="fas fa-magic" aria-hidden="true"></i>
+                {{ grouped_categories|sum(attribute='auto_fill_count') }} Auto-Fill Forms
+            </span>
+            <span class="uscis-forms-library-badge uscis-forms-library-badge--muted">
+                {{ forms|length }} Total Forms
+            </span>
+        </div>
+    </header>
+
+    <section class="uscis-forms-library-toolbar" aria-labelledby="uscis-forms-library-search-label">
+        <form method="GET" class="uscis-forms-library-search" role="search">
+            <div class="uscis-forms-library-field uscis-forms-library-field--search">
+                <label id="uscis-forms-library-search-label" for="formSearch" class="uscis-forms-library-sr-only">Search forms</label>
+                <div class="uscis-forms-library-input-group">
+                    <span class="uscis-forms-library-input-icon" aria-hidden="true">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text"
+                           name="search"
+                           id="formSearch"
+                           class="uscis-forms-library-input"
+                           placeholder="Search by form number, name, or description..."
+                           value="{{ search_query or '' }}"
+                           autocomplete="off">
+                </div>
+            </div>
+            <div class="uscis-forms-library-field">
+                <label for="formCategory" class="uscis-forms-library-sr-only">Category</label>
+                <select name="category" id="formCategory" class="uscis-forms-library-select">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="uscis-forms-library-btn uscis-forms-library-btn--primary uscis-forms-library-btn--icon" aria-label="Apply filter">
+                <i class="fas fa-filter" aria-hidden="true"></i>
+            </button>
+            <a href="{{ PREFIX }}/uscis-forms" class="uscis-forms-library-btn uscis-forms-library-btn--icon" aria-label="Clear filters">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </a>
+            <button type="button"
+                    class="uscis-forms-library-btn uscis-forms-library-btn--icon"
+                    id="feeCalcToggle"
+                    aria-controls="feeCalc"
+                    aria-expanded="false"
+                    aria-label="Toggle fee calculator">
+                <i class="fas fa-calculator" aria-hidden="true"></i>
+            </button>
+        </form>
+    </section>
+
+    <section class="uscis-forms-library-fee-calc"
+             id="feeCalc"
+             aria-labelledby="uscis-forms-library-fee-title"
+             hidden>
+        <header class="uscis-forms-library-fee-calc-header">
+            <i class="fas fa-calculator" aria-hidden="true"></i>
+            <h2 id="uscis-forms-library-fee-title" class="uscis-forms-library-fee-calc-title">Fee Calculator</h2>
+        </header>
+        <div class="uscis-forms-library-fee-calc-body">
+            <div>
+                <div id="selectedForms" class="uscis-forms-library-fee-selected" aria-live="polite">
+                    <span>Check forms below to calculate total fees</span>
+                </div>
+                <label class="uscis-forms-library-check">
+                    <input type="checkbox" id="includePremium">
+                    <span>Include Premium Processing fees</span>
+                </label>
+            </div>
+            <div class="uscis-forms-library-fee-total">
+                <p class="uscis-forms-library-fee-total-value" id="totalFees" aria-live="polite">$0</p>
+                <span class="uscis-forms-library-fee-total-label">Total Estimated Fees</span>
+            </div>
+        </div>
+    </section>
+
+    {% if search_query or selected_category %}
+    <section class="uscis-forms-library-grid" id="searchResults" aria-label="Search results">
+        {% for form in forms %}
+        <article class="uscis-forms-library-card {% if form.has_auto_fill %}uscis-forms-library-card--highlight{% endif %} form-card-wrapper"
+                 data-form-number="{{ form.form_number|lower }}"
+                 data-form-name="{{ form.name|lower }}"
+                 data-form-desc="{{ form.description|lower }}">
+            <header class="uscis-forms-library-card-header">
+                <h3 class="uscis-forms-library-card-number">
+                    <a href="{{ PREFIX }}/uscis-forms/{{ form.form_number }}">{{ form.form_number }}</a>
+                </h3>
+                {% if form.has_auto_fill %}
+                <span class="uscis-forms-library-badge uscis-forms-library-badge--success" title="Auto-fill from client data">
+                    <i class="fas fa-magic" aria-hidden="true"></i>Auto-Fill
+                </span>
+                {% else %}
+                <span class="uscis-forms-library-badge uscis-forms-library-badge--muted">Manual</span>
+                {% endif %}
+            </header>
+            <div class="uscis-forms-library-card-body">
+                <p class="uscis-forms-library-card-name">{{ form.name }}</p>
+                <p class="uscis-forms-library-card-desc">{{ form.description[:100] }}{% if form.description|length > 100 %}...{% endif %}</p>
+                <div class="uscis-forms-library-card-meta">
+                    <span class="uscis-forms-library-card-meta-item uscis-forms-library-card-meta-item--fee">
+                        <i class="fas fa-dollar-sign" aria-hidden="true"></i>
+                        <span class="uscis-forms-library-fee">{{ '${:,.0f}'.format(form.fee) if form.fee else 'Free' }}</span>
+                    </span>
+                    <span class="uscis-forms-library-card-meta-item">
+                        <i class="fas fa-clock" aria-hidden="true"></i>
+                        <span>{{ form.processing_time }}</span>
+                    </span>
+                </div>
+            </div>
+            <footer class="uscis-forms-library-card-footer">
+                <label class="uscis-forms-library-check">
+                    <input type="checkbox"
+                           class="fee-checkbox"
+                           value="{{ form.form_number }}"
+                           data-fee="{{ form.fee }}"
+                           data-premium="{{ form.premium_fee or 0 }}">
+                    <span>Fee calc</span>
+                </label>
+                <a href="{{ PREFIX }}/uscis-forms/{{ form.form_number }}/fill" class="uscis-forms-library-btn uscis-forms-library-btn--primary uscis-forms-library-btn--sm">
+                    <i class="fas fa-pen" aria-hidden="true"></i>
+                    <span>Fill</span>
+                </a>
+            </footer>
+        </article>
+        {% else %}
+        <div class="uscis-forms-library-empty">
+            <i class="fas fa-search uscis-forms-library-empty-icon" aria-hidden="true"></i>
+            <h2 class="uscis-forms-library-empty-title">No Forms Found</h2>
+            <p class="uscis-forms-library-empty-text">Try adjusting your search or filter criteria.</p>
+            <a href="{{ PREFIX }}/uscis-forms" class="uscis-forms-library-btn uscis-forms-library-btn--primary">View All Forms</a>
+        </div>
+        {% endfor %}
+    </section>
+
+    {% else %}
+    <div id="categoryView">
+        {% for category in grouped_categories %}
+        <section class="uscis-forms-library-category category-section" data-category="{{ category.key }}" aria-labelledby="cat-heading-{{ category.key }}">
+            <button type="button"
+                    class="uscis-forms-library-category-header"
+                    id="cat-toggle-{{ category.key }}"
+                    aria-controls="cat-{{ category.key }}"
+                    aria-expanded="true">
+                <div class="uscis-forms-library-category-heading">
+                    <span id="cat-heading-{{ category.key }}" class="uscis-forms-library-category-title">
+                        <i class="fas {{ category.icon }}" aria-hidden="true"></i>
+                        <span>{{ category.name }}</span>
+                        <span class="uscis-forms-library-badge uscis-forms-library-badge--muted">{{ category.forms|length }} forms</span>
+                        {% if category.auto_fill_count > 0 %}
+                        <span class="uscis-forms-library-badge uscis-forms-library-badge--success">{{ category.auto_fill_count }} auto-fill</span>
+                        {% endif %}
+                    </span>
+                    <span class="uscis-forms-library-category-desc">{{ category.description }}</span>
+                </div>
+                <i class="fas fa-chevron-down uscis-forms-library-category-toggle" aria-hidden="true"></i>
+            </button>
+            <div class="uscis-forms-library-category-body" id="cat-{{ category.key }}">
+                <div class="uscis-forms-library-grid">
+                    {% for form in category.forms %}
+                    <article class="uscis-forms-library-card {% if form.has_auto_fill %}uscis-forms-library-card--highlight{% endif %} form-card-wrapper"
+                             data-form-number="{{ form.form_number|lower }}"
+                             data-form-name="{{ form.name|lower }}"
+                             data-form-desc="{{ form.description|lower }}">
+                        <header class="uscis-forms-library-card-header">
+                            <h3 class="uscis-forms-library-card-number">
+                                <a href="{{ PREFIX }}/uscis-forms/{{ form.form_number }}">{{ form.form_number }}</a>
+                            </h3>
+                            {% if form.has_auto_fill %}
+                            <span class="uscis-forms-library-badge uscis-forms-library-badge--success">
+                                <i class="fas fa-magic" aria-hidden="true"></i>Auto-Fill
+                            </span>
+                            {% else %}
+                            <span class="uscis-forms-library-badge uscis-forms-library-badge--muted">Manual</span>
+                            {% endif %}
+                        </header>
+                        <div class="uscis-forms-library-card-body">
+                            <p class="uscis-forms-library-card-name">{{ form.name }}</p>
+                            <div class="uscis-forms-library-card-meta">
+                                <span class="uscis-forms-library-card-meta-item uscis-forms-library-card-meta-item--fee">
+                                    {% if form.fee > 0 %}
+                                    <i class="fas fa-dollar-sign" aria-hidden="true"></i>
+                                    <span class="uscis-forms-library-fee">${{ '{:,.0f}'.format(form.fee) }}</span>
+                                    {% else %}
+                                    <span class="uscis-forms-library-fee uscis-forms-library-fee--free">Free</span>
+                                    {% endif %}
+                                </span>
+                                <span class="uscis-forms-library-card-meta-item">
+                                    <i class="fas fa-clock" aria-hidden="true"></i>
+                                    <span>{{ form.processing_time }}</span>
+                                </span>
+                            </div>
+                            {% if form.premium_fee %}
+                            <span class="uscis-forms-library-card-premium">
+                                <i class="fas fa-bolt" aria-hidden="true"></i>
+                                Premium: ${{ '{:,.0f}'.format(form.premium_fee) }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        <footer class="uscis-forms-library-card-footer">
+                            <label class="uscis-forms-library-check">
+                                <input type="checkbox"
+                                       class="fee-checkbox"
+                                       value="{{ form.form_number }}"
+                                       data-fee="{{ form.fee }}"
+                                       data-premium="{{ form.premium_fee or 0 }}">
+                                <span>Fee</span>
+                            </label>
+                            <a href="{{ PREFIX }}/uscis-forms/{{ form.form_number }}/fill"
+                               class="uscis-forms-library-btn uscis-forms-library-btn--sm {% if form.has_auto_fill %}uscis-forms-library-btn--success{% else %}uscis-forms-library-btn--primary{% endif %}">
+                                <i class="fas fa-pen" aria-hidden="true"></i>
+                                <span>Fill</span>
+                            </a>
+                        </footer>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    const PREFIX = '{{ PREFIX }}';
+    let selectedForms = [];
+
+    const feeCalc = document.getElementById('feeCalc');
+    const feeCalcToggle = document.getElementById('feeCalcToggle');
+
+    function setFeeCalcOpen(open) {
+        if (!feeCalc || !feeCalcToggle) return;
+        feeCalc.hidden = !open;
+        feeCalcToggle.setAttribute('aria-expanded', String(open));
+    }
+
+    if (feeCalcToggle) {
+        feeCalcToggle.addEventListener('click', function () {
+            setFeeCalcOpen(feeCalc.hidden);
+        });
+    }
+
+    document.querySelectorAll('.fee-checkbox').forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            if (this.checked) {
+                selectedForms.push({
+                    number: this.value,
+                    fee: parseFloat(this.dataset.fee) || 0,
+                    premium: parseFloat(this.dataset.premium) || 0
+                });
+            } else {
+                selectedForms = selectedForms.filter(function (f) { return f.number !== checkbox.value; });
+            }
+            updateFeeCalculator();
+        });
+    });
+
+    const premiumCheckbox = document.getElementById('includePremium');
+    if (premiumCheckbox) {
+        premiumCheckbox.addEventListener('change', updateFeeCalculator);
+    }
+
+    function updateFeeCalculator() {
+        const includePremium = premiumCheckbox && premiumCheckbox.checked;
+        let total = 0;
+
+        const selectedDiv = document.getElementById('selectedForms');
+        if (!selectedDiv) return;
+
+        if (selectedForms.length === 0) {
+            selectedDiv.textContent = '';
+            const hint = document.createElement('span');
+            hint.textContent = 'Check forms below to calculate total fees';
+            selectedDiv.appendChild(hint);
+        } else {
+            selectedDiv.textContent = '';
+            selectedForms.forEach(function (f) {
+                let fee = f.fee;
+                if (includePremium && f.premium > 0) fee += f.premium;
+                total += fee;
+                const pill = document.createElement('span');
+                pill.className = 'uscis-forms-library-fee-pill';
+                pill.textContent = f.number + ': $' + fee.toLocaleString();
+                selectedDiv.appendChild(pill);
+            });
+        }
+        const totalEl = document.getElementById('totalFees');
+        if (totalEl) totalEl.textContent = '$' + total.toLocaleString();
+
+        if (selectedForms.length > 0 && feeCalc && feeCalc.hidden) {
+            setFeeCalcOpen(true);
+        }
+    }
+
+    document.querySelectorAll('.uscis-forms-library-category-header').forEach(function (header) {
+        header.addEventListener('click', function () {
+            const body = document.getElementById(header.getAttribute('aria-controls'));
+            if (!body) return;
+            const open = header.getAttribute('aria-expanded') === 'true';
+            header.setAttribute('aria-expanded', String(!open));
+            body.hidden = open;
+        });
+    });
+
+    const searchInput = document.getElementById('formSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            const query = this.value.toLowerCase().trim();
+            const wrappers = document.querySelectorAll('.form-card-wrapper');
+            const sections = document.querySelectorAll('.category-section');
+            if (!query) {
+                wrappers.forEach(function (el) { el.hidden = false; });
+                sections.forEach(function (el) { el.hidden = false; });
+                return;
+            }
+            wrappers.forEach(function (el) {
+                const num = el.dataset.formNumber || '';
+                const name = el.dataset.formName || '';
+                const desc = el.dataset.formDesc || '';
+                const match = num.includes(query) || name.includes(query) || desc.includes(query);
+                el.hidden = !match;
+            });
+            sections.forEach(function (section) {
+                const hasVisible = Array.from(section.querySelectorAll('.form-card-wrapper')).some(function (el) { return !el.hidden; });
+                section.hidden = !hasVisible;
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

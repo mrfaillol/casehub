@@ -1,0 +1,79 @@
+            {# ========== LITE SIDEBAR ==========
+               Theme-agnostic partial — consome APENAS tokens semânticos via
+               classes (.sidebar, .nav-link) definidas nos themes. Sem CSS próprio.
+
+               Marcadores estruturais (ui_theme=desktop):
+                 * data-dock-group-end : marca fim de grupo → separador é desenhado via CSS
+                   (static/css/desktop/glass-override.css usa `li[data-dock-group-end]::after`).
+                 * data-dock-admin     : item admin → hoje é apenas estilizado via CSS; não há
+                   `dock-apps-nav.js` no repo movendo esses itens para o avatar dropdown.
+
+               A11y:
+                 * Ícones <i> são decorativos (aria-hidden="true") — label textual carrega semântica.
+                 * Link da rota atual recebe aria-current="page" (longest-prefix match).
+            #}
+            {%- set _type = user.user_type if user else none -%}
+            {%- set _can_legal = user and _type not in ['assistant'] -%}
+            {%- set _can_comm  = user and _type in ['admin', 'attorney', 'advogado', 'superadmin'] -%}
+            {%- set _can_admin = user and _type in ['admin', 'superadmin'] -%}
+            {%- set _path = (request.path if request else '') -%}
+
+            {#- Estrutura declarativa: grupos com items. `end` fecha o grupo (data-dock-group-end); `admin` sinaliza data-dock-admin. -#}
+            {%- set _groups = [
+                {'visible': true, 'items': [
+                    {'href': PREFIX ~ '/tasks',             'icon': 'fas fa-tasks',              'label': 'Tarefas'},
+                    {'href': PREFIX ~ '/calendar/agenda',   'icon': 'fas fa-calendar',           'label': 'Agenda'},
+                    {'href': PREFIX ~ '/documents',         'icon': 'fas fa-file-alt',           'label': 'Documentos'},
+                    {'href': PREFIX ~ '/casehub-md',        'icon': 'fas fa-pen-to-square',      'label': 'CaseHub.md', 'end': true},
+                ]},
+                {'visible': _can_legal, 'items': [
+                    {'href': PREFIX ~ '/clients',           'icon': 'fas fa-users',              'label': 'Clientes'},
+                    {'href': PREFIX ~ '/cases',             'icon': 'fas fa-briefcase',          'label': 'Processos'},
+                    {'href': PREFIX ~ '/prazos',            'icon': 'fas fa-clock',              'label': 'Prazos'},
+                    {'href': PREFIX ~ '/checklists',        'icon': 'fas fa-clipboard-check',    'label': 'Checklists', 'end': true},
+                ]},
+                {'visible': _can_comm, 'items': [
+                    {'href': PREFIX ~ '/emails',            'icon': 'fas fa-envelope',           'label': 'E-mails'},
+                    {'href': PREFIX ~ '/billing',           'icon': 'fas fa-dollar-sign',        'label': 'Faturamento'},
+                    {'href': PREFIX ~ '/leads',             'icon': 'fas fa-funnel-dollar',      'label': 'CRM'},
+                    {'href': PREFIX ~ '/whatsapp-chat',     'icon': 'fab fa-whatsapp',           'label': 'WhatsApp', 'end': true},
+                ]},
+                {'visible': _can_comm, 'items': [
+                    {'href': PREFIX ~ '/controladoria',     'icon': 'fas fa-shield-alt',         'label': 'Controladoria'},
+                    {'href': PREFIX ~ '/tribunal',          'icon': 'fas fa-search',             'label': 'Tribunal', 'end': true},
+                ]},
+                {'visible': true, 'items': [
+                    {'href': PREFIX ~ '/tools',             'icon': 'fas fa-tools',              'label': 'Ferramentas'},
+                    {'href': PREFIX ~ '/assistente',        'icon': 'fas fa-wand-magic-sparkles','label': 'Maestro IA', 'end': true},
+                ]},
+                {'visible': _can_admin, 'items': [
+                    {'href': PREFIX ~ '/reports',           'icon': 'fas fa-chart-bar',          'label': 'Relatórios', 'admin': true}
+                ] + ([] if ui_theme == 'desktop' else [
+                    {'href': PREFIX ~ '/settings',          'icon': 'fas fa-cog',                'label': 'Configurações', 'admin': true},
+                    {'href': PREFIX ~ '/notifications',     'icon': 'fas fa-bell',               'label': 'Notificações',  'admin': true},
+                    {'href': PREFIX ~ '/admin',             'icon': 'fas fa-user-shield',        'label': 'Admin',         'admin': true},
+                    {'href': PREFIX ~ '/admin/customizacao','icon': 'fas fa-palette',            'label': 'Customização',  'admin': true},
+                ])},
+            ] -%}
+
+            {#- Pass 1: resolve longest-prefix match → aria-current (mirrors sidebar active JS em base.html). -#}
+            {%- set _ns = namespace(best='', best_len=0) -%}
+            {%- for _g in _groups if _g.visible -%}
+                {%- for _it in _g['items'] -%}
+                    {%- if _path and _it.href and _path.startswith(_it.href) and _it.href|length > _ns.best_len -%}
+                        {%- set _ns.best = _it.href -%}
+                        {%- set _ns.best_len = _it.href|length -%}
+                    {%- endif -%}
+                {%- endfor -%}
+            {%- endfor -%}
+
+            {#- Pass 2: render. -#}
+            {% for _g in _groups if _g.visible %}
+                {%- for _it in _g['items'] %}
+            <li class="nav-item"{% if _it.end %} data-dock-group-end{% endif %}{% if _it.admin %} data-dock-admin{% endif %}>
+                <a class="nav-link{% if _it.href == _ns.best %} active{% endif %}" href="{{ _it.href }}"{% if _it.href == _ns.best %} aria-current="page"{% endif %}>
+                    <i class="{{ _it.icon }}" aria-hidden="true"></i> {{ _it.label }}
+                </a>
+            </li>
+                {%- endfor %}
+            {% endfor %}

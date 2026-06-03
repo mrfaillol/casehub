@@ -1,0 +1,159 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Modelos de documento · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Modelos ·
+      {{ (templates_list|length if templates_list else 0) }} customizados
+      {% if default_templates %} · {{ default_templates|length }} padrão{% endif %}
+    </span>
+    <h1>Seus <em>modelos</em> de documento.</h1>
+    <p class="ch-page-head__sub">
+      Templates reaproveitáveis com placeholders Jinja para gerar contratos, comunicações e formulários USCIS.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/templates/generate">
+      <span data-icon="bolt"></span> Gerar documento
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/templates/new">
+      <span data-icon="plus"></span> Novo modelo
+    </a>
+  </div>
+</section>
+
+{% if request.query_params.get('installed') %}
+<div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; border-left: 3px solid var(--c-green-d); margin-bottom: var(--space-5);">
+  <span data-icon="check" data-icon-size="18" style="color: var(--c-green-d);"></span>
+  <span style="flex: 1;">Modelos padrão instalados com sucesso.</span>
+</div>
+{% endif %}
+
+{# ─── Filtros ─── #}
+<form class="ch-card ch-card--compact" method="get" action="{{ PREFIX }}/templates"
+      style="display:flex; gap: var(--space-3); align-items:center; flex-wrap: wrap; margin-bottom: var(--space-5);">
+  <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted); letter-spacing: 0.10em; text-transform: uppercase;">Filtrar</span>
+  <a class="ch-chip" href="{{ PREFIX }}/templates"
+     style="{% if not selected_category %}background: var(--c-pollen); color: var(--c-navy); border-color: var(--c-pollen);{% endif %}">
+    Todos
+  </a>
+  {% for cat in categories %}
+    <a class="ch-chip" href="{{ PREFIX }}/templates?category={{ cat }}"
+       style="{% if selected_category == cat %}background: var(--c-pollen); color: var(--c-navy); border-color: var(--c-pollen);{% endif %}">
+      {{ cat|replace('_', ' ')|title }}
+    </a>
+  {% endfor %}
+</form>
+
+{# ─── Custom templates ─── #}
+{% if templates_list and templates_list|length > 0 %}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Customizados</span>
+      <h2 class="ch-card__title">{{ templates_list|length }} {% if templates_list|length == 1 %}modelo{% else %}modelos{% endif %}</h2>
+    </div>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Categoria</th>
+          <th>Descrição</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in templates_list %}
+        <tr>
+          <td data-label="Nome">
+            <a href="{{ PREFIX }}/templates/{{ t.id }}" style="color: var(--c-green-d); text-decoration: none;">
+              <strong>{{ t.name }}</strong>
+            </a>
+          </td>
+          <td data-label="Categoria">
+            <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ t.category|replace('_', ' ')|title }}</span>
+          </td>
+          <td data-label="Descrição" style="color: var(--fg-muted); font-size: var(--fs-sm);">
+            {{ t.description or '—' }}
+          </td>
+          <td data-label="" style="text-align: right;">
+            <div style="display: inline-flex; gap: var(--space-2);">
+              <a class="ch-chip" href="{{ PREFIX }}/templates/generate?template_id={{ t.id }}" aria-label="Gerar a partir deste modelo">
+                <span data-icon="bolt" data-icon-size="14"></span>
+              </a>
+              <a class="ch-chip" href="{{ PREFIX }}/templates/{{ t.id }}/edit" aria-label="Editar modelo">
+                <span data-icon="settings" data-icon-size="14"></span>
+              </a>
+              <form method="post" action="{{ PREFIX }}/templates/{{ t.id }}/delete"
+                    onsubmit="return confirm('Excluir o modelo {{ t.name }}?');"
+                    style="margin: 0; display: inline;">
+                <button class="ch-chip" type="submit" aria-label="Excluir modelo" style="color: var(--c-danger); background: transparent; border: 1px solid var(--line);">
+                  <span data-icon="x" data-icon-size="14"></span>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<div class="ch-card" style="margin-bottom: var(--space-5);">
+  <div class="ch-empty ch-empty--hero">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="file"></span></span>
+    <h3>{% if selected_category %}Sem modelos nessa categoria{% else %}Nenhum modelo ainda{% endif %}</h3>
+    <p>
+      {% if selected_category %}
+        Tente outra categoria ou crie o primeiro modelo para esta.
+      {% else %}
+        Crie modelos reaproveitáveis ou instale os padrões abaixo para começar.
+      {% endif %}
+    </p>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/templates/new" style="margin-top: var(--space-3);">
+      <span data-icon="plus"></span> Criar primeiro modelo
+    </a>
+  </div>
+</div>
+{% endif %}
+
+{# ─── Default templates ─── #}
+{% if default_templates and default_templates|length > 0 %}
+<section class="ch-card">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Padrão</span>
+      <h2 class="ch-card__title">{{ default_templates|length }} modelos do CaseHub</h2>
+      <p class="ch-card__subtitle">Templates prontos para instalar — contratos, USCIS, comunicação cliente e billing.</p>
+    </div>
+    <form method="post" action="{{ PREFIX }}/templates/install-defaults" style="margin: 0;">
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="arrow_down"></span> Instalar todos
+      </button>
+    </form>
+  </header>
+  <div class="ch-list">
+    {% for t in default_templates %}
+    <div class="ch-list__row">
+      <span class="ch-list__icon"><span data-icon="file"></span></span>
+      <div class="ch-list__body">
+        <p class="ch-list__title">{{ t.name }}</p>
+        <p class="ch-list__meta">{{ t.description }}</p>
+      </div>
+      <div class="ch-list__right">
+        <a class="ch-chip" href="{{ PREFIX }}/templates/generate?default_template={{ t.name|urlencode }}" aria-label="Gerar a partir deste modelo">
+          <span data-icon="bolt" data-icon-size="14"></span>
+        </a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,726 @@
+{% extends "base.html" %}
+{% block title %}Document Checklist - {{ case.case_number or case.id }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/cases-checklist.css">
+{% endblock %}
+
+{% block content %}
+{% set exhibit_letters = ['A','B','C','D','E','F','G','H','I','J','K','L','M'] %}
+{% set doc_types = [
+    'Passport','I-94 Travel Record','Visa','EAD Card','Green Card',
+    'Birth Certificate','Marriage Certificate','Diploma','Academic Transcript',
+    'Employment Letter','Employment Contract','Tax Return','Pay Stub',
+    'Financial Statement','Letter of Recommendation','Resume/CV',
+    'Award/Recognition','Professional Membership','Supporting Evidence',
+    'USCIS Form','Receipt Notice','Approval Notice','Request for Evidence'
+] %}
+{% if checklist.progress_percent >= 80 %}
+    {% set progress_level = 'high' %}
+{% elif checklist.progress_percent >= 50 %}
+    {% set progress_level = 'mid' %}
+{% else %}
+    {% set progress_level = 'low' %}
+{% endif %}
+
+<main class="cases-checklist-main" role="main" aria-labelledby="cases-checklist-title">
+
+    {# ======== HEADER ======== #}
+    <header class="cases-checklist-header">
+        <div class="cases-checklist-heading">
+            <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-checklist-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Case</span>
+            </a>
+            <h1 id="cases-checklist-title" class="cases-checklist-title">
+                <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+                <span>Document Checklist</span>
+            </h1>
+            <p class="cases-checklist-subtitle">
+                {% if client %}{{ client.first_name }} {{ client.last_name }} &mdash;{% endif %}
+                {{ case.case_number or "Case #" + case.id|string }}
+                {% if checklist.visa_label %}&mdash; <span class="cases-checklist-subtitle-visa">{{ checklist.visa_label }}</span>{% endif %}
+            </p>
+            {% if checklist.visa_description %}
+            <p class="cases-checklist-description">{{ checklist.visa_description }}</p>
+            {% endif %}
+        </div>
+
+        <div class="cases-checklist-actions">
+            <button type="button"
+                    class="cases-checklist-action-btn cases-checklist-action-btn--info"
+                    id="btn-classify-all"
+                    data-action="classify-all"
+                    title="Classify all unclassified documents using AI">
+                <i class="fas fa-robot" aria-hidden="true"></i>
+                <span>Re-classify All</span>
+            </button>
+            <button type="button"
+                    class="cases-checklist-action-btn cases-checklist-action-btn--success"
+                    id="btn-export-pdf"
+                    data-action="export-pdf"
+                    title="Export checklist as PDF">
+                <i class="fas fa-file-pdf" aria-hidden="true"></i>
+                <span>Export PDF</span>
+            </button>
+            <button type="button"
+                    class="cases-checklist-action-btn cases-checklist-action-btn--primary"
+                    id="btn-upload"
+                    data-action="open-upload-modal"
+                    aria-haspopup="dialog"
+                    aria-controls="upload-modal"
+                    title="Upload documents">
+                <i class="fas fa-upload" aria-hidden="true"></i>
+                <span>Upload</span>
+            </button>
+        </div>
+    </header>
+
+    {# ======== PROGRESS BAR ======== #}
+    <section class="cases-checklist-progress" aria-labelledby="cases-checklist-progress-label">
+        <div class="cases-checklist-progress-meta">
+            <span id="cases-checklist-progress-label">Overall Progress</span>
+            <span class="cases-checklist-progress-count">
+                <strong>{{ checklist.total_present }}</strong> / {{ checklist.total_required }} documents
+                ({{ checklist.progress_percent }}%)
+            </span>
+        </div>
+        <div class="cases-checklist-progress-bar"
+             role="progressbar"
+             aria-label="Checklist completion"
+             aria-valuenow="{{ checklist.progress_percent }}"
+             aria-valuemin="0"
+             aria-valuemax="100">
+            <span class="cases-checklist-progress-fill cases-checklist-progress-fill--{{ progress_level }}"
+                  style="--progress: {{ checklist.progress_percent }}%"></span>
+        </div>
+    </section>
+
+    {# ======== FILTER BUTTONS ======== #}
+    <div class="cases-checklist-filters" role="group" aria-label="Filter checklist items by status">
+        <button type="button"
+                class="cases-checklist-filter"
+                data-filter="all"
+                aria-pressed="true">
+            <span>All</span>
+        </button>
+        <button type="button"
+                class="cases-checklist-filter cases-checklist-filter--success"
+                data-filter="present"
+                aria-pressed="false">
+            <i class="fas fa-check" aria-hidden="true"></i>
+            <span>Present</span>
+        </button>
+        <button type="button"
+                class="cases-checklist-filter cases-checklist-filter--danger"
+                data-filter="missing"
+                aria-pressed="false">
+            <i class="fas fa-times" aria-hidden="true"></i>
+            <span>Missing</span>
+        </button>
+        <button type="button"
+                class="cases-checklist-filter cases-checklist-filter--warning"
+                data-filter="needs_review"
+                aria-pressed="false">
+            <i class="fas fa-question" aria-hidden="true"></i>
+            <span>Needs Review</span>
+        </button>
+        <button type="button"
+                class="cases-checklist-filter cases-checklist-filter--info"
+                data-filter="insufficient"
+                aria-pressed="false">
+            <i class="fas fa-exclamation" aria-hidden="true"></i>
+            <span>Insufficient</span>
+        </button>
+    </div>
+
+    {# ======== EXHIBIT SECTIONS ======== #}
+    {% for letter in checklist.exhibits|sort %}
+    {% set exhibit = checklist.exhibits[letter] %}
+    {% if exhibit.items|length > 0 %}
+    {% if exhibit.present_count == exhibit.total_count %}
+        {% set badge_level = 'complete' %}
+    {% elif exhibit.present_count > 0 %}
+        {% set badge_level = 'partial' %}
+    {% else %}
+        {% set badge_level = 'missing' %}
+    {% endif %}
+    <section class="cases-checklist-exhibit" data-exhibit="{{ letter }}" aria-labelledby="cases-checklist-exhibit-title-{{ letter }}">
+        <button type="button"
+                class="cases-checklist-exhibit-header"
+                id="cases-checklist-exhibit-title-{{ letter }}"
+                data-action="toggle-exhibit"
+                data-target="{{ letter }}"
+                aria-expanded="true"
+                aria-controls="exhibit-body-{{ letter }}">
+            <span class="cases-checklist-exhibit-title">
+                <span class="cases-checklist-exhibit-label">Exhibit {{ letter }}: {{ exhibit.name }}</span>
+                <span class="cases-checklist-badge cases-checklist-badge--{{ badge_level }}">
+                    {{ exhibit.present_count }}/{{ exhibit.total_count }}
+                </span>
+            </span>
+            <i class="fas fa-chevron-down cases-checklist-exhibit-chevron" aria-hidden="true"></i>
+        </button>
+        <div class="cases-checklist-exhibit-body" id="exhibit-body-{{ letter }}">
+            <table class="cases-checklist-table">
+                <caption class="cases-checklist-visually-hidden">Exhibit {{ letter }} items</caption>
+                <tbody>
+                {% for item in exhibit.items %}
+                <tr class="cases-checklist-item" data-status="{{ item.status }}" data-section="{{ item.section }}">
+                    <td class="cases-checklist-cell-icon">
+                        {% if item.status == 'present' %}
+                            <i class="fas fa-check-circle cases-checklist-status-icon cases-checklist-status-icon--success" aria-hidden="true"></i>
+                            <span class="cases-checklist-visually-hidden">Present</span>
+                        {% elif item.status == 'needs_review' %}
+                            <i class="fas fa-question-circle cases-checklist-status-icon cases-checklist-status-icon--warning" aria-hidden="true"></i>
+                            <span class="cases-checklist-visually-hidden">Needs review</span>
+                        {% elif item.status == 'insufficient' %}
+                            <i class="fas fa-exclamation-circle cases-checklist-status-icon cases-checklist-status-icon--info" aria-hidden="true"></i>
+                            <span class="cases-checklist-visually-hidden">Insufficient</span>
+                        {% else %}
+                            <i class="fas fa-times-circle cases-checklist-status-icon cases-checklist-status-icon--danger" aria-hidden="true"></i>
+                            <span class="cases-checklist-visually-hidden">Missing</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="cases-checklist-item-label">{{ item.label }}</span>
+                        {% if item.criterion_label %}
+                        <small class="cases-checklist-item-meta">{{ item.criterion_label }}</small>
+                        {% endif %}
+                        {% if item.status == 'insufficient' and item.min_count > 1 %}
+                        <small class="cases-checklist-item-count">{{ item.current_count }}/{{ item.min_count }} provided</small>
+                        {% endif %}
+                        {% if item.matched_documents %}
+                        <div class="cases-checklist-item-docs">
+                            {% for doc in item.matched_documents %}
+                            <span class="cases-checklist-doc-chip">
+                                <i class="fas fa-file" aria-hidden="true"></i>
+                                <span>{{ doc.name|truncate(40) }}</span>
+                                {% if doc.created_at %}
+                                <span class="cases-checklist-doc-chip-date">({{ doc.created_at }})</span>
+                                {% endif %}
+                                <a href="{{ PREFIX }}/documents/{{ doc.id }}"
+                                   class="cases-checklist-doc-chip-view"
+                                   title="View document {{ doc.name|truncate(40) }}"
+                                   aria-label="View document {{ doc.name|truncate(40) }}">
+                                    <i class="fas fa-eye" aria-hidden="true"></i>
+                                </a>
+                            </span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td class="cases-checklist-cell-actions">
+                        {% if item.status == 'missing' %}
+                        <label class="cases-checklist-upload-label">
+                            <i class="fas fa-upload" aria-hidden="true"></i>
+                            <span>Upload</span>
+                            <input type="file"
+                                   class="cases-checklist-visually-hidden"
+                                   data-action="upload-inline"
+                                   data-case-id="{{ case.id }}"
+                                   data-exhibit="{{ letter }}"
+                                   data-doc-type="{{ item.doc_type }}"
+                                   aria-label="Upload file for {{ item.label }}" />
+                        </label>
+                        {% elif item.matched_documents %}
+                        <div class="cases-checklist-item-actions">
+                            {% if item.matched_documents[0] %}
+                            <button type="button"
+                                    class="cases-checklist-icon-btn"
+                                    data-action="reclassify"
+                                    data-doc-id="{{ item.matched_documents[0].id }}"
+                                    title="Reclassify with AI"
+                                    aria-label="Reclassify {{ item.matched_documents[0].name|truncate(40) }} with AI">
+                                <i class="fas fa-robot" aria-hidden="true"></i>
+                            </button>
+                            <label class="cases-checklist-visually-hidden" for="exhibit-select-{{ item.matched_documents[0].id }}">
+                                Change exhibit for {{ item.matched_documents[0].name|truncate(40) }}
+                            </label>
+                            <select id="exhibit-select-{{ item.matched_documents[0].id }}"
+                                    class="cases-checklist-exhibit-select"
+                                    data-action="change-exhibit"
+                                    data-doc-id="{{ item.matched_documents[0].id }}"
+                                    title="Change exhibit">
+                                {% for ex_letter in exhibit_letters %}
+                                <option value="{{ ex_letter }}" {% if ex_letter == letter %}selected{% endif %}>{{ ex_letter }}</option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+    {% endfor %}
+
+    {# ======== UNMATCHED DOCUMENTS ======== #}
+    {% if checklist.unmatched_documents %}
+    <section class="cases-checklist-exhibit" aria-labelledby="cases-checklist-unmatched-title">
+        <button type="button"
+                class="cases-checklist-exhibit-header"
+                id="cases-checklist-unmatched-title"
+                data-action="toggle-exhibit"
+                data-target="unmatched"
+                aria-expanded="true"
+                aria-controls="exhibit-body-unmatched">
+            <span class="cases-checklist-exhibit-title">
+                <i class="fas fa-folder-open" aria-hidden="true"></i>
+                <span class="cases-checklist-exhibit-label">Unmatched Documents</span>
+                <span class="cases-checklist-badge cases-checklist-badge--neutral">{{ checklist.unmatched_documents|length }}</span>
+            </span>
+            <i class="fas fa-chevron-down cases-checklist-exhibit-chevron" aria-hidden="true"></i>
+        </button>
+        <div class="cases-checklist-exhibit-body" id="exhibit-body-unmatched">
+            <small class="cases-checklist-exhibit-hint">
+                These documents are uploaded but don't match any checklist requirement. Reclassify or assign an exhibit manually.
+            </small>
+            <table class="cases-checklist-table">
+                <caption class="cases-checklist-visually-hidden">Unmatched documents</caption>
+                <tbody>
+                {% for doc in checklist.unmatched_documents %}
+                <tr>
+                    <td class="cases-checklist-cell-icon">
+                        <i class="fas fa-file cases-checklist-status-icon cases-checklist-status-icon--muted" aria-hidden="true"></i>
+                    </td>
+                    <td>
+                        <span class="cases-checklist-item-label">{{ doc.name|truncate(60) }}</span>
+                        <span class="cases-checklist-badge cases-checklist-badge--doctype">{{ doc.doc_type }}</span>
+                        {% if doc.created_at %}
+                        <small class="cases-checklist-item-meta">({{ doc.created_at }})</small>
+                        {% endif %}
+                    </td>
+                    <td class="cases-checklist-cell-actions">
+                        <div class="cases-checklist-item-actions">
+                            <button type="button"
+                                    class="cases-checklist-icon-btn"
+                                    data-action="reclassify"
+                                    data-doc-id="{{ doc.id }}"
+                                    title="Reclassify with AI"
+                                    aria-label="Reclassify {{ doc.name|truncate(60) }} with AI">
+                                <i class="fas fa-robot" aria-hidden="true"></i>
+                                <span>Classify</span>
+                            </button>
+                            <label class="cases-checklist-visually-hidden" for="unmatched-exhibit-select-{{ doc.id }}">
+                                Assign exhibit for {{ doc.name|truncate(60) }}
+                            </label>
+                            <select id="unmatched-exhibit-select-{{ doc.id }}"
+                                    class="cases-checklist-exhibit-select"
+                                    data-action="change-exhibit"
+                                    data-doc-id="{{ doc.id }}"
+                                    title="Assign exhibit">
+                                <option value="">--</option>
+                                {% for ex_letter in exhibit_letters %}
+                                <option value="{{ ex_letter }}">{{ ex_letter }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+
+    {# ======== FOOTER NOTE ======== #}
+    <footer class="cases-checklist-footer">
+        <i class="fas fa-info-circle" aria-hidden="true"></i>
+        Provisional document generated automatically &mdash; requires human review.
+        <br>{{ org_name|default('CaseHub') }} &mdash; CaseHub
+    </footer>
+
+    {# ======== UPLOAD MODAL ======== #}
+    <div id="upload-modal"
+         class="cases-checklist-modal"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="upload-modal-title"
+         aria-hidden="true"
+         tabindex="-1">
+        <div class="cases-checklist-modal-dialog">
+            <header class="cases-checklist-modal-header">
+                <h2 id="upload-modal-title" class="cases-checklist-modal-title">
+                    <i class="fas fa-upload" aria-hidden="true"></i>
+                    <span>Upload Documents</span>
+                </h2>
+                <button type="button"
+                        class="cases-checklist-modal-close"
+                        data-action="close-upload-modal"
+                        aria-label="Close upload dialog">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="cases-checklist-modal-body">
+                <form id="upload-form" enctype="multipart/form-data">
+                    <div class="cases-checklist-field">
+                        <label class="cases-checklist-field-label" for="upload-files">Files</label>
+                        <input type="file"
+                               class="cases-checklist-input"
+                               id="upload-files"
+                               multiple>
+                    </div>
+                    <div class="cases-checklist-field">
+                        <label class="cases-checklist-field-label" for="upload-doc-type">
+                            Document Type <small>(optional — auto-detected if blank)</small>
+                        </label>
+                        <select class="cases-checklist-select" id="upload-doc-type">
+                            <option value="">Auto-detect</option>
+                            {% for dtype in doc_types %}
+                            <option value="{{ dtype }}">{{ dtype }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="cases-checklist-field">
+                        <label class="cases-checklist-field-label" for="upload-exhibit">
+                            Target Exhibit <small>(optional)</small>
+                        </label>
+                        <select class="cases-checklist-select" id="upload-exhibit">
+                            <option value="">Auto-detect</option>
+                            {% for ex_letter in exhibit_letters %}
+                            <option value="{{ ex_letter }}">Exhibit {{ ex_letter }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <footer class="cases-checklist-modal-footer">
+                <button type="button"
+                        class="cases-checklist-action-btn"
+                        data-action="close-upload-modal">
+                    <span>Cancel</span>
+                </button>
+                <button type="button"
+                        class="cases-checklist-action-btn cases-checklist-action-btn--primary"
+                        id="btn-modal-upload"
+                        data-action="upload-modal-submit">
+                    <i class="fas fa-upload" aria-hidden="true"></i>
+                    <span>Upload &amp; Classify</span>
+                </button>
+            </footer>
+        </div>
+    </div>
+
+    {# ======== TOAST ======== #}
+    <div id="cases-checklist-toast"
+         class="cases-checklist-toast"
+         role="status"
+         aria-live="polite"
+         aria-atomic="true"></div>
+
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    const PREFIX = '{{ PREFIX }}';
+    const CASE_ID = {{ case.id }};
+
+    const modal = document.getElementById('upload-modal');
+    const toast = document.getElementById('cases-checklist-toast');
+    let toastTimer = null;
+    let lastFocused = null;
+
+    // ========== TOAST ==========
+    function showToast(message, variant) {
+        if (!toast) return;
+        toast.textContent = message;
+        toast.className = 'cases-checklist-toast is-visible';
+        if (variant) toast.classList.add('cases-checklist-toast--' + variant);
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+            toast.classList.remove('is-visible');
+        }, 3200);
+    }
+
+    // ========== FILTER ==========
+    function filterItems(status, btn) {
+        document.querySelectorAll('.cases-checklist-filter').forEach(function (b) {
+            b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+        });
+        document.querySelectorAll('.cases-checklist-item').forEach(function (row) {
+            const match = status === 'all' || row.dataset.status === status;
+            row.hidden = !match;
+        });
+    }
+
+    // ========== TOGGLE EXHIBIT ==========
+    function toggleExhibit(btn) {
+        const expanded = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+    }
+
+    // ========== CLASSIFY ALL ==========
+    async function classifyAll() {
+        const btn = document.getElementById('btn-classify-all');
+        const label = btn.querySelector('span');
+        const icon = btn.querySelector('i');
+        btn.disabled = true;
+        if (icon) icon.className = 'fas fa-spinner fa-spin';
+        if (label) label.textContent = 'Classifying...';
+
+        try {
+            const resp = await fetch(PREFIX + '/api/cases/' + CASE_ID + '/checklist/classify', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Classified ' + data.classified_count + ' documents. Refreshing...', 'success');
+                setTimeout(function () { location.reload(); }, 900);
+            } else {
+                showToast('Classification failed: ' + (data.error || 'Unknown error'), 'danger');
+                resetClassifyBtn();
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'danger');
+            resetClassifyBtn();
+        }
+    }
+
+    function resetClassifyBtn() {
+        const btn = document.getElementById('btn-classify-all');
+        const label = btn.querySelector('span');
+        const icon = btn.querySelector('i');
+        btn.disabled = false;
+        if (icon) icon.className = 'fas fa-robot';
+        if (label) label.textContent = 'Re-classify All';
+    }
+
+    // ========== EXPORT PDF ==========
+    async function exportPDF() {
+        const btn = document.getElementById('btn-export-pdf');
+        const label = btn.querySelector('span');
+        const icon = btn.querySelector('i');
+        btn.disabled = true;
+        if (icon) icon.className = 'fas fa-spinner fa-spin';
+        if (label) label.textContent = 'Generating...';
+
+        try {
+            const resp = await fetch(PREFIX + '/api/cases/' + CASE_ID + '/checklist/export', { method: 'POST' });
+            if (resp.ok) {
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'checklist_' + CASE_ID + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('PDF downloaded', 'success');
+            } else {
+                const data = await resp.json();
+                showToast('PDF export failed: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'danger');
+        } finally {
+            btn.disabled = false;
+            if (icon) icon.className = 'fas fa-file-pdf';
+            if (label) label.textContent = 'Export PDF';
+        }
+    }
+
+    // ========== RECLASSIFY SINGLE DOC ==========
+    async function reclassifyDoc(docId) {
+        try {
+            const resp = await fetch(PREFIX + '/api/documents/' + docId + '/reclassify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Reclassified as: ' + data.doc_type + ' (Exhibit ' + (data.exhibit || '?') + ') via ' + data.method, 'success');
+                setTimeout(function () { location.reload(); }, 900);
+            } else {
+                showToast('Reclassification failed', 'danger');
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'danger');
+        }
+    }
+
+    // ========== CHANGE EXHIBIT ==========
+    async function changeExhibit(docId, exhibit) {
+        if (!exhibit) return;
+        try {
+            const resp = await fetch(PREFIX + '/api/documents/' + docId + '/exhibit', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ exhibit: exhibit })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                showToast('Failed to change exhibit', 'danger');
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'danger');
+        }
+    }
+
+    // ========== INLINE UPLOAD ==========
+    async function uploadInline(input) {
+        if (!input.files.length) return;
+        const file = input.files[0];
+        const caseId = input.dataset.caseId;
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('exhibit', input.dataset.exhibit || '');
+        formData.append('doc_type', input.dataset.docType || '');
+
+        try {
+            const resp = await fetch(PREFIX + '/api/cases/' + caseId + '/checklist/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                showToast('Upload failed: ' + (data.error || 'Unknown error'), 'danger');
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'danger');
+        }
+    }
+
+    // ========== MODAL UPLOAD ==========
+    async function uploadFromModal() {
+        const filesInput = document.getElementById('upload-files');
+        const files = filesInput.files;
+        if (!files.length) { showToast('Select files first', 'info'); return; }
+
+        const btn = document.getElementById('btn-modal-upload');
+        const label = btn.querySelector('span');
+        const icon = btn.querySelector('i');
+        btn.disabled = true;
+        if (icon) icon.className = 'fas fa-spinner fa-spin';
+        if (label) label.textContent = 'Uploading...';
+
+        const docType = document.getElementById('upload-doc-type').value;
+        const exhibit = document.getElementById('upload-exhibit').value;
+        let successCount = 0;
+
+        for (const file of files) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('doc_type', docType);
+            formData.append('exhibit', exhibit);
+
+            try {
+                const resp = await fetch(PREFIX + '/api/cases/' + CASE_ID + '/checklist/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                if (data.success) successCount++;
+            } catch (e) {
+                console.error('Upload error:', e);
+            }
+        }
+
+        btn.disabled = false;
+        if (icon) icon.className = 'fas fa-upload';
+        if (label) label.textContent = 'Upload';
+
+        if (successCount === files.length) {
+            showToast('Uploaded ' + successCount + '/' + files.length + ' files. Refreshing...', 'success');
+            setTimeout(function () { location.reload(); }, 900);
+        } else if (successCount > 0) {
+            showToast('Uploaded ' + successCount + '/' + files.length + ' files. Refreshing to show successful uploads...', 'info');
+            setTimeout(function () { location.reload(); }, 900);
+        } else {
+            showToast('Upload failed. No files were uploaded.', 'danger');
+        }
+    }
+
+    // ========== MODAL SHOW/HIDE ==========
+    const FOCUSABLE = 'input:not([disabled]), select:not([disabled]), button:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+
+    function trapFocus(e) {
+        if (e.key !== 'Tab' || !modal || !modal.classList.contains('is-open')) return;
+        const focusables = modal.querySelectorAll(FOCUSABLE);
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    }
+
+    function openModal() {
+        if (!modal) return;
+        lastFocused = document.activeElement;
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        const firstFocusable = modal.querySelector(FOCUSABLE);
+        if (firstFocusable) firstFocusable.focus();
+        document.addEventListener('keydown', trapFocus);
+    }
+
+    function closeModal() {
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.removeEventListener('keydown', trapFocus);
+        if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+    }
+
+    if (modal) {
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) closeModal();
+        });
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) {
+            closeModal();
+        }
+    });
+
+    // ========== EVENT DELEGATION ==========
+    document.addEventListener('click', function (e) {
+        const target = e.target.closest('[data-action]');
+        if (!target) return;
+        const action = target.dataset.action;
+
+        if (action === 'classify-all') { classifyAll(); return; }
+        if (action === 'export-pdf') { exportPDF(); return; }
+        if (action === 'open-upload-modal') { openModal(); return; }
+        if (action === 'close-upload-modal') { closeModal(); return; }
+        if (action === 'upload-modal-submit') { uploadFromModal(); return; }
+        if (action === 'reclassify') { reclassifyDoc(target.dataset.docId); return; }
+        if (action === 'toggle-exhibit') { toggleExhibit(target); return; }
+    });
+
+    document.addEventListener('click', function (e) {
+        const filterBtn = e.target.closest('.cases-checklist-filter');
+        if (filterBtn) {
+            filterItems(filterBtn.dataset.filter, filterBtn);
+        }
+    });
+
+    document.addEventListener('change', function (e) {
+        const target = e.target;
+        if (!target.dataset || !target.dataset.action) return;
+        const action = target.dataset.action;
+        if (action === 'upload-inline') { uploadInline(target); return; }
+        if (action === 'change-exhibit') { changeExhibit(target.dataset.docId, target.value); return; }
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+{% block title %}CallHippo - SMS & Calls{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/callhippo-dashboard.css">
+{% endblock %}
+
+{% block content %}
+<main class="callhippo-dashboard-main" aria-labelledby="callhippo-dashboard-title">
+    <header class="callhippo-dashboard-header">
+        <div class="callhippo-dashboard-heading">
+            <h1 id="callhippo-dashboard-title" class="callhippo-dashboard-title">
+                <i class="fas fa-phone-alt callhippo-dashboard-title-icon" aria-hidden="true"></i>
+                <span>CallHippo &mdash; SMS &amp; Calls</span>
+            </h1>
+        </div>
+        <div class="callhippo-dashboard-meta">
+            {% if is_configured %}
+            <span class="callhippo-dashboard-badge callhippo-dashboard-badge--success">
+                <i class="fas fa-check" aria-hidden="true"></i>
+                <span>Connected</span>
+            </span>
+            {% else %}
+            <span class="callhippo-dashboard-badge callhippo-dashboard-badge--warning">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                <span>Not Configured</span>
+            </span>
+            {% endif %}
+            {% if from_number %}
+            <span class="callhippo-dashboard-from" aria-label="From number">{{ from_number }}</span>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="callhippo-dashboard-grid">
+        <section class="callhippo-dashboard-card" aria-labelledby="callhippo-dashboard-sms-title">
+            <header class="callhippo-dashboard-card-header">
+                <i class="fas fa-sms" aria-hidden="true"></i>
+                <span id="callhippo-dashboard-sms-title">Send SMS</span>
+            </header>
+            <div class="callhippo-dashboard-card-body">
+                <form id="smsForm" novalidate>
+                    <div class="callhippo-dashboard-field">
+                        <label for="smsTo" class="callhippo-dashboard-label">
+                            To Number
+                            <span class="callhippo-dashboard-label-required" aria-hidden="true">*</span>
+                        </label>
+                        <div class="callhippo-dashboard-input-group">
+                            <input type="tel" id="smsTo" class="callhippo-dashboard-input"
+                                   name="to" placeholder="+1234567890"
+                                   required aria-required="true"
+                                   autocomplete="tel">
+                            <div class="callhippo-dashboard-picker" data-picker="sms">
+                                <button type="button" class="callhippo-dashboard-picker-toggle"
+                                        data-picker-toggle="sms"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                        aria-controls="callhippo-dashboard-sms-clients"
+                                        aria-label="Select client for SMS">
+                                    <i class="fas fa-user" aria-hidden="true"></i>
+                                </button>
+                                <ul id="callhippo-dashboard-sms-clients" class="callhippo-dashboard-picker-menu" role="menu">
+                                    {% for client in clients %}
+                                    <li class="callhippo-dashboard-picker-item" role="none">
+                                        <a class="callhippo-dashboard-picker-link" role="menuitem" href="#"
+                                           data-client-phone="{{ client.phone or client.whatsapp }}"
+                                           data-client-name="{{ client.first_name }} {{ client.last_name }}"
+                                           data-target="sms">
+                                            <span>{{ client.first_name }} {{ client.last_name }}</span>
+                                            <span class="callhippo-dashboard-picker-meta">{{ client.phone or client.whatsapp }}</span>
+                                        </a>
+                                    </li>
+                                    {% else %}
+                                    <li class="callhippo-dashboard-picker-empty" role="none">No clients</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="callhippo-dashboard-field">
+                        <label for="smsMessage" class="callhippo-dashboard-label">
+                            Message
+                            <span class="callhippo-dashboard-label-required" aria-hidden="true">*</span>
+                        </label>
+                        <textarea id="smsMessage" class="callhippo-dashboard-textarea"
+                                  name="message" rows="3" maxlength="160"
+                                  required aria-required="true"
+                                  aria-describedby="callhippo-dashboard-counter"></textarea>
+                        <small id="callhippo-dashboard-counter" class="callhippo-dashboard-counter">
+                            <span id="charCount">0</span>/160 characters
+                        </small>
+                    </div>
+
+                    <fieldset class="callhippo-dashboard-field">
+                        <legend class="callhippo-dashboard-label">Quick Templates</legend>
+                        <div class="callhippo-dashboard-templates" role="group" aria-label="Message templates">
+                            <button type="button" class="callhippo-dashboard-template-btn" data-template="appointment">
+                                <i class="fas fa-calendar" aria-hidden="true"></i>
+                                <span>Appointment Reminder</span>
+                            </button>
+                            <button type="button" class="callhippo-dashboard-template-btn" data-template="documents">
+                                <i class="fas fa-file" aria-hidden="true"></i>
+                                <span>Document Request</span>
+                            </button>
+                            <button type="button" class="callhippo-dashboard-template-btn" data-template="update">
+                                <i class="fas fa-info-circle" aria-hidden="true"></i>
+                                <span>Case Update</span>
+                            </button>
+                        </div>
+                    </fieldset>
+
+                    <button type="submit" class="callhippo-dashboard-btn callhippo-dashboard-btn--primary"
+                            {% if not is_configured %}disabled aria-disabled="true"{% endif %}>
+                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                        <span>Send SMS</span>
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <section class="callhippo-dashboard-card" aria-labelledby="callhippo-dashboard-call-title">
+            <header class="callhippo-dashboard-card-header">
+                <i class="fas fa-phone" aria-hidden="true"></i>
+                <span id="callhippo-dashboard-call-title">Make Call</span>
+            </header>
+            <div class="callhippo-dashboard-card-body">
+                <form id="callForm" novalidate>
+                    <div class="callhippo-dashboard-field">
+                        <label for="callTo" class="callhippo-dashboard-label">
+                            Phone Number
+                            <span class="callhippo-dashboard-label-required" aria-hidden="true">*</span>
+                        </label>
+                        <div class="callhippo-dashboard-input-group">
+                            <input type="tel" id="callTo" class="callhippo-dashboard-input"
+                                   name="to" placeholder="+1234567890"
+                                   required aria-required="true"
+                                   autocomplete="tel">
+                            <div class="callhippo-dashboard-picker" data-picker="call">
+                                <button type="button" class="callhippo-dashboard-picker-toggle"
+                                        data-picker-toggle="call"
+                                        aria-haspopup="menu"
+                                        aria-expanded="false"
+                                        aria-controls="callhippo-dashboard-call-clients"
+                                        aria-label="Select client to call">
+                                    <i class="fas fa-user" aria-hidden="true"></i>
+                                </button>
+                                <ul id="callhippo-dashboard-call-clients" class="callhippo-dashboard-picker-menu" role="menu">
+                                    {% for client in clients %}
+                                    <li class="callhippo-dashboard-picker-item" role="none">
+                                        <a class="callhippo-dashboard-picker-link" role="menuitem" href="#"
+                                           data-client-phone="{{ client.phone or client.whatsapp }}"
+                                           data-client-name="{{ client.first_name }} {{ client.last_name }}"
+                                           data-target="call">
+                                            <span>{{ client.first_name }} {{ client.last_name }}</span>
+                                            <span class="callhippo-dashboard-picker-meta">{{ client.phone or client.whatsapp }}</span>
+                                        </a>
+                                    </li>
+                                    {% else %}
+                                    <li class="callhippo-dashboard-picker-empty" role="none">No clients</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="callhippo-dashboard-field">
+                        <div class="callhippo-dashboard-call-status" aria-live="polite">
+                            <i class="fas fa-phone-volume callhippo-dashboard-call-icon" id="callIcon" data-state="ready" aria-hidden="true"></i>
+                            <p class="callhippo-dashboard-call-text" id="callStatus">Ready to call</p>
+                            <p class="callhippo-dashboard-call-number" id="callNumber" aria-label="Selected number">&mdash;</p>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="callhippo-dashboard-btn callhippo-dashboard-btn--success"
+                            {% if not is_configured %}disabled aria-disabled="true"{% endif %}>
+                        <i class="fas fa-phone" aria-hidden="true"></i>
+                        <span>Initiate Call</span>
+                    </button>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <section class="callhippo-dashboard-history" aria-labelledby="callhippo-dashboard-history-title">
+        <h2 id="callhippo-dashboard-history-title" class="callhippo-dashboard-sr-only">History</h2>
+        <ul class="callhippo-dashboard-tabs" role="tablist">
+            <li class="callhippo-dashboard-tab" role="presentation">
+                <button type="button" class="callhippo-dashboard-tab-btn"
+                        id="tab-sms-history" role="tab"
+                        aria-selected="true" aria-controls="smsHistory"
+                        data-tab-target="smsHistory">
+                    <i class="fas fa-sms" aria-hidden="true"></i>
+                    <span>SMS History</span>
+                </button>
+            </li>
+            <li class="callhippo-dashboard-tab" role="presentation">
+                <button type="button" class="callhippo-dashboard-tab-btn"
+                        id="tab-call-history" role="tab"
+                        aria-selected="false" aria-controls="callHistory"
+                        tabindex="-1"
+                        data-tab-target="callHistory">
+                    <i class="fas fa-phone" aria-hidden="true"></i>
+                    <span>Call History</span>
+                </button>
+            </li>
+        </ul>
+        <div class="callhippo-dashboard-panels">
+            <div class="callhippo-dashboard-panel" id="smsHistory" role="tabpanel" aria-labelledby="tab-sms-history">
+                <div class="callhippo-dashboard-table-wrap">
+                    <table class="callhippo-dashboard-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Time</th>
+                                <th scope="col">To/From</th>
+                                <th scope="col">Message</th>
+                                <th scope="col">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="smsHistoryBody">
+                            <tr>
+                                <td colspan="4" class="callhippo-dashboard-table-loading">
+                                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                                    <span>Loading&hellip;</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="callhippo-dashboard-panel" id="callHistory" role="tabpanel" aria-labelledby="tab-call-history" hidden>
+                <div class="callhippo-dashboard-table-wrap">
+                    <table class="callhippo-dashboard-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Time</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Number</th>
+                                <th scope="col">Duration</th>
+                                <th scope="col">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="callHistoryBody">
+                            <tr>
+                                <td colspan="5" class="callhippo-dashboard-table-loading">
+                                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                                    <span>Loading&hellip;</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {% if not is_configured %}
+    <section class="callhippo-dashboard-alert" role="alert" aria-labelledby="callhippo-dashboard-alert-title">
+        <h2 id="callhippo-dashboard-alert-title" class="callhippo-dashboard-alert-title">
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+            <span>CallHippo Not Configured</span>
+        </h2>
+        <p class="callhippo-dashboard-alert-text">Add these to your .env file:</p>
+        <ul class="callhippo-dashboard-alert-list">
+            <li><code>CALLHIPPO_API_KEY</code> &mdash; Your API token</li>
+            <li><code>CALLHIPPO_FROM</code> &mdash; Your CallHippo number</li>
+            <li><code>CALLHIPPO_EMAIL</code> &mdash; Account email</li>
+        </ul>
+    </section>
+    {% endif %}
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const PREFIX = '{{ PREFIX }}';
+
+    const templates = {
+        appointment: "Hi [NAME], just a reminder about your appointment on [DATE] at [TIME]. Please reply CONFIRM or call us if you need to reschedule.",
+        documents: "Hi [NAME], we need the following documents for your case: [DOCS]. Please submit ASAP. Questions? Call us.",
+        update: "Hi [NAME], your case status has been updated. Log in to your portal or call us for details."
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function escapeHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function updateCharCount() {
+        const msg = $('smsMessage');
+        const out = $('charCount');
+        if (msg && out) out.textContent = msg.value.length;
+    }
+
+    function setTemplate(type) {
+        const msg = $('smsMessage');
+        if (!msg || !templates[type]) return;
+        msg.value = templates[type];
+        updateCharCount();
+        msg.focus();
+    }
+
+    /* ── Client picker (dropdown) ─────────────────────── */
+
+    function closeAllPickers() {
+        document.querySelectorAll('.callhippo-dashboard-picker--open').forEach((el) => {
+            el.classList.remove('callhippo-dashboard-picker--open');
+            const toggle = el.querySelector('[data-picker-toggle]');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function togglePicker(name) {
+        const picker = document.querySelector('.callhippo-dashboard-picker[data-picker="' + name + '"]');
+        if (!picker) return;
+        const willOpen = !picker.classList.contains('callhippo-dashboard-picker--open');
+        closeAllPickers();
+        if (willOpen) {
+            picker.classList.add('callhippo-dashboard-picker--open');
+            const toggle = picker.querySelector('[data-picker-toggle]');
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    function selectClient(target, phone, name) {
+        if (target === 'sms') {
+            const to = $('smsTo');
+            if (to) to.value = phone;
+        } else if (target === 'call') {
+            const to = $('callTo');
+            const numberOut = $('callNumber');
+            if (to) to.value = phone;
+            if (numberOut) numberOut.textContent = name + ' — ' + phone;
+        }
+        closeAllPickers();
+    }
+
+    /* ── Tabs ─────────────────────────────────────────── */
+
+    function activateTab(targetId) {
+        document.querySelectorAll('.callhippo-dashboard-tab-btn').forEach((btn) => {
+            const isActive = btn.getAttribute('data-tab-target') === targetId;
+            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            btn.tabIndex = isActive ? 0 : -1;
+        });
+        document.querySelectorAll('.callhippo-dashboard-panel').forEach((panel) => {
+            if (panel.id === targetId) panel.removeAttribute('hidden');
+            else panel.setAttribute('hidden', '');
+        });
+    }
+
+    /* ── Status helpers ───────────────────────────────── */
+
+    function setCallState(state, message) {
+        const icon = $('callIcon');
+        const status = $('callStatus');
+        if (icon) icon.dataset.state = state;
+        if (status && message) status.textContent = message;
+    }
+
+    /* ── SMS submit ───────────────────────────────────── */
+
+    async function handleSmsSubmit(e) {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const btn = form.querySelector('button[type="submit"]');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Sending…</span>';
+        btn.disabled = true;
+
+        try {
+            const formData = new FormData(form);
+            const response = await fetch(PREFIX + '/callhippo/api/sms/send', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                window.alert('SMS sent successfully!');
+                form.reset();
+                updateCharCount();
+                loadSMSHistory();
+            } else {
+                window.alert('Error: ' + (result.error || 'Failed to send SMS'));
+            }
+        } catch (error) {
+            window.alert('Error: ' + error.message);
+        } finally {
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+    }
+
+    /* ── Call submit ──────────────────────────────────── */
+
+    async function handleCallSubmit(e) {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const btn = form.querySelector('button[type="submit"]');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Calling…</span>';
+        btn.disabled = true;
+
+        setCallState('ringing', 'Initiating call…');
+
+        try {
+            const formData = new FormData(form);
+            const response = await fetch(PREFIX + '/callhippo/api/call/initiate', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                setCallState('ready', 'Call initiated!');
+                loadCallHistory();
+            } else {
+                setCallState('ended', 'Failed: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            setCallState('ended', 'Error: ' + error.message);
+        } finally {
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+            setTimeout(() => setCallState('ready', 'Ready to call'), 5000);
+        }
+    }
+
+    /* ── History loaders ──────────────────────────────── */
+
+    async function loadSMSHistory() {
+        const tbody = $('smsHistoryBody');
+        if (!tbody) return;
+        try {
+            const response = await fetch(PREFIX + '/callhippo/api/sms/history?limit=20');
+            const result = await response.json();
+            if (result.success && result.data && result.data.length > 0) {
+                tbody.innerHTML = result.data.map((sms) => {
+                    const ts = new Date(sms.created_at || sms.timestamp).toLocaleString();
+                    const number = escapeHtml(sms.to || sms.from || '');
+                    const body = escapeHtml((sms.body || sms.message || '').substring(0, 50));
+                    const status = escapeHtml(sms.status || '');
+                    const pillVariant = sms.status === 'delivered' ? 'success' : 'neutral';
+                    return '<tr>'
+                        + '<td><span class="callhippo-dashboard-table-time">' + escapeHtml(ts) + '</span></td>'
+                        + '<td>' + number + '</td>'
+                        + '<td><span class="callhippo-dashboard-table-message">' + body + '…</span></td>'
+                        + '<td><span class="callhippo-dashboard-pill callhippo-dashboard-pill--' + pillVariant + '">' + status + '</span></td>'
+                        + '</tr>';
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="callhippo-dashboard-table-empty">No SMS history available</td></tr>';
+            }
+        } catch (error) {
+            tbody.innerHTML = '<tr><td colspan="4" class="callhippo-dashboard-table-error">Error loading history</td></tr>';
+        }
+    }
+
+    async function loadCallHistory() {
+        const tbody = $('callHistoryBody');
+        if (!tbody) return;
+        try {
+            const response = await fetch(PREFIX + '/callhippo/api/calls/history?limit=20');
+            const result = await response.json();
+            if (result.success && result.data && result.data.length > 0) {
+                tbody.innerHTML = result.data.map((call) => {
+                    const ts = new Date(call.created_at || call.timestamp).toLocaleString();
+                    const direction = call.direction || 'outbound';
+                    const dirIcon = call.direction === 'inbound' ? 'phone-alt' : 'phone';
+                    const number = escapeHtml(call.to || call.from || '');
+                    const duration = call.duration ? Math.round(call.duration / 60) + ' min' : '—';
+                    const status = escapeHtml(call.status || '');
+                    const pillVariant = call.status === 'completed' ? 'success' : 'neutral';
+                    return '<tr>'
+                        + '<td><span class="callhippo-dashboard-table-time">' + escapeHtml(ts) + '</span></td>'
+                        + '<td><i class="fas fa-' + dirIcon + '" aria-hidden="true"></i> ' + escapeHtml(direction) + '</td>'
+                        + '<td>' + number + '</td>'
+                        + '<td>' + escapeHtml(duration) + '</td>'
+                        + '<td><span class="callhippo-dashboard-pill callhippo-dashboard-pill--' + pillVariant + '">' + status + '</span></td>'
+                        + '</tr>';
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" class="callhippo-dashboard-table-empty">No call history available</td></tr>';
+            }
+        } catch (error) {
+            tbody.innerHTML = '<tr><td colspan="5" class="callhippo-dashboard-table-error">Error loading history</td></tr>';
+        }
+    }
+
+    /* ── Wire-up ──────────────────────────────────────── */
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const msg = $('smsMessage');
+        if (msg) msg.addEventListener('input', updateCharCount);
+
+        const smsForm = $('smsForm');
+        if (smsForm) smsForm.addEventListener('submit', handleSmsSubmit);
+
+        const callForm = $('callForm');
+        if (callForm) callForm.addEventListener('submit', handleCallSubmit);
+
+        document.querySelectorAll('[data-template]').forEach((btn) => {
+            btn.addEventListener('click', () => setTemplate(btn.dataset.template));
+        });
+
+        document.querySelectorAll('[data-picker-toggle]').forEach((btn) => {
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                togglePicker(btn.dataset.pickerToggle);
+            });
+        });
+
+        document.querySelectorAll('[data-client-phone]').forEach((link) => {
+            link.addEventListener('click', (event) => {
+                event.preventDefault();
+                selectClient(link.dataset.target, link.dataset.clientPhone, link.dataset.clientName);
+            });
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!event.target.closest('.callhippo-dashboard-picker')) closeAllPickers();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') closeAllPickers();
+        });
+
+        document.querySelectorAll('.callhippo-dashboard-tab-btn').forEach((btn) => {
+            btn.addEventListener('click', () => activateTab(btn.dataset.tabTarget));
+        });
+
+        loadSMSHistory();
+        loadCallHistory();
+    });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design Editor | CaseHub</title>
+
+  <!-- Semantic tokens (theme-agnostic contract) -->
+  <link rel="stylesheet" href="/static/css/themes/_tokens.css">
+
+  <!-- Theme stylesheets consumed by preview components -->
+  <link rel="stylesheet" href="/static/css/liquid-glass.css">
+  <link rel="stylesheet" href="/static/css/casehub-neuromorphic.css">
+  <link rel="stylesheet" href="/static/css/design-system.css">
+
+  <!-- Editor chrome -->
+  <link rel="stylesheet" href="/static/css/templates/admin-design-editor.css">
+</head>
+<body class="de-body" data-prefix="{{ PREFIX }}">
+
+  <a href="#de-preview-main" class="de-skip-link">Skip to preview</a>
+
+  <header class="de-toolbar" role="banner" aria-label="Design Editor toolbar">
+    <h1 class="de-toolbar__title">Design Editor</h1>
+
+    <button type="button" class="de-toolbar__btn" id="de-toggle-theme" aria-pressed="false">
+      Theme: <span id="de-label-theme">Glass</span>
+    </button>
+    <button type="button" class="de-toolbar__btn" id="de-toggle-mode" aria-pressed="false">
+      Mode: <span id="de-label-mode">Dark</span>
+    </button>
+    <button type="button" class="de-toolbar__btn" id="de-toggle-viewport" aria-label="Viewport size" aria-pressed="false">
+      Viewport: <span id="de-label-viewport">Desktop</span>
+    </button>
+    <button type="button" class="de-toolbar__btn" id="de-toggle-sbs" aria-pressed="false">
+      Side-by-Side
+    </button>
+
+    <span class="de-toolbar__divider" aria-hidden="true"></span>
+
+    <button type="button" class="de-toolbar__btn" id="de-reset">Reset</button>
+    <button type="button" class="de-toolbar__btn" id="de-export">Export JSON</button>
+    <button type="button" class="de-toolbar__btn de-toolbar__btn--accent" id="de-save">Save to Org</button>
+
+    <a href="{{ PREFIX }}/admin" class="de-toolbar__btn">Back to Admin</a>
+  </header>
+
+  <div class="de-main">
+
+    <nav class="de-sidebar" id="de-tree" aria-label="Component tree"></nav>
+
+    <main class="de-center" id="de-preview-main" tabindex="-1" aria-label="Component preview">
+      <div class="de-preview-wrap" id="de-preview-wrap">
+        <div class="de-preview-area" id="de-preview" data-theme="dark"></div>
+        <div class="de-preview-area" id="de-preview-b" data-theme="dark" style="display:none"></div>
+      </div>
+      <div id="de-preview-status" class="de-sr-only" role="status" aria-live="polite"></div>
+    </main>
+
+    <aside class="de-panel" id="de-controls" role="complementary" aria-label="Component controls">
+      <p class="de-controls-empty">Select a component category to see editable variables.</p>
+    </aside>
+
+  </div>
+
+  <script src="/static/js/design-editor.js"></script>
+  <script>
+    // Keep aria-pressed in sync for toolbar toggles so assistive tech
+    // reflects the real state. design-editor.js owns the visual state
+    // (is-active, label text); this listener mirrors it into aria-pressed.
+    (function () {
+      var toggles = document.querySelectorAll(
+        '#de-toggle-theme, #de-toggle-mode, #de-toggle-viewport, #de-toggle-sbs'
+      );
+      toggles.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          // Flip after the original handler ran. requestAnimationFrame
+          // keeps the read after any synchronous DOM update.
+          requestAnimationFrame(function () {
+            var pressed = btn.classList.contains('is-active') ||
+                          btn.getAttribute('aria-pressed') === 'false';
+            btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+          });
+        });
+      });
+
+      // Announce snippet loads to screen readers via a dedicated status region.
+      var preview = document.getElementById('de-preview');
+      var status = document.getElementById('de-preview-status');
+      if (preview && status && 'MutationObserver' in window) {
+        var observer = new MutationObserver(function () {
+          var label = document.getElementById('de-label-theme');
+          status.textContent = label ? ('Loaded ' + label.textContent + ' preview') : 'Preview updated';
+        });
+        observer.observe(preview, { childList: true });
+      }
+    })();
+  </script>
+</body>
+</html>

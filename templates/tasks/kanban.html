@@ -1,0 +1,2087 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Quadro Kanban{% else %}Kanban{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Kanban Board Layout */
+.kanban-page-header {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 20px;
+}
+
+.kanban-page-header h2 {
+    margin: 0;
+    line-height: 1.1;
+}
+
+.kanban-toolbar {
+    --kanban-toolbar-primary-bg: var(--ch-brand-accent);
+    --kanban-toolbar-primary-bg-hover: var(--ch-brand-secondary-strong);
+    --kanban-toolbar-primary-shadow: var(--ch-button-primary-shadow);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-default, rgba(36,36,34,0.11));
+    border-radius: 10px;
+    background: var(--surface-raised, #f8f7f3);
+    box-shadow: var(--nu-raised-tight, 0 1px 4px rgba(38,37,34,0.10));
+    min-width: 0;
+}
+
+.kanban-toolbar__zone {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-width: 0;
+}
+
+.kanban-toolbar__zone--scope {
+    flex: 1 1 420px;
+}
+
+.kanban-toolbar__zone--view {
+    flex: 0 1 360px;
+    padding-left: 12px;
+    border-left: 1px solid var(--border-subtle, rgba(36,36,34,0.08));
+}
+
+.kanban-toolbar__zone--action {
+    margin-left: auto;
+    padding-left: 12px;
+    border-left: 1px solid var(--border-subtle, rgba(36,36,34,0.08));
+}
+
+.kanban-toolbar__select-label {
+    color: var(--text-muted, #77736a);
+    font-size: 0.76rem;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+.kanban-toolbar .btn-group,
+.kanban-toolbar .view-toggle {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    width: auto;
+    padding: 4px;
+    border-radius: 8px;
+    background: var(--surface-sunken);
+    box-shadow: var(--nu-pressed-soft, inset 2px 2px 5px rgba(13,39,80,0.10), inset -2px -2px 5px rgba(255,255,255,0.86));
+}
+
+.kanban-toolbar .btn,
+.kanban-toolbar .glass-input,
+.kanban-toolbar .glass-btn {
+    min-height: 40px;
+    white-space: nowrap;
+}
+
+.kanban-toolbar .glass-input {
+    width: min(190px, 24vw);
+    font-size: 0.88rem;
+}
+
+.kanban-toolbar .kanban-toolbar__select {
+    width: min(180px, 20vw);
+    max-width: 100%;
+    font-size: 0.82rem;
+    background-color: var(--surface-sunken);
+    box-shadow: var(--nu-pressed-soft, inset 2px 2px 5px rgba(13,39,80,0.10), inset -2px -2px 5px rgba(255,255,255,0.86));
+}
+
+.kanban-toolbar .glass-btn--primary {
+    min-width: 132px;
+    border-color: transparent;
+}
+
+.kanban-toolbar__current-user {
+    font-size: 0.8rem;
+}
+
+.kanban-toolbar .btn-group .btn.active,
+.kanban-toolbar .view-toggle .btn.active {
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    box-shadow: var(--nu-pressed-soft, inset 2px 2px 4px rgba(0,0,0,0.08));
+}
+
+[data-theme="light"] body.casehub-browser-basic .kanban-toolbar .btn.btn-primary.glass-btn.glass-btn--primary,
+[data-theme="dark"] body.casehub-browser-basic .kanban-toolbar .btn.btn-primary.glass-btn.glass-btn--primary {
+    background: var(--kanban-toolbar-primary-bg) !important;
+    border-color: var(--kanban-toolbar-primary-bg) !important;
+    color: var(--text-on-accent, #fff) !important;
+    box-shadow: var(--kanban-toolbar-primary-shadow), var(--nu-raised-tight, 0 1px 4px rgba(38,37,34,0.10)) !important;
+}
+
+[data-theme="light"] body.casehub-browser-basic .kanban-toolbar .btn.btn-primary.glass-btn.glass-btn--primary:hover,
+[data-theme="light"] body.casehub-browser-basic .kanban-toolbar .btn.btn-primary.glass-btn.glass-btn--primary:focus,
+[data-theme="dark"] body.casehub-browser-basic .kanban-toolbar .btn.btn-primary.glass-btn.glass-btn--primary:hover,
+[data-theme="dark"] body.casehub-browser-basic .kanban-toolbar .btn.btn-primary.glass-btn.glass-btn--primary:focus {
+    background: var(--kanban-toolbar-primary-bg-hover) !important;
+    border-color: var(--kanban-toolbar-primary-bg-hover) !important;
+    color: var(--text-on-accent, #fff) !important;
+}
+
+.kanban-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+    min-width: 0;
+}
+
+.kanban-filter-bar .glass-input {
+    max-width: min(220px, 100%);
+}
+
+.kanban-filter-bar__field--priority {
+    max-width: min(160px, 100%);
+}
+
+.kanban-filter-bar__field--assignee,
+.kanban-filter-bar__field--tag {
+    max-width: min(180px, 100%);
+}
+
+@media (min-width: 1041px) {
+    body.casehub-browser-basic .kanban-page-header,
+    body.casehub-browser-basic .kanban-filter-bar,
+    body.casehub-browser-basic .kanban-board {
+        box-sizing: border-box;
+        width: min(100%, 1560px) !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-left: 26px !important;
+        padding-right: 26px !important;
+    }
+
+    body.casehub-browser-basic .kanban-page-header {
+        padding-top: 24px !important;
+    }
+
+    body.casehub-browser-basic .kanban-filter-bar {
+        margin-bottom: 16px !important;
+    }
+
+    body.casehub-browser-basic .kanban-board {
+        padding-top: 8px !important;
+    }
+}
+
+body.casehub-browser-basic .casehub-basic-rail,
+body.casehub-browser-basic .casehub-basic-rail__item,
+body.casehub-browser-basic .casehub-basic-tabs__tab {
+    transition-duration: 0ms !important;
+    will-change: auto !important;
+}
+
+body.casehub-browser-basic.casehub-rail-collapsed .casehub-basic-rail {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.kanban-board {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 16px;
+    min-height: 60vh;
+    align-items: flex-start;
+}
+
+.kanban-column {
+    flex: 1 1 0;
+    min-width: 280px;
+    max-width: 380px;
+    background: var(--bg-card, #1a1a1a);
+    border-radius: 12px;
+    border: 1px solid var(--border-color, #333);
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s ease;
+}
+
+body.casehub-browser-basic .kanban-column {
+    contain: layout style !important;
+}
+
+.kanban-column.drag-over {
+    border-color: var(--accent, #1C2447);
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.3);
+}
+
+.kanban-column-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color, #333);
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kanban-column-header .header-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kanban-column-header .btn-delete-col {
+    display: inline-grid !important;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0 !important;
+    margin-left: 4px !important;
+    border: 1px solid var(--border-default, rgba(36,36,34,0.12)) !important;
+    border-radius: 50% !important;
+    background: var(--surface-raised, #fbfaf7) !important;
+    color: var(--text-secondary, #66645f) !important;
+    box-shadow: var(--nu-raised-tight, 0 1px 3px rgba(0,0,0,0.08));
+    line-height: 1 !important;
+}
+
+.kanban-column-header .btn-delete-col:hover {
+    color: var(--text-primary, #242422) !important;
+    box-shadow: var(--nu-pressed-soft, inset 2px 2px 4px rgba(0,0,0,0.08));
+}
+
+.kanban-column-header .count {
+    background: rgba(255,255,255,0.15);
+    color: inherit;
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.kanban-column-header .hours-badge {
+    background: rgba(255,255,255,0.08);
+    color: inherit;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.7;
+}
+
+.col-pending .kanban-column-header {
+    background: var(--bg-light-override, #252525);
+    color: var(--text-secondary, #b0b0b0);
+}
+.col-in_progress .kanban-column-header {
+    background: rgba(26, 115, 232, 0.15);
+    color: #5ea6ff;
+}
+.col-blocked .kanban-column-header {
+    background: rgba(220, 53, 69, 0.15);
+    color: #ff6b7a;
+}
+.col-completed .kanban-column-header {
+    background: rgba(40, 167, 69, 0.15);
+    color: #5ee07a;
+}
+
+.kanban-column-body {
+    padding: 12px;
+    flex: 1;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Task Cards - Glass style with priority border */
+.kanban-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color-light, #2a2a2a);
+    border-radius: 8px;
+    padding: 14px;
+    cursor: grab;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    position: relative;
+    border-left: 4px solid #6c757d;
+}
+
+body.casehub-browser-basic .kanban-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    content-visibility: auto;
+    contain-intrinsic-size: 112px;
+}
+
+.kanban-card.priority-border-urgent { border-left-color: #ef4444; }
+.kanban-card.priority-border-high { border-left-color: #e67e22; }
+.kanban-card.priority-border-medium { border-left-color: #1C2447; }
+.kanban-card.priority-border-low { border-left-color: #6c757d; }
+
+.kanban-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--card-shadow, 0 2px 8px rgba(0,0,0,0.3));
+    border-color: var(--border-color, #333);
+    border-left-color: inherit;
+}
+
+.kanban-card.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+    cursor: grabbing;
+}
+
+/* Tags pills */
+.kanban-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.kanban-tag-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(28, 36, 71,0.12);
+    color: #1C2447;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* Tag color variations */
+.kanban-tag-pill:nth-child(3n+2) {
+    background: rgba(230, 126, 34, 0.12);
+    color: #e67e22;
+}
+.kanban-tag-pill:nth-child(3n+3) {
+    background: rgba(142, 68, 173, 0.12);
+    color: #a569bd;
+}
+
+.kanban-card-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary, #e0e0e0);
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+.kanban-card-title a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.kanban-card-title a:hover {
+    text-decoration: underline;
+}
+
+.kanban-card-client {
+    font-size: 0.78rem;
+    color: var(--text-secondary, #b0b0b0);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.kanban-card-client a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.kanban-card-client a:hover {
+    text-decoration: underline;
+}
+
+.kanban-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-secondary, #b0b0b0);
+}
+
+.kanban-card-meta .badge {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 3px 8px;
+}
+
+.kanban-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: var(--text-secondary, #b0b0b0);
+}
+
+.kanban-card-footer .assignee {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.kanban-card-footer .due-date.overdue {
+    color: #ff6b7a;
+    font-weight: 600;
+}
+
+.kanban-card-footer .due-date.due-today {
+    color: #f0ad4e;
+    font-weight: 600;
+}
+
+.kanban-card-footer .due-date.due-week {
+    color: #f5d76e;
+}
+
+/* Trello-style due-date "reloginho" chip — always legible when a due date exists */
+.kanban-card-footer .due-date.due-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--surface-sunken, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-default, rgba(255,255,255,0.10));
+    line-height: 1.4;
+    white-space: nowrap;
+}
+.kanban-card-footer .due-date.due-pill.overdue {
+    background: rgba(255, 107, 122, 0.14);
+    border-color: rgba(255, 107, 122, 0.30);
+}
+.kanban-card-footer .due-date.due-pill.due-today {
+    background: rgba(240, 173, 78, 0.16);
+    border-color: rgba(240, 173, 78, 0.32);
+}
+.kanban-card-footer .due-date.due-pill.due-week {
+    background: rgba(245, 215, 110, 0.14);
+    border-color: rgba(245, 215, 110, 0.30);
+}
+[data-theme="light"] .kanban-card-footer .due-date.due-pill {
+    background: var(--surface-sunken, #f1f0ec);
+    border-color: var(--border-default, rgba(36,36,34,0.12));
+    color: var(--text-secondary, #66645f);
+}
+
+/* Subtask progress bar */
+.subtask-progress-wrap {
+    margin-top: 8px;
+}
+
+.subtask-progress-bar-bg {
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.subtask-progress-bar-fill {
+    height: 100%;
+    background: #1C2447;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.subtask-progress-label {
+    font-size: 0.72rem;
+    color: var(--text-secondary, #b0b0b0);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.subtask-count {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #b0b0b0);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.subtask-badge {
+    background: rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Assignee avatar */
+.assignee-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #1C2447;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.assignee-name {
+    font-size: 0.78rem;
+}
+
+/* Quick actions hover visibility */
+.kanban-card .dropdown button { opacity: 0; transition: opacity 0.15s; }
+.kanban-card:hover .dropdown button { opacity: 0.5; }
+.kanban-card .dropdown button:hover { opacity: 1 !important; }
+
+/* Priority badges */
+.priority-urgent { background: #ef4444 !important; color: #fff !important; }
+.priority-high { background: #e67e22 !important; color: #fff !important; }
+.priority-medium { background: #1C2447 !important; color: #fff !important; }
+.priority-low { background: #6c757d !important; color: #fff !important; }
+
+/* View toggle */
+.view-toggle .btn {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+}
+.view-toggle .btn.active {
+    background: var(--accent, #1C2447);
+    color: #fff;
+    border-color: var(--accent, #1C2447);
+}
+
+/* Empty column state */
+.kanban-empty {
+    text-align: center;
+    padding: 30px 16px;
+    color: var(--text-secondary, #b0b0b0);
+    font-size: 0.85rem;
+    opacity: 0.6;
+}
+
+.kanban-more-button {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid var(--border-default, rgba(36,36,34,0.12));
+    border-radius: 8px;
+    background: var(--surface-raised, #fbfaf7);
+    color: var(--text-primary, #111827);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    box-shadow: var(--nu-raised-tight, 0 1px 3px rgba(38,37,34,0.11));
+}
+
+/* Quick-add input */
+.kanban-quick-add {
+    padding: 8px 12px;
+    border-top: 1px solid var(--border-color, #333);
+}
+
+.kanban-quick-add .quick-add-input {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-color-light, #2a2a2a);
+    border-radius: 6px;
+    color: var(--text-primary, #e0e0e0);
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    width: 100%;
+    transition: border-color 0.2s;
+}
+
+.kanban-quick-add .quick-add-input::placeholder {
+    color: var(--text-secondary, #666);
+}
+
+.kanban-quick-add .quick-add-input:focus {
+    outline: none;
+    border-color: var(--accent, #1C2447);
+    background: rgba(255,255,255,0.08);
+}
+
+/* Light mode overrides */
+[data-theme="light"] .kanban-column-header { color: var(--text-primary); }
+[data-theme="light"] .col-pending .kanban-column-header { border-left: 3px solid #3b82f6; }
+[data-theme="light"] .col-in_progress .kanban-column-header { border-left: 3px solid #f59e0b; }
+[data-theme="light"] .col-completed .kanban-column-header { border-left: 3px solid #22c55e; }
+[data-theme="light"] .kanban-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; }
+[data-theme="light"] .kanban-quick-add .quick-add-input { background: #f9fafb; color: #111; border-color: #d1d5db; }
+[data-theme="light"] .kanban-tag-pill { background: rgba(28, 36, 71,0.08); }
+
+/* ── Task Detail Modal (Trello-style) ── */
+.task-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 16px;
+    overflow-y: auto;
+}
+.task-modal-overlay.active { display: flex; }
+
+.task-modal {
+    background: var(--bg-card, #1e1e1e);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 720px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    animation: modalSlideIn 0.2s ease;
+}
+@keyframes modalSlideIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.task-modal-header {
+    padding: 20px 24px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    border-bottom: 1px solid var(--border-color, #333);
+}
+.task-modal-header .modal-title-input {
+    flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-primary, #e0e0e0);
+    font-size: 1.25rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    margin: -4px -8px;
+    width: 100%;
+}
+.task-modal-header .modal-title-input:hover { border-color: var(--border-color-light, #444); }
+.task-modal-header .modal-title-input:focus { outline: none; border-color: var(--accent, #1C2447); background: rgba(255,255,255,0.03); }
+.task-modal-close {
+    background: none; border: none; color: var(--text-secondary, #999); font-size: 1.4rem; cursor: pointer; padding: 4px 8px; border-radius: 6px; line-height: 1;
+}
+.task-modal-close:hover { background: rgba(255,255,255,0.08); color: var(--text-primary, #e0e0e0); }
+
+.task-modal-body {
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    gap: 0;
+    min-height: 300px;
+}
+
+.task-modal-main {
+    padding: 20px 24px;
+    border-right: 1px solid var(--border-color, #333);
+}
+
+.task-modal-sidebar {
+    padding: 20px 16px;
+}
+
+.task-modal-section { margin-bottom: 20px; }
+.task-modal-section-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary, #999);
+    margin-bottom: 8px;
+}
+
+.task-modal-desc {
+    width: 100%;
+    min-height: 80px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-color-light, #2a2a2a);
+    border-radius: 8px;
+    color: var(--text-primary, #e0e0e0);
+    padding: 10px 12px;
+    font-size: 0.9rem;
+    resize: vertical;
+    font-family: inherit;
+}
+.task-modal-desc:focus { outline: none; border-color: var(--accent, #1C2447); }
+
+/* Subtask checklist */
+.subtask-list { list-style: none; padding: 0; margin: 0; }
+.subtask-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.88rem; color: var(--text-primary, #e0e0e0);
+}
+.subtask-item input[type="checkbox"] { accent-color: var(--accent, #1C2447); width: 16px; height: 16px; cursor: pointer; }
+.subtask-item.done label { text-decoration: line-through; opacity: 0.5; }
+
+/* Comments */
+.comment-item {
+    padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.comment-item:last-child { border-bottom: none; }
+.comment-meta { font-size: 0.75rem; color: var(--text-secondary, #999); margin-bottom: 4px; }
+.comment-meta strong { color: var(--text-primary, #e0e0e0); }
+.comment-body { font-size: 0.88rem; color: var(--text-primary, #e0e0e0); line-height: 1.4; }
+.comment-input-wrap { display: flex; gap: 8px; margin-top: 8px; }
+.comment-input-wrap input {
+    flex: 1; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color-light, #2a2a2a);
+    border-radius: 6px; color: var(--text-primary, #e0e0e0); padding: 8px 10px; font-size: 0.85rem;
+}
+.comment-input-wrap input:focus { outline: none; border-color: var(--accent, #1C2447); }
+.comment-input-wrap button {
+    background: var(--accent, #1C2447); color: #fff; border: none; border-radius: 6px;
+    padding: 8px 14px; font-size: 0.85rem; cursor: pointer; white-space: nowrap;
+}
+
+/* Sidebar fields */
+.sidebar-field { margin-bottom: 14px; }
+.sidebar-field label {
+    display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--text-secondary, #999); margin-bottom: 4px;
+}
+.sidebar-field select, .sidebar-field input {
+    width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color-light, #2a2a2a);
+    border-radius: 6px; color: var(--text-primary, #e0e0e0); padding: 7px 10px; font-size: 0.85rem;
+}
+.sidebar-field select:focus, .sidebar-field input:focus { outline: none; border-color: var(--accent, #1C2447); }
+
+.task-modal-footer {
+    padding: 12px 24px;
+    border-top: 1px solid var(--border-color, #333);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.task-modal-footer .btn-save {
+    background: var(--accent, #1C2447); color: #fff; border: none; border-radius: 8px;
+    padding: 8px 24px; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+}
+.task-modal-footer .btn-save:hover { filter: brightness(1.15); }
+.task-modal-footer .btn-delete {
+    background: none; border: 1px solid rgba(239,68,68,0.3); color: #ef4444; border-radius: 8px;
+    padding: 8px 16px; cursor: pointer; font-size: 0.85rem;
+}
+.task-modal-footer .btn-delete:hover { background: rgba(239,68,68,0.1); }
+.task-modal-footer .modal-meta { font-size: 0.75rem; color: var(--text-secondary, #999); }
+
+/* Light mode */
+[data-theme="light"] .task-modal { background: #fff; border-color: #e5e7eb; }
+[data-theme="light"] .task-modal-header .modal-title-input { color: #111; }
+[data-theme="light"] .task-modal-desc { background: #f9fafb; color: #111; border-color: #d1d5db; }
+[data-theme="light"] .sidebar-field select, [data-theme="light"] .sidebar-field input { background: #f9fafb; color: #111; border-color: #d1d5db; }
+[data-theme="light"] .comment-input-wrap input { background: #f9fafb; color: #111; border-color: #d1d5db; }
+
+@media (max-width: 640px) {
+    .kanban-page-header {
+        grid-template-columns: 1fr;
+    }
+
+    .kanban-toolbar,
+    .kanban-toolbar__zone {
+        justify-content: stretch;
+    }
+
+    .kanban-toolbar .glass-input {
+        width: 100%;
+    }
+
+    .kanban-toolbar .kanban-toolbar__select {
+        width: 100%;
+        max-width: none;
+    }
+
+    .task-modal-body { grid-template-columns: 1fr; }
+    .task-modal-main { border-right: none; border-bottom: 1px solid var(--border-color, #333); }
+    .task-modal-overlay { padding: 16px 8px; }
+}
+
+@media (max-width: 1040px) {
+    .kanban-page-header {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin: 0 auto 14px;
+        padding: 14px 12px 0;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .kanban-page-header h2 {
+        font-size: clamp(26px, 8vw, 34px);
+    }
+
+    .kanban-toolbar {
+        justify-items: stretch;
+        width: 100%;
+        max-width: 100%;
+        padding: 10px;
+    }
+
+    .kanban-toolbar__zone,
+    .kanban-toolbar .btn-group,
+    .kanban-toolbar .view-toggle {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .kanban-toolbar .btn-group .btn,
+    .kanban-toolbar .view-toggle .btn {
+        flex: 1 1 0;
+        min-width: 0;
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .kanban-toolbar .glass-input {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    .kanban-toolbar__zone--scope {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .kanban-toolbar__zone--view,
+    .kanban-toolbar__zone--action {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: 0;
+    }
+
+    .kanban-toolbar__select-label {
+        margin-bottom: -4px;
+    }
+
+    .kanban-toolbar .glass-btn--primary {
+        width: 100%;
+        min-height: 48px;
+    }
+
+    .kanban-filter-bar {
+        padding: 0 12px;
+    }
+
+    .kanban-filter-bar .glass-input,
+    .kanban-filter-bar .btn {
+        flex: 1 1 180px;
+        max-width: none !important;
+    }
+
+    .kanban-board {
+        width: 100%;
+        max-width: 100%;
+        padding: 6px 12px 26px !important;
+        gap: 12px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .kanban-column {
+        flex: 0 0 min(320px, 86vw) !important;
+        min-width: min(320px, 86vw) !important;
+        max-width: min(320px, 86vw) !important;
+    }
+
+    .kanban-add-column {
+        flex: 0 0 min(320px, 86vw) !important;
+        min-width: min(320px, 86vw) !important;
+        max-width: min(320px, 86vw) !important;
+    }
+
+    .task-modal-overlay {
+        padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (max-width: 991px) {
+    .kanban-toolbar__zone {
+        gap: 8px;
+    }
+
+    .kanban-toolbar .btn-group,
+    .kanban-toolbar .view-toggle {
+        display: grid;
+        gap: 4px;
+    }
+
+    .kanban-toolbar .btn-group {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .kanban-toolbar .view-toggle {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .kanban-toolbar .btn-group .btn,
+    .kanban-toolbar .view-toggle .btn,
+    .kanban-toolbar .glass-input,
+    .kanban-toolbar .glass-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        min-height: 44px;
+        border-radius: 6px;
+        white-space: nowrap;
+        font-size: 16px;
+    }
+
+    .kanban-toolbar .btn-group .btn,
+    .kanban-toolbar .view-toggle .btn,
+    .kanban-toolbar .glass-btn,
+    .kanban-filter-bar .btn {
+        height: 44px;
+    }
+
+    .kanban-filter-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x proximity;
+        padding: 0 12px 8px;
+        margin-bottom: 14px;
+    }
+
+    .kanban-filter-bar .glass-input,
+    .kanban-filter-bar .btn {
+        flex: 0 0 min(220px, 72vw);
+        min-height: 44px;
+        scroll-snap-align: start;
+    }
+
+    #filter-tag {
+        flex-basis: min(260px, 76vw);
+    }
+
+    .kanban-board {
+        display: grid;
+        grid-template-columns: 1fr;
+        width: 100%;
+        max-width: 100%;
+        min-height: 0;
+        gap: 16px;
+        overflow-x: hidden;
+        overscroll-behavior-x: none;
+        padding: 6px 12px calc(104px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    .kanban-column,
+    .kanban-add-column {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        flex: none !important;
+    }
+
+    .kanban-column {
+        border-radius: 8px;
+        contain: layout style;
+        box-shadow: var(--nu-raised-tight, 0 2px 8px rgba(13,39,80,0.08));
+    }
+
+    .kanban-column-header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        min-height: 48px;
+        padding: 12px 10px 12px 14px;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .kanban-column-header .header-stats {
+        gap: 6px;
+    }
+
+    .kanban-column-header .btn-delete-col {
+        width: 44px;
+        height: 44px;
+        margin: -8px -6px -8px 0 !important;
+    }
+
+    .kanban-column-body {
+        max-height: none;
+        overflow-y: visible;
+        padding: 10px;
+        gap: 10px;
+    }
+
+    .kanban-card {
+        min-height: 96px;
+        cursor: pointer;
+        padding: 12px;
+        transform: none !important;
+        transition: none !important;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        content-visibility: auto;
+        contain-intrinsic-size: 96px;
+    }
+
+    .kanban-card .dropdown button {
+        display: inline-grid;
+        place-items: center;
+        min-width: 44px;
+        min-height: 44px;
+        border-radius: 8px;
+        opacity: 1;
+    }
+
+    .kanban-card-title {
+        padding-right: 44px !important;
+    }
+
+    .kanban-more-button { min-height: 44px; font-size: 0.92rem; }
+}
+
+@media (max-width: 640px) {
+    .kanban-filter-bar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+        padding: 0 12px;
+    }
+
+    .kanban-filter-bar .glass-input,
+    .kanban-filter-bar .btn {
+        width: 100%;
+        max-width: none !important;
+        min-width: 0;
+        flex: none;
+    }
+
+    #filter-tag,
+    .kanban-filter-bar .btn {
+        grid-column: 1 / -1;
+    }
+
+    .kanban-board {
+        gap: 14px;
+        padding: 6px 12px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    .kanban-column {
+        border-radius: 10px;
+    }
+
+    .kanban-column-header {
+        z-index: 1;
+        padding: 12px 14px;
+        border-radius: 10px 10px 0 0;
+    }
+
+    .kanban-column-body {
+        max-height: min(62vh, 520px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        gap: 8px;
+    }
+
+    .kanban-card:hover {
+        box-shadow: none;
+    }
+
+    .kanban-card .dropdown button {
+        opacity: 0.7;
+    }
+
+    .kanban-card[hidden] {
+        display: none !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="kanban-page-header">
+    <h2><i class="fas fa-columns me-2"></i>{% if product == "lite" %}Quadro Kanban{% else %}Kanban Board{% endif %}</h2>
+    <div class="kanban-toolbar" aria-label="Controles do quadro Kanban">
+        <div class="kanban-toolbar__zone kanban-toolbar__zone--scope">
+        <!-- Unified board scope: segmented toggle (Todos | Meu quadro) + picker de pessoa.
+             Antes havia dois grupos redundantes (botões "Todos/Meu quadro" + select "Ver quadro de"
+             que também repetia "Todos"). [parceiro] 02/06: unificar em um controle de escopo claro. -->
+        <div class="btn-group" role="group" aria-label="{% if product == 'lite' %}Escopo do quadro{% else %}Board scope{% endif %}">
+            <a href="{{ PREFIX }}/tasks/kanban" class="btn btn-outline-secondary btn-sm {% if not filter_user_id %}active{% endif %}">
+                <i class="fas fa-users me-1"></i>{% if product == "lite" %}Todos{% else %}All{% endif %}
+            </a>
+            <a href="{{ PREFIX }}/tasks/kanban?user=me" class="btn btn-outline-secondary btn-sm {% if filter_user_param == 'me' %}active{% endif %}">
+                <i class="fas fa-user me-1"></i>{% if product == "lite" %}Meu quadro{% else %}My Board{% endif %}
+            </a>
+        </div>
+        <label class="kanban-toolbar__select-label" for="kanban-board-user-filter">{% if product == "lite" %}Ver de{% else %}View of{% endif %}</label>
+        <select id="kanban-board-user-filter" class="form-select form-select-sm glass-input kanban-toolbar__select" onchange="if(this.value){location.href='{{ PREFIX }}/tasks/kanban?user='+this.value}else{location.href='{{ PREFIX }}/tasks/kanban'}">
+            <option value="">{% if product == "lite" %}Outra pessoa…{% else %}Another person…{% endif %}</option>
+            {% for u in org_users|default([]) %}
+            <option value="{{ u.id }}" {% if filter_user_id == u.id %}selected{% endif %}>{{ u.name }}</option>
+            {% endfor %}
+        </select>
+        </div>
+        <div class="kanban-toolbar__zone kanban-toolbar__zone--view">
+        <div class="view-toggle btn-group" role="group" aria-label="{% if product == 'lite' %}Modo de visualização{% else %}View mode{% endif %}">
+            <a href="{{ PREFIX }}/tasks/local" class="btn btn-outline-secondary">
+                <i class="fas fa-list me-1"></i> {% if product == "lite" %}Lista{% else %}List{% endif %}
+            </a>
+            <a href="{{ PREFIX }}/tasks/kanban" class="btn btn-outline-secondary active">
+                <i class="fas fa-columns me-1"></i> Kanban
+            </a>
+            <a href="{{ PREFIX }}/tasks/calendar" class="btn btn-outline-secondary">
+                <i class="fas fa-calendar-alt me-1"></i> {% if product == "lite" %}Calendário{% else %}Calendar{% endif %}
+            </a>
+        </div>
+        </div>
+        <div class="kanban-toolbar__zone kanban-toolbar__zone--action">
+        <a href="{{ PREFIX }}/tasks/new" class="btn btn-primary glass-btn glass-btn--primary"><i class="fas fa-plus me-1"></i> {% if product == "lite" %}Nova tarefa{% else %}New Task{% endif %}</a>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="kanban-filter-bar">
+    <select class="form-select glass-input kanban-filter-bar__field--priority" onchange="filterKanban(this.value, 'priority')" id="filter-priority">
+        <option value="">{% if product == "lite" %}Prioridade{% else %}Priority{% endif %}</option>
+        <option value="urgent">{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</option>
+        <option value="high">{% if product == "lite" %}Alta{% else %}High{% endif %}</option>
+        <option value="medium">{% if product == "lite" %}Média{% else %}Medium{% endif %}</option>
+        <option value="low">{% if product == "lite" %}Baixa{% else %}Low{% endif %}</option>
+    </select>
+    <select class="form-select glass-input kanban-filter-bar__field--assignee" onchange="filterKanban(this.value, 'assignee')" id="filter-assignee">
+        <option value="">{% if product == "lite" %}Responsável{% else %}Assignee{% endif %}</option>
+        {% for assignee in assigned_task_users %}
+            <option value="{{ assignee.id }}">{{ assignee.name }}</option>
+        {% endfor %}
+    </select>
+    <input type="text" class="form-control glass-input kanban-filter-bar__field--tag" placeholder="{% if product == 'lite' %}Filtrar por tag...{% else %}Filter by tag...{% endif %}" id="filter-tag" oninput="filterKanban(this.value, 'tag')">
+    <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()" title="{% if product == 'lite' %}Limpar filtros{% else %}Clear filters{% endif %}">
+        <i class="fas fa-times me-1"></i>{% if product == "lite" %}Limpar{% else %}Clear{% endif %}
+    </button>
+</div>
+
+<!-- Task Source Tabs -->
+{% if product != "lite" %}
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <a class="nav-link" href="{{ PREFIX }}/tasks/notion">
+            <i class="fab fa-notion me-1"></i> Notion Tasks
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link active" href="{{ PREFIX }}/tasks/kanban">
+            <i class="fas fa-database me-1"></i> Tasks Locais
+        </a>
+    </li>
+</ul>
+{% endif %}
+
+{% if tasks_capped %}
+<div class="alert alert-warning alert-dismissible fade show mx-3 mt-2 mb-0 py-2" role="alert" style="font-size:0.85rem;">
+    <i class="fas fa-exclamation-triangle me-1"></i>
+    {% if product == "lite" %}Mostrando ate {{ kanban_total_limit }} tarefas no total, distribuidas por coluna na ordem do quadro.{% else %}Showing up to {{ kanban_total_limit }} total tasks, distributed by column in board order.{% endif %}
+    <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+<div class="kanban-board">
+    {% if product == "lite" %}
+    {% set column_config = {
+        "pending": {"label": "Pendente", "icon": "fa-clock"},
+        "in_progress": {"label": "Em Andamento", "icon": "fa-spinner"},
+        "blocked": {"label": "Bloqueada", "icon": "fa-ban"},
+        "completed": {"label": "Conclu\u00edda", "icon": "fa-check-circle"}
+    } %}
+    {% else %}
+    {% set column_config = {
+        "pending": {"label": "Pending", "icon": "fa-clock"},
+        "in_progress": {"label": "In Progress", "icon": "fa-spinner"},
+        "blocked": {"label": "Blocked", "icon": "fa-ban"},
+        "completed": {"label": "Completed", "icon": "fa-check-circle"}
+    } %}
+    {% endif %}
+
+    {% for col in kanban_columns %}
+    {% set status = col.slug %}
+    <div class="kanban-column" data-status="{{ status }}" data-col-id="{{ col.id }}" style="border-top: 3px solid {{ col.color }};">
+        <div class="kanban-column-header" draggable="true">
+            <span class="kanban-col-title" contenteditable="true" data-col-id="{{ col.id }}" spellcheck="false"
+                  onblur="renameColumn(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">{{ col.name }}</span>
+            <div class="header-stats">
+                {% if col.hours %}
+                <span class="hours-badge" title="Horas estimadas">
+                    <i class="far fa-clock"></i> {{ col.hours }}h
+                </span>
+                {% endif %}
+                <span class="count">{{ col.tasks|length }}</span>
+                <button class="btn-delete-col" data-col-id="{{ col.id }}" onclick="deleteColumn({{ col.id }})" title="Excluir lista" aria-label="Excluir lista">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="kanban-column-body">
+            {% for task in col.tasks %}
+            <div class="kanban-card priority-border-{{ task.priority or 'medium' }}"
+                 data-task-id="{{ task.id }}"
+                 data-priority="{{ task.priority or 'medium' }}"
+                 data-assignee="{{ task.assigned_to if task.assigned_to else '' }}"
+                 data-tags="{{ task.tags or '' }}"
+                 draggable="true">
+                <!-- Quick actions menu (on hover) -->
+                <div class="dropdown" style="position:absolute;top:8px;right:8px;">
+                    <button class="btn btn-sm" data-bs-toggle="dropdown" style="opacity:0.4;padding:2px 6px;line-height:1;"><i class="fas fa-ellipsis-h"></i></button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ PREFIX }}/tasks/{{ task.id }}/edit"><i class="fas fa-edit me-2"></i>{% if product == "lite" %}Editar{% else %}Edit{% endif %}</a></li>
+                        {% set del_msg = 'Excluir esta tarefa?' if product == 'lite' else 'Delete this task?' %}
+                        <li><a class="dropdown-item text-danger" href="{{ PREFIX }}/tasks/{{ task.id }}/delete" onclick="return confirm('{{ del_msg }}')"><i class="fas fa-trash me-2"></i>{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</a></li>
+                    </ul>
+                </div>
+
+                <!-- 1. Tags (colored pills) -->
+                {% if task.tags %}
+                <div class="kanban-tags">
+                    {% for tag in task.tags.split(',') if tag.strip() %}
+                    <span class="kanban-tag-pill">{{ tag.strip() }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- 2. Title — single click abre modal; dblclick edita inline (B6 26/05). -->
+                <div class="kanban-card-title" style="padding-right:28px;cursor:pointer;"
+                     title="Click pra abrir · double-click pra renomear"
+                     onclick="openTaskModal({{ task.id }})">
+                    {{ task.title }}
+                </div>
+
+                <!-- 3. Client name (via case or direct) -->
+                {% if task.client %}
+                <div class="kanban-card-client">
+                    <a href="{{ PREFIX }}/clients/{{ task.client.id }}">
+                        <i class="fas fa-user me-1"></i>{{ task.client.first_name }} {{ task.client.last_name }}
+                    </a>
+                    {% if task.case %}
+                    <span style="margin: 0 4px; opacity: 0.4;">|</span>
+                    <a href="{{ PREFIX }}/cases/{{ task.case.id }}">
+                        <i class="fas fa-folder me-1"></i>{{ task.case.case_number or task.case.case_name }}
+                    </a>
+                    {% endif %}
+                </div>
+                {% elif task.case and task.case.client %}
+                <div class="kanban-card-client">
+                    <a href="{{ PREFIX }}/clients/{{ task.case.client.id }}">
+                        <i class="fas fa-user me-1"></i>{{ task.case.client.first_name }} {{ task.case.client.last_name }}
+                    </a>
+                    <span style="margin: 0 4px; opacity: 0.4;">|</span>
+                    <a href="{{ PREFIX }}/cases/{{ task.case.id }}">
+                        <i class="fas fa-folder me-1"></i>{{ task.case.case_number or task.case.case_name }}
+                    </a>
+                </div>
+                {% elif task.case %}
+                <div class="kanban-card-client">
+                    <a href="{{ PREFIX }}/cases/{{ task.case.id }}">
+                        <i class="fas fa-folder me-1"></i>{{ task.case.case_number or task.case.case_name }}
+                    </a>
+                </div>
+                {% endif %}
+
+                <!-- 4. Due date + Assignee (bottom row) -->
+                <div class="kanban-card-footer">
+                    <div>
+                        {% if task.due_date %}
+                            {% set today = now() %}
+                            {% if task.due_date < today and task.status != 'completed' %}
+                                <span class="due-date due-pill overdue" title="{% if product == 'lite' %}Atrasada{% else %}Overdue{% endif %}"><i class="fas fa-clock me-1"></i>{{ task.due_date.strftime('%d/%m') if product == "lite" else task.due_date.strftime('%b %d') }}</span>
+                            {% elif task.due_date == today %}
+                                <span class="due-date due-pill due-today" title="{% if product == 'lite' %}Vence hoje{% else %}Due today{% endif %}"><i class="fas fa-clock me-1"></i>{% if product == "lite" %}Hoje{% else %}Today{% endif %}</span>
+                            {% elif task.due_date <= today_plus(7) %}
+                                <span class="due-date due-pill due-week" title="{% if product == 'lite' %}Vence esta semana{% else %}Due this week{% endif %}"><i class="fas fa-clock me-1"></i>{{ task.due_date.strftime('%d/%m') if product == "lite" else task.due_date.strftime('%b %d') }}</span>
+                            {% else %}
+                                <span class="due-date due-pill" title="{% if product == 'lite' %}Vencimento{% else %}Due date{% endif %}"><i class="far fa-clock me-1"></i>{{ task.due_date.strftime('%d/%m') if product == "lite" else task.due_date.strftime('%b %d') }}</span>
+                            {% endif %}
+                        {% endif %}
+
+                        {% if task.depends_on and task.depends_on|length > 0 %}
+                            <span class="subtask-count ms-2" title="{% if product == 'lite' %}Possui dependencias{% else %}Has dependencies{% endif %}">
+                                <i class="fas fa-link"></i> {{ task.depends_on|length }}
+                            </span>
+                        {% endif %}
+                    </div>
+                    <div class="assignee">
+                        {% if task.assigned_to %}
+                            {% if task.assignee %}
+                            <span class="assignee-avatar" title="{{ task.assignee.name }}">{{ task.assignee.name[0]|upper }}</span>
+                            <span class="assignee-name">{{ task.assignee.name.split(' ')[0] }}</span>
+                            {% else %}
+                            <span class="assignee-avatar" title="{{ task.assigned_to }}">{{ task.assigned_to|string|truncate(1, True, '') }}</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- 5. Subtask progress bar -->
+                {% if task.subtasks|length > 0 %}
+                {% set done_count = task.subtasks|selectattr('status', 'equalto', 'completed')|list|length %}
+                {% set total_count = task.subtasks|length %}
+                {% set pct = ((done_count / total_count) * 100)|int if total_count > 0 else 0 %}
+                <div class="subtask-progress-wrap">
+                    <div class="subtask-progress-bar-bg">
+                        <div class="subtask-progress-bar-fill" style="width: {{ pct }}%;{% if pct == 100 %} background: #5ee07a;{% endif %}"></div>
+                    </div>
+                    <div class="subtask-progress-label">
+                        <i class="fas fa-sitemap"></i>
+                        {{ done_count }}/{{ total_count }} {% if product == "lite" %}subtarefas{% else %}subtasks{% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="kanban-empty">
+                <i class="fas fa-inbox d-block mb-2" style="font-size: 1.5rem;"></i>
+                {% if product == "lite" %}Sem tarefas{% else %}No tasks{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <!-- Quick-add input -->
+        <div class="kanban-quick-add">
+            <input type="text"
+                   class="quick-add-input"
+                   data-status="{{ status }}"
+                   placeholder="{% if product == 'lite' %}+ Adicionar tarefa...{% else %}+ Add task...{% endif %}"
+                   onkeydown="if(event.key==='Enter') quickAddTask(this)">
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- K1: Botão adicionar nova lista (inline input via addColumn(this), B5 26/05) -->
+    <div class="kanban-add-column" style="min-width:280px;flex-shrink:0;">
+        <button class="btn-add-column" onclick="addColumn(this)" style="
+            width:100%;padding:12px;border:2px dashed #d1d5db;border-radius:12px;
+            background:transparent;color:#6b7280;cursor:pointer;font-size:14px;font-weight:500;
+            transition:all 0.15s;">
+            <i class="fas fa-plus me-2"></i>{% if product == 'lite' %}Adicionar lista{% else %}Add list{% endif %}
+        </button>
+    </div>
+</div>
+
+<!-- ── Task Detail Modal (Trello-style) ── -->
+<div class="task-modal-overlay" id="taskModalOverlay" onclick="if(event.target===this)closeTaskModal()">
+    <div class="task-modal">
+        <div class="task-modal-header">
+            <input type="text" class="modal-title-input" id="modalTitle" placeholder="{% if product == 'lite' %}Titulo da tarefa{% else %}Task title{% endif %}">
+            <span class="badge" id="modalPriorityBadge" style="align-self:center;"></span>
+            <button class="task-modal-close" onclick="closeTaskModal()" title="Fechar">&times;</button>
+        </div>
+        <div class="task-modal-body">
+            <div class="task-modal-main">
+                <!-- Description -->
+                <div class="task-modal-section">
+                    <div class="task-modal-section-title"><i class="fas fa-align-left me-1"></i> {% if product == 'lite' %}Descrição{% else %}Description{% endif %}</div>
+                    <textarea class="task-modal-desc" id="modalDesc" placeholder="{% if product == 'lite' %}Adicionar descrição...{% else %}Add description...{% endif %}"></textarea>
+                </div>
+                <!-- Subtasks -->
+                <div class="task-modal-section" id="modalSubtasksSection" style="display:none;">
+                    <div class="task-modal-section-title"><i class="fas fa-sitemap me-1"></i> {% if product == 'lite' %}Subtarefas{% else %}Subtasks{% endif %}</div>
+                    <ul class="subtask-list" id="modalSubtasks"></ul>
+                </div>
+                <!-- Comments -->
+                <div class="task-modal-section">
+                    <div class="task-modal-section-title"><i class="fas fa-comments me-1"></i> {% if product == 'lite' %}Comentários{% else %}Comments{% endif %}</div>
+                    <div id="modalComments"></div>
+                    <div class="comment-input-wrap">
+                        <input type="text" id="modalCommentInput" placeholder="{% if product == 'lite' %}Escrever comentário...{% else %}Write a comment...{% endif %}" onkeydown="if(event.key==='Enter')addComment()">
+                        <button onclick="addComment()"><i class="fas fa-paper-plane me-1"></i>{% if product == 'lite' %}Enviar{% else %}Send{% endif %}</button>
+                    </div>
+                </div>
+            </div>
+            <div class="task-modal-sidebar">
+                <div class="sidebar-field">
+                    <label>{% if product == 'lite' %}Status{% else %}Status{% endif %}</label>
+                    <select id="modalStatus">
+                        <option value="pending">{% if product == 'lite' %}Pendente{% else %}Pending{% endif %}</option>
+                        <option value="in_progress">{% if product == 'lite' %}Em Andamento{% else %}In Progress{% endif %}</option>
+                        <option value="blocked">{% if product == 'lite' %}Bloqueada{% else %}Blocked{% endif %}</option>
+                        <option value="completed">{% if product == 'lite' %}Concluída{% else %}Completed{% endif %}</option>
+                    </select>
+                </div>
+                <div class="sidebar-field">
+                    <label>{% if product == 'lite' %}Lista{% else %}Column{% endif %}</label>
+                    <select id="modalColumn" onchange="syncModalColumnStatus()">
+                        {% for col in kanban_columns %}
+                        <option value="{{ col.id }}" data-status="{{ col.status }}">{{ col.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="sidebar-field">
+                    <label>{% if product == 'lite' %}Posição{% else %}Position{% endif %}</label>
+                    <select id="modalPosition">
+                        <option value="keep">{% if product == 'lite' %}Manter posição{% else %}Keep position{% endif %}</option>
+                        <option value="top">{% if product == 'lite' %}Mover para o topo{% else %}Move to top{% endif %}</option>
+                        <option value="bottom">{% if product == 'lite' %}Mover para o fim{% else %}Move to bottom{% endif %}</option>
+                    </select>
+                </div>
+                <div class="sidebar-field">
+                    <label>{% if product == 'lite' %}Prioridade{% else %}Priority{% endif %}</label>
+                    <select id="modalPriority" onchange="updatePriorityBadge()">
+                        <option value="low">{% if product == 'lite' %}Baixa{% else %}Low{% endif %}</option>
+                        <option value="medium">{% if product == 'lite' %}Média{% else %}Medium{% endif %}</option>
+                        <option value="high">{% if product == 'lite' %}Alta{% else %}High{% endif %}</option>
+                        <option value="urgent">{% if product == 'lite' %}Urgente{% else %}Urgent{% endif %}</option>
+                    </select>
+                </div>
+                <div class="sidebar-field">
+                    <label>{% if product == 'lite' %}Responsável{% else %}Assignee{% endif %}</label>
+                    <select id="modalAssignee">
+                        <option value="">{% if product == 'lite' %}Nenhum{% else %}None{% endif %}</option>
+                        {% for u in org_users|default([]) %}
+                        <option value="{{ u.id }}">{{ u.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="sidebar-field">
+                    <label>{% if product == 'lite' %}Vencimento{% else %}Due Date{% endif %}</label>
+                    <input type="date" id="modalDueDate">
+                </div>
+                <div class="sidebar-field">
+                    <label>Tags</label>
+                    <input type="text" id="modalTags" placeholder="{% if product == 'lite' %}Ex: urgente, prazo{% else %}e.g. urgent, deadline{% endif %}">
+                </div>
+                <div class="sidebar-field">
+                    <label>{% if product == 'lite' %}Horas Estimadas{% else %}Estimated Hours{% endif %}</label>
+                    <input type="number" id="modalHours" min="0" step="0.5" placeholder="0">
+                </div>
+                <div class="sidebar-field" id="modalClientInfo" style="display:none;">
+                    <label>{% if product == 'lite' %}Cliente{% else %}Client{% endif %}</label>
+                    <div id="modalClientName" style="font-size:0.88rem;color:var(--text-primary,#e0e0e0);"></div>
+                </div>
+            </div>
+        </div>
+        <div class="task-modal-footer">
+            <div>
+                <button class="btn-delete" onclick="deleteTaskFromModal()" id="modalDeleteBtn">
+                    <i class="fas fa-trash me-1"></i>{% if product == 'lite' %}Excluir{% else %}Delete{% endif %}
+                </button>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="modal-meta" id="modalMeta"></span>
+                <button class="btn-save" onclick="saveTaskModal()">
+                    <i class="fas fa-check me-1"></i>{% if product == 'lite' %}Salvar{% else %}Save{% endif %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<input type="hidden" id="modalTaskId" value="">
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const PREFIX = '{{ PREFIX }}';
+    const IS_LITE = {{ 'true' if product == "lite" else 'false' }};
+    const IS_TOUCH_KANBAN = window.matchMedia('(hover: none), (pointer: coarse), (max-width: 640px)').matches;
+    const DENSE_KANBAN_THRESHOLD = 120;
+    const TOTAL_KANBAN_CARDS = document.querySelectorAll('.kanban-card').length;
+    const IS_DENSE_KANBAN = TOTAL_KANBAN_CARDS > DENSE_KANBAN_THRESHOLD;
+    const CARD_LIMIT_ENABLED = IS_TOUCH_KANBAN || IS_DENSE_KANBAN;
+    const VISIBLE_CARD_LIMIT = IS_TOUCH_KANBAN ? 18 : 32;
+    const CARD_BATCH_SIZE = IS_TOUCH_KANBAN ? 24 : 48;
+
+    // K1: Add new column — Trello-style inline input (B5, 26/05).
+    // Click no botão "+ Adicionar lista" troca pra input; Enter cria, Esc cancela.
+    // Substitui prompt() — [parceiro] pediu UX ágil ([01:01:07] 25/05).
+    window.addColumn = function(btn) {
+        const wrap = btn?.closest?.('.kanban-add-column') || document.querySelector('.kanban-add-column');
+        if (!wrap || wrap.querySelector('.kanban-add-column-input')) return;
+        const placeholder = IS_LITE ? 'Nome da nova lista (Enter pra criar)' : 'New list name (Enter to create)';
+        const cancelText  = IS_LITE ? 'Cancelar' : 'Cancel';
+        const createText  = IS_LITE ? 'Criar lista' : 'Create list';
+        const originalHtml = wrap.innerHTML;
+        wrap.innerHTML = `
+            <form class="kanban-add-column-form" onsubmit="event.preventDefault();return false;"
+                  style="display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;background:rgba(255,255,255,0.04);">
+                <input type="text" class="kanban-add-column-input" placeholder="${placeholder}"
+                       name="new_list_name" autocomplete="off" autocorrect="off"
+                       autocapitalize="sentences" spellcheck="false"
+                       enterkeyhint="done" data-1p-ignore data-lpignore="true" data-form-type="other"
+                       style="border:1px solid rgba(255,255,255,0.18);background:transparent;color:inherit;
+                              padding:8px 10px;border-radius:8px;font-size:14px;outline:none;" />
+                <div style="display:flex;gap:6px;">
+                    <button type="button" class="btn btn-sm btn-primary" data-act="create"
+                            style="flex:1;">${createText}</button>
+                    <button type="button" class="btn btn-sm btn-link text-muted" data-act="cancel"
+                            style="padding:4px 8px;">${cancelText}</button>
+                </div>
+            </form>`;
+        const input = wrap.querySelector('.kanban-add-column-input');
+        const cancel = () => { wrap.innerHTML = originalHtml; };
+        const submit = () => {
+            const name = input.value.trim();
+            if (!name) { input.focus(); return; }
+            input.disabled = true;
+            fetch(PREFIX + '/tasks/api/columns', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name})
+            }).then(r => r.json()).then(d => {
+                if (d.success) location.reload();
+                else { input.disabled = false; alert(d.error || (IS_LITE ? 'Erro ao criar lista' : 'Error creating list')); }
+            }).catch(() => { input.disabled = false; });
+        };
+        wrap.querySelector('[data-act="create"]').addEventListener('click', submit);
+        wrap.querySelector('[data-act="cancel"]').addEventListener('click', cancel);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter')  { e.preventDefault(); submit(); }
+            if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        });
+        input.focus();
+    };
+
+    // B6 — Inline title edit (dblclick no título do card). Trello-style: Enter
+    // salva via PUT /api/{id}/update, Esc cancela, blur salva também. Single click
+    // continua abrindo o modal pra edição completa. [parceiro]: "burocrático" ([01:09:27]).
+    document.addEventListener('dblclick', function(ev) {
+        const titleEl = ev.target.closest('.kanban-card-title');
+        if (!titleEl) return;
+        if (titleEl.querySelector('input')) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const card = titleEl.closest('.kanban-card');
+        const taskId = card?.dataset?.taskId;
+        if (!taskId) return;
+        const originalText = titleEl.textContent.trim();
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = originalText;
+        input.className = 'kanban-card-title-input';
+        input.style.cssText = 'width:100%;border:1px solid var(--accent,#3b82f6);background:transparent;color:inherit;padding:4px 6px;border-radius:6px;font-size:inherit;font-weight:inherit;outline:none;';
+        titleEl.innerHTML = '';
+        titleEl.appendChild(input);
+        titleEl.style.cursor = 'text';
+        input.focus();
+        input.select();
+        const restore = (text) => {
+            titleEl.textContent = text;
+            titleEl.style.cursor = '';
+        };
+        const save = () => {
+            const next = input.value.trim();
+            if (!next || next === originalText) { restore(originalText); return; }
+            input.disabled = true;
+            fetch(PREFIX + '/tasks/api/' + taskId + '/update', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title: next})
+            }).then(r => r.json()).then(d => {
+                if (d.success) restore(next);
+                else { restore(originalText); alert(d.error || (IS_LITE ? 'Erro ao salvar título' : 'Error saving title')); }
+            }).catch(() => restore(originalText));
+        };
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter')  { e.preventDefault(); save(); }
+            if (e.key === 'Escape') { e.preventDefault(); restore(originalText); }
+        });
+        input.addEventListener('blur', save);
+    });
+
+    // K2: Rename column
+    window.renameColumn = function(el) {
+        const colId = el.dataset.colId;
+        const newName = el.textContent.trim();
+        if (!newName) return;
+        fetch(PREFIX + '/tasks/api/columns/' + colId, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name: newName})
+        });
+    };
+
+    // Delete column
+    window.deleteColumn = function(colId) {
+        if (!confirm(IS_LITE ? 'Excluir esta lista? Tarefas serão movidas para a primeira.' : 'Delete this list?')) return;
+        fetch(PREFIX + '/tasks/api/columns/' + colId, {
+            method: 'DELETE'
+        }).then(r => r.json()).then(d => {
+            if (d.success) location.reload();
+        });
+    };
+
+    // Quick-add task from column input
+    window.quickAddTask = async function(input) {
+        const title = input.value.trim();
+        if (!title) return;
+
+        const status = input.dataset.status;
+        input.disabled = true;
+
+        try {
+            const resp = await fetch(`${PREFIX}/tasks/api/quick-add`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ title, status })
+            });
+
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.success) {
+                    location.reload();
+                }
+            } else {
+                const errText = IS_LITE ? 'Erro ao criar tarefa' : 'Error creating task';
+                console.error(errText);
+            }
+        } catch (err) {
+            console.error('Failed to quick-add task:', err);
+        } finally {
+            input.disabled = false;
+            input.value = '';
+        }
+    };
+
+    // Filter kanban cards
+    var activeFilters = { priority: '', assignee: '', tag: '' };
+
+    window.filterKanban = function(value, filterType) {
+        activeFilters[filterType] = value;
+        resetCardLimits();
+        applyFilters();
+    };
+
+    window.clearFilters = function() {
+        activeFilters = { priority: '', assignee: '', tag: '' };
+        document.getElementById('filter-priority').value = '';
+        document.getElementById('filter-assignee').value = '';
+        document.getElementById('filter-tag').value = '';
+        resetCardLimits();
+        applyFilters();
+    };
+
+    function cardMatchesActiveFilters(card) {
+        if (activeFilters.priority && card.dataset.priority !== activeFilters.priority) {
+            return false;
+        }
+        if (activeFilters.assignee && card.dataset.assignee !== activeFilters.assignee) {
+            return false;
+        }
+        if (activeFilters.tag) {
+            var cardTags = (card.dataset.tags || '').toLowerCase();
+            if (cardTags.indexOf(activeFilters.tag.toLowerCase()) === -1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function resetCardLimits() {
+        if (!CARD_LIMIT_ENABLED) return;
+        document.querySelectorAll('.kanban-column').forEach(function(col) {
+            delete col.dataset.cardLimit;
+        });
+    }
+
+    function upsertMoreButton(body, remaining, col) {
+        var existing = body.querySelector('.kanban-more-button');
+        if (!CARD_LIMIT_ENABLED || remaining <= 0) {
+            if (existing) existing.remove();
+            return;
+        }
+
+        var nextCount = Math.min(CARD_BATCH_SIZE, remaining);
+        var button = existing || document.createElement('button');
+        button.type = 'button';
+        button.className = 'kanban-more-button';
+        button.textContent = IS_LITE
+            ? `Mostrar mais ${nextCount} de ${remaining}`
+            : `Show ${nextCount} more of ${remaining}`;
+        button.onclick = function() {
+            var currentLimit = Number(col.dataset.cardLimit || VISIBLE_CARD_LIMIT);
+            col.dataset.cardLimit = String(currentLimit + CARD_BATCH_SIZE);
+            applyFilters();
+        };
+
+        if (!existing) body.appendChild(button);
+    }
+
+    function applyFilters() {
+        document.querySelectorAll('.kanban-column').forEach(function(col) {
+            var body = col.querySelector('.kanban-column-body');
+            var cards = Array.from(col.querySelectorAll('.kanban-card'));
+            var cardLimit = Number(col.dataset.cardLimit || VISIBLE_CARD_LIMIT);
+            var matchingCount = 0;
+            var visibleCount = 0;
+
+            cards.forEach(function(card) {
+                var matches = cardMatchesActiveFilters(card);
+                var show = matches;
+                if (CARD_LIMIT_ENABLED) {
+                    show = matches && visibleCount < cardLimit;
+                }
+
+                if (matches) matchingCount += 1;
+                if (show) visibleCount += 1;
+
+                card.hidden = !show;
+                card.style.display = show ? '' : 'none';
+            });
+
+            if (body) {
+                upsertMoreButton(body, Math.max(matchingCount - visibleCount, 0), col);
+            }
+
+            var badge = col.querySelector('.kanban-column-header .count');
+            if (badge) {
+                badge.textContent = CARD_LIMIT_ENABLED && matchingCount > visibleCount
+                    ? `${visibleCount}/${matchingCount}`
+                    : String(visibleCount);
+            }
+        });
+    }
+
+    if (IS_TOUCH_KANBAN) {
+        document.body.classList.add('kanban-touch-mode');
+        document.querySelectorAll('.kanban-board [draggable="true"]').forEach(el => {
+            el.setAttribute('draggable', 'false');
+        });
+    } else {
+        // Make cards draggable on pointer-precise devices only.
+        document.querySelectorAll('.kanban-card').forEach(card => {
+            card.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', card.dataset.taskId);
+                e.dataTransfer.effectAllowed = 'move';
+                card.classList.add('dragging');
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+            });
+        });
+
+        // Make columns droppable on desktop/tablet pointer devices.
+        document.querySelectorAll('.kanban-column').forEach(col => {
+            const body = col.querySelector('.kanban-column-body');
+
+            col.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                col.classList.add('drag-over');
+
+                // Visual insertion indicator
+                const dragging = document.querySelector('.kanban-card.dragging');
+                if (dragging && body) {
+                    const afterEl = getDragAfterElement(body, e.clientY);
+                    if (afterEl) {
+                        body.insertBefore(dragging, afterEl);
+                    } else {
+                        const visibleCards = getVisibleDragCards(body);
+                        const lastVisible = visibleCards[visibleCards.length - 1];
+                        if (lastVisible) {
+                            lastVisible.after(dragging);
+                        } else {
+                            body.insertBefore(dragging, body.querySelector('.kanban-card'));
+                        }
+                    }
+                }
+            });
+
+            col.addEventListener('dragleave', (e) => {
+                if (!col.contains(e.relatedTarget)) {
+                    col.classList.remove('drag-over');
+                }
+            });
+
+            col.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                col.classList.remove('drag-over');
+                const taskId = e.dataTransfer.getData('text/plain');
+                const newStatus = col.dataset.status;
+                const newColumnId = col.dataset.colId;
+
+                if (!taskId || !newStatus) return;
+
+                const cards = Array.from(body.querySelectorAll('.kanban-card'));
+                const newPosition = Math.max(0, cards.findIndex(c => c.dataset.taskId === taskId));
+
+                try {
+                    const resp = await fetch(`${PREFIX}/tasks/api/${taskId}/move`, {
+                        method: 'PATCH',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({status: newStatus, position: newPosition, column_id: newColumnId})
+                    });
+
+                    if (resp.ok) {
+                        const emptyState = body.querySelector('.kanban-empty');
+                        if (emptyState) emptyState.remove();
+
+                        updateColumnCounts();
+
+                        const emptyText = IS_LITE ? 'Sem tarefas' : 'No tasks';
+                        document.querySelectorAll('.kanban-column-body').forEach(b => {
+                            if (b.querySelectorAll('.kanban-card').length === 0 && !b.querySelector('.kanban-empty')) {
+                                b.innerHTML = `<div class="kanban-empty"><i class="fas fa-inbox d-block mb-2" style="font-size: 1.5rem;"></i>${emptyText}</div>`;
+                            }
+                        });
+                        applyFilters();
+                    } else {
+                        location.reload();
+                    }
+                } catch (err) {
+                    console.error('Failed to move task:', err);
+                    location.reload();
+                }
+            });
+        });
+    }
+
+    applyFilters();
+
+    function getDragAfterElement(container, y) {
+        const cards = getVisibleDragCards(container);
+        return cards.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    function getVisibleDragCards(container) {
+        return [...container.querySelectorAll('.kanban-card:not(.dragging)')]
+            .filter(child => !child.hidden && child.style.display !== 'none');
+    }
+
+    function updateColumnCounts() {
+        document.querySelectorAll('.kanban-column').forEach(col => {
+            const count = col.querySelectorAll('.kanban-card').length;
+            const badge = col.querySelector('.kanban-column-header .count');
+            if (badge) badge.textContent = count;
+        });
+    }
+
+    // ── Task Detail Modal (Trello-style) ──
+
+    window.openTaskModal = async function(taskId) {
+        document.getElementById('modalTaskId').value = taskId;
+        const overlay = document.getElementById('taskModalOverlay');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        try {
+            const resp = await fetch(`${PREFIX}/tasks/api/${taskId}/detail`);
+            if (!resp.ok) throw new Error('Failed to load task');
+            const t = await resp.json();
+
+            document.getElementById('modalTitle').value = t.title;
+            document.getElementById('modalDesc').value = t.description || '';
+            document.getElementById('modalStatus').value = t.status;
+            document.getElementById('modalStatus').dataset.originalStatus = t.status || '';
+            const modalColumn = document.getElementById('modalColumn');
+            const card = document.querySelector(`.kanban-card[data-task-id="${taskId}"]`);
+            const fallbackColumnId = card?.closest('.kanban-column')?.dataset.colId || '';
+            if (modalColumn) {
+                modalColumn.value = t.column_id || fallbackColumnId;
+                modalColumn.dataset.originalColumnId = modalColumn.value || '';
+            }
+            const modalPosition = document.getElementById('modalPosition');
+            if (modalPosition) modalPosition.value = 'keep';
+            document.getElementById('modalPriority').value = t.priority || 'medium';
+            document.getElementById('modalAssignee').value = t.assigned_to || '';
+            document.getElementById('modalDueDate').value = t.due_date || '';
+            document.getElementById('modalTags').value = t.tags || '';
+            document.getElementById('modalHours').value = t.estimated_hours || '';
+            updatePriorityBadge();
+
+            // Client info
+            if (t.client_name) {
+                document.getElementById('modalClientInfo').style.display = '';
+                document.getElementById('modalClientName').textContent = t.client_name;
+            } else {
+                document.getElementById('modalClientInfo').style.display = 'none';
+            }
+
+            // Meta
+            let meta = '';
+            if (t.created_at) {
+                const d = new Date(t.created_at);
+                meta = (IS_LITE ? 'Criada ' : 'Created ') + d.toLocaleDateString('pt-BR');
+            }
+            document.getElementById('modalMeta').textContent = meta;
+
+            // Subtasks
+            const subtasksSection = document.getElementById('modalSubtasksSection');
+            const subtasksList = document.getElementById('modalSubtasks');
+            subtasksList.innerHTML = '';
+            if (t.subtasks && t.subtasks.length > 0) {
+                subtasksSection.style.display = '';
+                t.subtasks.forEach(s => {
+                    const isDone = s.status === 'completed';
+                    const li = document.createElement('li');
+                    li.className = 'subtask-item' + (isDone ? ' done' : '');
+                    li.innerHTML = `<input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleSubtask(${s.id}, this)"><label>${escHtml(s.title)}</label>`;
+                    subtasksList.appendChild(li);
+                });
+            } else {
+                subtasksSection.style.display = 'none';
+            }
+
+            // Comments
+            const commentsDiv = document.getElementById('modalComments');
+            commentsDiv.innerHTML = '';
+            if (t.comments && t.comments.length > 0) {
+                t.comments.forEach(c => {
+                    commentsDiv.innerHTML += `<div class="comment-item"><div class="comment-meta"><strong>${escHtml(c.user_name)}</strong> · ${c.created_at}</div><div class="comment-body">${escHtml(c.content)}</div></div>`;
+                });
+            }
+        } catch (err) {
+            console.error('Error loading task:', err);
+            closeTaskModal();
+        }
+    };
+
+    window.closeTaskModal = function() {
+        document.getElementById('taskModalOverlay').classList.remove('active');
+        document.body.style.overflow = '';
+    };
+
+    window.saveTaskModal = async function() {
+        const taskId = document.getElementById('modalTaskId').value;
+        if (!taskId) return;
+
+        const modalColumn = document.getElementById('modalColumn');
+        const modalPosition = document.getElementById('modalPosition');
+        const selectedColumnId = modalColumn?.value || '';
+        const selectedColumnStatus = modalColumn?.selectedOptions?.[0]?.dataset.status || '';
+        const originalColumnId = modalColumn?.dataset.originalColumnId || '';
+        const positionMode = modalPosition?.value || 'keep';
+
+        const body = {
+            title: document.getElementById('modalTitle').value.trim(),
+            description: document.getElementById('modalDesc').value,
+            status: document.getElementById('modalStatus').value,
+            priority: document.getElementById('modalPriority').value,
+            assigned_to: document.getElementById('modalAssignee').value || null,
+            due_date: document.getElementById('modalDueDate').value || null,
+            tags: document.getElementById('modalTags').value,
+            estimated_hours: document.getElementById('modalHours').value || null,
+        };
+
+        if (selectedColumnId && (selectedColumnId !== originalColumnId || positionMode !== 'keep')) {
+            body.column_id = selectedColumnId;
+            body.status = selectedColumnStatus || body.status;
+            body.position = getModalMovePosition(taskId, selectedColumnId, positionMode);
+        }
+
+        try {
+            const resp = await fetch(`${PREFIX}/tasks/api/${taskId}/update`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            if (resp.ok) {
+                closeTaskModal();
+                location.reload();
+            }
+        } catch (err) {
+            console.error('Error saving task:', err);
+        }
+    };
+
+    window.syncModalColumnStatus = function() {
+        const modalColumn = document.getElementById('modalColumn');
+        const selectedStatus = modalColumn?.selectedOptions?.[0]?.dataset.status;
+        if (selectedStatus) {
+            document.getElementById('modalStatus').value = selectedStatus;
+        }
+    };
+
+    function getModalMovePosition(taskId, columnId, positionMode) {
+        if (positionMode === 'top') return 0;
+
+        const columns = Array.from(document.querySelectorAll('.kanban-column'));
+        const targetColumn = columns.find(col => col.dataset.colId === String(columnId));
+        if (!targetColumn) return 0;
+
+        const cards = Array.from(targetColumn.querySelectorAll('.kanban-card'))
+            .filter(card => card.dataset.taskId !== String(taskId));
+        return cards.length;
+    }
+
+    window.deleteTaskFromModal = function() {
+        const taskId = document.getElementById('modalTaskId').value;
+        const msg = IS_LITE ? 'Excluir esta tarefa?' : 'Delete this task?';
+        if (!taskId || !confirm(msg)) return;
+        window.location.href = `${PREFIX}/tasks/${taskId}/delete`;
+    };
+
+    window.toggleSubtask = async function(subtaskId, checkbox) {
+        try {
+            await fetch(`${PREFIX}/tasks/api/${subtaskId}/subtask/toggle`, { method: 'POST' });
+            const li = checkbox.closest('.subtask-item');
+            li.classList.toggle('done', checkbox.checked);
+        } catch (err) {
+            console.error('Error toggling subtask:', err);
+            checkbox.checked = !checkbox.checked;
+        }
+    };
+
+    window.addComment = async function() {
+        const taskId = document.getElementById('modalTaskId').value;
+        const input = document.getElementById('modalCommentInput');
+        const content = input.value.trim();
+        if (!taskId || !content) return;
+
+        try {
+            const resp = await fetch(`${PREFIX}/tasks/api/${taskId}/comments/add`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ content })
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                const c = data.comment;
+                const commentsDiv = document.getElementById('modalComments');
+                commentsDiv.innerHTML += `<div class="comment-item"><div class="comment-meta"><strong>${escHtml(c.user_name)}</strong> · ${c.created_at}</div><div class="comment-body">${escHtml(c.content)}</div></div>`;
+                input.value = '';
+            }
+        } catch (err) {
+            console.error('Error adding comment:', err);
+        }
+    };
+
+    window.updatePriorityBadge = function() {
+        const priority = document.getElementById('modalPriority').value;
+        const badge = document.getElementById('modalPriorityBadge');
+        const labels = IS_LITE
+            ? {urgent: 'Urgente', high: 'Alta', medium: 'Média', low: 'Baixa'}
+            : {urgent: 'Urgent', high: 'High', medium: 'Medium', low: 'Low'};
+        badge.textContent = labels[priority] || priority;
+        badge.className = 'badge priority-' + priority;
+    };
+
+    function escHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeTaskModal();
+    });
+})();
+</script>
+{% endblock %}

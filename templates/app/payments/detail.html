@@ -1,0 +1,188 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Pagar fatura {{ invoice_number }} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Pagamento · Fatura <span class="ch-mono">{{ invoice_number }}</span>
+    </span>
+    <h1>Pagar <em>fatura</em></h1>
+    <p class="ch-page-head__sub">
+      {% if client %}{{ client.first_name }} {{ client.last_name }}{% if client.email %} · {{ client.email }}{% endif %}{% endif %}
+      {% if case %}{% if client %} · {% endif %}Caso: {{ case.case_name or case.case_number }}{% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices/{{ invoice_number }}">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar à fatura
+    </a>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);">
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Destinatário</span>
+        <h2 class="ch-card__title">Cliente / caso</h2>
+      </div>
+      <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-list" role="list">
+      {% if client %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="user"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ client.first_name }} {{ client.last_name }}</p>
+          {% if client.email %}
+          <p class="ch-list__meta">{{ client.email }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% if case %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="folder"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ case.case_name or case.case_number }}</p>
+          {% if case.case_number %}
+          <p class="ch-list__meta ch-mono">{{ case.case_number }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Resumo</span>
+        <h2 class="ch-card__title">Total a pagar</h2>
+      </div>
+      <span data-icon="billing" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Itens</span>
+        <strong>{{ items|length }}</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: baseline; padding-top: var(--space-3); border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Total</span>
+        <strong class="ch-mono" style="font-size: var(--fs-2xl); color: var(--c-green-d);">
+          R$ {{ "%.2f"|format(total|float) }}
+        </strong>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Itens da fatura</span>
+      <h2 class="ch-card__title">{{ items|length }} lançamento(s)</h2>
+    </div>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Descrição</th>
+          <th style="text-align: right;">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td data-label="Descrição">{{ item.description or '—' }}</td>
+          <td data-label="Valor" class="ch-mono" style="text-align: right; font-weight: 700;">
+            R$ {{ "%.2f"|format(item.amount|float) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th>Total devido</th>
+          <th class="ch-mono" style="text-align: right; font-size: var(--fs-lg); color: var(--c-green-d);">
+            R$ {{ "%.2f"|format(total|float) }}
+          </th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>
+
+<section class="ch-card ch-card--compact" style="margin-bottom: var(--space-5);">
+  {% if stripe_configured %}
+  <div style="display: flex; flex-direction: column; gap: var(--space-3); align-items: center; text-align: center;">
+    <button id="checkout-button" class="ch-btn ch-btn--primary ch-btn--lg" type="button" style="min-width: 280px;">
+      <span data-icon="check"></span>
+      Pagar R$ {{ "%.2f"|format(total|float) }} com cartão
+    </button>
+    <small style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">
+      Pagamento seguro via Stripe
+    </small>
+  </div>
+  {% else %}
+  <div style="border-left: 4px solid var(--c-warn); padding-left: var(--space-3);">
+    <p style="margin: 0; color: var(--fg-default);">
+      <strong style="color: var(--c-warn);">Pagamentos online indisponíveis no momento.</strong>
+      Entre em contato para combinar a forma de pagamento.
+    </p>
+  </div>
+  <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3);">
+    <a class="ch-btn ch-btn--ghost" href="mailto:{{ org_email|default('') }}?subject=Pagamento da fatura {{ invoice_number }}">
+      <span data-icon="bell"></span> Falar sobre o pagamento
+    </a>
+  </div>
+  {% endif %}
+</section>
+
+<section class="ch-card ch-card--compact" style="text-align: center;">
+  <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint); letter-spacing: 0.10em; text-transform: uppercase;">
+    {{ org_name|default('CaseHub') }}{% if org_email|default('') %} · {{ org_email }}{% endif %}
+  </span>
+</section>
+
+{% if stripe_configured %}
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+  (function () {
+    'use strict';
+    var stripe = Stripe('{{ publishable_key }}');
+    var btn = document.getElementById('checkout-button');
+    if (!btn) return;
+    var originalLabel = btn.innerHTML;
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      btn.textContent = 'Processando...';
+      fetch('{{ PREFIX }}/payments/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'invoice_number={{ invoice_number }}'
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.checkout_url) {
+          window.location.href = data.checkout_url;
+        } else {
+          alert('Erro: ' + (data.error || 'falha desconhecida'));
+          btn.disabled = false;
+          btn.innerHTML = originalLabel;
+        }
+      })
+      .catch(function (err) {
+        console.error('Erro no checkout:', err);
+        alert('Ocorreu um erro. Tente novamente.');
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+      });
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

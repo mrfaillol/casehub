@@ -1,0 +1,1944 @@
+{% extends "base.html" %}
+{% block title %}Leads CRM - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/leads-dashboard.css?v=20260504-basic-rescue">
+{% endblock %}
+
+{% block content %}
+<div class="leads-toast-container" id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+<div class="panel-backdrop" id="panel-backdrop" onclick="closePanel()" aria-hidden="true"></div>
+
+<aside class="lead-panel" id="lead-panel" role="dialog" aria-labelledby="panel-name" aria-modal="false" aria-hidden="true">
+    <header class="panel-header">
+        <div>
+            <div class="lead-name" id="panel-name">-</div>
+            <div class="badges" id="panel-badges"></div>
+        </div>
+        <button type="button" class="panel-close" onclick="closePanel()" aria-label="{% if product == 'lite' %}Fechar painel{% else %}Close panel{% endif %}">&times;</button>
+    </header>
+    <div class="panel-actions" role="toolbar" aria-label="{% if product == 'lite' %}Ações do lead{% else %}Lead actions{% endif %}">
+        <button type="button" class="btn btn-outline-success btn-sm" onclick="panelAction('call')"><i class="fas fa-phone me-1" aria-hidden="true"></i>{% if product == "lite" %}Ligar{% else %}Call{% endif %}</button>
+        <button type="button" class="btn btn-outline-info btn-sm" onclick="panelAction('email')"><i class="fas fa-envelope me-1" aria-hidden="true"></i>Email</button>
+        <button type="button" class="btn btn-outline-warning btn-sm" onclick="panelAction('schedule')"><i class="fas fa-calendar me-1" aria-hidden="true"></i>{% if product == "lite" %}Agendar{% else %}Schedule{% endif %}</button>
+        <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-sm" onclick="panelAction('note')"><i class="fas fa-sticky-note me-1" aria-hidden="true"></i>{% if product == "lite" %}Nota{% else %}Note{% endif %}</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="panelAction('assign')"><i class="fas fa-user-tag me-1" aria-hidden="true"></i>{% if product == "lite" %}Atribuir{% else %}Assign{% endif %}</button>
+        <button type="button" class="btn btn-outline-light btn-sm" onclick="panelAction('task')"><i class="fas fa-tasks me-1" aria-hidden="true"></i>{% if product == "lite" %}Tarefa{% else %}Task{% endif %}</button>
+        <button type="button" class="btn btn-success glass-btn glass-btn--success btn-sm" onclick="panelAction('convert')"><i class="fas fa-user-check me-1" aria-hidden="true"></i>{% if product == "lite" %}Converter{% else %}Convert{% endif %}</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="deleteLead()"><i class="fas fa-trash me-1" aria-hidden="true"></i>{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</button>
+    </div>
+    <nav class="panel-tabs" role="tablist" aria-label="{% if product == 'lite' %}Seções do lead{% else %}Lead sections{% endif %}">
+        <button type="button" class="panel-tab active" role="tab" aria-selected="true" onclick="switchPanelTab('info')">Info</button>
+        <button type="button" class="panel-tab" role="tab" aria-selected="false" onclick="switchPanelTab('activity')">{% if product == "lite" %}Atividade{% else %}Activity{% endif %}</button>
+        <button type="button" class="panel-tab" role="tab" aria-selected="false" onclick="switchPanelTab('notes')">{% if product == "lite" %}Notas{% else %}Notes{% endif %}</button>
+        <button type="button" class="panel-tab" role="tab" aria-selected="false" onclick="switchPanelTab('scores')">{% if product == "lite" %}Pontuação{% else %}Scores{% endif %}</button>
+        <button type="button" class="panel-tab" role="tab" aria-selected="false" onclick="switchPanelTab('intel')">Intel</button>
+        <button type="button" class="panel-tab" role="tab" aria-selected="false" onclick="switchPanelTab('deal')">{% if product == "lite" %}Negócio{% else %}Deal{% endif %}</button>
+        <button type="button" class="panel-tab" role="tab" aria-selected="false" onclick="switchPanelTab('conversations')">Msgs</button>
+        <button type="button" class="panel-tab" role="tab" aria-selected="false" onclick="switchPanelTab('templates')">{% if product == "lite" %}Enviar{% else %}Send{% endif %}</button>
+    </nav>
+    <div class="panel-body" id="panel-content" role="tabpanel"></div>
+</aside>
+
+<main class="leads-dashboard" aria-labelledby="leads-dashboard-title">
+    <header class="leads-dashboard-header">
+        <h1 id="leads-dashboard-title" class="leads-dashboard-title">
+            <i class="fas fa-funnel-dollar" aria-hidden="true"></i>
+            <span>Leads CRM</span>
+        </h1>
+        <div class="leads-dashboard-header-actions">
+            <span class="leads-total-badge" id="total-badge">{{ total_leads }} leads</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="exportCSV()" aria-label="{% if product == 'lite' %}Exportar CSV{% else %}Export CSV{% endif %}"><i class="fas fa-file-csv me-1" aria-hidden="true"></i>{% if product == "lite" %}Exportar{% else %}Export{% endif %}</button>
+            <button type="button" class="btn btn-outline-success btn-sm" onclick="syncMoskit()" id="btn-sync-moskit"><i class="fas fa-sync me-1" aria-hidden="true"></i>{% if product == "lite" %}Sincronizar{% else %}Sync Moskit{% endif %}</button>
+            <button type="button" class="btn btn-primary glass-btn glass-btn--primary btn-sm" onclick="showNewLeadModal()"><i class="fas fa-plus me-1" aria-hidden="true"></i>{% if product == "lite" %}Novo Lead{% else %}New Lead{% endif %}</button>
+        </div>
+    </header>
+
+    <section class="leads-kpi-row" id="kpi-row" aria-label="{% if product == 'lite' %}Indicadores principais{% else %}Key indicators{% endif %}">
+        <div class="kpi-card glass-card"><div class="number" id="kpi-total">-</div><div class="label">{% if product == "lite" %}Total de Leads{% else %}Total Leads{% endif %}</div></div>
+        <div class="kpi-card glass-card"><div class="number number--info" id="kpi-week">-</div><div class="label">{% if product == "lite" %}Esta Semana{% else %}This Week{% endif %}</div></div>
+        <div class="kpi-card glass-card"><div class="number number--success" id="kpi-conversion">-</div><div class="label">{% if product == "lite" %}Conversão %{% else %}Conversion %{% endif %}</div></div>
+        <div class="kpi-card glass-card"><div class="number number--warning" id="kpi-avg-score">-</div><div class="label">{% if product == "lite" %}Pontuação Média{% else %}Avg Score{% endif %}</div></div>
+        <div class="kpi-card glass-card"><div class="number number--danger" id="kpi-hot">-</div><div class="label">{% if product == "lite" %}Leads Quentes{% else %}Hot Leads{% endif %}</div></div>
+        <button type="button" class="kpi-card kpi-card--clickable glass-card" onclick="showOverdue()"><div class="number number--danger" id="kpi-overdue">-</div><div class="label">{% if product == "lite" %}Atrasados{% else %}Overdue{% endif %}</div></button>
+    </section>
+
+    <section class="surveillance-bar" id="surveillance-bar" aria-label="{% if product == 'lite' %}Status de monitoramento{% else %}Surveillance status{% endif %}">
+        <span><span class="surv-dot off" id="surv-dot" aria-hidden="true"></span> <strong id="surv-status">{% if product == "lite" %}Monitoramento Off{% else %}Surveillance Off{% endif %}</strong></span>
+        <span class="surv-meta" id="surv-last-check">-</span>
+        <span class="surv-meta" id="surv-leads-count">-</span>
+        <button type="button" class="surv-alerts" id="surv-alerts" hidden onclick="showSurvAlerts()">0 alerts</button>
+        <span class="surv-spacer"></span>
+        <button type="button" class="btn btn-outline-secondary btn-sm surv-action" id="surv-toggle-btn" onclick="toggleSurveillance()">Start</button>
+        <button type="button" class="btn btn-outline-info btn-sm surv-action" onclick="checkNowSurveillance()">Check Now</button>
+        <button type="button" class="btn btn-outline-warning btn-sm surv-action" id="batch-analyze-btn" onclick="batchAnalyzeAll()">Batch Analyze</button>
+    </section>
+
+    <ul class="nav nav-tabs leads-tab-nav" role="tablist">
+        <li class="nav-item" role="presentation"><a class="nav-link active" data-bs-toggle="tab" href="#tab-list" role="tab" onclick="loadLeads()"><i class="fas fa-list me-1" aria-hidden="true"></i> {% if product == "lite" %}Lista{% else %}List View{% endif %}</a></li>
+        <li class="nav-item" role="presentation"><a class="nav-link" data-bs-toggle="tab" href="#tab-pipeline" role="tab" onclick="loadKanban()"><i class="fas fa-columns me-1" aria-hidden="true"></i> Pipeline</a></li>
+        <li class="nav-item" role="presentation"><a class="nav-link" data-bs-toggle="tab" href="#tab-metrics" role="tab" onclick="loadMetrics()"><i class="fas fa-chart-pie me-1" aria-hidden="true"></i> {% if product == "lite" %}Relatórios{% else %}Analytics{% endif %}</a></li>
+    </ul>
+
+    <div class="tab-content">
+        <section class="tab-pane fade show active" id="tab-list" role="tabpanel">
+            <div id="saved-filters" class="saved-filters" aria-label="{% if product == 'lite' %}Filtros salvos{% else %}Saved filters{% endif %}"></div>
+            <div class="filter-bar">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <label for="search-input" class="visually-hidden">{% if product == 'lite' %}Buscar leads{% else %}Search leads{% endif %}</label>
+                        <input type="search" class="form-control form-control-sm" id="search-input" placeholder="{% if product == 'lite' %}Buscar nome, telefone, email...{% else %}Search name, phone, email...{% endif %}" onkeyup="debounceSearch()">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="filter-stage" class="visually-hidden">{% if product == 'lite' %}Estágio{% else %}Stage{% endif %}</label>
+                        <select class="form-select form-select-sm" id="filter-stage" onchange="loadLeads()">
+                            {% if product == "lite" %}
+                            <option value="">Todos os Estágios</option>
+                            <option value="PROSPECCAO">Prospecção</option>
+                            <option value="CONSULTA">Consulta</option>
+                            <option value="PROPOSTA">Proposta</option>
+                            <option value="CONTRATACAO">Contratação</option>
+                            <option value="EM_ANDAMENTO">Em Andamento</option>
+                            <option value="ENCERRADO">Encerrado</option>
+                            {% else %}
+                            <option value="">All Stages</option>
+                            <option value="NEW_LEAD">New Lead</option>
+                            <option value="LEAD_QUALIFICATION">Qualification</option>
+                            <option value="INTAKE_CALL">Intake Call</option>
+                            <option value="CONSULTATION">Consultation</option>
+                            <option value="CLOSING">Closing</option>
+                            <option value="VISA_IN_PROGRESS">Visa in Progress</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="filter-source" class="visually-hidden">{% if product == 'lite' %}Origem{% else %}Source{% endif %}</label>
+                        <select class="form-select form-select-sm" id="filter-source" onchange="loadLeads()">
+                            <option value="">{% if product == "lite" %}Todas as Origens{% else %}All Sources{% endif %}</option>
+                            <option value="WPP">WhatsApp</option>
+                            <option value="META">Meta Ads</option>
+                            <option value="MSG">Messenger</option>
+                            <option value="IG">Instagram</option>
+                            <option value="SITE">{% if product == "lite" %}Site{% else %}Website{% endif %}</option>
+                            <option value="MANUAL">Manual</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="filter-lead-status" class="visually-hidden">{% if product == 'lite' %}Temperatura{% else %}Temperature{% endif %}</label>
+                        <select class="form-select form-select-sm" id="filter-lead-status" onchange="loadLeads()">
+                            <option value="">{% if product == "lite" %}Temperaturas{% else %}All Temps{% endif %}</option>
+                            <option value="hot">{% if product == "lite" %}Quente (70+){% else %}Hot (70+){% endif %}</option>
+                            <option value="qualified">{% if product == "lite" %}Qualificado (50+){% else %}Qualified (50+){% endif %}</option>
+                            <option value="warm">{% if product == "lite" %}Morno (30+){% else %}Warm (30+){% endif %}</option>
+                            <option value="cold">{% if product == "lite" %}Frio{% else %}Cold{% endif %}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 text-end">
+                        <button type="button" class="btn btn-outline-info btn-sm me-1" onclick="saveFilter()" aria-label="{% if product == 'lite' %}Salvar filtro atual{% else %}Save current filter{% endif %}"><i class="fas fa-bookmark" aria-hidden="true"></i></button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearFilters()"><i class="fas fa-times me-1" aria-hidden="true"></i>{% if product == "lite" %}Limpar{% else %}Clear{% endif %}</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bulk-bar" id="bulk-bar" role="region" aria-label="{% if product == 'lite' %}Ações em massa{% else %}Bulk actions{% endif %}">
+                <span class="count" id="bulk-count">0 {% if product == "lite" %}selecionados{% else %}selected{% endif %}</span>
+                <label for="bulk-stage-select" class="visually-hidden">{% if product == 'lite' %}Mudar estágio em massa{% else %}Bulk change stage{% endif %}</label>
+                <select class="form-select form-select-sm bulk-stage-select" id="bulk-stage-select">
+                    {% if product == "lite" %}
+                    <option value="">Mudar Estágio...</option>
+                    <option value="PROSPECCAO">Prospecção</option>
+                    <option value="CONSULTA">Consulta</option>
+                    <option value="PROPOSTA">Proposta</option>
+                    <option value="CONTRATACAO">Contratação</option>
+                    <option value="EM_ANDAMENTO">Em Andamento</option>
+                    <option value="ENCERRADO">Encerrado</option>
+                    {% else %}
+                    <option value="">Change Stage...</option>
+                    <option value="NEW_LEAD">New Lead</option>
+                    <option value="LEAD_QUALIFICATION">Qualification</option>
+                    <option value="INTAKE_CALL">Intake Call</option>
+                    <option value="CONSULTATION">Consultation</option>
+                    <option value="CLOSING">Closing</option>
+                    <option value="VISA_IN_PROGRESS">Visa in Progress</option>
+                    {% endif %}
+                </select>
+                <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-sm" onclick="bulkChangeStage()"><i class="fas fa-arrows-alt me-1" aria-hidden="true"></i>{% if product == "lite" %}Aplicar{% else %}Apply{% endif %}</button>
+                <button type="button" class="btn btn-outline-info btn-sm" onclick="bulkExport()"><i class="fas fa-file-csv me-1" aria-hidden="true"></i>{% if product == "lite" %}Exportar{% else %}Export{% endif %}</button>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="bulkDelete()"><i class="fas fa-trash me-1" aria-hidden="true"></i>{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" onclick="clearSelection()" aria-label="{% if product == 'lite' %}Limpar seleção{% else %}Clear selection{% endif %}"><i class="fas fa-times" aria-hidden="true"></i></button>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table leads-table">
+                    <caption class="visually-hidden">{% if product == 'lite' %}Lista de leads{% else %}Leads list{% endif %}</caption>
+                    <thead>
+                        <tr>
+                            <th class="cb-col" scope="col"><label class="visually-hidden" for="select-all">{% if product == 'lite' %}Selecionar todos{% else %}Select all{% endif %}</label><input type="checkbox" id="select-all" onchange="toggleSelectAll()"></th>
+                            <th scope="col" onclick="sortBy('name')">{% if product == "lite" %}Nome{% else %}Name{% endif %} <i class="fas fa-sort" aria-hidden="true"></i></th>
+                            <th scope="col" onclick="sortBy('phone')">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</th>
+                            <th scope="col" onclick="sortBy('source')">{% if product == "lite" %}Origem{% else %}Source{% endif %}</th>
+                            <th scope="col" onclick="sortBy('lead_score')">{% if product == "lite" %}Pontuação{% else %}Score{% endif %} <i class="fas fa-sort" aria-hidden="true"></i></th>
+                            <th scope="col" onclick="sortBy('pipeline_stage')">{% if product == "lite" %}Estágio{% else %}Stage{% endif %}</th>
+                            {% if product != "lite" %}<th scope="col" onclick="sortBy('visa_interest')">Interest</th>{% endif %}
+                            <th scope="col" onclick="sortBy('updated_at')">{% if product == "lite" %}Atualizado{% else %}Updated{% endif %} <i class="fas fa-sort" aria-hidden="true"></i></th>
+                            <th scope="col">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leads-tbody"><tr><td colspan="9" class="leads-table-loading">{% if product == "lite" %}Carregando...{% else %}Loading...{% endif %}</td></tr></tbody>
+                </table>
+            </div>
+            <nav class="pagination-wrap" aria-label="{% if product == 'lite' %}Paginação de leads{% else %}Leads pagination{% endif %}">
+                <div class="page-info" id="page-info" aria-live="polite">-</div>
+                <div>
+                    <button type="button" class="btn-page" id="btn-prev" onclick="changePage(-1)" disabled>&laquo; {% if product == "lite" %}Anterior{% else %}Prev{% endif %}</button>
+                    <button type="button" class="btn-page" id="btn-next" onclick="changePage(1)" disabled>{% if product == "lite" %}Próximo{% else %}Next{% endif %} &raquo;</button>
+                </div>
+            </nav>
+        </section>
+
+        <section class="tab-pane fade" id="tab-pipeline" role="tabpanel">
+            <div class="kanban-wrapper" id="kanban-container" aria-label="Pipeline kanban">
+                <div class="leads-table-loading">{% if product == "lite" %}Carregando pipeline...{% else %}Loading pipeline...{% endif %}</div>
+            </div>
+        </section>
+
+        <section class="tab-pane fade" id="tab-metrics" role="tabpanel">
+            <div class="row g-4">
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-filter me-2" aria-hidden="true"></i>{% if product == "lite" %}Funil de Conversão{% else %}Conversion Funnel{% endif %}</h6><canvas id="chart-funnel" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-chart-bar me-2" aria-hidden="true"></i>{% if product == "lite" %}Desempenho por Origem{% else %}Performance by Source{% endif %}</h6><canvas id="chart-source" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-layer-group me-2" aria-hidden="true"></i>{% if product == "lite" %}Distribuição do Pipeline{% else %}Pipeline Distribution{% endif %}</h6><canvas id="chart-pipeline" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-hourglass-half me-2" aria-hidden="true"></i>{% if product == "lite" %}Tempo por Estágio{% else %}Lead Aging by Stage{% endif %}</h6><canvas id="chart-aging" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-thermometer-half me-2" aria-hidden="true"></i>{% if product == "lite" %}Distribuição de Pontuação{% else %}Score Distribution{% endif %}</h6><canvas id="chart-scores" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-chart-line me-2" aria-hidden="true"></i>{% if product == "lite" %}Tendências (30 Dias){% else %}Trends (30 Days){% endif %}</h6><canvas id="chart-trends" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-dollar-sign me-2" aria-hidden="true"></i>{% if product == "lite" %}Pipeline de Negócios{% else %}Deal Pipeline{% endif %}</h6><canvas id="chart-deal-pipeline" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-chart-area me-2" aria-hidden="true"></i>{% if product == "lite" %}Previsão de Receita{% else %}Revenue Forecast{% endif %}</h6><canvas id="chart-forecast" height="260"></canvas></div></div>
+                <div class="col-12">
+                    <hr class="leads-section-divider">
+                    <h2 class="leads-section-heading"><i class="fas fa-brain me-2" aria-hidden="true"></i>{% if product == "lite" %}Análise Inteligente{% else %}Intelligence Analytics{% endif %}</h2>
+                </div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-tachometer-alt me-2" aria-hidden="true"></i>{% if product == "lite" %}Velocidade do Pipeline (Dias){% else %}Pipeline Velocity (Days){% endif %}</h6><canvas id="chart-velocity" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-exchange-alt me-2" aria-hidden="true"></i>{% if product == "lite" %}Engajamento por Canal{% else %}Channel Engagement{% endif %}</h6><canvas id="chart-channels" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-crosshairs me-2" aria-hidden="true"></i>{% if product == "lite" %}Atribuição de Origem (Conversão){% else %}Source Attribution (Conversion){% endif %}</h6><canvas id="chart-source-conv" height="260"></canvas></div></div>
+                <div class="col-md-6"><div class="chart-container"><h6><i class="fas fa-shield-alt me-2" aria-hidden="true"></i>{% if product == "lite" %}Distribuição de Risco{% else %}Risk Distribution{% endif %}</h6><canvas id="chart-risk" height="260"></canvas></div></div>
+                <div class="col-12" id="intel-alerts-panel" hidden>
+                    <div class="chart-container">
+                        <h6><i class="fas fa-bell me-2" aria-hidden="true"></i>{% if product == "lite" %}Alertas de Inteligência Ativos{% else %}Active Intelligence Alerts{% endif %}</h6>
+                        <div id="intel-alerts-list" class="intel-alerts-list"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+
+<div class="modal fade" id="newLeadModal" tabindex="-1" aria-labelledby="newLeadModalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newLeadModalTitle">{% if product == "lite" %}Novo Lead{% else %}New Lead{% endif %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label" for="new-name">{% if product == "lite" %}Nome{% else %}Name{% endif %}</label><input type="text" class="form-control" id="new-name"></div>
+                <div class="mb-3"><label class="form-label" for="new-phone">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</label><input type="tel" class="form-control" id="new-phone" placeholder="{% if product == 'lite' %}+REDACTED-PHONE{% else %}+1234567890{% endif %}" onblur="checkNewLeadDuplicates()"></div>
+                <div class="mb-3"><label class="form-label" for="new-email">Email</label><input type="email" class="form-control" id="new-email" onblur="checkNewLeadDuplicates()"></div>
+                <div class="dup-warning" id="dup-warning" role="alert"><i class="fas fa-exclamation-triangle me-1" aria-hidden="true"></i><span id="dup-warning-text"></span></div>
+                <div class="row">
+                    <div class="col-6 mb-3"><label class="form-label" for="new-source">{% if product == "lite" %}Origem{% else %}Source{% endif %}</label>
+                        <select class="form-select" id="new-source">
+                            <option value="WPP">WhatsApp</option><option value="META">Meta Ads</option><option value="MSG">Messenger</option>
+                            <option value="IG">Instagram</option><option value="SITE">{% if product == "lite" %}Site{% else %}Website{% endif %}</option><option value="MANUAL" selected>Manual</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3"><label class="form-label" for="new-score">{% if product == "lite" %}Pontuação{% else %}Score{% endif %}</label><input type="number" class="form-control" id="new-score" value="0" min="0" max="100"></div>
+                </div>
+                {% if product == "lite" %}
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label" for="new-area-atuacao">Área de Atuação</label>
+                        <select class="form-select" id="new-area-atuacao">
+                            <option value="">Selecionar...</option>
+                            <option value="Cível">Cível</option>
+                            <option value="Trabalhista">Trabalhista</option>
+                            <option value="Previdenciário">Previdenciário</option>
+                            <option value="Criminal">Criminal</option>
+                            <option value="Tributário">Tributário</option>
+                            <option value="Família">Família</option>
+                            <option value="Empresarial">Empresarial</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label" for="new-valor-causa">Valor Estimado (R$)</label>
+                        <input type="text" class="form-control" id="new-valor-causa" placeholder="0,00">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label" for="new-comarca">Comarca</label>
+                        <input type="text" class="form-control" id="new-comarca" placeholder="Ex: Juiz de Fora - MG">
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label" for="new-indicado-por">Indicado por</label>
+                        <input type="text" class="form-control" id="new-indicado-por" placeholder="Fonte da indicação">
+                    </div>
+                </div>
+                {% else %}
+                <div class="mb-3"><label class="form-label" for="new-interest">Visa Interest</label><input type="text" class="form-control" id="new-interest"></div>
+                {% endif %}
+                <div class="mb-3"><label class="form-label" for="new-notes">{% if product == "lite" %}Observações{% else %}Notes{% endif %}</label><textarea class="form-control" id="new-notes" rows="2"></textarea></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary glass-btn glass-btn--primary btn-sm" onclick="createLead()"><i class="fas fa-plus me-1" aria-hidden="true"></i>{% if product == "lite" %}Criar Lead{% else %}Create Lead{% endif %}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+var PREFIX = '{{ PREFIX }}';
+var API = PREFIX + '/api/leads';
+var currentPage = 1, currentSort = 'updated_at', currentOrder = 'desc';
+var currentLeadId = null, currentLeadData = null;
+var searchTimer = null, typeaheadTimer = null, charts = {}, selectedLeads = new Set(), allLeadsCache = [];
+
+// --- Token-driven palette (read from CSS custom properties at runtime) ---
+var _paletteCache = null;
+function palette() {
+    if (_paletteCache) return _paletteCache;
+    var root = document.documentElement;
+    function v(name) { return getComputedStyle(root).getPropertyValue(name).trim(); }
+    _paletteCache = {
+        hot: v('--leads-color-hot'),
+        qualified: v('--leads-color-qualified'),
+        warm: v('--leads-color-warm'),
+        cold: v('--leads-color-cold'),
+        sourceWPP: v('--leads-source-wpp'),
+        sourceMETA: v('--leads-source-meta'),
+        sourceMSG: v('--leads-source-msg'),
+        sourceIG: v('--leads-source-ig'),
+        sourceSITE: v('--leads-source-site'),
+        sourceMANUAL: v('--leads-source-manual'),
+        stageNEW_LEAD: v('--leads-stage-new'),
+        stageLEAD_QUALIFICATION: v('--leads-stage-qualification'),
+        stageINTAKE_CALL: v('--leads-stage-intake'),
+        stageCONSULTATION: v('--leads-stage-consultation'),
+        stageCLOSING: v('--leads-stage-closing'),
+        stageVISA_IN_PROGRESS: v('--leads-stage-visa'),
+        stagePROSPECCAO: v('--leads-stage-prospeccao'),
+        stageCONSULTA: v('--leads-stage-consulta'),
+        stagePROPOSTA: v('--leads-stage-proposta'),
+        stageCONTRATACAO: v('--leads-stage-contratacao'),
+        stageEM_ANDAMENTO: v('--leads-stage-em-andamento'),
+        stageENCERRADO: v('--leads-stage-encerrado'),
+        success: v('--status-success'),
+        warning: v('--status-warning'),
+        danger: v('--status-danger'),
+        info: v('--status-info'),
+        accent: v('--accent'),
+        textMuted: v('--text-muted'),
+        textSecondary: v('--text-secondary'),
+        textPrimary: v('--text-primary'),
+        borderDefault: v('--border-default'),
+        surfaceSunken: v('--surface-sunken')
+    };
+    return _paletteCache;
+}
+
+function stageColor(stage) { return palette()['stage' + stage] || palette().textMuted; }
+function sourceColor(src) { return palette()['source' + src] || palette().textMuted; }
+
+{% if product == "lite" %}
+var STAGES = ['PROSPECCAO','CONSULTA','PROPOSTA','CONTRATACAO','EM_ANDAMENTO','ENCERRADO'];
+var STAGE_NAMES = {PROSPECCAO:'Prospecção',CONSULTA:'Consulta',PROPOSTA:'Proposta',CONTRATACAO:'Contratação',EM_ANDAMENTO:'Em Andamento',ENCERRADO:'Encerrado'};
+{% else %}
+var STAGES = ['NEW_LEAD','LEAD_QUALIFICATION','INTAKE_CALL','CONSULTATION','CLOSING','VISA_IN_PROGRESS'];
+var STAGE_NAMES = {NEW_LEAD:'New Lead',LEAD_QUALIFICATION:'Qualification',INTAKE_CALL:'Intake Call',CONSULTATION:'Consultation',CLOSING:'Closing',VISA_IN_PROGRESS:'Visa in Progress'};
+{% endif %}
+
+function showToast(msg, type) {
+    type = type || 'info';
+    var c = document.getElementById('toast-container');
+    if (!c) {
+        c = document.createElement('div');
+        c.id = 'toast-container';
+        c.className = 'leads-toast-container';
+        c.setAttribute('role', 'status');
+        c.setAttribute('aria-live', 'polite');
+        c.setAttribute('aria-atomic', 'true');
+        document.body.appendChild(c);
+    }
+    var t = document.createElement('div');
+    t.className = 'custom-toast ' + type;
+    t.setAttribute('role', 'status');
+    var icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+    t.innerHTML = '<i class="fas ' + icon + '" aria-hidden="true"></i><span>' + msg + '</span>';
+    c.appendChild(t);
+    setTimeout(function() { t.style.opacity = '0'; t.style.transition = 'opacity var(--motion-base) var(--motion-curve-organic)'; setTimeout(function() { t.remove(); }, 300); }, 3500);
+}
+
+function formatStage(s) { return STAGE_NAMES[s] || s; }
+function scoreClass(score) { return score >= 70 ? 'score-hot' : score >= 50 ? 'score-qualified' : score >= 30 ? 'score-warm' : 'score-cold'; }
+function statusRow(score) { return score >= 70 ? 'lead-row-hot' : score >= 50 ? 'lead-row-qualified' : score >= 30 ? 'lead-row-warm' : 'lead-row-cold'; }
+function kanbanCardClass(score) { return score >= 70 ? 'kanban-card--hot' : score >= 50 ? 'kanban-card--qualified' : score >= 30 ? 'kanban-card--warm' : 'kanban-card--cold'; }
+function statusKey(score) { return score >= 70 ? 'hot' : score >= 50 ? 'qualified' : score >= 30 ? 'warm' : 'cold'; }
+
+function timeAgo(dateStr) {
+    if (!dateStr) return '-';
+    var d = new Date(dateStr); var now = new Date(); var diff = Math.floor((now - d) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+    return d.toLocaleDateString();
+}
+
+// KPI
+async function loadKPIs() {
+    try {
+        var r = await Promise.all([fetch(API + '/metrics'), fetch(API + '/pipeline'), fetch(API + '/overdue')]);
+        var metrics = await r[0].json(); var pipeline = await r[1].json();
+        var overdueData = []; try { overdueData = (await r[2].json()).overdue || []; } catch(e) {}
+        document.getElementById('kpi-total').textContent = metrics.total || 0;
+        document.getElementById('kpi-week').textContent = metrics.this_week || 0;
+        document.getElementById('kpi-avg-score').textContent = metrics.avg_score || 0;
+        document.getElementById('kpi-overdue').textContent = overdueData.length;
+        var hot = (metrics.by_lead_status || {}).hot || 0;
+        document.getElementById('kpi-hot').textContent = hot;
+        var total = metrics.total || 1;
+        {% if product == "lite" %}
+        var conv = (pipeline.pipeline || {}).CLOSING || {};
+        {% else %}
+        var conv = (pipeline.pipeline || {}).VISA_IN_PROGRESS || {};
+        {% endif %}
+        document.getElementById('kpi-conversion').textContent = Math.round(((conv.count || 0) / total) * 100) + '%';
+    } catch(e) { console.error('KPI error', e); }
+}
+
+async function showOverdue() {
+    try {
+        var r = await fetch(API + '/overdue');
+        var data = await r.json();
+        var overdue = data.overdue || [];
+        if (!overdue.length) { showToast('No overdue follow-ups', 'info'); return; }
+        document.getElementById('filter-stage').value = '';
+        document.getElementById('filter-source').value = '';
+        document.getElementById('filter-lead-status').value = '';
+        document.getElementById('search-input').value = '';
+        var listTab = document.querySelector('a[href="#tab-list"]');
+        if (listTab) listTab.click();
+        showToast(overdue.length + ' {% if product == "lite" %}follow-ups atrasados encontrados{% else %}overdue follow-ups found{% endif %}', 'error');
+    } catch(e) { showToast('{% if product == "lite" %}Erro ao carregar atrasados{% else %}Error loading overdue{% endif %}', 'error'); }
+}
+
+// LIST
+async function loadLeads() {
+    var params = new URLSearchParams({ page: currentPage, per_page: 25, sort_by: currentSort, sort_order: currentOrder });
+    var search = document.getElementById('search-input').value;
+    var stage = document.getElementById('filter-stage').value;
+    var source = document.getElementById('filter-source').value;
+    var ls = document.getElementById('filter-lead-status').value;
+    if (search) params.set('search', search);
+    if (stage) params.set('stage', stage);
+    if (source) params.set('source', source);
+    if (ls) params.set('lead_status', ls);
+    try {
+        var res = await fetch(API + '?' + params);
+        if (res.status === 401) { window.location.href = PREFIX + '/login'; return; }
+        var data = await res.json();
+        allLeadsCache = data.leads || [];
+        renderTable(data.leads, data.total, data.page, data.pages);
+    } catch(e) { document.getElementById('leads-tbody').innerHTML = '<tr><td colspan="9" class="leads-table-error">{% if product == "lite" %}Erro ao carregar leads{% else %}Error loading leads{% endif %}</td></tr>'; }
+}
+
+function renderTable(leads, total, page, pages) {
+    var tbody = document.getElementById('leads-tbody');
+    document.getElementById('total-badge').textContent = total + ' leads';
+    if (!leads.length) { tbody.innerHTML = '<tr><td colspan="9" class="leads-table-empty">{% if product == "lite" %}Nenhum lead encontrado{% else %}No leads found{% endif %}</td></tr>'; document.getElementById('page-info').textContent = '{% if product == "lite" %}0 resultados{% else %}0 results{% endif %}'; return; }
+    tbody.innerHTML = leads.map(function(l) {
+        var sc = scoreClass(l.lead_score || 0);
+        var rc = statusRow(l.lead_score || 0);
+        var ck = selectedLeads.has(l.id) ? 'checked' : '';
+        var sl = selectedLeads.has(l.id) ? ' selected' : '';
+        var up = timeAgo(l.updated_at);
+        var ur = l.is_urgent ? '<span class="urgent-badge ms-1">{% if product == "lite" %}URGENTE{% else %}URGENT{% endif %}</span>' : '';
+        var nm = (l.name || l.whatsapp_name || '<em class="text-muted">' + ('{% if product == "lite" %}Desconhecido{% else %}Unknown{% endif %}') + '</em>');
+        return '<tr class="' + rc + sl + '" onclick="openPanel(\'' + l.id + '\')" tabindex="0" role="button">' +
+            '<td class="cb-col" onclick="event.stopPropagation()"><input type="checkbox" ' + ck + ' onchange="toggleSelect(\'' + l.id + '\', this)" aria-label="Select lead"></td>' +
+            '<td>' + nm + ur + '</td>' +
+            '<td>' + (l.phone || '-') + '</td>' +
+            '<td><span class="source-badge source-' + l.source + '">' + l.source + '</span></td>' +
+            '<td><span class="score-badge ' + sc + '">' + (l.lead_score || 0) + '</span></td>' +
+            '<td><span class="stage-badge stage-' + l.pipeline_stage + '">' + formatStage(l.pipeline_stage) + '</span></td>' +
+            {% if product != "lite" %}'<td>' + (l.visa_interest || '-') + '</td>' +{% endif %}
+            '<td>' + up + '</td>' +
+            '<td><button type="button" class="btn btn-outline-light btn-sm" onclick="event.stopPropagation(); openPanel(\'' + l.id + '\')" aria-label="View lead"><i class="fas fa-eye" aria-hidden="true"></i></button></td></tr>';
+    }).join('');
+    var s = (page - 1) * 25 + 1, e = Math.min(page * 25, total);
+    document.getElementById('page-info').textContent = s + '-' + e + ' {% if product == "lite" %}de{% else %}of{% endif %} ' + total;
+    document.getElementById('btn-prev').disabled = page <= 1;
+    document.getElementById('btn-next').disabled = page >= pages;
+}
+
+function sortBy(f) { if (currentSort === f) currentOrder = currentOrder === 'desc' ? 'asc' : 'desc'; else { currentSort = f; currentOrder = 'desc'; } loadLeads(); }
+function changePage(d) { currentPage += d; loadLeads(); }
+function clearFilters() { document.getElementById('search-input').value = ''; document.getElementById('filter-stage').value = ''; document.getElementById('filter-source').value = ''; document.getElementById('filter-lead-status').value = ''; currentPage = 1; loadLeads(); }
+function debounceSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(function() { currentPage = 1; loadLeads(); }, 300); }
+
+// BULK
+function toggleSelect(id, cb) { if (cb.checked) selectedLeads.add(id); else selectedLeads.delete(id); updateBulkBar(); cb.closest('tr').classList.toggle('selected', cb.checked); }
+function toggleSelectAll() { var ck = document.getElementById('select-all').checked; allLeadsCache.forEach(function(l) { if (ck) selectedLeads.add(l.id); else selectedLeads.delete(l.id); }); document.querySelectorAll('#leads-tbody input[type=checkbox]').forEach(function(c) { c.checked = ck; }); document.querySelectorAll('#leads-tbody tr').forEach(function(r) { r.classList.toggle('selected', ck); }); updateBulkBar(); }
+function clearSelection() { selectedLeads.clear(); document.getElementById('select-all').checked = false; document.querySelectorAll('#leads-tbody input[type=checkbox]').forEach(function(c) { c.checked = false; }); document.querySelectorAll('#leads-tbody tr.selected').forEach(function(r) { r.classList.remove('selected'); }); updateBulkBar(); }
+function updateBulkBar() { var bar = document.getElementById('bulk-bar'); if (selectedLeads.size > 0) { bar.classList.add('show'); document.getElementById('bulk-count').textContent = selectedLeads.size + ' {% if product == "lite" %}selecionados{% else %}selected{% endif %}'; } else { bar.classList.remove('show'); } }
+
+async function bulkChangeStage() {
+    var stage = document.getElementById('bulk-stage-select').value;
+    if (!stage) { showToast('{% if product == "lite" %}Selecione um estágio primeiro{% else %}Select a stage first{% endif %}', 'error'); return; }
+    if (!confirm('{% if product == "lite" %}Mudar estágio de {% else %}Change stage of {% endif %}' + selectedLeads.size + ' leads {% if product == "lite" %}para {% else %}to {% endif %}' + formatStage(stage) + '?')) return;
+    try { var r = await fetch(API + '/bulk', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ lead_ids: Array.from(selectedLeads), action: 'update', updates: { pipeline_stage: stage } }) }); var res = await r.json(); showToast('{% if product == "lite" %}Atualizados {% else %}Updated {% endif %}' + (res.updated || 0) + ' leads', 'success'); clearSelection(); loadLeads(); } catch(e) { showToast('{% if product == "lite" %}Falha na atualização em massa{% else %}Bulk update failed{% endif %}', 'error'); }
+}
+async function bulkDelete() {
+    if (!confirm('{% if product == "lite" %}Excluir {% else %}Delete {% endif %}' + selectedLeads.size + ' leads?')) return;
+    try { var r = await fetch(API + '/bulk', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ lead_ids: Array.from(selectedLeads), action: 'delete' }) }); var res = await r.json(); showToast('{% if product == "lite" %}Excluídos {% else %}Deleted {% endif %}' + (res.deleted || 0) + ' leads', 'success'); clearSelection(); loadLeads(); } catch(e) { showToast('{% if product == "lite" %}Falha na exclusão em massa{% else %}Bulk delete failed{% endif %}', 'error'); }
+}
+function bulkExport() { exportCSV(); }
+function exportCSV() { var p = new URLSearchParams(); var st = document.getElementById('filter-stage').value; var so = document.getElementById('filter-source').value; var ls = document.getElementById('filter-lead-status').value; if (st) p.set('stage', st); if (so) p.set('source', so); if (ls) p.set('lead_status', ls); window.open(API + '/export?' + p.toString(), '_blank'); showToast('{% if product == "lite" %}Exportando CSV...{% else %}Exporting CSV...{% endif %}', 'info'); }
+
+// PANEL
+async function openPanel(id) {
+    currentLeadId = id;
+    try {
+        var res = await fetch(API + '/' + id);
+        if (!res.ok) throw new Error('Not found');
+        currentLeadData = await res.json();
+        renderPanel(currentLeadData);
+        var panel = document.getElementById('lead-panel');
+        panel.classList.add('open');
+        panel.setAttribute('aria-hidden', 'false');
+        document.getElementById('panel-backdrop').classList.add('show');
+    } catch(e) { showToast('Error loading lead', 'error'); }
+}
+function closePanel() { var panel = document.getElementById('lead-panel'); panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); document.getElementById('panel-backdrop').classList.remove('show'); currentLeadId = null; currentLeadData = null; }
+
+function renderPanel(lead) {
+    document.getElementById('panel-name').textContent = lead.name || lead.whatsapp_name || 'Unknown';
+    var sc = scoreClass(lead.lead_score || 0);
+    document.getElementById('panel-badges').innerHTML =
+        '<span class="score-badge ' + sc + '">' + (lead.lead_score || 0) + '</span>' +
+        '<span class="source-badge source-' + (lead.source || 'MANUAL') + '">' + (lead.source || '-') + '</span>' +
+        '<span class="stage-badge stage-' + (lead.pipeline_stage || '') + '">' + formatStage(lead.pipeline_stage) + '</span>' +
+        (lead.is_urgent ? '<span class="urgent-badge">URGENT</span>' : '');
+    switchPanelTab('info');
+}
+
+function switchPanelTab(tab) {
+    var tabIndex = { info: 0, activity: 1, notes: 2, scores: 3, intel: 4, deal: 5, conversations: 6, templates: 7 };
+    var idx = tabIndex[tab];
+    document.querySelectorAll('.panel-tab').forEach(function(t, i) {
+        var on = i === idx;
+        t.classList.toggle('active', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    var c = document.getElementById('panel-content');
+    var lead = currentLeadData;
+    if (!lead) return;
+
+    if (tab === 'info') {
+        c.innerHTML =
+            '<div class="panel-section"><h6>Contact</h6>' +
+            pf('Name', lead.name || '-', 'name') + pf('Phone', lead.phone || '-', 'phone') + pf('Email', lead.email || '-', 'email') +
+            '<div class="panel-field"><span class="label">WhatsApp</span><span class="value">' + (lead.whatsapp_name || '-') + '</span></div>' +
+            '<div class="panel-field"><span class="label">Language</span><span class="value">' + (lead.language || '-') + '</span></div></div>' +
+            '<div class="panel-section"><h6>Pipeline</h6>' +
+            '<div class="panel-field"><span class="label">Stage</span><span class="value editable" onclick="editStage(this)">' + formatStage(lead.pipeline_stage) + '</span></div>' +
+            pf('Score', lead.lead_score || 0, 'lead_score') +
+            '<div class="panel-field"><span class="label">Source</span><span class="value editable" onclick="editSource(this)">' + (lead.source || '-') + '</span></div>' +
+            '<div class="panel-field"><span class="label">Status</span><span class="value">' + (lead.lead_status || '-') + '</span></div></div>' +
+            {% if product != "lite" %}
+            '<div class="panel-section"><h6>Interest</h6>' +
+            pf('Visa Type', lead.visa_interest || '-', 'visa_interest') +
+            '<div class="panel-field"><span class="label">Pathway</span><span class="value">' + (lead.intake_form_primary_pathway || '-') + '</span></div>' +
+            '<div class="panel-field"><span class="label">Intake Score</span><span class="value">' + (lead.intake_form_final_score || '-') + '</span></div></div>' +
+            {% endif %}
+            '<div class="panel-section"><h6>External</h6>' +
+            '<div class="panel-field"><span class="label">Moskit ID</span><span class="value">' + (lead.moskit_contact_id || 'Not synced') + '</span></div>' +
+            '<div class="panel-field"><span class="label">Messages</span><span class="value">' + (lead.message_count || 0) + '</span></div></div>' +
+            '<div class="panel-section"><h6>Assignment</h6>' +
+            '<div class="panel-field"><span class="label">Assigned To</span><span class="value editable" onclick="editAssign(this)">' + (lead.assigned_to || 'Unassigned') + '</span></div>' +
+            '<div class="panel-field"><span class="label">Follow-up</span><span class="value' + (lead.follow_up_date ? ' editable" onclick="editFollowUp(this)"' : '"') + '>' + (lead.follow_up_date || 'None') + '</span></div>' +
+            (lead.follow_up_note ? '<div class="panel-field"><span class="label">FU Note</span><span class="value">' + lead.follow_up_note + '</span></div>' : '') +
+            '</div>' +
+            '<div class="panel-section"><h6>Dates</h6>' +
+            '<div class="panel-field"><span class="label">Created</span><span class="value">' + (lead.created_at ? new Date(lead.created_at).toLocaleString() : '-') + '</span></div>' +
+            '<div class="panel-field"><span class="label">Updated</span><span class="value">' + (lead.updated_at ? new Date(lead.updated_at).toLocaleString() : '-') + '</span></div></div>';
+    } else if (tab === 'activity') {
+        c.innerHTML = '<div class="leads-table-loading"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Loading...</div>';
+        loadActivityTimeline(lead.id, c);
+    } else if (tab === 'notes') {
+        var html = '<div class="notes-composer"><label class="visually-hidden" for="note-input">Note</label><textarea id="note-input" rows="3" placeholder="Add a note..."></textarea><div class="composer-actions"><label class="visually-hidden" for="note-type">Note type</label><select id="note-type" class="form-select form-select-sm bulk-stage-select"><option value="note">Note</option><option value="call">Call</option><option value="email">Email</option><option value="meeting">Meeting</option></select><button type="button" class="btn btn-primary glass-btn glass-btn--primary btn-sm" onclick="addNote()"><i class="fas fa-paper-plane me-1" aria-hidden="true"></i>Add</button></div></div>';
+        var notes = (lead.communication_log || []).filter(function(e) { return ['note','call','email','meeting'].indexOf(e.type) >= 0; });
+        if (notes.length) {
+            var sn = notes.slice().sort(function(a, b) { return new Date(b.timestamp || 0) - new Date(a.timestamp || 0); });
+            html += '<div class="notes-list">' + sn.map(function(e) {
+                return '<div class="notes-list-item"><div class="notes-list-item-head"><span class="notes-list-item-type">' + (e.type || 'note') + '</span><span class="notes-list-item-time">' + timeAgo(e.timestamp) + '</span></div><div class="notes-list-item-content">' + (e.content || e.message || '') + '</div>' + (e.actor ? '<div class="notes-list-item-actor">by ' + e.actor + '</div>' : '') + '</div>';
+            }).join('') + '</div>';
+        }
+        c.innerHTML = html;
+    } else if (tab === 'scores') {
+        loadLeadScores();
+    } else if (tab === 'intel') {
+        loadLeadIntel();
+    } else if (tab === 'deal') {
+        loadLeadDeal();
+    } else if (tab === 'conversations') { loadLeadConversations(); } else if (tab === 'templates') { loadLeadTemplates(); }
+}
+
+function pf(label, value, field) {
+    return '<div class="panel-field"><span class="label">' + label + '</span><span class="value editable" onclick="editField(this, \'' + field + '\')">' + value + '</span></div>';
+}
+
+async function addNote() {
+    if (!currentLeadId) return;
+    var content = document.getElementById('note-input').value.trim();
+    if (!content) { showToast('Note cannot be empty', 'error'); return; }
+    var type = document.getElementById('note-type').value;
+    try {
+        var res = await fetch(API + '/' + currentLeadId + '/notes', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: content, type: type }) });
+        if (res.ok) { showToast('Note added', 'success'); var f = await (await fetch(API + '/' + currentLeadId)).json(); currentLeadData = f; switchPanelTab('notes'); }
+        else { showToast('Error adding note', 'error'); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// INLINE EDIT
+function editField(el, field) {
+    var cur = currentLeadData[field] || '';
+    var inp = document.createElement('input');
+    inp.type = field === 'lead_score' ? 'number' : 'text';
+    inp.value = cur;
+    inp.className = 'form-control form-control-sm leads-inline-input';
+    if (field === 'lead_score') { inp.min = 0; inp.max = 100; }
+    el.replaceWith(inp); inp.focus();
+    function save() { var v = inp.value; if (field === 'lead_score') v = parseInt(v) || 0; savePanelField(field, v); }
+    inp.addEventListener('blur', save);
+    inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { openPanel(currentLeadId); } });
+}
+function editStage(el) {
+    var sel = document.createElement('select'); sel.className = 'form-select form-select-sm leads-inline-input';
+    STAGES.forEach(function(s) { var o = document.createElement('option'); o.value = s; o.textContent = formatStage(s); if (currentLeadData.pipeline_stage === s) o.selected = true; sel.appendChild(o); });
+    el.replaceWith(sel); sel.focus();
+    sel.addEventListener('change', function() { savePanelField('pipeline_stage', sel.value); });
+    sel.addEventListener('blur', function() { savePanelField('pipeline_stage', sel.value); });
+}
+function editSource(el) {
+    var sources = ['WPP','META','MSG','IG','SITE','MANUAL'];
+    var sel = document.createElement('select'); sel.className = 'form-select form-select-sm leads-inline-input';
+    sources.forEach(function(s) { var o = document.createElement('option'); o.value = s; o.textContent = s; if (currentLeadData.source === s) o.selected = true; sel.appendChild(o); });
+    el.replaceWith(sel); sel.focus();
+    sel.addEventListener('change', function() { savePanelField('source', sel.value); });
+    sel.addEventListener('blur', function() { savePanelField('source', sel.value); });
+}
+async function savePanelField(field, value) {
+    if (!currentLeadId) return;
+    var u = {}; u[field] = value;
+    try {
+        var res = await fetch(API + '/' + currentLeadId, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(u) });
+        if (res.ok) { showToast(field + ' updated', 'success'); currentLeadData = await res.json(); renderPanel(currentLeadData); loadLeads(); }
+        else { showToast('Error saving', 'error'); openPanel(currentLeadId); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function loadActivityTimeline(leadId, container) {
+    try {
+        var r = await fetch(API + '/' + leadId + '/activity');
+        var data = await r.json();
+        var timeline = data.timeline || [];
+        if (!timeline.length) { container.innerHTML = '<div class="leads-table-empty"><i class="fas fa-history fa-2x mb-2" aria-hidden="true"></i><br>No activity yet</div>'; return; }
+        container.innerHTML = '<div class="timeline">' + timeline.map(function(e) {
+            return '<div class="timeline-item type-' + (e.type || 'note') + '"><div class="tl-time">' + timeAgo(e.timestamp) + '</div><div class="tl-content">' + (e.content || '-') + '</div>' + (e.actor ? '<div class="tl-actor">by ' + e.actor + '</div>' : '') + '</div>';
+        }).join('') + '</div>';
+    } catch(e) {
+        var log = currentLeadData.communication_log || [];
+        if (!log.length) { container.innerHTML = '<div class="leads-table-empty"><i class="fas fa-history fa-2x mb-2" aria-hidden="true"></i><br>No activity yet</div>'; return; }
+        var sorted = log.slice().sort(function(a, b) { return new Date(b.timestamp || 0) - new Date(a.timestamp || 0); });
+        container.innerHTML = '<div class="timeline">' + sorted.map(function(e) {
+            return '<div class="timeline-item type-' + (e.type || 'note') + '"><div class="tl-time">' + timeAgo(e.timestamp) + '</div><div class="tl-content">' + (e.summary || e.content || e.message || '-') + '</div>' + (e.actor ? '<div class="tl-actor">by ' + e.actor + '</div>' : '') + '</div>';
+        }).join('') + '</div>';
+    }
+}
+
+function editAssign(el) {
+    var members = {{ team_members | tojson }};
+    var sel = document.createElement('select'); sel.className = 'form-select form-select-sm leads-inline-input';
+    var opt0 = document.createElement('option'); opt0.value = ''; opt0.textContent = 'Unassigned'; sel.appendChild(opt0);
+    members.forEach(function(m) { var o = document.createElement('option'); o.value = m; o.textContent = m; if (currentLeadData.assigned_to === m) o.selected = true; sel.appendChild(o); });
+    el.replaceWith(sel); sel.focus();
+    sel.addEventListener('change', function() { assignLeadAction(sel.value); });
+}
+
+async function assignLeadAction(assignee) {
+    if (!currentLeadId) return;
+    try {
+        var r = await fetch(API + '/' + currentLeadId + '/assign', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ assignee: assignee }) });
+        if (r.ok) { showToast('Assigned to ' + (assignee || 'nobody'), 'success'); var f = await (await fetch(API + '/' + currentLeadId)).json(); currentLeadData = f; renderPanel(f); loadLeads(); }
+        else { showToast('Error assigning', 'error'); openPanel(currentLeadId); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+function editFollowUp(el) {
+    var inp = document.createElement('input'); inp.type = 'date'; inp.value = currentLeadData.follow_up_date || '';
+    inp.className = 'form-control form-control-sm leads-inline-input';
+    el.replaceWith(inp); inp.focus();
+    inp.addEventListener('change', function() { scheduleFollowUpAction(inp.value, ''); });
+}
+
+async function scheduleFollowUpAction(date, note) {
+    if (!currentLeadId || !date) return;
+    try {
+        var r = await fetch(API + '/' + currentLeadId + '/follow-up', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ date: date, note: note }) });
+        if (r.ok) { showToast('Follow-up scheduled for ' + date, 'success'); var f = await (await fetch(API + '/' + currentLeadId)).json(); currentLeadData = f; renderPanel(f); }
+        else { showToast('Error scheduling', 'error'); openPanel(currentLeadId); }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+function panelAction(action) {
+    if (!currentLeadData) return;
+    if (action === 'call' && currentLeadData.phone) window.open('tel:' + currentLeadData.phone);
+    else if (action === 'email' && currentLeadData.email) window.open('mailto:' + currentLeadData.email);
+    else if (action === 'note') { switchPanelTab('notes'); document.querySelectorAll('.panel-tab').forEach(function(t, i) { t.classList.toggle('active', i === 2); }); setTimeout(function() { var inp = document.getElementById('note-input'); if (inp) inp.focus(); }, 200); }
+    else if (action === 'schedule') {
+        var c = document.getElementById('panel-content');
+        c.innerHTML = '<div class="panel-section"><h6>Schedule Follow-up</h6>' +
+            '<div class="mb-3"><label class="leads-form-label" for="fu-date">Date</label><input type="date" id="fu-date" class="form-control form-control-sm" value="' + (currentLeadData.follow_up_date || '') + '"></div>' +
+            '<div class="mb-3"><label class="leads-form-label" for="fu-time">Time</label><input type="time" id="fu-time" class="form-control form-control-sm" value="11:00"></div>' +
+            '<div class="mb-3"><label class="leads-form-label" for="fu-note">Note</label><textarea id="fu-note" rows="2" class="form-control form-control-sm" placeholder="Follow-up details...">' + (currentLeadData.follow_up_note || '') + '</textarea></div>' +
+            '<div class="mb-3"><label class="leads-form-label" for="fu-duration">Duration</label><select id="fu-duration" class="form-select form-select-sm"><option value="30" selected>30 min</option><option value="60">1 hour</option></select></div>' +
+            '<div class="mb-3 form-check"><input type="checkbox" id="fu-gcal" class="form-check-input"><label class="form-check-label small" for="fu-gcal">Also create Google Calendar event</label></div>' +
+            '<button type="button" class="btn btn-warning btn-sm" onclick="scheduleWithOptions()"><i class="fas fa-calendar-check me-1" aria-hidden="true"></i>Schedule</button>' +
+            ' <button type="button" class="btn btn-outline-secondary btn-sm" onclick="switchPanelTab(\'info\')">Cancel</button></div>';
+        document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
+    }
+    else if (action === 'convert') {
+        if (currentLeadData.status === 'converted') { showToast('Lead already converted (Client #' + (currentLeadData.converted_client_id || '?') + ')', 'info'); return; }
+        var c = document.getElementById('panel-content');
+        var name = currentLeadData.name || currentLeadData.whatsapp_name || 'Unknown';
+        var parts = name.trim().split(' ');
+        var fn = parts[0] || ''; var ln = parts.slice(1).join(' ') || '';
+        c.innerHTML = '<div class="panel-section"><h6>Convert to Client</h6>' +
+            '<div class="mb-2"><label class="leads-form-label" for="conv-fn">First Name</label><input type="text" id="conv-fn" class="form-control form-control-sm" value="' + fn + '"></div>' +
+            '<div class="mb-2"><label class="leads-form-label" for="conv-ln">Last Name</label><input type="text" id="conv-ln" class="form-control form-control-sm" value="' + ln + '"></div>' +
+            '<div class="mb-2"><label class="leads-form-label" for="conv-email-readonly">Email</label><input type="text" id="conv-email-readonly" class="form-control form-control-sm" disabled value="' + (currentLeadData.email || '') + '"></div>' +
+            '<div class="mb-2"><label class="leads-form-label" for="conv-phone-readonly">Phone</label><input type="text" id="conv-phone-readonly" class="form-control form-control-sm" disabled value="' + (currentLeadData.phone || '') + '"></div>' +
+            '<div class="mb-3 form-check"><input type="checkbox" id="conv-case" class="form-check-input" ' + (currentLeadData.visa_interest ? 'checked' : '') + '><label class="form-check-label small" for="conv-case">Also create Case (' + (currentLeadData.visa_interest || 'no visa type') + ')</label></div>' +
+            '<button type="button" class="btn btn-success glass-btn glass-btn--success btn-sm" onclick="convertToClient()"><i class="fas fa-user-check me-1" aria-hidden="true"></i>Convert to Client</button>' +
+            ' <button type="button" class="btn btn-outline-secondary btn-sm" onclick="switchPanelTab(\'info\')">Cancel</button></div>';
+        document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
+    }
+    else if (action === 'assign') {
+        var c = document.getElementById('panel-content');
+        c.innerHTML = '<div class="panel-section"><h6>Assign Lead</h6>' +
+            '<div class="mb-3"><label class="leads-form-label" for="assign-select">Team Member</label><select id="assign-select" class="form-select form-select-sm"><option value="">Unassigned</option><option value="Ana Clara">Ana Clara</option><option value="Juliana">Juliana</option></select></div>' +
+            '<button type="button" class="btn btn-primary glass-btn glass-btn--primary btn-sm" onclick="assignLeadAction(document.getElementById(\'assign-select\').value)"><i class="fas fa-user-tag me-1" aria-hidden="true"></i>Assign</button>' +
+            ' <button type="button" class="btn btn-outline-secondary btn-sm" onclick="switchPanelTab(\'info\')">Cancel</button></div>';
+        if (currentLeadData.assigned_to) document.getElementById('assign-select').value = currentLeadData.assigned_to;
+        document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
+    }
+    else if (action === 'task') {
+        var c = document.getElementById('panel-content');
+        var leadName = currentLeadData.name || currentLeadData.whatsapp_name || 'Unknown';
+        var tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+        var tmrStr = tomorrow.toISOString().split('T')[0];
+        c.innerHTML = '<div class="panel-section"><h6><i class="fas fa-tasks me-2" aria-hidden="true"></i>Create Notion Task</h6>' +
+            '<div class="mb-2"><label class="leads-form-label" for="task-title">Title</label><input type="text" id="task-title" class="form-control form-control-sm" value="Follow-up: ' + leadName + '"></div>' +
+            '<div class="mb-2"><label class="leads-form-label" for="task-assignee">Assignee</label><select id="task-assignee" class="form-select form-select-sm">{% for m in team_members %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select></div>' +
+            '<div class="mb-2"><label class="leads-form-label" for="task-due">Due Date</label><input type="date" id="task-due" class="form-control form-control-sm" value="' + tmrStr + '"></div>' +
+            '<div class="mb-3"><label class="leads-form-label" for="task-desc">Description</label><textarea id="task-desc" rows="2" class="form-control form-control-sm" placeholder="Task details...">' + (currentLeadData.visa_interest ? 'Visa: ' + currentLeadData.visa_interest : '') + '</textarea></div>' +
+            '<button type="button" class="btn btn-primary glass-btn glass-btn--primary btn-sm" onclick="createNotionTask()"><i class="fas fa-paper-plane me-1" aria-hidden="true"></i>Create Task</button>' +
+            ' <button type="button" class="btn btn-outline-secondary btn-sm" onclick="switchPanelTab(\'info\')">Cancel</button></div>';
+        if (currentLeadData.assigned_to) { var sel = document.getElementById('task-assignee'); if (sel) sel.value = currentLeadData.assigned_to; }
+        document.querySelectorAll('.panel-tab').forEach(function(t) { t.classList.remove('active'); });
+    }
+}
+async function convertToClient() {
+    if (!currentLeadId) return;
+    var createCase = document.getElementById('conv-case').checked;
+    if (!confirm('Convert this lead to a CaseHub client?' + (createCase ? ' A new case will also be created.' : ''))) return;
+    try {
+        var r = await fetch(API + '/' + currentLeadId + '/convert', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ create_case: createCase }) });
+        if (r.ok) {
+            var result = await r.json();
+            showToast('Converted to Client #' + result.client_id + (result.case_id ? ' with Case #' + result.case_id : ''), 'success');
+            var f = await (await fetch(API + '/' + currentLeadId)).json();
+            currentLeadData = f;
+            renderPanel(f);
+            loadLeads(); loadKPIs();
+        } else {
+            var err = await r.json();
+            showToast(err.detail || 'Conversion failed', 'error');
+        }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function deleteLead() {
+    if (!currentLeadId || !confirm('Delete this lead?')) return;
+    try { var r = await fetch(API + '/' + currentLeadId, { method: 'DELETE' }); if (r.ok) { showToast('Lead deleted', 'success'); closePanel(); loadLeads(); loadKPIs(); } } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// NEW LEAD
+function showNewLeadModal() {
+    ['new-name','new-phone','new-email','new-notes'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    {% if product == "lite" %}
+    ['new-area-atuacao','new-valor-causa','new-comarca','new-indicado-por'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    {% else %}
+    var interestEl = document.getElementById('new-interest'); if (interestEl) interestEl.value = '';
+    {% endif %}
+    document.getElementById('new-score').value = '0'; document.getElementById('new-source').value = 'MANUAL';
+    // Guard against missing element / bundle — see #207.
+    var newLeadEl = document.getElementById('newLeadModal');
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !newLeadEl) return;
+    bootstrap.Modal.getOrCreateInstance(newLeadEl).show();
+}
+async function createLead() {
+    var lead = {
+        name: document.getElementById('new-name').value,
+        phone: document.getElementById('new-phone').value.replace(/\D/g, ''),
+        email: document.getElementById('new-email').value,
+        source: document.getElementById('new-source').value,
+        lead_score: parseInt(document.getElementById('new-score').value) || 0,
+        notes: document.getElementById('new-notes').value
+    };
+    {% if product == "lite" %}
+    lead.area_atuacao = (document.getElementById('new-area-atuacao') || {}).value || '';
+    lead.valor_causa = (document.getElementById('new-valor-causa') || {}).value || '';
+    lead.comarca = (document.getElementById('new-comarca') || {}).value || '';
+    lead.indicado_por = (document.getElementById('new-indicado-por') || {}).value || '';
+    lead.pipeline_stage = 'PROSPECCAO';
+    if (!lead.name && !lead.phone) { showToast('Nome ou telefone obrigatório', 'error'); return; }
+    {% else %}
+    lead.visa_interest = (document.getElementById('new-interest') || {}).value || '';
+    if (!lead.name && !lead.phone) { showToast('Name or phone required', 'error'); return; }
+    {% endif %}
+    try { var r = await fetch(API, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(lead) }); if (r.ok) { var newLeadEl = document.getElementById('newLeadModal'); var newLeadInst = (typeof bootstrap !== 'undefined' && bootstrap.Modal && newLeadEl) ? bootstrap.Modal.getInstance(newLeadEl) : null; if (newLeadInst) newLeadInst.hide(); showToast('{% if product == "lite" %}Lead criado{% else %}Lead created{% endif %}', 'success'); loadLeads(); loadKPIs(); } else { var e = await r.json(); showToast(e.detail || 'Erro', 'error'); } } catch(e) { showToast('Erro: ' + e.message, 'error'); }
+}
+
+// KANBAN
+async function loadKanban() {
+    try {
+        var res = await fetch(API + '/pipeline');
+        var data = await res.json();
+        var container = document.getElementById('kanban-container');
+        container.innerHTML = '';
+        STAGES.forEach(function(stage) {
+            var info = data.pipeline[stage] || { count: 0, leads: [], avg_score: 0 };
+            var col = document.createElement('div'); col.className = 'kanban-col'; col.setAttribute('data-stage', stage);
+            col.innerHTML = '<div class="col-header" data-stage="' + stage + '"><span class="col-header-name">' + formatStage(stage) + '</span><span class="col-count">' + info.count + '</span></div><div class="kanban-cards" id="kanban-' + stage + '"></div>';
+            container.appendChild(col);
+            var cc = col.querySelector('.kanban-cards');
+            (info.leads || []).forEach(function(l) {
+                var sc = scoreClass(l.score || 0);
+                var bc = kanbanCardClass(l.score || 0);
+                var card = document.createElement('div'); card.className = 'kanban-card ' + bc;
+                card.setAttribute('data-id', l.id);
+                card.onclick = function() { openPanel(l.id); };
+                var days = ''; if (l.created_at) { var d = Math.floor((Date.now() - new Date(l.created_at)) / 86400000); days = '<div class="card-days' + (d > 14 ? ' overdue' : '') + '"><i class="fas fa-clock me-1" aria-hidden="true"></i>' + d + 'd</div>'; }
+                var areaHtml = l.area_atuacao ? '<div class="card-area"><i class="fas fa-gavel me-1" aria-hidden="true"></i>' + l.area_atuacao + '</div>' : '';
+                var lastActivity = l.updated_at ? '<div class="card-days"><i class="fas fa-clock me-1" aria-hidden="true"></i>' + timeAgo(l.updated_at) + '</div>' : '';
+                card.innerHTML = '<span class="card-score score-badge ' + sc + '">' + (l.score || 0) + '</span><div class="card-name">' + (l.name || ('{% if product == "lite" %}Desconhecido{% else %}Unknown{% endif %}')) + '</div>' + (l.phone ? '<div class="card-phone"><i class="fas fa-phone me-1" aria-hidden="true"></i>' + l.phone + '</div>' : '') + '<div class="card-source"><span class="source-badge source-' + (l.source || 'MANUAL') + '">' + (l.source || '-') + '</span></div>' + areaHtml + days + lastActivity + (l.is_urgent ? '<span class="urgent-badge card-urgent">{% if product == "lite" %}URGENTE{% else %}URGENT{% endif %}</span>' : '');
+                cc.appendChild(card);
+            });
+            new Sortable(cc, { group: 'leads', animation: 200, ghostClass: 'sortable-ghost', dragClass: 'sortable-drag',
+                onEnd: function(evt) { var lid = evt.item.getAttribute('data-id'); var ns = evt.to.closest('.kanban-col').getAttribute('data-stage'); if (lid && ns) moveLeadStage(lid, ns); }
+            });
+        });
+    } catch(e) { document.getElementById('kanban-container').innerHTML = '<div class="leads-table-error">{% if product == "lite" %}Erro ao carregar pipeline{% else %}Error loading pipeline{% endif %}</div>'; }
+}
+async function moveLeadStage(lid, ns) {
+    try { var r = await fetch(API + '/' + lid + '/stage', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ stage: ns }) }); if (r.ok) showToast('{% if product == "lite" %}Movido para {% else %}Moved to {% endif %}' + formatStage(ns), 'success'); else { showToast('{% if product == "lite" %}Erro ao mover lead{% else %}Error moving lead{% endif %}', 'error'); loadKanban(); } } catch(e) { showToast('{% if product == "lite" %}Erro{% else %}Error{% endif %}', 'error'); loadKanban(); }
+}
+
+// METRICS
+async function loadMetrics() {
+    try {
+        var p = palette();
+        var r = await Promise.all([fetch(API + '/metrics'), fetch(API + '/trends?days=30'), fetch(API + '/pipeline'), fetch(API + '/aging')]);
+        var metrics = await r[0].json(), trends = await r[1].json(), pipeline = await r[2].json();
+        var aging = {}; try { aging = await r[3].json(); } catch(e) {}
+
+        var sc = STAGES.map(function(s) { return stageColor(s); });
+        renderChart('chart-funnel', 'bar', { labels: STAGES.map(formatStage), datasets: [{ label: 'Leads', data: STAGES.map(function(s) { return (pipeline.pipeline[s] || {}).count || 0; }), backgroundColor: sc }] }, { indexAxis: 'y', plugins: { legend: { display: false } } });
+
+        var srcs = Object.keys(metrics.by_source || {});
+        renderChart('chart-source', 'bar', { labels: srcs, datasets: [{ label: 'Leads', data: srcs.map(function(s) { return metrics.by_source[s] || 0; }), backgroundColor: srcs.map(function(s) { return sourceColor(s); }) }] }, { plugins: { legend: { display: false } } });
+
+        renderChart('chart-pipeline', 'bar', { labels: STAGES.map(formatStage), datasets: [
+            { label: 'Hot', data: STAGES.map(function(s) { return (pipeline.pipeline[s] || {}).hot || 0; }), backgroundColor: p.hot },
+            { label: 'Qualified', data: STAGES.map(function(s) { return (pipeline.pipeline[s] || {}).qualified || 0; }), backgroundColor: p.qualified },
+            { label: 'Warm', data: STAGES.map(function(s) { return (pipeline.pipeline[s] || {}).warm || 0; }), backgroundColor: p.warm },
+            { label: 'Cold', data: STAGES.map(function(s) { return (pipeline.pipeline[s] || {}).cold || 0; }), backgroundColor: p.cold }
+        ] }, { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } });
+
+        var ad = STAGES.map(function(s) { return aging[s] ? aging[s].avg_days : 0; });
+        var ac = ad.map(function(d) { return d > 14 ? p.danger : d > 7 ? p.warning : p.success; });
+        renderChart('chart-aging', 'bar', { labels: STAGES.map(formatStage), datasets: [{ label: 'Avg Days', data: ad, backgroundColor: ac }] }, { plugins: { legend: { display: false } } });
+
+        var sd = metrics.by_lead_status || {};
+        renderChart('chart-scores', 'doughnut', { labels: ['Hot (70+)', 'Qualified (50-69)', 'Warm (30-49)', 'Cold (<30)'], datasets: [{ data: [sd.hot || 0, sd.qualified || 0, sd.warm || 0, sd.cold || 0], backgroundColor: [p.hot, p.qualified, p.warm, p.cold] }] });
+
+        var dd = trends.daily || [];
+        renderChart('chart-trends', 'line', { labels: dd.map(function(d) { return d.date.substring(5); }), datasets: [{ label: 'New Leads', data: dd.map(function(d) { return d.count; }), borderColor: p.accent, backgroundColor: p.accent, fill: false, tension: 0.3 }] }, { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } });
+
+        fetch(API + '/deals/pipeline').then(function(r) { return r.json(); }).then(function(dpData) {
+            var stageOrder = ['opportunity', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+            var stageNames = { opportunity: 'Opportunity', proposal: 'Proposal', negotiation: 'Negotiation', closed_won: 'Won', closed_lost: 'Lost' };
+            var stageColors = { opportunity: p.cold, proposal: p.accent, negotiation: p.warning, closed_won: p.success, closed_lost: p.danger };
+            var labels = stageOrder.map(function(k) { return stageNames[k] || k; });
+            var totals = stageOrder.map(function(k) { return (dpData[k] || {}).total_value || 0; });
+            var weighted = stageOrder.map(function(k) { return (dpData[k] || {}).weighted_value || 0; });
+            var counts = stageOrder.map(function(k) { return (dpData[k] || {}).count || 0; });
+            var bgColors = stageOrder.map(function(k) { return stageColors[k]; });
+            renderChart('chart-deal-pipeline', 'bar', { labels: labels, datasets: [{ label: 'Total ($)', data: totals, backgroundColor: bgColors }, { label: 'Weighted ($)', data: weighted, backgroundColor: bgColors }] }, { indexAxis: 'y', plugins: { tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ': $' + ctx.raw.toLocaleString() + ' (' + counts[ctx.dataIndex] + ' deals)'; } } } } });
+        }).catch(function(e) { console.log('Deal pipeline chart error:', e); });
+
+        fetch(API + '/deals/forecast').then(function(r) { return r.json(); }).then(function(fcData) {
+            var stageOrder = ['opportunity', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+            var stageNames = { opportunity: 'Opportunity', proposal: 'Proposal', negotiation: 'Negotiation', closed_won: 'Won', closed_lost: 'Lost' };
+            var stageColors = { opportunity: p.cold, proposal: p.accent, negotiation: p.warning, closed_won: p.success, closed_lost: p.danger };
+            var bs = fcData.by_stage || {};
+            var labels = stageOrder.map(function(k) { return stageNames[k] || k; });
+            var totals = stageOrder.map(function(k) { return (bs[k] || {}).total || 0; });
+            var weighted = stageOrder.map(function(k) { return (bs[k] || {}).weighted || 0; });
+            var bgColors = stageOrder.map(function(k) { return stageColors[k]; });
+            renderChart('chart-forecast', 'bar', { labels: labels, datasets: [{ label: 'Total ($)', data: totals, backgroundColor: bgColors }, { label: 'Weighted ($)', data: weighted, backgroundColor: bgColors }] }, { plugins: { legend: { display: true }, title: { display: true, text: 'Pipeline: $' + (fcData.total_pipeline || 0).toLocaleString() + ' | Forecast: $' + (fcData.weighted_forecast || 0).toLocaleString(), color: p.success, font: { size: 12 } } } });
+        }).catch(function(e) { console.log('Forecast chart error:', e); });
+
+        loadIntelAnalytics();
+    } catch(e) { console.error('Metrics error', e); }
+}
+
+async function loadIntelAnalytics() {
+    var p = palette();
+    try {
+        fetch(API + '/intel/analytics/velocity').then(function(r) { return r.json(); }).then(function(data) {
+            if (data.error) return;
+            var stages = STAGES;
+            var labels = stages.map(formatStage);
+            var avgDays = stages.map(function(s) { return (data.by_stage[s] || {}).avg_days || 0; });
+            var colors = avgDays.map(function(d) { return d > 14 ? p.danger : d > 7 ? p.warning : p.success; });
+            renderChart('chart-velocity', 'bar', {
+                labels: labels,
+                datasets: [{ label: 'Avg Days', data: avgDays, backgroundColor: colors }]
+            }, { indexAxis: 'y', plugins: { legend: { display: false }, title: { display: true, text: 'Avg Cycle: ' + (data.avg_total_cycle_days || 0) + ' days', color: p.textMuted, font: { size: 11 } } } });
+        }).catch(function(e) { console.log('Velocity chart error:', e); });
+
+        fetch(API + '/intel/analytics/channels').then(function(r) { return r.json(); }).then(function(data) {
+            if (data.error) return;
+            renderChart('chart-channels', 'doughnut', {
+                labels: ['WhatsApp Only', 'Email Only', 'Both Channels', 'No Engagement'],
+                datasets: [{
+                    data: [data.whatsapp_only.count, data.email_only.count, data.both_channels.count, data.no_engagement],
+                    backgroundColor: [p.sourceWPP, p.sourceIG, p.accent, p.cold]
+                }]
+            }, { plugins: { legend: { position: 'bottom', labels: { color: p.textSecondary, font: { size: 10 } } } } });
+        }).catch(function(e) { console.log('Channel chart error:', e); });
+
+        fetch(API + '/intel/analytics/sources').then(function(r) { return r.json(); }).then(function(data) {
+            if (data.error) return;
+            var sources = Object.keys(data.sources || {});
+            var convRates = sources.map(function(s) { return data.sources[s].conversion_rate || 0; });
+            var totals = sources.map(function(s) { return data.sources[s].total_leads || 0; });
+            var bgColors = sources.map(function(s) { return sourceColor(s); });
+            renderChart('chart-source-conv', 'bar', {
+                labels: sources,
+                datasets: [
+                    { label: 'Conversion %', data: convRates, backgroundColor: bgColors, yAxisID: 'y' },
+                    { label: 'Total Leads', data: totals, backgroundColor: bgColors, yAxisID: 'y1', type: 'bar' }
+                ]
+            }, { scales: { y: { position: 'left', title: { display: true, text: 'Conv %', color: p.textMuted } }, y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Leads', color: p.textMuted } } } });
+        }).catch(function(e) { console.log('Source conv chart error:', e); });
+
+        fetch(API + '/intel/analytics/summary').then(function(r) { return r.json(); }).then(function(data) {
+            if (data.error) return;
+            var rd = data.risk_distribution || {};
+            renderChart('chart-risk', 'doughnut', {
+                labels: ['Low Risk', 'Medium Risk', 'High Risk', 'Not Analyzed'],
+                datasets: [{
+                    data: [rd.low || 0, rd.medium || 0, rd.high || 0, (data.total_leads || 0) - (data.total_analyzed || 0)],
+                    backgroundColor: [p.success, p.warning, p.danger, p.cold]
+                }]
+            }, { plugins: { legend: { position: 'bottom', labels: { color: p.textSecondary, font: { size: 10 } } }, title: { display: true, text: 'Coverage: ' + (data.coverage || 0) + '% analyzed', color: p.textMuted, font: { size: 11 } } } });
+
+            var alerts = data.active_alerts || [];
+            if (alerts.length) {
+                var panel = document.getElementById('intel-alerts-panel');
+                panel.hidden = false;
+                var html = '';
+                alerts.forEach(function(a) {
+                    var cls = a.risk_level === 'high' ? 'intel-alerts-item--high' : a.opportunity_score >= 80 ? 'intel-alerts-item--success' : 'intel-alerts-item--warning';
+                    html += '<div class="intel-alerts-item ' + cls + '" onclick="openPanel(\'' + a.lead_id + '\')" tabindex="0" role="button">';
+                    html += '<strong class="intel-alerts-item-name">' + (a.lead_name || 'Unknown') + '</strong>';
+                    html += ' <span class="intel-risk ' + a.risk_level + '">' + a.risk_level + '</span>';
+                    html += ' <span class="intel-alerts-item-opp">Opp: ' + a.opportunity_score + '</span>';
+                    if (a.next_action) html += '<div class="intel-alerts-item-action">' + a.next_action + '</div>';
+                    html += '</div>';
+                });
+                document.getElementById('intel-alerts-list').innerHTML = html;
+            }
+        }).catch(function(e) { console.log('Intel summary error:', e); });
+    } catch(e) { console.log('Intel analytics error:', e); }
+}
+
+function renderChart(id, type, data, extra) {
+    extra = extra || {};
+    var p = palette();
+    if (charts[id]) charts[id].destroy();
+    var ctx = document.getElementById(id); if (!ctx) return;
+    var opts = { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: p.textSecondary, font: { size: 11 } } } } };
+    if (type === 'bar' || type === 'line') { opts.scales = { x: { ticks: { color: p.textMuted, font: { size: 10 } }, grid: { color: p.borderDefault } }, y: { ticks: { color: p.textMuted, font: { size: 10 } }, grid: { color: p.borderDefault } } }; }
+    if (extra.plugins) { opts.plugins = Object.assign({}, opts.plugins, extra.plugins); }
+    if (extra.scales) { opts.scales = opts.scales || {}; Object.keys(extra.scales).forEach(function(k) { opts.scales[k] = Object.assign({}, (opts.scales[k] || {}), extra.scales[k]); }); }
+    if (extra.indexAxis) opts.indexAxis = extra.indexAxis;
+    charts[id] = new Chart(ctx, { type: type, data: data, options: opts });
+}
+
+// SYNC
+async function syncMoskit() {
+    var btn = document.getElementById('btn-sync-moskit'); btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Syncing...';
+    try { var r = await fetch(API + '/sync/moskit', { method: 'POST' }); var res = await r.json(); showToast('Moskit: ' + (res.leads_imported || 0) + ' imported, ' + (res.leads_updated || 0) + ' updated', 'success'); loadLeads(); loadKPIs(); } catch(e) { showToast('Sync error', 'error'); }
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync me-1" aria-hidden="true"></i>Sync Moskit';
+}
+
+async function scheduleWithOptions() {
+    if (!currentLeadId) return;
+    var date = document.getElementById('fu-date').value;
+    var time = document.getElementById('fu-time').value || '11:00';
+    var note = document.getElementById('fu-note').value;
+    var duration = document.getElementById('fu-duration').value || '30';
+    var gcal = document.getElementById('fu-gcal').checked;
+    if (!date) { showToast('Date is required', 'error'); return; }
+    await scheduleFollowUpAction(date, note);
+    if (gcal) {
+        await createCalendarEvent(date, time, parseInt(duration), note);
+    }
+}
+
+async function createNotionTask() {
+    if (!currentLeadId) return;
+    var title = document.getElementById('task-title').value.trim();
+    var assignee = document.getElementById('task-assignee').value;
+    var dueDate = document.getElementById('task-due').value;
+    var desc = document.getElementById('task-desc').value;
+    if (!title) { showToast('Title is required', 'error'); return; }
+    try {
+        var r = await fetch(API + '/' + currentLeadId + '/task', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ title: title, assignee: assignee, due_date: dueDate, description: desc })
+        });
+        if (r.ok) {
+            var res = await r.json();
+            showToast('Task created in Notion' + (res.notion_url ? '' : ''), 'success');
+            if (res.notion_url) { setTimeout(function() { showToast('<a href="' + res.notion_url + '" target="_blank" class="leads-link-accent">Open in Notion</a>', 'info'); }, 500); }
+            var f = await (await fetch(API + '/' + currentLeadId)).json();
+            currentLeadData = f; switchPanelTab('info');
+        } else {
+            var err = await r.json();
+            showToast(err.detail || 'Task creation failed', 'error');
+        }
+    } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+async function createCalendarEvent(date, time, duration, note) {
+    if (!currentLeadId) return;
+    var leadName = currentLeadData.name || currentLeadData.whatsapp_name || 'Unknown';
+    try {
+        var r = await fetch(API + '/' + currentLeadId + '/calendar', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ date: date, time: time, duration: duration, title: 'Follow-up: ' + leadName, description: note || '' })
+        });
+        if (r.ok) {
+            var res = await r.json();
+            var msg = 'Calendar event created';
+            if (res.meet_link) msg += ' with Meet link';
+            showToast(msg, 'success');
+            if (res.meet_link) { setTimeout(function() { showToast('<a href="' + res.meet_link + '" target="_blank" class="leads-link-accent">Google Meet link</a>', 'info'); }, 500); }
+        } else {
+            var err = await r.json();
+            showToast(err.detail || 'Calendar event failed', 'error');
+        }
+    } catch(e) { showToast('Calendar error: ' + e.message, 'error'); }
+}
+
+// SAVED FILTERS
+async function saveFilter() {
+    var stage = document.getElementById('filter-stage').value;
+    var source = document.getElementById('filter-source').value;
+    var status = document.getElementById('filter-lead-status').value;
+    var search = document.getElementById('search-input').value;
+    if (!stage && !source && !status && !search) { showToast('Set at least one filter first', 'error'); return; }
+    var parts = [];
+    if (search) parts.push('"' + search + '"');
+    if (stage) parts.push(formatStage(stage));
+    if (source) parts.push(source);
+    if (status) parts.push(status);
+    var name = prompt('Filter name:', parts.join(' + '));
+    if (!name) return;
+    var filters = JSON.parse(localStorage.getItem('leads_saved_filters') || '[]');
+    filters.push({ name: name, stage: stage, source: source, status: status, search: search });
+    localStorage.setItem('leads_saved_filters', JSON.stringify(filters));
+    loadSavedFilters();
+    showToast('Filter "' + name + '" saved', 'success');
+}
+function loadSavedFilters() {
+    var container = document.getElementById('saved-filters');
+    if (!container) return;
+    var filters = JSON.parse(localStorage.getItem('leads_saved_filters') || '[]');
+    var presets = [
+        { name: 'Hot WhatsApp', stage: '', source: 'WPP', status: 'hot', search: '', preset: true },
+        { name: 'Overdue', stage: '', source: '', status: '', search: '', preset: true, special: 'overdue' },
+        { name: 'Unassigned', stage: '', source: '', status: '', search: '', preset: true, special: 'unassigned' },
+        { name: 'This Week', stage: 'NEW_LEAD', source: '', status: '', search: '', preset: true }
+    ];
+    var all = presets.concat(filters);
+    container.innerHTML = all.map(function(f, i) {
+        var icon = f.preset ? '<i class="fas fa-star filter-chip-icon" aria-hidden="true"></i>' : '';
+        var removeBtn = f.preset ? '' : '<span class="chip-x" onclick="event.stopPropagation(); removeSavedFilter(' + (i - presets.length) + ')" aria-label="Remove filter">&times;</span>';
+        return '<button type="button" class="filter-chip" onclick="applySavedFilter(' + i + ')" data-filter-idx="' + i + '">' + icon + f.name + ' ' + removeBtn + '</button>';
+    }).join('');
+}
+function applySavedFilter(idx) {
+    var presets = [
+        { name: 'Hot WhatsApp', stage: '', source: 'WPP', status: 'hot', search: '', preset: true },
+        { name: 'Overdue', stage: '', source: '', status: '', search: '', preset: true, special: 'overdue' },
+        { name: 'Unassigned', stage: '', source: '', status: '', search: '', preset: true, special: 'unassigned' },
+        { name: 'This Week', stage: 'NEW_LEAD', source: '', status: '', search: '', preset: true }
+    ];
+    var filters = JSON.parse(localStorage.getItem('leads_saved_filters') || '[]');
+    var all = presets.concat(filters);
+    var f = all[idx];
+    if (!f) return;
+    if (f.special === 'overdue') { showOverdue(); return; }
+    if (f.special === 'unassigned') {
+        document.getElementById('filter-stage').value = '';
+        document.getElementById('filter-source').value = '';
+        document.getElementById('filter-lead-status').value = '';
+        document.getElementById('search-input').value = 'unassigned';
+        currentPage = 1; loadLeads();
+        showToast('Showing unassigned leads', 'info');
+        return;
+    }
+    document.getElementById('filter-stage').value = f.stage || '';
+    document.getElementById('filter-source').value = f.source || '';
+    document.getElementById('filter-lead-status').value = f.status || '';
+    document.getElementById('search-input').value = f.search || '';
+    currentPage = 1; loadLeads();
+    showToast('Filter "' + f.name + '" applied', 'info');
+}
+function removeSavedFilter(idx) {
+    var filters = JSON.parse(localStorage.getItem('leads_saved_filters') || '[]');
+    if (idx >= 0 && idx < filters.length) {
+        var name = filters[idx].name;
+        filters.splice(idx, 1);
+        localStorage.setItem('leads_saved_filters', JSON.stringify(filters));
+        loadSavedFilters();
+        showToast('Filter "' + name + '" removed', 'info');
+    }
+}
+
+// DUPLICATE DETECTION
+async function checkNewLeadDuplicates() {
+    var phone = document.getElementById('new-phone').value.replace(/\D/g, '');
+    var email = document.getElementById('new-email').value.trim();
+    if (!phone && !email) { document.getElementById('dup-warning').style.display = 'none'; return; }
+    try {
+        var params = new URLSearchParams();
+        if (phone) params.set('phone', phone);
+        if (email) params.set('email', email);
+        var r = await fetch(API + '/duplicates?' + params);
+        var data = await r.json();
+        var dups = data.duplicates || [];
+        var warn = document.getElementById('dup-warning');
+        var text = document.getElementById('dup-warning-text');
+        if (dups.length > 0) {
+            var links = dups.map(function(d) {
+                return '<a onclick="event.preventDefault(); (function(){var el=document.getElementById(\'newLeadModal\'); if(typeof bootstrap===\'undefined\'||!bootstrap.Modal||!el) return; var i=bootstrap.Modal.getInstance(el); if(i) i.hide();})(); openPanel(\'' + d.id + '\')">' + (d.name || d.phone || 'Unknown') + ' (Score: ' + (d.lead_score || 0) + ')</a>';
+            }).join(', ');
+            text.innerHTML = 'Possible duplicate' + (dups.length > 1 ? 's' : '') + ' found: ' + links;
+            warn.style.display = 'block';
+        } else {
+            warn.style.display = 'none';
+        }
+    } catch(e) { document.getElementById('dup-warning').style.display = 'none'; }
+}
+
+// GLOBAL SEARCH TYPEAHEAD
+var searchDropdown = null;
+function initSearchTypeahead() {
+    var input = document.getElementById('search-input');
+    if (!input) return;
+    if (document.getElementById('search-dropdown')) return;
+    var dd = document.createElement('div');
+    dd.id = 'search-dropdown';
+    dd.className = 'leads-search-dropdown';
+    dd.setAttribute('role', 'listbox');
+    input.parentElement.style.position = 'relative';
+    input.parentElement.appendChild(dd);
+    searchDropdown = dd;
+    input.addEventListener('input', function() {
+        var q = input.value.trim();
+        if (q.length < 2) { dd.style.display = 'none'; return; }
+        clearTimeout(typeaheadTimer);
+        typeaheadTimer = setTimeout(function() { typeaheadSearch(q); }, 250);
+    });
+    input.addEventListener('blur', function() { setTimeout(function() { dd.style.display = 'none'; }, 200); });
+    input.addEventListener('focus', function() { if (input.value.trim().length >= 2 && dd.innerHTML) dd.style.display = 'block'; });
+}
+async function typeaheadSearch(q) {
+    try {
+        var params = new URLSearchParams({ search: q, page: 1, per_page: 10 });
+        var r = await fetch(API + '?' + params);
+        var data = await r.json();
+        var dd = searchDropdown;
+        if (!data.leads || !data.leads.length) { dd.style.display = 'none'; return; }
+        dd.innerHTML = data.leads.map(function(l) {
+            var sc = scoreClass(l.lead_score || 0);
+            return '<div class="leads-search-result" onclick="openPanel(\'' + l.id + '\'); searchDropdown.style.display=\'none\';" role="option" tabindex="0">' +
+                '<div><div class="leads-search-result-name">' + (l.name || l.whatsapp_name || 'Unknown') + '</div>' +
+                '<div class="leads-search-result-meta">' + (l.phone || '') + (l.phone && l.email ? ' · ' : '') + (l.email || '') + '</div></div>' +
+                '<span class="score-badge ' + sc + '">' + (l.lead_score || 0) + '</span></div>';
+        }).join('');
+        dd.style.display = 'block';
+    } catch(e) { if (searchDropdown) searchDropdown.style.display = 'none'; }
+}
+
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePanel(); });
+function initLeadsDashboard() {
+    if (!document.querySelector('.leads-dashboard')) return;
+    loadLeads();
+    loadKPIs();
+    loadSavedFilters();
+    initSearchTypeahead();
+}
+document.addEventListener('DOMContentLoaded', initLeadsDashboard);
+document.addEventListener('casehub:soft-navigation', initLeadsDashboard);
+
+// Score rendering
+function renderScoreGauge(type, score, maxScore) {
+    var radius = 36;
+    var circumference = 2 * Math.PI * radius;
+    var offset = circumference - (score / maxScore) * circumference;
+    return '<div class="score-gauge ' + type + '">' +
+        '<div class="score-circle">' +
+        '<svg width="80" height="80" aria-hidden="true">' +
+        '<circle class="bg" cx="40" cy="40" r="' + radius + '"></circle>' +
+        '<circle class="fg" cx="40" cy="40" r="' + radius + '" ' +
+        'stroke-dasharray="' + circumference + '" stroke-dashoffset="' + offset + '"></circle>' +
+        '</svg>' +
+        '<div class="value">' + score + '</div>' +
+        '</div>' +
+        '<div class="score-label">' + type + '</div>' +
+        '</div>';
+}
+
+function renderFactorBar(label, value, maxValue, family) {
+    var pct = Math.round((value / maxValue) * 100);
+    return '<div class="factor-row">' +
+        '<span class="factor-label">' + label + '</span>' +
+        '<div class="factor-bar"><div class="factor-fill factor-fill--' + family + '" style="width:' + pct + '%"></div></div>' +
+        '<span class="factor-value">' + value + '/' + maxValue + '</span>' +
+        '</div>';
+}
+
+function loadLeadScores() {
+    if (!currentLeadId) return;
+    var c = document.getElementById('panel-content');
+    c.innerHTML = '<div class="leads-table-loading"><i class="fas fa-spinner fa-spin fa-2x" aria-hidden="true"></i><br>Loading scores...</div>';
+
+    fetch(API + '/' + currentLeadId + '/scores')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.detail) {
+                c.innerHTML = '<div class="leads-table-error">Error: ' + data.detail + '</div>';
+                return;
+            }
+            var s = data.scores;
+            var statusClass = s.lead_status || 'cold';
+
+            c.innerHTML =
+                '<div class="overall-score">' +
+                '<div class="big-number big-number--' + statusClass + '">' + s.overall_score + '</div>' +
+                '<div class="leads-form-helper">Overall Score</div>' +
+                '<span class="status-badge ' + statusClass + '">' + statusClass.toUpperCase() + '</span>' +
+                '</div>' +
+                '<div class="scores-grid">' +
+                renderScoreGauge('fit', s.fit_score, 100) +
+                renderScoreGauge('engagement', s.engagement_score, 100) +
+                renderScoreGauge('intent', s.intent_score, 100) +
+                renderScoreGauge('quality', s.quality_score, 100) +
+                '</div>' +
+                '<div class="leads-section">' +
+                '<h6 class="score-section-heading">Fit Factors</h6>' +
+                renderFactorBar('Visa Type', s.fit_factors.visa_type_value, 35, 'fit') +
+                renderFactorBar('Budget', s.fit_factors.budget_indicator, 25, 'fit') +
+                renderFactorBar('Urgency', s.fit_factors.urgency_level, 20, 'fit') +
+                renderFactorBar('Location', s.fit_factors.location_score, 20, 'fit') +
+                '<h6 class="score-section-heading">Engagement Factors</h6>' +
+                renderFactorBar('Messages', s.engagement_factors.message_count_score, 30, 'engagement') +
+                renderFactorBar('Recency', s.engagement_factors.message_recency, 30, 'engagement') +
+                renderFactorBar('Response', s.engagement_factors.response_time_avg, 20, 'engagement') +
+                renderFactorBar('Forms', s.engagement_factors.form_completion_rate, 20, 'engagement') +
+                renderFactorBar('Email', (s.engagement_factors.email_formality_boost || 0), 15, 'engagement') +
+                '<h6 class="score-section-heading">Intent Factors</h6>' +
+                renderFactorBar('Consultation', s.intent_factors.consultation_interest, 35, 'intent') +
+                renderFactorBar('Pricing', s.intent_factors.pricing_interest, 25, 'intent') +
+                renderFactorBar('Intake', s.intent_factors.intake_completion, 25, 'intent') +
+                renderFactorBar('Questions', s.intent_factors.direct_service_questions, 15, 'intent') +
+                '<h6 class="score-section-heading">Quality Factors</h6>' +
+                renderFactorBar('Contact', s.quality_factors.contact_completeness, 30, 'quality') +
+                renderFactorBar('Profile', s.quality_factors.profile_completeness, 30, 'quality') +
+                renderFactorBar('Documents', s.quality_factors.document_submissions, 20, 'quality') +
+                renderFactorBar('Intake', s.quality_factors.intake_form_score, 20, 'quality') +
+                '</div>' +
+                '<button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-recalculate" onclick="recalculateScores()"><i class="fas fa-sync me-1" aria-hidden="true"></i>Recalculate Scores</button>';
+        })
+        .catch(function(e) {
+            c.innerHTML = '<div class="leads-table-error">Error loading scores: ' + e.message + '</div>';
+        });
+}
+
+function recalculateScores() {
+    if (!currentLeadId) return;
+    var btn = document.querySelector('.btn-recalculate');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Recalculating...'; }
+
+    fetch(API + '/' + currentLeadId + '/recalculate-scores', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.saved) {
+                showToast('Scores recalculated!', 'success');
+                loadLeadScores();
+                loadLeads();
+            } else {
+                showToast('Error: ' + (data.detail || 'Unknown'), 'error');
+            }
+        })
+        .catch(function(e) {
+            showToast('Error: ' + e.message, 'error');
+        })
+        .finally(function() {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync me-1" aria-hidden="true"></i>Recalculate Scores'; }
+        });
+}
+
+
+// Deal UI
+var serviceCatalog = {};
+var dealStages = {};
+
+fetch(API + '/service-catalog')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        serviceCatalog = data.catalog || {};
+        dealStages = data.stages || {};
+    })
+    .catch(function(e) { console.error('Failed to load service catalog:', e); });
+
+function loadLeadDeal() {
+    if (!currentLeadId || !currentLeadData) return;
+    var c = document.getElementById('panel-content');
+    var lead = currentLeadData;
+    var deal = lead.deal || {};
+
+    var productsOptions = Object.entries(serviceCatalog).map(function(entry) {
+        var key = entry[0], info = entry[1];
+        var selected = (deal.products || []).indexOf(key) >= 0 ? ' selected' : '';
+        return '<option value="' + key + '"' + selected + '>' + key + ' ($' + info.price.toLocaleString() + ')</option>';
+    }).join('');
+
+    var stageOptions = Object.entries(dealStages).map(function(entry) {
+        var key = entry[0], info = entry[1];
+        var selected = (deal.deal_stage || 'opportunity') === key ? ' selected' : '';
+        return '<option value="' + key + '"' + selected + '>' + info.name + ' (' + info.win_probability + '%)</option>';
+    }).join('');
+
+    c.innerHTML =
+        '<div class="leads-section">' +
+        '<div class="leads-form-card">' +
+        '<h6 class="leads-form-card-heading"><i class="fas fa-handshake me-2" aria-hidden="true"></i>Deal Information</h6>' +
+
+        '<div class="leads-form-row">' +
+        '<label class="leads-form-label" for="deal-products">Services</label>' +
+        '<select multiple id="deal-products" class="form-select form-select-sm leads-deal-products" onchange="calculateDealValue()">' +
+        productsOptions +
+        '</select>' +
+        '<small class="leads-form-helper">Hold Ctrl/Cmd to select multiple</small>' +
+        '</div>' +
+
+        '<div class="leads-form-row">' +
+        '<label class="leads-form-label" for="deal-value">Deal Value ($)</label>' +
+        '<input type="number" id="deal-value" class="form-control form-control-sm" value="' + (deal.value || 0) + '">' +
+        '</div>' +
+
+        '<div class="leads-form-row">' +
+        '<label class="leads-form-label" for="deal-probability">Win Probability: <span id="deal-prob-label">' + (deal.win_probability || 10) + '%</span></label>' +
+        '<input type="range" id="deal-probability" class="form-range" min="0" max="100" value="' + (deal.win_probability || 10) + '" oninput="document.getElementById(\'deal-prob-label\').textContent=this.value+\'%\'">' +
+        '</div>' +
+
+        '<div class="leads-form-row">' +
+        '<label class="leads-form-label" for="deal-stage">Deal Stage</label>' +
+        '<select id="deal-stage" class="form-select form-select-sm" onchange="updateProbabilityFromStage()">' +
+        stageOptions +
+        '</select>' +
+        '</div>' +
+
+        '<div class="leads-form-row">' +
+        '<label class="leads-form-label" for="deal-close-date">Expected Close Date</label>' +
+        '<input type="date" id="deal-close-date" class="form-control form-control-sm" value="' + (deal.expected_close_date || '') + '">' +
+        '</div>' +
+
+        '<div class="leads-form-row">' +
+        '<label class="leads-form-label" for="deal-payment-plan">Payment Plan</label>' +
+        '<select id="deal-payment-plan" class="form-select form-select-sm">' +
+        '<option value="">Select...</option>' +
+        '<option value="full"' + (deal.payment_plan === 'full' ? ' selected' : '') + '>Full Payment</option>' +
+        '<option value="50_50"' + (deal.payment_plan === '50_50' ? ' selected' : '') + '>50% + 50%</option>' +
+        '<option value="installments"' + (deal.payment_plan === 'installments' ? ' selected' : '') + '>Installments</option>' +
+        '</select>' +
+        '</div>' +
+
+        '<div class="leads-form-row">' +
+        '<label class="leads-form-label" for="deal-notes">Notes</label>' +
+        '<textarea id="deal-notes" class="form-control form-control-sm" rows="2">' + (deal.notes || '') + '</textarea>' +
+        '</div>' +
+
+        '</div>' +
+
+        '<div class="leads-form-actions">' +
+        '<button type="button" class="btn btn-primary glass-btn glass-btn--primary flex-grow-1" onclick="saveDeal()"><i class="fas fa-save me-1" aria-hidden="true"></i>Save Deal</button>' +
+        (deal.id ? '<button type="button" class="btn btn-outline-danger" onclick="deleteDeal()" aria-label="Delete deal"><i class="fas fa-trash" aria-hidden="true"></i></button>' : '') +
+        '</div>' +
+
+        (deal.id ? '<div class="deal-stats-card">' +
+        '<div>Deal ID: ' + deal.id + '</div>' +
+        '<div>Created: ' + (deal.created_at ? new Date(deal.created_at).toLocaleString() : '-') + '</div>' +
+        '<div>Updated: ' + (deal.updated_at ? new Date(deal.updated_at).toLocaleString() : '-') + '</div>' +
+        '</div>' : '') +
+        '</div>';
+}
+
+function loadLeadConversations() {
+    if (!currentLeadId || !currentLeadData) return;
+    var c = document.getElementById('panel-content');
+
+    c.innerHTML =
+        '<div class="leads-section">' +
+        '<div class="leads-form-card">' +
+        '<h6 class="leads-form-card-heading"><i class="fas fa-comments me-2" aria-hidden="true"></i>Conversations</h6>' +
+
+        '<div class="leads-conv-channel-row" role="tablist" aria-label="Channel filter">' +
+        '<button type="button" class="btn btn-sm btn-outline-secondary conv-channel-btn active" data-channel="all" onclick="filterConversations(this, &apos;all&apos;)">All</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-success conv-channel-btn" data-channel="whatsapp" onclick="filterConversations(this, &apos;whatsapp&apos;)"><i class="fab fa-whatsapp me-1" aria-hidden="true"></i>WhatsApp</button>' +
+        '<button type="button" class="btn btn-sm btn-outline-primary conv-channel-btn" data-channel="email" onclick="filterConversations(this, &apos;email&apos;)"><i class="fas fa-envelope me-1" aria-hidden="true"></i>Email</button>' +
+        '</div>' +
+
+        '<div id="conversations-container" class="leads-conv-container">' +
+        '<div class="leads-table-loading"><i class="fas fa-spinner fa-spin me-2" aria-hidden="true"></i>Loading conversations...</div>' +
+        '</div>' +
+
+        '</div>' +
+        '</div>';
+
+    fetch(API + '/' + currentLeadId + '/conversations')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderConversations(data); })
+        .catch(function(e) {
+            document.getElementById('conversations-container').innerHTML =
+                '<div class="leads-table-error"><i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>Error loading conversations: ' + e.message + '</div>';
+        });
+}
+
+function renderConversations(data) {
+    var container = document.getElementById('conversations-container');
+    if (!container) return;
+
+    var messages = data.messages || [];
+    window.allConversations = messages;
+
+    if (messages.length === 0) {
+        container.innerHTML = '<div class="leads-table-empty"><i class="fas fa-inbox me-2" aria-hidden="true"></i>No conversations found</div>';
+        return;
+    }
+
+    var html = messages.map(function(msg) {
+        var isOutbound = msg.direction === 'outbound' || msg.from_me;
+        var channelIconCls = msg.channel === 'whatsapp' ? 'fab fa-whatsapp conv-channel-icon-wpp' : 'fas fa-envelope conv-channel-icon-email';
+        var dirCls = isOutbound ? 'conv-msg--outbound' : 'conv-msg--inbound';
+        var bubbleCls = isOutbound ? 'conv-bubble--outbound' : 'conv-bubble--inbound';
+        var time = msg.timestamp ? new Date(msg.timestamp).toLocaleString() : '';
+
+        return '<div class="conv-msg ' + dirCls + '" data-channel="' + (msg.channel || 'unknown') + '">' +
+            '<div class="conv-bubble ' + bubbleCls + '">' +
+            '<div class="conv-bubble-meta"><i class="' + channelIconCls + '" aria-hidden="true"></i> ' + time + '</div>' +
+            '<div class="conv-bubble-body">' + escapeHtml(msg.content || msg.body || '') + '</div>' +
+            '</div>' +
+            '</div>';
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+function filterConversations(btn, channel) {
+    document.querySelectorAll('.conv-channel-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+
+    var messages = document.querySelectorAll('.conv-msg');
+    messages.forEach(function(msg) {
+        if (channel === 'all' || msg.dataset.channel === channel) {
+            msg.style.display = '';
+        } else {
+            msg.style.display = 'none';
+        }
+    });
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+
+function loadLeadTemplates() {
+    if (!currentLeadId || !currentLeadData) return;
+    var c = document.getElementById('panel-content');
+
+    c.innerHTML =
+        '<div class="leads-section">' +
+        '<div class="leads-form-card">' +
+        '<h6 class="leads-form-card-heading"><i class="fas fa-paper-plane me-2" aria-hidden="true"></i>Send Template</h6>' +
+
+        '<div class="tpl-filters">' +
+        '<label class="visually-hidden" for="tpl-channel">Channel filter</label>' +
+        '<select id="tpl-channel" class="form-select form-select-sm" onchange="filterTemplates()">' +
+        '<option value="all">All Channels</option>' +
+        '<option value="whatsapp">WhatsApp</option>' +
+        '<option value="email">Email</option>' +
+        '</select>' +
+        '<label class="visually-hidden" for="tpl-lang">Language filter</label>' +
+        '<select id="tpl-lang" class="form-select form-select-sm" onchange="filterTemplates()">' +
+        '<option value="all">All Languages</option>' +
+        '<option value="en">English</option>' +
+        '<option value="pt">Português</option>' +
+        '</select>' +
+        '</div>' +
+
+        '<div id="templates-container" class="tpl-list">' +
+        '<div class="leads-table-loading"><i class="fas fa-spinner fa-spin me-2" aria-hidden="true"></i>Loading templates...</div>' +
+        '</div>' +
+
+        '</div>' +
+        '</div>';
+
+    fetch(API + '/templates')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            window.allTemplates = data.templates || [];
+            renderTemplates(window.allTemplates);
+        })
+        .catch(function(e) {
+            document.getElementById('templates-container').innerHTML =
+                '<div class="leads-table-error"><i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>Error loading templates</div>';
+        });
+}
+
+function renderTemplates(templates) {
+    var container = document.getElementById('templates-container');
+    if (!container) return;
+
+    if (templates.length === 0) {
+        container.innerHTML = '<div class="leads-table-empty">No templates found</div>';
+        return;
+    }
+
+    var html = templates.map(function(tpl) {
+        var channelIcon = tpl.channel === 'whatsapp' ? '<i class="fab fa-whatsapp conv-channel-icon-wpp" aria-hidden="true"></i>' : '<i class="fas fa-envelope conv-channel-icon-email" aria-hidden="true"></i>';
+        var langBadge = tpl.language === 'pt' ? 'PT' : 'EN';
+
+        return '<div class="template-card" data-id="' + tpl.id + '" data-channel="' + tpl.channel + '" data-lang="' + tpl.language + '" onclick="previewTemplate(\'' + tpl.id + '\')" tabindex="0" role="button">' +
+            '<div class="template-card-head">' +
+            '<div>' + channelIcon + ' <strong class="template-card-title">' + tpl.name + '</strong></div>' +
+            '<span class="template-card-lang">' + langBadge + '</span>' +
+            '</div>' +
+            '<div class="template-card-preview">' + (tpl.preview || '').substring(0, 80) + '...</div>' +
+            '</div>';
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+function filterTemplates() {
+    var channel = document.getElementById('tpl-channel').value;
+    var lang = document.getElementById('tpl-lang').value;
+    var templates = window.allTemplates || [];
+
+    var filtered = templates.filter(function(t) {
+        if (channel !== 'all' && t.channel !== channel) return false;
+        if (lang !== 'all' && t.language !== lang) return false;
+        return true;
+    });
+
+    renderTemplates(filtered);
+}
+
+function previewTemplate(templateId) {
+    if (!currentLeadId) return;
+
+    fetch(API + '/' + currentLeadId + '/template/' + templateId + '/preview')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                showToast(data.error, 'error');
+                return;
+            }
+            showTemplateModal(data);
+        })
+        .catch(function(e) {
+            showToast('Error previewing template: ' + e.message, 'error');
+        });
+}
+
+function showTemplateModal(data) {
+    var channelIconHtml = data.channel === 'whatsapp' ? '<i class="fab fa-whatsapp conv-channel-icon-wpp" aria-hidden="true"></i> WhatsApp' : '<i class="fas fa-envelope conv-channel-icon-email" aria-hidden="true"></i> Email';
+    var recipient = data.channel === 'whatsapp' ? (data.recipient.phone || '-') : (data.recipient.email || '-');
+
+    var modal = document.createElement('div');
+    modal.id = 'template-modal';
+    modal.className = 'leads-template-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML =
+        '<div class="leads-template-modal-content">' +
+        '<div class="leads-template-modal-head">' +
+        '<div><strong class="leads-template-modal-title">' + data.name + '</strong><br><small class="leads-template-modal-meta">' + channelIconHtml + '</small></div>' +
+        '<button type="button" onclick="closeTemplateModal()" class="leads-template-modal-close" aria-label="Close template preview">&times;</button>' +
+        '</div>' +
+        '<div class="leads-template-modal-recipient">' +
+        '<div>To: <strong>' + data.recipient.name + '</strong> (' + recipient + ')</div>' +
+        (data.subject ? '<div>Subject: <strong>' + data.subject + '</strong></div>' : '') +
+        '</div>' +
+        '<div class="leads-template-modal-body">' +
+        '<pre>' + escapeHtml(data.content) + '</pre>' +
+        '</div>' +
+        '<div class="leads-template-modal-foot">' +
+        '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="closeTemplateModal()">Cancel</button>' +
+        '<button type="button" class="btn btn-primary glass-btn glass-btn--primary btn-sm" onclick="confirmSendTemplate(\'' + data.id + '\', \'' + data.channel + '\')"><i class="fas fa-paper-plane me-1" aria-hidden="true"></i>Send</button>' +
+        '</div>' +
+        '</div>';
+
+    document.body.appendChild(modal);
+}
+
+function closeTemplateModal() {
+    var modal = document.getElementById('template-modal');
+    if (modal) modal.remove();
+}
+
+function confirmSendTemplate(templateId, channel) {
+    if (!currentLeadId) return;
+
+    var btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Sending...';
+
+    fetch(API + '/' + currentLeadId + '/template/' + templateId + '/send', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ channel: channel })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        closeTemplateModal();
+        if (data.success) {
+            showToast('Message sent via ' + channel + '!', 'success');
+            fetch(API + '/' + currentLeadId).then(function(r) { return r.json(); }).then(function(f) { currentLeadData = f; });
+        } else {
+            showToast(data.error || 'Failed to send', 'error');
+        }
+    })
+    .catch(function(e) {
+        closeTemplateModal();
+        showToast('Error: ' + e.message, 'error');
+    });
+}
+
+function calculateDealValue() {
+    var select = document.getElementById('deal-products');
+    if (!select) return;
+    var selected = Array.from(select.selectedOptions).map(function(o) { return o.value; });
+    var total = selected.reduce(function(sum, key) {
+        return sum + (serviceCatalog[key] ? serviceCatalog[key].price : 0);
+    }, 0);
+    document.getElementById('deal-value').value = total;
+}
+
+function updateProbabilityFromStage() {
+    var stage = document.getElementById('deal-stage').value;
+    var stageInfo = dealStages[stage];
+    if (stageInfo) {
+        document.getElementById('deal-probability').value = stageInfo.win_probability;
+        document.getElementById('deal-prob-label').textContent = stageInfo.win_probability + '%';
+    }
+}
+
+function saveDeal() {
+    if (!currentLeadId) return;
+
+    var products = Array.from(document.getElementById('deal-products').selectedOptions).map(function(o) { return o.value; });
+    var dealData = {
+        value: parseInt(document.getElementById('deal-value').value) || 0,
+        win_probability: parseInt(document.getElementById('deal-probability').value) || 10,
+        deal_stage: document.getElementById('deal-stage').value || 'opportunity',
+        expected_close_date: document.getElementById('deal-close-date').value || null,
+        payment_plan: document.getElementById('deal-payment-plan').value || null,
+        products: products,
+        notes: document.getElementById('deal-notes').value || ''
+    };
+
+    fetch(API + '/' + currentLeadId + '/deal', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(dealData)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.deal) {
+            showToast('Deal saved!', 'success');
+            currentLeadData.deal = data.deal;
+            loadLeadDeal();
+            loadLeads();
+        } else {
+            showToast('Error: ' + (data.detail || 'Unknown'), 'error');
+        }
+    })
+    .catch(function(e) {
+        showToast('Error: ' + e.message, 'error');
+    });
+}
+
+function deleteDeal() {
+    if (!currentLeadId) return;
+    if (!confirm('Delete this deal?')) return;
+
+    fetch(API + '/' + currentLeadId + '/deal', { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.deleted) {
+            showToast('Deal deleted', 'success');
+            currentLeadData.deal = null;
+            loadLeadDeal();
+            loadLeads();
+        }
+    })
+    .catch(function(e) {
+        showToast('Error: ' + e.message, 'error');
+    });
+}
+
+// LEAD INTELLIGENCE TAB
+function loadLeadIntel(forceAnalyze) {
+    if (!currentLeadId) return;
+    var c = document.getElementById('panel-content');
+    c.innerHTML = '<div class="leads-table-loading"><i class="fas fa-spinner fa-spin fa-2x" aria-hidden="true"></i><br>Loading intelligence...</div>';
+
+    var url = API + '/' + currentLeadId + '/intel/analyze';
+    if (forceAnalyze) url += '?force=true';
+
+    fetch(url)
+        .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
+        .then(function(data) {
+            if (data.error) {
+                c.innerHTML = '<div class="leads-table-error"><i class="fas fa-exclamation-triangle me-2" aria-hidden="true"></i>' + data.error + '</div>' +
+                    '<div class="leads-form-helper">Intel requires GEMINI_API_KEY to be configured on the server.</div>';
+                return;
+            }
+            var intel = data.intelligence || {};
+            renderIntelPanel(c, intel, data.cached);
+        })
+        .catch(function(e) {
+            c.innerHTML = '<div class="leads-table-error">Error: ' + e.message + '</div>';
+        });
+}
+
+function renderIntelPanel(c, intel, cached) {
+    var risk = intel.risk_level || 'unknown';
+    var opp = intel.opportunity_score || 0;
+    var signals = intel.signals || [];
+    var tips = intel.closing_tips || [];
+    var summary = intel.conversation_summary || '';
+    var nextAction = intel.next_best_action || '';
+    var analyzedAt = intel.last_analyzed_at ? timeAgo(intel.last_analyzed_at) : 'Never';
+    var oppCls = opp >= 70 ? 'intel-opportunity-value--hot' : opp >= 40 ? 'intel-opportunity-value--warm' : '';
+
+    var html = '';
+
+    html += '<div class="intel-header">';
+    html += '<div><span class="intel-risk ' + risk + '">' + risk + ' risk</span></div>';
+    html += '<div class="intel-opportunity"><div class="intel-opportunity-value ' + oppCls + '">' + opp + '</div><div class="intel-opportunity-label">Opportunity</div></div>';
+    html += '</div>';
+
+    if (nextAction) {
+        html += '<div class="intel-action-card"><div class="action-title"><i class="fas fa-bullseye me-1" aria-hidden="true"></i>Ação Recomendada</div><div class="action-text">' + nextAction + '</div></div>';
+    }
+
+    if (summary) {
+        html += '<div class="panel-section"><h6>Resumo da Conversa</h6><div class="intel-summary">' + summary + '</div></div>';
+    }
+
+    if (signals.length) {
+        html += '<div class="panel-section"><h6>Sinais Detectados (' + signals.length + ')</h6>';
+        signals.forEach(function(s) {
+            html += '<div class="intel-signal ' + s.type + '">';
+            html += '<span class="sig-conf">' + Math.round((s.confidence || 0) * 100) + '%</span>';
+            html += '<div class="sig-name">' + formatSignalName(s.name) + '</div>';
+            if (s.evidence) html += '<div class="sig-evidence">"' + s.evidence + '"</div>';
+            if (s.recommendation) html += '<div class="sig-rec"><i class="fas fa-lightbulb me-1" aria-hidden="true"></i>' + s.recommendation + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+
+    if (tips.length) {
+        html += '<div class="panel-section"><h6>Dicas de Fechamento</h6>';
+        tips.forEach(function(t) {
+            html += '<div class="intel-tip ' + (t.priority || 'low') + '">';
+            html += '<div class="tip-text"><i class="fas fa-' + (t.priority === 'high' ? 'fire' : t.priority === 'medium' ? 'star' : 'info-circle') + ' me-1" aria-hidden="true"></i>' + (t.tip || '') + '</div>';
+            if (t.reason) html += '<div class="tip-reason">' + t.reason + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+
+    html += '<div class="intel-footer">';
+    html += '<div class="intel-footer-meta">' + (cached ? 'Cached - ' : '') + 'Analyzed ' + analyzedAt + '</div>';
+    html += '<button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-sm" onclick="loadLeadIntel(true)"><i class="fas fa-sync me-1" aria-hidden="true"></i>Re-Analisar</button>';
+    html += '</div>';
+
+    c.innerHTML = html;
+}
+
+function formatSignalName(name) {
+    return (name || '').replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+}
+
+// SURVEILLANCE
+var survInterval = null;
+
+function loadSurveillanceStatus() {
+    fetch(API + '/intel/surveillance/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var dot = document.getElementById('surv-dot');
+            var status = document.getElementById('surv-status');
+            var lastCheck = document.getElementById('surv-last-check');
+            var leadsCount = document.getElementById('surv-leads-count');
+            var alertsEl = document.getElementById('surv-alerts');
+            var toggleBtn = document.getElementById('surv-toggle-btn');
+
+            if (data.active) {
+                dot.className = 'surv-dot active';
+                status.textContent = 'Surveillance Active';
+                toggleBtn.textContent = 'Pause';
+                toggleBtn.className = 'btn btn-outline-warning btn-sm surv-action';
+            } else {
+                dot.className = 'surv-dot off';
+                status.textContent = 'Surveillance Off';
+                toggleBtn.textContent = 'Start';
+                toggleBtn.className = 'btn btn-outline-success btn-sm surv-action';
+            }
+
+            lastCheck.textContent = data.last_check_at ? 'Last: ' + timeAgo(data.last_check_at) : '';
+            leadsCount.textContent = data.leads_monitored ? data.leads_monitored + ' leads' : '';
+
+            var alertCount = data.alerts_count || 0;
+            if (alertCount > 0) {
+                alertsEl.hidden = false;
+                alertsEl.textContent = alertCount + ' alert' + (alertCount > 1 ? 's' : '');
+            } else {
+                alertsEl.hidden = true;
+            }
+        })
+        .catch(function() {
+            document.getElementById('surv-status').textContent = 'Surveillance Unavailable';
+            document.getElementById('surv-dot').className = 'surv-dot off';
+        });
+}
+
+function toggleSurveillance() {
+    fetch(API + '/intel/surveillance/toggle', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            showToast(data.active ? 'Surveillance started' : 'Surveillance paused', 'info');
+            loadSurveillanceStatus();
+        })
+        .catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+
+function checkNowSurveillance() {
+    showToast('Running surveillance check...', 'info');
+    fetch(API + '/intel/surveillance/check', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            showToast('Check complete: ' + (data.analyzed || 0) + ' leads analyzed', 'success');
+            loadSurveillanceStatus();
+        })
+        .catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+
+function showSurvAlerts() {
+    showToast('Alerts panel coming soon', 'info');
+}
+
+async function batchAnalyzeAll() {
+    var btn = document.getElementById('batch-analyze-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Analyzing...';
+    var totalAnalyzed = 0;
+    var totalErrors = 0;
+    var remaining = 999;
+
+    for (var batch = 0; batch < 10 && remaining > 0; batch++) {
+        try {
+            var r = await fetch(API + '/intel/batch-analyze?limit=10', { method: 'POST' });
+            var data = await r.json();
+            totalAnalyzed += data.analyzed_count || 0;
+            totalErrors += (data.errors || []).length;
+            remaining = data.remaining || 0;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>' + totalAnalyzed + ' analyzed...';
+
+            if (data.analyzed_count === 0) break;
+            await new Promise(function(resolve) { setTimeout(resolve, 2000); });
+        } catch(e) {
+            showToast('Batch error: ' + e.message, 'error');
+            break;
+        }
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = 'Batch Analyze';
+    showToast('Batch complete: ' + totalAnalyzed + ' analyzed' + (totalErrors ? ', ' + totalErrors + ' errors' : '') + (remaining > 0 ? ', ' + remaining + ' remaining' : ''), totalErrors ? 'warning' : 'success');
+    loadSurveillanceStatus();
+}
+
+function initLeadsSurveillance() {
+    if (!document.querySelector('.leads-dashboard')) return;
+    loadSurveillanceStatus();
+    if (survInterval) clearInterval(survInterval);
+    survInterval = setInterval(loadSurveillanceStatus, 60000);
+}
+document.addEventListener('DOMContentLoaded', initLeadsSurveillance);
+document.addEventListener('casehub:soft-navigation', initLeadsSurveillance);
+
+</script>
+{% endblock %}

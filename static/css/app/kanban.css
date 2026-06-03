@@ -1,0 +1,328 @@
+/* CaseHub App · Kanban board — neumorphic surface system.
+ *
+ * Design language: warm-beige neumorphism from _tokens.css.
+ * Depth is expressed with the canonical PAIRED shadow tokens
+ * (--shadow-dark-* highlight/shadow pairs), never raw hex/px.
+ *   · Raised  = box-shadow: var(--shadow-dark-N), var(--shadow-light-N)
+ *   · Inset   = box-shadow: inset var(--shadow-dark-N), inset var(--shadow-light-N)
+ * These pairs auto-flatten under [data-eco="true"] and re-derive in dark.
+ *
+ * UI laws applied:
+ *   · Fitts   — column tool icons + quick-add button ≥ comfortable tap size.
+ *   · Doherty — interaction feedback (hover lift / active press) ≤ 220ms,
+ *               transform+box-shadow only (GPU compositing, no layout).
+ *   · Postel  — markup unchanged; CRUD/drag-drop hooks untouched.
+ */
+
+/* ─────────── Toolbar ─────────── */
+.ch-kanban-create {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.ch-kanban-switch,
+.ch-kanban-create__form {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Inset track with raised active thumb — neumorphic segmented toggle
+   (same visual language as design-system pill-toggle snippet). */
+.ch-kanban-switch {
+  padding: 5px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+
+.ch-kanban-switch a {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--ease-out),
+              background var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.ch-kanban-switch a:hover { color: var(--fg-default); }
+
+.ch-kanban-switch a.is-active {
+  background: var(--c-navy);
+  color: var(--c-paper);
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+}
+
+[data-theme="dark"] .ch-kanban-switch a.is-active {
+  background: var(--c-pollen);
+  color: var(--fg-on-pollen);
+}
+
+.ch-kanban-create__form {
+  flex: 1 1 420px;
+  justify-content: flex-end;
+}
+
+.ch-kanban-create__form .ch-input {
+  max-width: 220px;
+}
+
+.ch-kanban-create__form .ch-select {
+  max-width: 150px;
+}
+
+.ch-kanban-create__color {
+  width: 46px;
+  min-width: 46px;
+  padding: 4px;
+}
+
+/* ─────────── Board scroller ─────────── */
+.ch-board {
+  display: flex; gap: var(--space-5);
+  overflow-x: auto;
+  padding: var(--space-1) var(--space-1) var(--space-5);
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+  align-items: flex-start;
+}
+.ch-board::-webkit-scrollbar { height: 8px; }
+.ch-board::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--radius-pill); }
+
+/* ─────────── Column = raised neumorphic panel ─────────── */
+.ch-column {
+  flex: 0 0 296px;
+  scroll-snap-align: start;
+  background: var(--surface-app);
+  border-radius: var(--radius-lg);
+  border: none;
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - var(--topbar-h) - var(--bottomnav-h) - var(--space-12));
+  overflow: hidden;
+  transition: box-shadow var(--motion-mid) var(--ease-out);
+}
+.ch-column.is-private {
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm),
+              inset 0 0 0 1.5px color-mix(in srgb, var(--c-green-d) 34%, transparent);
+}
+.ch-column__header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+}
+.ch-column__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 5px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Recessed scope chip */
+.ch-column__scope {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--c-green-d) 12%, transparent);
+  color: var(--accent-fg);
+  font-weight: 800;
+}
+.ch-column__tools {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* Raised micro-buttons; press inward on :active (neumorphic feedback). */
+.ch-column__icon {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-app);
+  color: var(--fg-muted);
+  cursor: pointer;
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  transition: transform var(--motion-fast) var(--ease-out),
+              color var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+}
+.ch-column__icon:hover {
+  color: var(--fg-default);
+  transform: translateY(-1px);
+}
+.ch-column__icon:active {
+  transform: none;
+  color: var(--fg-default);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ch-column__icon svg { width: 15px; height: 15px; }
+.ch-column__name {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em;
+  text-transform: uppercase; font-weight: 700; color: var(--fg-default);
+  margin: 0;
+}
+.ch-column__name .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--c-green-d);
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+}
+/* Recessed count badge */
+.ch-column__count {
+  font-family: var(--mono); font-size: var(--fs-xs);
+  color: var(--fg-muted); font-weight: 700;
+  padding: 3px 9px; border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+/* Column body reads as a soft inset well; cards float above it. */
+.ch-column__body {
+  flex: 1; padding: var(--space-3);
+  display: flex; flex-direction: column; gap: var(--space-3);
+  overflow-y: auto;
+  scroll-snap-type: y proximity;
+}
+.ch-column__empty {
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+
+.ch-column__quickadd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+  background: transparent;
+}
+
+.ch-column__quickadd .ch-input,
+.ch-column__quickadd .ch-btn {
+  min-height: 40px;
+}
+.ch-column__quickadd .ch-btn {
+  padding: 0;
+}
+
+/* ─────────── Card = raised neumorphic tile ─────────── */
+.ch-task-card {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-card);
+  border-radius: var(--radius-md);
+  border: none;
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  text-decoration: none; color: var(--fg-default);
+  transition: transform var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+  scroll-snap-align: start;
+  contain: layout style;
+}
+.ch-task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+}
+.ch-task-card[draggable="true"] { cursor: grab; }
+/* Picking a card up presses it inward — tactile grab feedback. */
+.ch-task-card[draggable="true"]:active {
+  cursor: grabbing;
+  transform: none;
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ch-task-card.is-dragging {
+  opacity: 0.55;
+  transform: rotate(1.5deg) scale(0.98);
+  box-shadow: var(--shadow-pop);
+}
+
+.ch-task-card__title {
+  margin: 0 0 var(--space-2); font-size: var(--fs-sm); font-weight: 600;
+  color: var(--fg-default); line-height: var(--lh-snug);
+}
+.ch-task-card__meta {
+  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+  font-size: var(--fs-xs); color: var(--fg-muted);
+  font-family: var(--mono); letter-spacing: 0.06em;
+}
+.ch-task-card__meta .ch-pill { padding: 3px 9px; font-size: 9.5px; }
+.ch-task-card__footer {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--fs-xs);
+}
+.ch-task-card__assignee {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  color: var(--fg-muted);
+}
+/* Raised avatar chip */
+.ch-task-card__assignee-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--c-navy); color: var(--c-paper);
+  font-size: 9px; font-family: var(--mono); font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+}
+[data-theme="dark"] .ch-task-card__assignee-dot {
+  background: var(--c-pollen); color: var(--fg-on-pollen);
+}
+
+/* Drop target — inset well glow on the receiving column. */
+.ch-column.is-drop-target {
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm),
+              inset 0 0 0 2px color-mix(in srgb, var(--c-green-d) 55%, transparent);
+}
+.ch-column.is-drop-target .ch-column__body {
+  background: color-mix(in srgb, var(--c-green-d) 6%, transparent);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 720px) {
+  .ch-column { flex: 0 0 250px; }
+  .ch-board { gap: var(--space-3); padding-bottom: var(--space-3); }
+  .ch-kanban-create,
+  .ch-kanban-create__form {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+  .ch-kanban-switch,
+  .ch-kanban-create__form {
+    width: 100%;
+  }
+  .ch-kanban-switch { justify-content: space-between; }
+  .ch-kanban-create__form {
+    display: grid;
+    grid-template-columns: 1fr 120px 46px;
+  }
+  .ch-kanban-create__form .ch-btn {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,0 +1,1903 @@
+/* ==========================================================================
+   DESKTOP MODE OVERRIDES — Liquid Glass OS Chrome
+   ALL values from tokens.css. Never hardcode rgba/px here.
+   Specificity: body.view-os .element (no !important unless Bootstrap override)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. WALLPAPER
+   -------------------------------------------------------------------------- */
+body.view-os {
+  background: #0e1220 !important;
+  min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+/* Lightweight animated wallpaper — 2 GPU-accelerated gradient layers */
+body.view-os::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.55;
+  background:
+    radial-gradient(ellipse 70% 60% at 25% 35%, #1e3a5f 0%, transparent 65%),
+    radial-gradient(ellipse 60% 70% at 75% 65%, #2d1b4e 0%, transparent 65%);
+  background-size: 180% 180%;
+  animation: wall-drift 40s ease-in-out infinite alternate;
+  pointer-events: none;
+  transform: translateZ(0);
+}
+@keyframes wall-drift {
+  0%   { background-position: 0% 0%, 100% 100%; }
+  100% { background-position: 100% 100%, 0% 0%; }
+}
+
+html[data-theme="dark"] body.view-os {
+  background: #05070f !important;
+}
+html[data-theme="dark"] body.view-os::before {
+  opacity: 0.7;
+  background:
+    radial-gradient(ellipse 70% 60% at 25% 35%, #0d2747 0%, transparent 65%),
+    radial-gradient(ellipse 60% 70% at 75% 65%, #1a0e30 0%, transparent 65%);
+}
+
+/* Wallpaper logo — subtle watermark (no mix-blend-mode/filter = paint-cheap) */
+body.view-os::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('/static/img/logo/logo-wallpaper.svg');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: min(40vw, 400px);
+  opacity: 0.05;
+}
+
+body.view-os .main-content {
+  background: transparent !important;
+  padding-top: 0 !important;
+  margin: 0 !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  overflow: visible !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: var(--z-content);
+}
+
+/* --------------------------------------------------------------------------
+   2. MENU BAR — Removed in desktop mode (topbar não renderiza). Funções únicas
+   migraram para cluster global top-right (#osGlobalChrome) e window titlebar.
+   -------------------------------------------------------------------------- */
+
+/* Clock in dock user bubble — Bebas Neue, alto impacto visual */
+body.view-os .desk-clock {
+  font-size: 18px;
+  font-weight: 400;
+  color: #fff !important;
+  font-family: "Bebas Neue", "Impact", "Arial Narrow Bold", sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  padding: 0 var(--sp-2);
+}
+
+/* Performance indicator styling */
+body.view-os .desk-perf-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-right: var(--sp-3);
+}
+body.view-os .desk-perf-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-circle);
+  background: #27c93f;
+}
+body.view-os .desk-perf-dot.warn { background: #ffbd2e; }
+body.view-os .desk-perf-dot.critical { background: #ff5f56; }
+
+/* --------------------------------------------------------------------------
+   3. DOCK
+   -------------------------------------------------------------------------- */
+body.view-os .ui-os-dock-wrapper {
+  position: fixed;
+  bottom: var(--sp-3);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--dock-gap-group);
+  z-index: var(--z-dock);
+  width: max-content;
+  max-width: 95vw;
+  pointer-events: none;
+}
+
+/* Glass bubble material — highly translucent.
+   !important needed to override .sidebar + .glass base rules from liquid-glass.css + casehub-theme.css */
+body.view-os .os-dock-bubble,
+body.view-os .os-dock-apps.sidebar,
+body.view-os .os-dock-apps.sidebar.glass {
+  height: var(--dock-h) !important;
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(16px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
+  border-radius: var(--dock-radius) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  pointer-events: auto;
+}
+html[data-theme="dark"] body.view-os .os-dock-bubble,
+html[data-theme="dark"] body.view-os .os-dock-apps.sidebar,
+html[data-theme="dark"] body.view-os .os-dock-apps.sidebar.glass {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Apps bubble (converted sidebar) */
+body.view-os .os-dock-apps.sidebar {
+  position: relative !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  gap: var(--dock-gap-inner);
+  padding: 0 var(--sp-3);
+  width: max-content;
+  max-width: 70vw;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto;
+}
+
+/* Hide scrollbar */
+body.view-os .os-dock-apps::-webkit-scrollbar { display: none; }
+body.view-os .os-dock-apps { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Logo bubble — círculo perfeito, squircle preto centralizado com respiro */
+body.view-os .os-dock-bubble.os-dock-logo {
+  width: var(--dock-h) !important;
+  height: var(--dock-h) !important;
+  min-width: var(--dock-h) !important;
+  flex: 0 0 var(--dock-h) !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  aspect-ratio: 1 / 1;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-smooth);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+body.view-os .os-dock-bubble.os-dock-logo:hover { transform: scale(1.05); }
+body.view-os .os-dock-logo .logo-squircle {
+  width: 36px;
+  height: 36px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px) saturate(160%);
+  -webkit-backdrop-filter: blur(8px) saturate(160%);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25),
+              0 2px 8px rgba(0, 0, 0, 0.25);
+}
+body.view-os .os-dock-logo img,
+body.view-os .os-dock-logo svg,
+body.view-os .os-dock-logo .logo-text {
+  display: none !important;
+}
+
+/* Hide old sidebar logo inside nav */
+body.view-os .sidebar .logo { display: none !important; }
+
+/* Flatten sidebar structure for dock layout — desabilitado em desktop view-os
+   Agora apps cápsula usa .dock-apps-nav (class dedicada) com flex real,
+   sem herança de .sidebar legacy (width:250px hardcoded, etc).
+   Mantido para retrocompat se outro tema usar .sidebar classic. */
+body.view-os .sidebar:not(.dock-apps-nav) .sidebar-section,
+body.view-os .sidebar:not(.dock-apps-nav) .sidebar-section-items {
+  display: contents !important;
+}
+body.view-os .sidebar .nav-item {
+  display: flex;
+  flex-shrink: 0;
+  margin: 0;
+}
+body.view-os .sidebar-divider,
+body.view-os .sidebar-section-header,
+body.view-os .sidebar .nav-link span,
+body.view-os .sidebar > div:last-child {
+  display: none !important;
+}
+
+/* Dock group separators (applied via data-dock-group) */
+body.view-os .sidebar .nav-item[data-dock-group-end]::after {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 32px;
+  background: var(--dock-separator);
+  margin-left: var(--dock-gap-group);
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* Dock icons — bare icons with light reflection from wallpaper */
+body.view-os .sidebar .nav-link {
+  width: var(--dock-icon);
+  height: var(--dock-icon);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--dock-icon-radius);
+  color: #fff;
+  font-size: 0;
+  position: relative;
+  background: transparent !important;
+  border: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  transition: transform var(--dur-fast) var(--ease-window),
+              filter var(--dur-fast),
+              margin var(--dur-fast);
+}
+/* Icons always light — wallpaper is always dark */
+body.view-os .sidebar .nav-link i,
+body.view-os .sidebar .nav-link svg {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.95) !important;
+  /* Light reflection from top + depth shadow */
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35))
+          drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  transition: filter var(--dur-fast), transform var(--dur-fast);
+}
+body.view-os .sidebar .nav-link:hover i,
+body.view-os .sidebar .nav-link:hover svg {
+  color: #fff !important;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.6))
+          drop-shadow(0 4px 10px rgba(0, 0, 0, 0.5))
+          brightness(1.2);
+}
+
+/* Active window indicator — brighter dot under focused app */
+body.view-os .sidebar .nav-link.has-window-active::before {
+  background: var(--text-primary);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+}
+body.view-os .sidebar .nav-link i,
+body.view-os .sidebar .nav-link svg {
+  pointer-events: none;
+}
+
+/* Dock hover magnify — only transform, no background (bare icon style) */
+body.view-os .sidebar .nav-link:hover {
+  transform: scale(1.3) translateY(-10px);
+  background: transparent !important;
+  box-shadow: none !important;
+  margin: 0 var(--sp-2);
+}
+
+/* Camada 1: click throttle — visual feedback that app is opening */
+body.view-os .sidebar .nav-link.opening {
+  pointer-events: none;
+  opacity: 0.6;
+}
+body.view-os .sidebar .nav-link.opening::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 2px;
+  background: var(--desk-accent, #fff);
+  border-radius: 2px;
+  animation: dock-loading 1s ease-in-out infinite;
+}
+@keyframes dock-loading {
+  0%, 100% { transform: translateX(-50%) scaleX(0.3); opacity: 0.5; }
+  50%      { transform: translateX(-50%) scaleX(1); opacity: 1; }
+}
+
+/* Active indicator dot */
+body.view-os .sidebar .nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-circle);
+  background: var(--text-primary);
+}
+
+/* Admin dock items — visually secondary (gear style) */
+body.view-os .sidebar .nav-item[data-dock-admin] .nav-link {
+  width: 38px;
+  height: 38px;
+}
+body.view-os .sidebar .nav-item[data-dock-admin] .nav-link i,
+body.view-os .sidebar .nav-item[data-dock-admin] .nav-link svg {
+  font-size: 18px !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3)) !important;
+}
+body.view-os .sidebar .nav-item[data-dock-admin] .nav-link:hover i,
+body.view-os .sidebar .nav-item[data-dock-admin] .nav-link:hover svg {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Open window indicator dot (JS adds .has-window) */
+body.view-os .sidebar .nav-link.has-window::before {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-circle);
+  background: var(--text-secondary);
+}
+
+/* User dock zone */
+body.view-os .os-dock-user.user-dock-item {
+  border-left: none;
+  padding: 0 var(--sp-3);
+}
+body.view-os .user-dock-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-circle);
+  background: var(--glass-1);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+body.view-os .user-dock-menu-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  margin-left: var(--sp-1);
+  padding: var(--sp-1);
+}
+
+/* Exit OS mode — naked icon, no button chrome */
+body.view-os .user-dock-exit-os {
+  background: none;
+  border: none;
+  padding: var(--sp-1);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  margin-right: var(--sp-1);
+  opacity: 0.5;
+  transition: opacity var(--dur-fast), color var(--dur-fast), transform var(--dur-fast);
+}
+body.view-os .user-dock-exit-os:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  transform: scale(1.15);
+}
+
+/* Tooltip */
+.os-floating-tooltip {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: var(--blur-light);
+  -webkit-backdrop-filter: var(--blur-light);
+  color: #fff;
+  padding: 6px var(--sp-3);
+  border-radius: var(--r-tight);
+  font-size: 11px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  z-index: var(--z-tooltip);
+  opacity: 0;
+  transform: scale(0.9) translateY(10px);
+  transition: opacity var(--dur-fast), transform var(--dur-fast) var(--ease-window);
+}
+.os-floating-tooltip.visible {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* --------------------------------------------------------------------------
+   4. WINDOWS
+   -------------------------------------------------------------------------- */
+body.view-os .macos-window {
+  position: absolute;
+  width: 80vw;
+  height: 75vh;
+  top: 60px;
+  left: 10vw;
+  background: var(--win-bg);
+  backdrop-filter: var(--win-blur) var(--saturate);
+  -webkit-backdrop-filter: var(--win-blur) var(--saturate);
+  border-radius: var(--win-radius);
+  border: var(--win-border);
+  box-shadow: var(--win-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  z-index: var(--z-window);
+  transform-origin: center center;
+  transition: transform var(--dur-fast) var(--ease-window),
+              opacity var(--dur-fast),
+              box-shadow var(--dur-fast);
+  color: var(--text-primary);
+}
+
+/* Active window */
+body.view-os .macos-window.active,
+body.view-os .macos-window.active-window {
+  z-index: var(--z-window-active);
+  background: var(--win-bg-active);
+  border: var(--win-border-active);
+  box-shadow: var(--win-shadow-active);
+}
+
+/* Inactive window — NO backdrop-filter to save GPU (critical for multi-window) */
+body.view-os .macos-window:not(.active):not(.active-window) {
+  background: rgba(255, 255, 255, 0.85);
+  border: var(--win-border-inactive);
+  box-shadow: var(--win-shadow-inactive);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html[data-theme="dark"] body.view-os .macos-window:not(.active):not(.active-window) {
+  background: rgba(20, 20, 25, 0.85);
+}
+
+/* Dragging state — Ghost Drag: hide content, only chrome moves */
+body.view-os .macos-window.dragging {
+  contain: strict;
+  cursor: grabbing !important;
+  transition: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  border-radius: var(--r-tight) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+  border: 2px dashed rgba(0, 0, 0, 0.15) !important;
+  will-change: transform;
+  pointer-events: auto !important;
+  overflow: hidden !important;
+}
+/* HIDE all content during drag — only titlebar visible */
+body.view-os .macos-window.dragging .macos-window-content,
+body.view-os .macos-window.dragging iframe,
+body.view-os .macos-window.dragging .resize-handle {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+body.view-os .macos-window.dragging .macos-titlebar {
+  pointer-events: auto !important;
+  cursor: grabbing !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-bottom: none !important;
+}
+
+/* Pause wallpaper animation during any drag */
+body.view-os.dragging-active::before {
+  animation-play-state: paused !important;
+}
+
+/* --------------------------------------------------------------------------
+   5. TITLEBAR & TRAFFIC LIGHTS
+   -------------------------------------------------------------------------- */
+body.view-os .macos-titlebar {
+  height: var(--win-titlebar-h);
+  background: var(--titlebar-bg);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-4);
+  border-bottom: var(--titlebar-border);
+  border-radius: var(--win-radius) var(--win-radius) 0 0;
+  flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+  color: var(--text-primary);
+}
+body.view-os .macos-titlebar:active {
+  cursor: grabbing;
+}
+
+body.view-os .traffic-lights {
+  display: flex;
+  gap: var(--tl-gap);
+  margin-right: var(--sp-4);
+}
+body.view-os .traffic-dot {
+  width: var(--tl-size);
+  height: var(--tl-size);
+  border-radius: var(--r-circle);
+  cursor: pointer;
+  transition: filter var(--dur-fast), transform var(--dur-fast);
+}
+body.view-os .traffic-dot:hover {
+  filter: brightness(1.2);
+  transform: scale(1.15);
+}
+body.view-os .traffic-dot.close    { background: var(--tl-close);    border: 1px solid var(--tl-close-border); }
+body.view-os .traffic-dot.minimize { background: var(--tl-minimize); border: 1px solid var(--tl-minimize-border); }
+body.view-os .traffic-dot.maximize { background: var(--tl-maximize); border: 1px solid var(--tl-maximize-border); }
+
+body.view-os .os-window-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  flex: 1;
+  text-align: center;
+  padding-right: 60px;
+}
+
+/* --------------------------------------------------------------------------
+   6. WINDOW CONTENT
+   -------------------------------------------------------------------------- */
+body.view-os .macos-window-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--sp-6);
+  border-radius: 0 0 var(--win-radius) var(--win-radius);
+}
+body.view-os .os-app-iframe {
+  width: 100%;
+  height: 100%;
+  border-radius: 0 0 var(--win-radius) var(--win-radius);
+  border: none;
+}
+
+/* --------------------------------------------------------------------------
+   7. CARDS — Liquid Glass (brief 09)
+   Casca premium semi-translúcida pra widgets dentro de janelas desktop mode
+   -------------------------------------------------------------------------- */
+body.view-os .card,
+body.view-os .glass-card,
+body.view-os .stat-card {
+  background: rgba(255, 255, 255, 0.55) !important;
+  backdrop-filter: blur(8px) saturate(150%);
+  -webkit-backdrop-filter: blur(8px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+  margin-bottom: var(--sp-5);
+  color: var(--text-primary) !important;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s ease,
+              border-color 0.2s ease;
+}
+
+body.view-os .card:hover,
+body.view-os .glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 0 0 1px rgba(0, 122, 255, 0.08) !important;
+  transform: translateY(-1px);
+}
+
+body.view-os .card-header,
+body.view-os .card-footer {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+  padding: 14px 16px 12px !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+body.view-os .card-header h5,
+body.view-os .card-header h6 {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.82);
+  font-weight: 600;
+}
+
+body.view-os .card-body {
+  padding: 14px 16px 16px !important;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+/* Dark mode */
+html[data-theme="dark"] body.view-os .card,
+html[data-theme="dark"] body.view-os .glass-card,
+html[data-theme="dark"] body.view-os .stat-card {
+  background: rgba(28, 28, 34, 0.65) !important;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.20),
+    0 4px 12px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+html[data-theme="dark"] body.view-os .card:hover,
+html[data-theme="dark"] body.view-os .glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.40),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(0, 122, 255, 0.15) !important;
+}
+
+html[data-theme="dark"] body.view-os .card-header,
+html[data-theme="dark"] body.view-os .card-footer {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+html[data-theme="dark"] body.view-os .card-header h5,
+html[data-theme="dark"] body.view-os .card-header h6 {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+html[data-theme="dark"] body.view-os .card-body {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* Performance mode — remove blur dos cards */
+body.view-os.performance-mode .card,
+body.view-os.performance-mode .glass-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+}
+
+html[data-theme="dark"] body.view-os.performance-mode .card,
+html[data-theme="dark"] body.view-os.performance-mode .glass-card {
+  background: rgba(28, 28, 34, 0.92) !important;
+}
+
+/* Drag state — blur off durante arrasto */
+body.is-dragging .card,
+body.is-dragging .glass-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Stat cards */
+body.view-os .stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-6) !important;
+  text-align: center;
+}
+body.view-os .stat-card .number {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--desk-accent);
+  margin-bottom: var(--sp-1);
+  line-height: 1;
+}
+body.view-os .stat-card .label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   8. TABLES
+   -------------------------------------------------------------------------- */
+body.view-os .table {
+  background: transparent !important;
+  color: inherit !important;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 0;
+}
+body.view-os .table th {
+  border-bottom: var(--table-divider) !important;
+  border-top: none !important;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary) !important;
+  padding: var(--sp-3) var(--sp-4) !important;
+}
+body.view-os .table td {
+  border-bottom: 1px solid var(--divider-light) !important;
+  padding: var(--sp-3) var(--sp-4) !important;
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+body.view-os .table-hover > tbody > tr {
+  transition: background var(--dur-fast);
+}
+body.view-os .table-hover > tbody > tr:hover > * {
+  background: var(--table-row-hover) !important;
+}
+
+/* List groups */
+body.view-os .list-group-item {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--divider-light) !important;
+  padding: var(--sp-3) var(--sp-5) !important;
+  transition: background var(--dur-fast);
+  color: inherit !important;
+}
+body.view-os .list-group-item:last-child { border-bottom: none !important; }
+body.view-os .list-group-item:hover { background: var(--table-row-hover) !important; }
+
+/* --------------------------------------------------------------------------
+   9. FORMS & CONTROLS
+   -------------------------------------------------------------------------- */
+body.view-os .form-control,
+body.view-os .form-select,
+body.view-os textarea.form-control {
+  background: var(--input-bg) !important;
+  border: var(--input-border) !important;
+  border-radius: var(--input-radius) !important;
+  color: var(--text-primary) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+  padding: 10px 14px;
+  transition: all var(--dur-fast);
+}
+body.view-os .form-control:focus,
+body.view-os .form-select:focus {
+  background: var(--input-bg-focus) !important;
+  border-color: var(--desk-accent) !important;
+  box-shadow: 0 0 0 3px rgba(var(--desk-accent-rgb), 0.2) !important;
+  outline: none !important;
+}
+
+/* Buttons */
+body.view-os .btn {
+  border-radius: var(--r-tight) !important;
+  padding: var(--sp-2) var(--sp-4) !important;
+  font-weight: 500;
+  transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+}
+body.view-os .btn:active { transform: scale(0.97); }
+
+body.view-os .text-muted {
+  color: var(--text-secondary) !important;
+}
+
+/* --------------------------------------------------------------------------
+   10. USER DROPDOWN
+   -------------------------------------------------------------------------- */
+body.view-os .user-dock-dropdown {
+  position: absolute;
+  bottom: 74px;
+  right: var(--sp-3);
+  background: var(--glass-5);
+  backdrop-filter: var(--blur-heavy) var(--saturate);
+  -webkit-backdrop-filter: var(--blur-heavy) var(--saturate);
+  border-radius: var(--r-mid);
+  border: 1px solid var(--glass-border-4);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-2);
+  display: none;
+  width: 220px;
+  z-index: var(--z-dropdown);
+}
+body.view-os .user-dock-dropdown.open { display: block; }
+
+/* --------------------------------------------------------------------------
+   11. PERFORMANCE MODE
+   -------------------------------------------------------------------------- */
+body.view-os.performance-mode .sidebar,
+body.view-os.performance-mode .top-bar,
+body.view-os.performance-mode .macos-window {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Snap preview */
+body.view-os .snap-corner-preview {
+  position: fixed;
+  background: var(--glass-1);
+  border: 2px dashed var(--glass-border-3);
+  border-radius: var(--win-radius);
+  pointer-events: none;
+  z-index: var(--z-snap-preview);
+  transition: all var(--dur-fast) var(--ease-smooth);
+}
+
+/* --------------------------------------------------------------------------
+   12. IFRAME MODE (content inside windows)
+   -------------------------------------------------------------------------- */
+html.iframe-mode-html { background: transparent !important; }
+
+body.view-os.iframe-mode {
+  background: transparent !important;
+  animation: none !important;
+  min-height: auto;
+  color: var(--text-primary);
+}
+body.view-os.iframe-mode .ui-os-dock-wrapper,
+body.view-os.iframe-mode .sidebar,
+body.view-os.iframe-mode .top-bar,
+body.view-os.iframe-mode .tab-bar,
+body.view-os.iframe-mode .user-dock-item {
+  display: none !important;
+}
+/* Iframe-mode: reset all web-mode layout that causes overflow */
+body.view-os.iframe-mode {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: auto !important;
+  width: 100% !important;
+  min-height: 100% !important;
+}
+body.view-os.iframe-mode .main-content {
+  padding: 16px !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  min-height: 100% !important;
+  position: static !important;
+  background: transparent !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+/* Bootstrap containers: respect parent width */
+body.view-os.iframe-mode .container,
+body.view-os.iframe-mode .container-fluid,
+body.view-os.iframe-mode .container-lg,
+body.view-os.iframe-mode .container-xl {
+  max-width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+/* Hide any FAB-like floating elements inside iframe (chat, maestro, ticket, camera overlays) */
+body.view-os.iframe-mode #maestro-fab,
+body.view-os.iframe-mode .sticky-chat-btn,
+body.view-os.iframe-mode .ticket-fab,
+body.view-os.iframe-mode .floating-action-btn,
+body.view-os.iframe-mode [class*="floating-chat"],
+body.view-os.iframe-mode [id*="surveillance"],
+body.view-os.iframe-mode .lead-panel {
+  display: none !important;
+}
+body.view-os.iframe-mode .card,
+body.view-os.iframe-mode .glass-card,
+body.view-os.iframe-mode .widget-container {
+  background: var(--win-bg-active) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Iframe mode: compact typography so templates fit in smaller windows */
+body.view-os.iframe-mode {
+  font-size: 13px !important;
+}
+body.view-os.iframe-mode h1 { font-size: 1.5rem !important; }
+body.view-os.iframe-mode h2 { font-size: 1.25rem !important; }
+body.view-os.iframe-mode h3 { font-size: 1.1rem !important; }
+body.view-os.iframe-mode h4 { font-size: 1rem !important; }
+body.view-os.iframe-mode .table,
+body.view-os.iframe-mode .table td,
+body.view-os.iframe-mode .table th {
+  font-size: 12px !important;
+  padding: 6px 10px !important;
+}
+body.view-os.iframe-mode .btn {
+  font-size: 12px !important;
+  padding: 6px 12px !important;
+}
+body.view-os.iframe-mode .form-control,
+body.view-os.iframe-mode .form-select {
+  font-size: 13px !important;
+  padding: 6px 10px !important;
+}
+body.view-os.iframe-mode .card-body,
+body.view-os.iframe-mode .card-header {
+  padding: 12px 14px !important;
+}
+body.view-os.iframe-mode .badge {
+  font-size: 10px !important;
+}
+
+/* --------------------------------------------------------------------------
+   13. FAB & LEGACY HIDING
+   -------------------------------------------------------------------------- */
+body.view-os #maestro-fab,
+body.view-os .sticky-chat-btn,
+body.view-os .ticket-fab,
+body.view-os .tab-bar,
+body.view-os .tab-content-area > .tab-pane:not(.active) {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   14. LAUNCHPAD
+   -------------------------------------------------------------------------- */
+body.view-os .os-launchpad {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--lp-bg);
+  backdrop-filter: var(--lp-blur) var(--saturate);
+  -webkit-backdrop-filter: var(--lp-blur) var(--saturate);
+  z-index: var(--z-launchpad);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 10vh;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-mid) var(--ease-window);
+}
+body.view-os .os-launchpad.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Launchpad search */
+body.view-os .os-launchpad-search-container {
+  width: 100%;
+  max-width: 500px;
+  margin-bottom: var(--sp-8);
+}
+body.view-os .glass-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+body.view-os .glass-input-wrapper .search-icon {
+  position: absolute;
+  left: var(--sp-4);
+  color: var(--text-secondary);
+  font-size: 14px;
+  pointer-events: none;
+}
+body.view-os .launchpad-search-input {
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-10);
+  background: var(--glass-3);
+  border: 1px solid var(--glass-border-3);
+  border-radius: var(--r-mid);
+  color: var(--text-primary);
+  font-size: 16px;
+  outline: none;
+  backdrop-filter: var(--blur-light);
+  -webkit-backdrop-filter: var(--blur-light);
+}
+body.view-os .launchpad-search-input:focus {
+  border-color: var(--desk-accent);
+  box-shadow: 0 0 0 3px rgba(var(--desk-accent-rgb), 0.2);
+}
+
+/* Launchpad grid */
+body.view-os .os-launchpad-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 100px);
+  gap: var(--sp-6);
+  justify-content: center;
+  max-width: 900px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: var(--sp-4);
+}
+
+/* Launchpad app item */
+body.view-os .launchpad-app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  text-decoration: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.8) translateY(20px);
+  transition: opacity var(--dur-mid), transform var(--dur-mid) var(--ease-bounce);
+}
+body.view-os .launchpad-app.animate-in {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+body.view-os .launchpad-app:hover .launchpad-app-icon {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-md);
+}
+
+/* Launchpad app icon */
+body.view-os .launchpad-app-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass-3);
+  border: 1px solid var(--glass-border-3);
+  border-radius: var(--r-loose);
+  font-size: 24px;
+  color: var(--text-primary);
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Launchpad app title */
+body.view-os .launchpad-app-title {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   TOAST NOTIFICATIONS — system actions feedback (Camada 6)
+   -------------------------------------------------------------------------- */
+#osToastContainer {
+  position: fixed;
+  top: 60px;
+  right: var(--sp-4);
+  z-index: var(--z-tooltip);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  pointer-events: none;
+}
+.os-toast {
+  padding: var(--sp-3) var(--sp-4);
+  background: rgba(20, 20, 25, 0.85);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-tight);
+  color: #fff;
+  font-size: 12px;
+  font-family: var(--font-system);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translateX(30px);
+  transition: opacity var(--dur-fast), transform var(--dur-fast) var(--ease-window);
+  max-width: 340px;
+}
+.os-toast.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* --------------------------------------------------------------------------
+   RESOURCE MONITOR — floating widget (top-right corner, always visible)
+   -------------------------------------------------------------------------- */
+#osResourceMonitor {
+  position: fixed !important;
+  top: 12px !important;
+  right: 12px !important;
+  z-index: var(--z-menubar);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px 12px;
+  background: rgba(20, 20, 25, 0.55);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--r-pill);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  font-family: var(--font-system);
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.04em;
+  pointer-events: auto;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+#osResourceMonitor .orm-metric {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+#osResourceMonitor .orm-label {
+  opacity: 0.55;
+  font-size: 9px;
+}
+#osResourceMonitor .orm-value {
+  color: #fff;
+  font-weight: 600;
+  min-width: 24px;
+  text-align: right;
+}
+#osResourceMonitor .orm-sep {
+  width: 1px;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.15);
+}
+#osResourceMonitor .orm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-circle);
+  background: #27c93f;
+  box-shadow: 0 0 4px rgba(39, 201, 63, 0.5);
+}
+#osResourceMonitor .orm-dot.warn {
+  background: #ffbd2e;
+  box-shadow: 0 0 4px rgba(255, 189, 46, 0.5);
+}
+#osResourceMonitor .orm-dot.critical {
+  background: #ff5f56;
+  box-shadow: 0 0 4px rgba(255, 95, 86, 0.6);
+}
+
+/* Compact state: show compact row, hide expanded */
+#osResourceMonitor .orm-compact {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+#osResourceMonitor .orm-expanded { display: none; }
+
+/* Expanded state: compact panel with details + line wrap */
+#osResourceMonitor.expanded {
+  padding: var(--sp-4);
+  border-radius: var(--r-mid);
+  width: 260px;
+  max-width: 260px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  white-space: normal;
+  cursor: pointer;
+}
+#osResourceMonitor.expanded .orm-compact { display: none; }
+#osResourceMonitor.expanded .orm-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+}
+#osResourceMonitor .orm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-2);
+  font-size: 12px;
+  color: #fff;
+}
+#osResourceMonitor .orm-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  line-height: 1;
+}
+#osResourceMonitor .orm-close:hover { color: #fff; }
+#osResourceMonitor .orm-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  color: rgba(255, 255, 255, 0.7);
+}
+#osResourceMonitor .orm-row b {
+  color: #fff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+#osResourceMonitor .orm-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: var(--sp-2) 0;
+}
+#osResourceMonitor .orm-help {
+  font-size: 10px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+}
+
+/* Suspended window overlay — clickable to reactivate */
+body.view-os .macos-window.suspended iframe { filter: grayscale(1) opacity(0.3); }
+body.view-os .suspended-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 20, 25, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  transition: background var(--dur-fast);
+}
+body.view-os .suspended-overlay:hover {
+  background: rgba(20, 20, 25, 0.55);
+}
+body.view-os .suspended-overlay .suspended-inner {
+  text-align: center;
+  color: #fff;
+  padding: var(--sp-6);
+}
+body.view-os .suspended-overlay .fa-moon {
+  font-size: 32px;
+  opacity: 0.5;
+  margin-bottom: var(--sp-3);
+}
+body.view-os .suspended-overlay .suspended-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: var(--sp-1);
+}
+body.view-os .suspended-overlay .suspended-subtitle {
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+/* --------------------------------------------------------------------------
+   TILE MENU (green traffic light hover popup)
+   -------------------------------------------------------------------------- */
+.os-tile-menu {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  min-width: 240px;
+  padding: var(--sp-3);
+  background: rgba(40, 40, 45, 0.85);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--r-mid);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  color: #f5f5f7;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+  transform-origin: top left;
+  transition: opacity var(--dur-fast), transform var(--dur-fast) var(--ease-window);
+  pointer-events: none;
+  font-family: var(--font-system);
+}
+.os-tile-menu.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.os-tile-section-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+  letter-spacing: 0.02em;
+}
+.os-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-2);
+}
+.os-tile-grid button {
+  aspect-ratio: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-tight);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.8);
+  transition: background var(--dur-fast), transform var(--dur-fast);
+  padding: 0;
+}
+.os-tile-grid button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.05);
+}
+.os-tile-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: var(--sp-3) 0;
+}
+/* Icon pictograms using CSS (no font dep) */
+.ti {
+  width: 22px;
+  height: 16px;
+  position: relative;
+  display: inline-block;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+}
+.ti.ti-left::after, .ti.ti-right::after {
+  content: ''; position: absolute; top: 0; width: 50%; height: 100%;
+  background: currentColor;
+}
+.ti.ti-left::after  { left: 0; }
+.ti.ti-right::after { right: 0; }
+.ti.ti-top::after, .ti.ti-bottom::after {
+  content: ''; position: absolute; left: 0; width: 100%; height: 50%;
+  background: currentColor;
+}
+.ti.ti-top::after    { top: 0; }
+.ti.ti-bottom::after { bottom: 0; }
+.ti.ti-fill   { background: currentColor; }
+.ti.ti-center::after {
+  content: ''; position: absolute; inset: 3px; background: currentColor; border-radius: 1px;
+}
+.ti.ti-tl::after {
+  content: ''; position: absolute; top: 0; left: 0; width: 50%; height: 50%; background: currentColor;
+}
+.ti.ti-grid {
+  background:
+    linear-gradient(currentColor, currentColor) top left   / calc(50% - 1px) calc(50% - 1px) no-repeat,
+    linear-gradient(currentColor, currentColor) top right  / calc(50% - 1px) calc(50% - 1px) no-repeat,
+    linear-gradient(currentColor, currentColor) bottom left  / calc(50% - 1px) calc(50% - 1px) no-repeat,
+    linear-gradient(currentColor, currentColor) bottom right / calc(50% - 1px) calc(50% - 1px) no-repeat;
+}
+
+/* --------------------------------------------------------------------------
+   15. WINDOW ANIMATIONS
+   -------------------------------------------------------------------------- */
+body.view-os .macos-window.window-opening {
+  animation: window-open 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* --------------------------------------------------------------------------
+   MOBILE FALLBACK — DEPRECATED
+   Regras antigas que escondiam dock/mainAppWindow em mobile foram removidas.
+   Layout responsivo agora é gerenciado por responsive.css + responsive-manager.js
+   (Op A/B/C do plano responsive OS-like).
+   -------------------------------------------------------------------------- */
+
+@keyframes window-open {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes window-close {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   GLOBAL CHROME CLUSTER — canto superior direito (ao lado do ORM)
+   Substitui funções únicas do topbar (notification bell)
+   -------------------------------------------------------------------------- */
+body.view-os .os-global-chrome {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: var(--z-menubar, 9998);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+  /* Bell + ORM ficam grudados com gap 8px — ORM posiciona-se como flex child */
+}
+
+/* Quando ORM é filho do global-chrome, posição vira relativa (flex child) */
+body.view-os #osResourceMonitor.in-global-chrome {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+}
+
+body:not(.desktop) .os-global-chrome {
+  display: none !important;
+}
+
+body.view-os .os-chrome-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 20, 25, 0.55);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+}
+
+body.view-os .os-chrome-btn:hover {
+  background: rgba(30, 30, 38, 0.75);
+  transform: scale(1.05);
+}
+
+body.view-os .os-chrome-btn .notif-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #ff5f56;
+  color: white;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(20, 20, 25, 0.9);
+}
+
+body.view-os .os-chrome-btn .notif-badge:empty,
+body.view-os .os-chrome-btn .notif-badge[data-count="0"] {
+  display: none;
+}
+
+/* Re-anchor notification panel — agora abaixo do cluster */
+body.view-os .notification-panel {
+  position: fixed !important;
+  top: 56px !important;
+  right: 12px !important;
+  left: auto !important;
+}
+
+/* Split button no window titlebar */
+body.view-os .titlebar-btn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-left: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+body.view-os .titlebar-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.85);
+}
+
+html[data-theme="dark"] body.view-os .titlebar-btn {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+html[data-theme="dark"] body.view-os .titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Performance mode — remove blur do cluster */
+body.view-os.performance-mode .os-chrome-btn {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(20, 20, 25, 0.85);
+}
+
+/* --------------------------------------------------------------------------
+   USER DOCK — Avatar clicável como trigger do dropdown
+   -------------------------------------------------------------------------- */
+body.view-os .user-dock-avatar {
+  cursor: pointer;
+  border: none;
+  font-size: 14px;
+  font-family: inherit;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  overflow: hidden;
+  padding: 0;
+}
+
+body.view-os .user-dock-avatar:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+
+body.view-os .user-dock-avatar:active {
+  transform: scale(0.96);
+}
+
+/* Dropdown — liquid glass premium, abre pra cima */
+body.view-os .user-dock-dropdown {
+  background: rgba(20, 20, 25, 0.55) !important;
+  backdrop-filter: blur(30px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+}
+
+body.view-os .user-dock-dropdown.open {
+  animation: user-dropdown-slide-up 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+html[data-theme="light"] body.view-os .user-dock-dropdown {
+  background: rgba(255, 255, 255, 0.75) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.10),
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
+
+@keyframes user-dropdown-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+body.view-os .user-dock-dropdown a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+  font-size: 13px;
+}
+
+html[data-theme="light"] body.view-os .user-dock-dropdown a {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+body.view-os .user-dock-dropdown a:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+html[data-theme="light"] body.view-os .user-dock-dropdown a:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+body.view-os .user-dock-dropdown a i {
+  width: 18px;
+  text-align: center;
+  opacity: 0.75;
+}
+
+body.view-os .user-dock-dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 6px -4px;
+}
+
+html[data-theme="light"] body.view-os .user-dock-dropdown-divider {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Botão "..." antigo removido — esconder se ainda renderizar em algum caminho */
+body.view-os .user-dock-menu-btn { display: none !important; }
+
+/* --------------------------------------------------------------------------
+   DOCK — Cápsula "Janelas Abertas" (4ª cápsula dinâmica)
+   Entre Logo e Apps. GPU-only (transform + opacity). Snappy.
+   -------------------------------------------------------------------------- */
+body.view-os .os-dock-bubble.os-dock-windows {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--dock-h);
+  padding: 0 8px;
+  overflow: hidden;
+  transform-origin: left center;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s linear,
+    margin 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
+body.view-os .os-dock-bubble.os-dock-windows[data-empty="true"] {
+  transform: scaleX(0);
+  opacity: 0;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border-width: 0 !important;
+  margin: 0 !important;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+body.view-os .os-dock-windows .open-windows-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+body.view-os .os-dock-windows .open-windows-list::-webkit-scrollbar { display: none; }
+
+body.view-os .open-window-item {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.12s linear,
+    border-color 0.12s linear,
+    box-shadow 0.15s ease;
+  animation: open-window-pop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
+}
+
+body.view-os .open-window-item:hover {
+  transform: translate3d(0, -2px, 0) scale(1.08);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+body.view-os .open-window-item:active {
+  transform: translate3d(0, 0, 0) scale(0.94);
+}
+
+body.view-os .open-window-item.focused {
+  background: rgba(0, 122, 255, 0.35);
+  border-color: rgba(0, 122, 255, 0.55);
+  box-shadow: 0 0 0 1px rgba(0, 122, 255, 0.3),
+              0 4px 12px rgba(0, 122, 255, 0.25);
+}
+
+html[data-theme="light"] body.view-os .open-window-item {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.75);
+}
+
+html[data-theme="light"] body.view-os .open-window-item:hover {
+  background: rgba(0, 0, 0, 0.10);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+html[data-theme="light"] body.view-os .open-window-item.focused {
+  background: rgba(0, 122, 255, 0.15);
+  border-color: rgba(0, 122, 255, 0.45);
+  color: rgba(0, 122, 255, 0.95);
+}
+
+@keyframes open-window-pop {
+  0%   { opacity: 0; transform: scale(0.5) translate3d(0, 6px, 0); }
+  60%  { transform: scale(1.08) translate3d(0, -1px, 0); }
+  100% { opacity: 1; transform: scale(1) translate3d(0, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.view-os .os-dock-bubble.os-dock-windows,
+  body.view-os .open-window-item {
+    transition-duration: 80ms;
+    animation-duration: 80ms;
+  }
+}
+
+body.view-os.performance-mode .open-window-item { animation: none; }
+body.is-dragging .os-dock-windows,
+body.is-dragging .open-window-item { transition: none !important; animation: none !important; }
+
+/* Apps cápsula shrinks só em mobile/tablet (em desktop wrapper é max-content e flex:1 colapsaria) */
+body.view-os.viewport-mobile .os-dock-bubble.os-dock-apps,
+body.view-os.viewport-tablet .os-dock-bubble.os-dock-apps {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* --------------------------------------------------------------------------
+   ORM — Controles no estado expanded (toggle + botões)
+   -------------------------------------------------------------------------- */
+#osResourceMonitor .orm-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 8px;
+}
+
+#osResourceMonitor .orm-control-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  transition: background-color 0.12s linear, border-color 0.12s linear;
+}
+
+#osResourceMonitor .orm-control-row:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+#osResourceMonitor .orm-control-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#osResourceMonitor .orm-control-info strong {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+#osResourceMonitor .orm-control-info small {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+/* Toggle switch (iOS-like) */
+#osResourceMonitor .orm-toggle {
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#osResourceMonitor .orm-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+#osResourceMonitor .orm-toggle-track {
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  position: relative;
+  transition: background-color 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#osResourceMonitor .orm-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+#osResourceMonitor .orm-toggle input:checked ~ .orm-toggle-track {
+  background: #34c759;
+}
+
+#osResourceMonitor .orm-toggle input:checked ~ .orm-toggle-track .orm-toggle-thumb {
+  transform: translate3d(14px, 0, 0);
+}
+
+#osResourceMonitor .orm-toggle input:focus-visible ~ .orm-toggle-track {
+  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.4);
+}
+
+/* Action button */
+#osResourceMonitor .orm-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  cursor: pointer;
+  transition:
+    transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.12s linear,
+    border-color 0.12s linear;
+  will-change: transform;
+}
+
+#osResourceMonitor .orm-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translate3d(0, -1px, 0);
+}
+
+#osResourceMonitor .orm-btn:active {
+  transform: translate3d(0, 0, 0) scale(0.96);
+}
+
+#osResourceMonitor .orm-btn.orm-btn-danger {
+  background: rgba(255, 69, 58, 0.15);
+  border-color: rgba(255, 69, 58, 0.3);
+  color: #ff6961;
+}
+
+#osResourceMonitor .orm-btn.orm-btn-danger:hover {
+  background: rgba(255, 69, 58, 0.25);
+  border-color: rgba(255, 69, 58, 0.5);
+}
+
+/* Light theme overrides */
+html[data-theme="light"] #osResourceMonitor .orm-control-row {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+
+html[data-theme="light"] #osResourceMonitor .orm-control-info strong {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+html[data-theme="light"] #osResourceMonitor .orm-control-info small {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+html[data-theme="light"] #osResourceMonitor .orm-btn {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.10);
+  color: rgba(0, 0, 0, 0.85);
+}

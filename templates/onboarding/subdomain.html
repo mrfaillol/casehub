@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="{% if product == 'lite' %}pt-BR{% else %}en{% endif %}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if product == "lite" %}Subdomínio - CaseHub Setup{% else %}Subdomain - CaseHub Setup{% endif %}</title>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/tokens.css?v=1">
+    <link rel="stylesheet" href="/static/css/reset.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/buttons.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/forms.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/cards.css?v=1">
+    {% include "onboarding/_wizard_css.html" ignore missing %}
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: rgba(26, 26, 26, 0.7);
+            --border: rgba(255,255,255,0.08);
+            --text-primary: #e0e0e0;
+            --text-muted: #888;
+            --color-success: #44bb44;
+            --color-danger: #d04949;
+            --color-warning: #d4a017;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--bg-primary);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .wizard-wrapper { width: 100%; max-width: 600px; }
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .step-indicator { display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 2rem; }
+        .step-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--border-color, #333);
+            transition: all 0.3s;
+        }
+        .step-dot.active { background: var(--accent, #fff); transform: scale(1.2); }
+        .step-dot.done { background: var(--color-success); }
+        .icon-bubble {
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+            border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 1.5rem;
+            font-size: 2rem; color: var(--accent, #fff);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 { font-size: 1.6rem; font-weight: 700; color: var(--accent, #fff); text-align: center; margin-bottom: 0.5rem; }
+        .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 1.75rem; font-size: 0.95rem; }
+
+        .slug-input-row {
+            display: flex; align-items: stretch;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 10px;
+            overflow: hidden;
+            transition: border-color 180ms cubic-bezier(.2,.7,.3,1.0),
+                        box-shadow 180ms cubic-bezier(.2,.7,.3,1.0);
+        }
+        .slug-input-row:focus-within { border-color: rgba(255,255,255,0.30); box-shadow: 0 0 0 4px rgba(255,255,255,0.04); }
+        .slug-input-row.is-available { border-color: var(--color-success); box-shadow: 0 0 0 4px rgba(68,187,68,0.10); }
+        .slug-input-row.is-error     { border-color: var(--color-danger); box-shadow: 0 0 0 4px rgba(208,73,73,0.10); }
+
+        .slug-input-row input[name="slug"] {
+            flex: 1;
+            background: transparent;
+            border: 0;
+            outline: 0;
+            padding: 0.85rem 1rem;
+            color: var(--text-primary);
+            font-size: 1.05rem;
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+            min-width: 0;
+        }
+        .slug-suffix {
+            display: inline-flex; align-items: center;
+            padding: 0 0.9rem;
+            background: rgba(255,255,255,0.05);
+            border-left: 1px solid rgba(255,255,255,0.08);
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+        .slug-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 44px;
+            color: var(--text-muted);
+            transition: color 180ms ease;
+        }
+        .slug-input-row.is-checking  .slug-icon { color: var(--text-muted); }
+        .slug-input-row.is-available .slug-icon { color: var(--color-success); }
+        .slug-input-row.is-error     .slug-icon { color: var(--color-danger); }
+
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: var(--accent, #fff);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            /* GPU layer promotion (condition U-P2-3) */
+            will-change: transform;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .spinner { animation-duration: 1.5s; }
+            .slug-input-row, .slug-suggestion, .btn { transition-duration: 1ms; }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .slug-status {
+            min-height: 22px;
+            margin-top: 0.5rem;
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            transition: color 180ms ease;
+        }
+        .slug-status.is-available { color: var(--color-success); }
+        .slug-status.is-error     { color: var(--color-danger); }
+
+        .slug-preview {
+            margin-top: 0.85rem;
+            padding: 0.65rem 0.9rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+        .slug-preview strong { color: var(--text-primary); }
+
+        .slug-suggestions {
+            margin-top: 1rem;
+            display: flex; flex-wrap: wrap; gap: 0.5rem;
+        }
+        .slug-suggestion {
+            cursor: pointer;
+            /* WCAG 2.5.5 Target Size + Lei de Fitts: tap-target ≥44×44px */
+            min-height: 44px;
+            min-width: 44px;
+            padding: 0.65rem 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: var(--text-primary);
+            transition: background 180ms cubic-bezier(.2,.7,.3,1.0),
+                        transform 180ms cubic-bezier(.2,.7,.3,1.0);
+        }
+        .slug-suggestion:hover {
+            background: rgba(255,255,255,0.10);
+            transform: translateY(-1px);
+        }
+
+        .field-rules {
+            margin-top: 1.25rem;
+            padding: 0.85rem 1rem;
+            background: rgba(255,255,255,0.02);
+            border-left: 2px solid rgba(255,255,255,0.10);
+            border-radius: 0 8px 8px 0;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+        .field-rules ul { margin: 0.35rem 0 0 1rem; padding: 0; }
+        .field-rules li { margin-bottom: 0.15rem; }
+
+        .actions { margin-top: 1.75rem; display: flex; gap: 0.75rem; justify-content: space-between; align-items: stretch; }
+        .btn {
+            /* WCAG 2.5.5 Target Size + Lei de Fitts: tap-target ≥44×44px */
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: rgba(255,255,255,0.06);
+            color: var(--text-primary);
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 10px;
+            padding: 0.6rem 1.4rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 180ms cubic-bezier(.2,.7,.3,1.0),
+                        transform 180ms cubic-bezier(.2,.7,.3,1.0);
+        }
+        .btn:hover { background: rgba(255,255,255,0.10); transform: translateY(-1px); }
+        .btn-primary {
+            background: var(--accent, #fff);
+            color: var(--bg-primary);
+            border-color: var(--accent, #fff);
+        }
+        .btn-primary[disabled] {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-primary:not([disabled]):hover { background: var(--text-primary); color: var(--bg-primary); }
+
+        .server-error {
+            margin-top: 1rem;
+            padding: 0.65rem 0.85rem;
+            background: rgba(208,73,73,0.10);
+            border: 1px solid rgba(208,73,73,0.30);
+            border-radius: 8px;
+            color: var(--color-danger);
+            font-size: 0.88rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-wrapper">
+        <div class="glass-card">
+            <div class="step-indicator">
+                {% for i in range(1, total_steps + 1) %}
+                <div class="step-dot {% if i == step %}active{% elif i < step %}done{% endif %}"></div>
+                {% endfor %}
+            </div>
+
+            <div class="icon-bubble">
+                <i class="fas fa-link"></i>
+            </div>
+
+            {% if product == "lite" %}
+            <h1>Endereço do escritório</h1>
+            <p class="subtitle">Escolha o subdomínio que será o endereço do seu escritório dentro do CaseHub. Ele aparece no login, nas integrações e nos e-mails.</p>
+            {% else %}
+            <h1>Your workspace URL</h1>
+            <p class="subtitle">Choose the subdomain that becomes your workspace address inside CaseHub. It appears in logins, integrations, and emails.</p>
+            {% endif %}
+
+            {% if error %}
+            <div class="server-error" role="alert">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ PREFIX }}/setup/subdomain" id="subdomain-form" novalidate>
+                <div class="slug-input-row" id="slug-row">
+                    <input
+                        type="text"
+                        name="slug"
+                        id="slug-input"
+                        value="{{ suggested_slug or '' }}"
+                        autocomplete="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        autofocus
+                        required
+                        minlength="3"
+                        maxlength="63"
+                        aria-describedby="slug-status slug-preview"
+                    >
+                    <span class="slug-suffix">.casehub.legal</span>
+                    <span class="slug-icon" id="slug-icon" aria-hidden="true">
+                        <i class="fas fa-circle-question"></i>
+                    </span>
+                </div>
+
+                <div class="slug-status" id="slug-status" role="status" aria-live="polite">
+                    {% if product == "lite" %}Verificando…{% else %}Checking…{% endif %}
+                </div>
+
+                <div class="slug-preview" id="slug-preview">
+                    {% if product == "lite" %}Endereço:{% else %}URL:{% endif %} <strong id="slug-preview-text">{{ suggested_slug or '...' }}.casehub.legal</strong>
+                </div>
+
+                <div class="slug-suggestions" id="slug-suggestions" hidden></div>
+
+                <div class="field-rules">
+                    {% if product == "lite" %}
+                    <strong>Regras do subdomínio:</strong>
+                    <ul>
+                        <li>3 a 63 caracteres</li>
+                        <li>Apenas letras minúsculas, números e hífen</li>
+                        <li>Começa com letra; sem hífen no final; sem hífen duplo</li>
+                        <li>Não pode ser um nome reservado pelo sistema</li>
+                    </ul>
+                    <p style="margin-top:.6rem;opacity:.85;">Depois de concluir o setup, o subdomínio fica travado — só admin pode renomear. Isso protege links internos, integrações com tribunais e dados históricos.</p>
+                    {% else %}
+                    <strong>Subdomain rules:</strong>
+                    <ul>
+                        <li>3 to 63 characters</li>
+                        <li>Lowercase letters, digits, and hyphens only</li>
+                        <li>Starts with a letter; no trailing hyphen; no double hyphens</li>
+                        <li>Cannot be a system-reserved name</li>
+                    </ul>
+                    <p style="margin-top:.6rem;opacity:.85;">Once setup completes, the subdomain is locked — only an admin can rename it. This protects internal links, court integrations, and historical data.</p>
+                    {% endif %}
+                </div>
+
+                <div class="actions">
+                    <a href="{{ PREFIX }}/setup/welcome" class="btn">
+                        <i class="fas fa-arrow-left"></i>
+                        {% if product == "lite" %}Voltar{% else %}Back{% endif %}
+                    </a>
+                    <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
+                        {% if product == "lite" %}Continuar{% else %}Continue{% endif %}
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        window.CASEHUB_SUBDOMAIN_CHECK = {
+            endpoint: "{{ PREFIX }}/api/onboarding/check-subdomain",
+            messages: {
+                "lite": {
+                    checking: "Verificando…",
+                    available: "Disponível",
+                    reserved: "Este subdomínio é reservado pelo sistema.",
+                    taken: "Já está em uso por outro escritório.",
+                    invalid: "Formato inválido. Veja as regras abaixo.",
+                    network: "Erro de rede. Tente novamente.",
+                    empty: "Informe um subdomínio."
+                },
+                "default": {
+                    checking: "Checking…",
+                    available: "Available",
+                    reserved: "This subdomain is reserved by the system.",
+                    taken: "Already in use by another firm.",
+                    invalid: "Invalid format. See rules below.",
+                    network: "Network error. Try again.",
+                    empty: "Enter a subdomain."
+                }
+            },
+            locale: "{{ product or 'default' }}"
+        };
+    </script>
+    <script src="/static/js/onboarding-subdomain-check.js?v=1" defer></script>
+</body>
+</html>

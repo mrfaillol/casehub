@@ -1,0 +1,196 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}{{ template_data.name if template_data else 'Modelo' }} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Modelo ·
+      {% if template_data.category %}{{ template_data.category|replace('_', ' ')|title }}{% endif %}
+      {% if template_data.id %} · ID #{{ template_data.id }}{% endif %}
+    </span>
+    <h1><em>{{ template_data.name }}</em></h1>
+    {% if template_data.description %}
+    <p class="ch-page-head__sub">{{ template_data.description }}</p>
+    {% endif %}
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/templates">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/templates/generate?template_id={{ template_data.id }}">
+      <span data-icon="bolt"></span> Gerar documento
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/templates/{{ template_data.id }}/edit">
+      <span data-icon="settings"></span> Editar
+    </a>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);">
+  {# ─── Metadados ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Metadados</span>
+        <h2 class="ch-card__title">Cadastro do modelo</h2>
+      </div>
+      <span data-icon="file" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0;">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Categoria</span>
+        <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ template_data.category|replace('_', ' ')|title }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Criado em</span>
+        <strong>{{ template_data.created_at.strftime('%d/%m/%Y') if template_data.created_at else '—' }}</strong>
+      </div>
+      {% if template_data.updated_at %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Atualizado</span>
+        <strong>{{ template_data.updated_at.strftime('%d/%m/%Y') }}</strong>
+      </div>
+      {% endif %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Tamanho</span>
+        <strong class="ch-mono">{{ template_data.content|length if template_data.content else 0 }} chars</strong>
+      </div>
+    </div>
+    <footer class="ch-card__footer">
+      <a class="ch-card__action" href="{{ PREFIX }}/templates/generate?template_id={{ template_data.id }}">
+        <span data-icon="bolt"></span> Usar este modelo
+      </a>
+    </footer>
+  </article>
+
+  {# ─── Variáveis detectadas ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Variáveis</span>
+        <h2 class="ch-card__title">Placeholders no corpo</h2>
+      </div>
+      <span data-icon="cube" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    {% set detected = [] %}
+    {% if template_data.content %}
+      {% set ns = namespace(found=[]) %}
+      {# Heurística simples: scan procurando "{{...}}" — Jinja não tem regex nativo, então usamos split #}
+      {% for chunk in template_data.content.split('{{')[1:] %}
+        {% set var_name = chunk.split('}}')[0]|trim %}
+        {% if var_name and var_name not in ns.found %}
+          {% set _ = ns.found.append(var_name) %}
+        {% endif %}
+      {% endfor %}
+      {% if ns.found %}
+      <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+        {% for v in ns.found %}
+        <code class="ch-mono" style="background: var(--surface-soft); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--fs-xs); color: var(--c-green-d); border: 1px solid var(--line);">
+          {{ '{{' }} {{ v }} {{ '}}' }}
+        </code>
+        {% endfor %}
+      </div>
+      <p style="margin-top: var(--space-3); font-size: var(--fs-xs); color: var(--fg-muted);">
+        {{ ns.found|length }} {% if ns.found|length == 1 %}variável detectada{% else %}variáveis detectadas{% endif %} no corpo.
+      </p>
+      {% else %}
+      <div class="ch-empty">
+        <span class="ch-empty__icon" aria-hidden="true"><span data-icon="cube"></span></span>
+        <h3>Sem variáveis</h3>
+        <p>Este modelo é estático — não contém placeholders Jinja.</p>
+      </div>
+      {% endif %}
+    {% endif %}
+  </article>
+</section>
+
+{# ─── Corpo do modelo ─── #}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Corpo</span>
+      <h2 class="ch-card__title">Conteúdo do modelo</h2>
+      <p class="ch-card__subtitle">Sintaxe Jinja2 — placeholders são substituídos no momento da geração.</p>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/templates/{{ template_data.id }}/edit">
+      <span data-icon="settings"></span> Editar conteúdo
+    </a>
+  </header>
+  <pre style="white-space: pre-wrap; word-wrap: break-word; font-family: var(--mono); font-size: var(--fs-sm); line-height: 1.6; color: var(--fg-default); background: var(--surface-soft); padding: var(--space-4); border-radius: var(--radius-sm); border: 1px solid var(--line); margin: 0; max-height: 640px; overflow: auto;">{{ template_data.content }}</pre>
+</section>
+
+{# ─── Usos recentes ─── #}
+{% if recent_uses and recent_uses|length > 0 %}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Usos recentes</span>
+      <h2 class="ch-card__title">{{ recent_uses|length }} {% if recent_uses|length == 1 %}geração{% else %}gerações{% endif %}</h2>
+    </div>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Documento</th>
+          <th>Cliente / Caso</th>
+          <th>Gerado em</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in recent_uses %}
+        <tr>
+          <td data-label="Documento">
+            <strong>{{ u.name or u.document_name or 'sem nome' }}</strong>
+          </td>
+          <td data-label="Cliente / Caso">
+            {% if u.client_name %}{{ u.client_name }}
+            {% elif u.case_number %}{{ u.case_number }}
+            {% else %}—{% endif %}
+          </td>
+          <td data-label="Gerado em" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
+            {{ u.created_at.strftime('%d/%m/%Y') if u.created_at else '—' }}
+          </td>
+          <td data-label="" style="text-align: right;">
+            {% if u.document_id %}
+            <a class="ch-chip" href="{{ PREFIX }}/documents/{{ u.document_id }}" aria-label="Abrir documento">
+              <span data-icon="chevron_right" data-icon-size="14"></span>
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <div class="ch-empty">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="bolt"></span></span>
+    <h3>Modelo ainda não usado</h3>
+    <p>Gere o primeiro documento a partir deste modelo para começar o histórico.</p>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/templates/generate?template_id={{ template_data.id }}" style="margin-top: var(--space-3);">
+      <span data-icon="bolt"></span> Gerar documento
+    </a>
+  </div>
+</section>
+{% endif %}
+
+<section class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+  <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint); letter-spacing: 0.10em; text-transform: uppercase;">
+    ID #{{ template_data.id }}
+    {% if template_data.updated_at %} · Última atualização {{ template_data.updated_at.strftime('%d/%m/%Y') }}{% endif %}
+  </span>
+  <form method="post" action="{{ PREFIX }}/templates/{{ template_data.id }}/delete"
+        onsubmit="return confirm('Excluir o modelo {{ template_data.name }}? Esta ação não pode ser desfeita.');"
+        style="margin: 0;">
+    <button class="ch-btn ch-btn--ghost" type="submit" style="color: var(--c-danger);">
+      <span data-icon="x"></span> Excluir modelo
+    </button>
+  </form>
+</section>
+{% endblock %}

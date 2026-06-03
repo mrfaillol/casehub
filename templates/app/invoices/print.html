@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light" data-eco="false">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fatura {{ invoice_number }} · {{ org_name|default('CaseHub') }}</title>
+  <link rel="stylesheet" href="/static/css/app/_tokens.css" />
+  <link rel="stylesheet" href="/static/css/app/card.css" />
+  <link rel="stylesheet" href="/static/css/app/list.css" />
+  <style>
+    /* Print-ready layout — A4 friendly, no app shell */
+    html, body {
+      background: var(--surface-app);
+      color: var(--fg-default);
+      font-family: var(--sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+      line-height: var(--lh-base, 1.55);
+      margin: 0;
+      padding: 0;
+    }
+
+    .ch-print {
+      max-width: 210mm;
+      margin: var(--space-5, 24px) auto;
+      padding: var(--space-6, 32px) var(--space-6, 32px) var(--space-7, 48px);
+      background: var(--surface-card);
+      box-shadow: var(--shadow-soft, 0 2px 24px rgba(0, 31, 62, 0.06));
+      border-radius: var(--radius-lg, 18px);
+      position: relative;
+    }
+
+    .ch-print__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-5, 24px);
+      padding-bottom: var(--space-5, 24px);
+      border-bottom: 3px solid var(--c-navy);
+      margin-bottom: var(--space-5, 24px);
+    }
+
+    .ch-print__logo {
+      font-family: var(--display, "Fraunces", Georgia, serif);
+      font-weight: 700;
+      font-size: 1.75rem;
+      color: var(--c-navy);
+      letter-spacing: -0.01em;
+    }
+    .ch-print__logo-sub {
+      font-family: var(--mono, ui-monospace, "SF Mono", monospace);
+      font-size: 0.7rem;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin-top: var(--space-1, 4px);
+    }
+
+    .ch-print__title {
+      text-align: right;
+    }
+    .ch-print__title h1 {
+      margin: 0;
+      font-family: var(--display, "Fraunces", Georgia, serif);
+      font-size: 2.25rem;
+      color: var(--fg-strong);
+      letter-spacing: -0.02em;
+    }
+    .ch-print__number {
+      font-family: var(--mono, ui-monospace, "SF Mono", monospace);
+      font-size: 0.8rem;
+      color: var(--fg-muted);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      margin-top: var(--space-1, 4px);
+    }
+
+    .ch-print__info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-5, 24px);
+      margin-bottom: var(--space-5, 24px);
+    }
+    .ch-print__info h3 {
+      font-family: var(--mono, ui-monospace, "SF Mono", monospace);
+      font-size: 0.7rem;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin: 0 0 var(--space-2, 8px);
+      padding-bottom: var(--space-2, 8px);
+      border-bottom: 1px solid var(--line);
+    }
+    .ch-print__info p {
+      margin: 0 0 var(--space-1, 4px);
+      font-size: 0.95rem;
+    }
+    .ch-print__info strong { color: var(--fg-strong); }
+
+    .ch-print__table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: var(--space-5, 24px);
+    }
+    .ch-print__table th {
+      background: var(--c-cream);
+      padding: var(--space-3, 12px);
+      text-align: left;
+      font-family: var(--mono, ui-monospace, "SF Mono", monospace);
+      font-size: 0.7rem;
+      color: var(--fg-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      border-bottom: 2px solid var(--line-strong);
+    }
+    .ch-print__table td {
+      padding: var(--space-3, 12px);
+      border-bottom: 1px solid var(--line);
+      font-size: 0.95rem;
+    }
+    .ch-print__table .text-right { text-align: right; }
+    .ch-print__table .ch-mono { font-family: var(--mono, ui-monospace, "SF Mono", monospace); }
+
+    .ch-print__totals {
+      margin-left: auto;
+      width: 320px;
+      border-collapse: collapse;
+    }
+    .ch-print__totals td {
+      padding: var(--space-2, 8px) var(--space-3, 12px);
+      font-family: var(--mono, ui-monospace, "SF Mono", monospace);
+    }
+    .ch-print__totals .total-row td {
+      background: var(--c-navy);
+      color: var(--fg-on-dark, #FAFBF7);
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .ch-print__footer {
+      margin-top: var(--space-6, 32px);
+      padding-top: var(--space-4, 16px);
+      border-top: 1px solid var(--line);
+      text-align: center;
+      color: var(--fg-muted);
+      font-size: 0.85rem;
+    }
+    .ch-print__footer strong { color: var(--fg-strong); }
+
+    .ch-print__paid-stamp {
+      position: absolute;
+      top: 40%;
+      right: 8%;
+      transform: rotate(-15deg);
+      font-family: var(--display, "Fraunces", Georgia, serif);
+      font-size: 3.5rem;
+      font-weight: 700;
+      color: rgba(0, 140, 77, 0.25);
+      border: 4px solid rgba(0, 140, 77, 0.25);
+      padding: var(--space-2, 8px) var(--space-5, 24px);
+      border-radius: var(--radius-md, 12px);
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .ch-print__actions {
+      max-width: 210mm;
+      margin: 0 auto var(--space-6, 32px);
+      padding: 0 var(--space-6, 32px);
+      display: flex;
+      gap: var(--space-3, 12px);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .ch-print__btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2, 8px);
+      padding: var(--space-3, 12px) var(--space-5, 24px);
+      background: var(--c-navy);
+      color: var(--fg-on-dark, #FAFBF7);
+      border: none;
+      border-radius: 999px;
+      font-family: var(--sans, system-ui, sans-serif);
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      text-decoration: none;
+      min-height: 44px;
+    }
+    .ch-print__btn--ghost {
+      background: transparent;
+      color: var(--fg-default);
+      border: 1px solid var(--line-strong);
+    }
+
+    /* Print rules — clean output for paper */
+    @media print {
+      @page { size: A4; margin: 12mm; }
+      html, body { background: #FFFFFF !important; }
+      .ch-print {
+        box-shadow: none;
+        border-radius: 0;
+        margin: 0;
+        padding: 0;
+        max-width: 100%;
+      }
+      .ch-print__actions, .no-print { display: none !important; }
+      .ch-print__table th { background: #F1F4EC !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .ch-print__totals .total-row td { background: #001F3E !important; color: #FFFFFF !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <article class="ch-print">
+    {% if items and items[0].status == 'paid' %}
+    <div class="ch-print__paid-stamp">PAGO</div>
+    {% endif %}
+
+    <header class="ch-print__header">
+      <div>
+        <div class="ch-print__logo">{{ org_name|default('CaseHub') }}</div>
+        <div class="ch-print__logo-sub">{{ org_domain|default('') }}</div>
+      </div>
+      <div class="ch-print__title">
+        <h1>FATURA</h1>
+        <div class="ch-print__number">{{ invoice_number }}</div>
+      </div>
+    </header>
+
+    <section class="ch-print__info">
+      <div>
+        <h3>Cobrar de</h3>
+        {% if client %}
+          <p><strong>{{ client.first_name }} {{ client.last_name }}</strong></p>
+          {% if client.email %}<p>{{ client.email }}</p>{% endif %}
+          {% if client.phone %}<p>{{ client.phone }}</p>{% endif %}
+          {% if client.address %}<p>{{ client.address }}</p>{% endif %}
+        {% else %}
+          <p>Informações do cliente não disponíveis</p>
+        {% endif %}
+      </div>
+      <div>
+        <h3>Detalhes da fatura</h3>
+        <p><strong>Data:</strong> {{ invoice_date.strftime('%d/%m/%Y') if invoice_date else '—' }}</p>
+        {% if due_date %}
+        <p><strong>Vencimento:</strong> {{ due_date.strftime('%d/%m/%Y') }}</p>
+        {% endif %}
+        {% if case %}
+        <p><strong>Processo:</strong> {{ case.case_name or case.case_number or '—' }}</p>
+        {% if case.visa_type %}<p><strong>Tipo:</strong> {{ case.visa_type }}</p>{% endif %}
+        {% endif %}
+      </div>
+    </section>
+
+    <table class="ch-print__table">
+      <thead>
+        <tr>
+          <th style="width: 60%;">Descrição</th>
+          <th style="width: 20%;">Tipo</th>
+          <th class="text-right" style="width: 20%;">Valor</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.description }}</td>
+          <td>{{ item.item_type or 'fee' }}</td>
+          <td class="text-right ch-mono">R$ {{ "%.2f"|format(item.amount|float) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <table class="ch-print__totals">
+      <tr>
+        <td>Subtotal</td>
+        <td class="text-right">R$ {{ "%.2f"|format(subtotal|float) }}</td>
+      </tr>
+      <tr class="total-row">
+        <td>Total a pagar</td>
+        <td class="text-right">R$ {{ "%.2f"|format(total|float) }}</td>
+      </tr>
+    </table>
+
+    <footer class="ch-print__footer">
+      <p><strong>{{ org_name|default('CaseHub') }}</strong></p>
+      <p>{{ org_domain|default('') }}{% if org_email %} · {{ org_email }}{% endif %}</p>
+      <p style="margin-top: 0.75rem;">Obrigado pela preferência.</p>
+    </footer>
+  </article>
+
+  <div class="ch-print__actions no-print">
+    <button class="ch-print__btn" type="button" onclick="window.print()">Imprimir fatura</button>
+    <a class="ch-print__btn ch-print__btn--ghost" href="{{ PREFIX }}/invoices/{{ invoice_number }}">Voltar para fatura</a>
+  </div>
+</body>
+</html>

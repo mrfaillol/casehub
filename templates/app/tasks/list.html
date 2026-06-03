@@ -1,0 +1,132 @@
+{% extends "app/base.html" %}
+{% set active_module = 'kanban' %}
+{% block title %}Tarefas · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Tarefas · {{ total|default(0) }} no total</span>
+    <h1>Lista de <em>tarefas</em>.</h1>
+    <p class="ch-page-head__sub">
+      {{ overdue_count|default(0) }} atrasadas · {{ today_count|default(0) }} para hoje.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks/kanban">
+      <span data-icon="kanban"></span> Ver kanban
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/tasks/new">
+      <span data-icon="plus"></span> Nova tarefa
+    </a>
+  </div>
+</section>
+
+<form class="ch-card ch-card--compact" method="get" action="{{ PREFIX }}/tasks" style="display:flex; gap: var(--space-3); align-items:flex-end; flex-wrap: wrap; margin-bottom: var(--space-5);">
+  <div class="ch-field" style="flex: 0 0 160px; margin-bottom: 0;">
+    <label class="ch-field__label" for="status">Status</label>
+    <select class="ch-select" id="status" name="status">
+      <option value="">Todos</option>
+      <option value="pending" {% if status == 'pending' %}selected{% endif %}>Pendente</option>
+      <option value="in_progress" {% if status == 'in_progress' %}selected{% endif %}>Em andamento</option>
+      <option value="blocked" {% if status == 'blocked' %}selected{% endif %}>Bloqueada</option>
+      <option value="completed" {% if status == 'completed' %}selected{% endif %}>Concluída</option>
+    </select>
+  </div>
+  <div class="ch-field" style="flex: 0 0 160px; margin-bottom: 0;">
+    <label class="ch-field__label" for="priority">Prioridade</label>
+    <select class="ch-select" id="priority" name="priority">
+      <option value="">Todas</option>
+      <option value="urgent" {% if priority == 'urgent' %}selected{% endif %}>Urgente</option>
+      <option value="high" {% if priority == 'high' %}selected{% endif %}>Alta</option>
+      <option value="medium" {% if priority == 'medium' %}selected{% endif %}>Média</option>
+      <option value="low" {% if priority == 'low' %}selected{% endif %}>Baixa</option>
+    </select>
+  </div>
+  <label class="ch-checkbox" style="margin-bottom: 10px;">
+    <input type="checkbox" name="show_completed" value="true" {% if show_completed %}checked{% endif %}>
+    Mostrar concluídas
+  </label>
+  <button type="submit" class="ch-btn"><span data-icon="search"></span> Filtrar</button>
+</form>
+
+{% if tasks and tasks|length > 0 %}
+<section class="ch-card ch-card--bleed">
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Tarefa</th>
+          <th>Prioridade</th>
+          <th>Status</th>
+          <th>Prazo</th>
+          <th>Responsável</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr>
+          <td data-label="Tarefa">
+            <strong style="display:block; color: var(--fg-default);">{{ t.title or 'Sem título' }}</strong>
+            {% if t.case_id and t.case %}<span style="color: var(--fg-muted); font-size: var(--fs-xs);" class="ch-mono">{{ t.case.case_number or 'CASE-'+t.case_id|string }}</span>{% endif %}
+          </td>
+          <td data-label="Prioridade">
+            {% if t.priority == 'urgent' or t.priority == 'high' %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>{{ t.priority }}</span>
+            {% elif t.priority == 'medium' %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ t.priority }}</span>
+            {% elif t.priority %}
+              <span class="ch-pill"><span class="dot"></span>{{ t.priority }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td data-label="Status">
+            {% if t.status == 'completed' %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>Concluída</span>
+            {% elif t.status == 'blocked' %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>Bloqueada</span>
+            {% elif t.status == 'in_progress' %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>Em andamento</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>{{ t.status or 'Pendente' }}</span>
+            {% endif %}
+          </td>
+          <td data-label="Prazo" class="ch-mono" style="font-size: var(--fs-xs);">
+            {% if t.due_date %}
+              {% if t.due_date < today %}
+                <span style="color: var(--c-danger);">{{ t.due_date.strftime('%d/%m/%Y') }}</span>
+              {% else %}
+                {{ t.due_date.strftime('%d/%m/%Y') }}
+              {% endif %}
+            {% else %}<span style="color: var(--fg-faint);">—</span>{% endif %}
+          </td>
+          <td data-label="Responsável">{{ t.assignee.name if t.assignee else '—' }}</td>
+          <td data-label="" style="text-align: right;">
+            <a class="ch-chip" href="{{ PREFIX }}/tasks/{{ t.id }}" aria-label="Abrir tarefa">
+              <span data-icon="chevron_right" data-icon-size="14"></span>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<div class="ch-card">
+  <div class="ch-empty">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="tasks"></span></span>
+    <h3>{% if status or priority %}Sem resultados{% else %}Sem tarefas{% endif %}</h3>
+    <p>
+      {% if status or priority %}
+        Tente outros filtros ou abra o kanban para ver tudo.
+      {% else %}
+        Crie sua primeira tarefa ou peça via WhatsApp Maestro.
+      {% endif %}
+    </p>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/tasks/new" style="margin-top: var(--space-3);">
+      <span data-icon="plus"></span> Nova tarefa
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

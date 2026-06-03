@@ -1,0 +1,2835 @@
+{% extends "base.html" %}
+
+{% block title %}Controladoria Juridica - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ctrl-card {
+        border-radius: 12px;
+        border: 1px solid rgba(14, 165, 233, 0.15);
+        background: var(--bs-body-bg, #fff);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        transition: box-shadow 0.2s, transform 0.15s;
+        padding: 1.25rem;
+    }
+    .ctrl-card:hover {
+        box-shadow: 0 4px 12px rgba(14, 165, 233, 0.12);
+        transform: translateY(-1px);
+    }
+    .ctrl-card .card-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+    .ctrl-card .card-label {
+        font-size: 0.85rem;
+        color: #64748b;
+        margin-top: 0.25rem;
+    }
+    .ctrl-card .card-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .ctrl-card.card-total .card-icon { background: #e0f2fe; color: #0284c7; }
+    .ctrl-card.card-fatal .card-icon { background: #fee2e2; color: #dc2626; }
+    .ctrl-card.card-fatal .card-value { color: #dc2626; }
+    .ctrl-card.card-proximos .card-icon { background: #fef3c7; color: #d97706; }
+    .ctrl-card.card-proximos .card-value { color: #d97706; }
+    .ctrl-card.card-concluidos .card-icon { background: #d1fae5; color: #059669; }
+    .ctrl-card.card-concluidos .card-value { color: #059669; }
+
+    .badge-status {
+        padding: 4px 10px;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+    .badge-pendente { background: #fef3c7; color: #92400e; }
+    .badge-em_andamento { background: #dbeafe; color: #1e40af; }
+    .badge-concluido { background: #d1fae5; color: #065f46; }
+    .badge-perdido { background: #fee2e2; color: #991b1b; }
+
+    /* Row urgency colors — SOLID opaque backgrounds for reliability */
+    tr.row-verde,
+    .glass-table tbody tr.row-verde,
+    table tbody tr.row-verde { background-color: #d4edbc !important; border-left: 5px solid #4CAF50; }
+    tr.row-verde > td,
+    .glass-table tbody tr.row-verde > td { background-color: transparent !important; }
+
+    tr.row-amarelo,
+    .glass-table tbody tr.row-amarelo,
+    table tbody tr.row-amarelo { background-color: #fff3b0 !important; border-left: 5px solid #FFC107; }
+    tr.row-amarelo > td,
+    .glass-table tbody tr.row-amarelo > td { background-color: transparent !important; }
+
+    tr.row-vermelho,
+    .glass-table tbody tr.row-vermelho,
+    table tbody tr.row-vermelho { background-color: #f8c4c0 !important; border-left: 5px solid #F44336; }
+    tr.row-vermelho > td,
+    .glass-table tbody tr.row-vermelho > td { background-color: transparent !important; }
+
+    tr.row-concluido,
+    .glass-table tbody tr.row-concluido,
+    table tbody tr.row-concluido { background-color: #bfdbfe !important; border-left: 5px solid #3b82f6; opacity: 0.7; text-decoration: line-through; }
+    tr.row-concluido > td,
+    .glass-table tbody tr.row-concluido > td { background-color: transparent !important; }
+
+    [data-theme="dark"] tr.row-verde,
+    [data-theme="dark"] .glass-table tbody tr.row-verde { background-color: #1b3a1b !important; }
+    [data-theme="dark"] tr.row-amarelo,
+    [data-theme="dark"] .glass-table tbody tr.row-amarelo { background-color: #3d3200 !important; }
+    [data-theme="dark"] tr.row-vermelho,
+    [data-theme="dark"] .glass-table tbody tr.row-vermelho { background-color: #3d1515 !important; }
+    [data-theme="dark"] tr.row-concluido,
+    [data-theme="dark"] .glass-table tbody tr.row-concluido { background-color: #1a2744 !important; }
+    [data-theme="dark"] .ctrl-card {
+        background: var(--bs-dark, #1e1e1e);
+        border-color: rgba(14, 165, 233, 0.2);
+    }
+    [data-theme="dark"] .ctrl-card .card-label { color: #94a3b8; }
+    [data-theme="dark"] .badge-pendente { background: #422006; color: #fbbf24; }
+    [data-theme="dark"] .badge-em_andamento { background: #1e3a5f; color: #60a5fa; }
+    [data-theme="dark"] .badge-concluido { background: #064e3b; color: #34d399; }
+    [data-theme="dark"] .badge-perdido { background: #450a0a; color: #f87171; }
+
+    .ctrl-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .ctrl-header h2 {
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    .ctrl-header p {
+        color: #64748b;
+        margin: 0;
+    }
+    .ctrl-btn-group {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .btn-ctrl {
+        border-radius: 8px;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        color: #334155;
+        transition: all 0.15s;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .btn-ctrl:hover { border-color: #1C2447; color: #1C2447; }
+    .btn-ctrl-primary {
+        background: #1C2447;
+        color: #fff;
+        border-color: #1C2447;
+    }
+    .btn-ctrl-primary:hover { background: #0284c7; border-color: #0284c7; color: #fff; }
+
+    [data-theme="dark"] .btn-ctrl {
+        background: #1e293b;
+        border-color: #334155;
+        color: #e2e8f0;
+    }
+    [data-theme="dark"] .btn-ctrl:hover { border-color: #1C2447; color: #1C2447; }
+
+    .ctrl-filters {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+    .ctrl-filters input,
+    .ctrl-filters select {
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        min-width: 180px;
+    }
+    [data-theme="dark"] .ctrl-filters input,
+    [data-theme="dark"] .ctrl-filters select {
+        background: #1e293b;
+        border-color: #334155;
+        color: #e2e8f0;
+    }
+
+    /* ===== Asana-style Table ===== */
+    .ctrl-table-wrap {
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid #e6e3e1;
+        overflow: hidden;
+    }
+    [data-theme="dark"] .ctrl-table-wrap {
+        background: #1e1e1e;
+        border-color: #333;
+    }
+
+    /* Toolbar */
+    .ctrl-table-toolbar {
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 16px; border-bottom: 1px solid #e6e3e1;
+    }
+    .ctrl-table-toolbar__title { font-size: 14px; font-weight: 600; color: #1e1f21; }
+    .ctrl-table-toolbar__count { font-size: 12px; color: #6d6e6f; }
+    .ctrl-table-toolbar__btn {
+        padding: 4px 12px; border-radius: 6px; border: 1px solid #d1d5db;
+        background: #fff; font-size: 12px; font-weight: 500; cursor: pointer;
+        color: #1e1f21; transition: all 0.12s;
+    }
+    .ctrl-table-toolbar__btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+    [data-theme="dark"] .ctrl-table-toolbar { border-color: #333; }
+    [data-theme="dark"] .ctrl-table-toolbar__title { color: #e2e8f0; }
+    [data-theme="dark"] .ctrl-table-toolbar__btn { background: #2d2d2d; border-color: #444; color: #e2e8f0; }
+
+    /* Sort pills */
+    .prazo-sort-bar { display: flex; align-items: center; gap: 4px; }
+    .prazo-sort-btn {
+        padding: 3px 10px; border-radius: 99px; border: none;
+        background: transparent; color: #6d6e6f; cursor: pointer;
+        font-size: 11px; font-weight: 500; transition: all 0.12s;
+    }
+    .prazo-sort-btn:hover { background: #f3f4f6; }
+    .prazo-sort-btn.is-active { background: #1e1f21; color: #fff; }
+    [data-theme="dark"] .prazo-sort-btn.is-active { background: #e2e8f0; color: #1e1e1e; }
+
+    /* Table */
+    .ctrl-table {
+        width: 100%; border-collapse: collapse;
+        font-size: 13px; color: #1e1f21;
+    }
+    .ctrl-table th {
+        font-size: 12px; font-weight: 500; color: #6d6e6f;
+        padding: 0 12px; height: 36px;
+        border-bottom: 1px solid #e6e3e1;
+        background: #fff;
+        text-align: left; white-space: nowrap;
+        position: sticky; top: 0; z-index: 2;
+    }
+    .ctrl-table td {
+        padding: 0 12px; height: 40px;
+        border-bottom: 1px solid #f1f0ef;
+        vertical-align: middle;
+        max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ctrl-table tbody tr:last-child td { border-bottom: none; }
+    .ctrl-table tbody tr:hover { background: #f9f8f8; }
+    [data-theme="dark"] .ctrl-table th { background: #1e1e1e; border-color: #333; color: #94a3b8; }
+    [data-theme="dark"] .ctrl-table td { border-color: #2a2a2a; color: #e2e8f0; }
+    [data-theme="dark"] .ctrl-table tbody tr:hover { background: #252525; }
+    .col-check { width: 36px; text-align: center; padding: 0 !important; }
+    .col-actions { width: 36px; padding: 0 4px !important; text-align: center; }
+    .sortable-th { cursor: pointer; user-select: none; transition: color 0.12s; }
+    .sortable-th:hover { color: #1e1f21; }
+    .sortable-th.is-active { color: #1e1f21; font-weight: 600; }
+    [data-theme="dark"] .sortable-th:hover { color: #e2e8f0; }
+    [data-theme="dark"] .sortable-th.is-active { color: #e2e8f0; }
+
+    /* Urgencia — FORTE ([usuário] pediu: cor do hover como padrão. 4ª iteração) */
+    .ctrl-table tbody tr.urg-vermelho { background: #f5c2c2 !important; border-left: 4px solid #dc2626; }
+    .ctrl-table tbody tr.urg-amarelo { background: #fde68a !important; border-left: 4px solid #d97706; }
+    .ctrl-table tbody tr.urg-verde { background: #b8dcc0 !important; border-left: 4px solid #16a34a; }
+    .ctrl-table tbody tr.urg-concluido { background: #dbeafe !important; border-left: 4px solid #3b82f6; opacity: 0.6; }
+    .ctrl-table tbody tr.urg-vermelho:hover { background: #eca9a9 !important; }
+    .ctrl-table tbody tr.urg-amarelo:hover { background: #fcd34d !important; }
+    .ctrl-table tbody tr.urg-verde:hover { background: #9fd4ab !important; }
+    .ctrl-table tbody tr.urg-concluido:hover { opacity: 0.8; }
+    [data-theme="dark"] .ctrl-table tbody tr.urg-vermelho { background: #3b1111 !important; border-left-color: #ef4444; }
+    [data-theme="dark"] .ctrl-table tbody tr.urg-amarelo { background: #3b2f04 !important; border-left-color: #eab308; }
+    [data-theme="dark"] .ctrl-table tbody tr.urg-verde { background: #0f2b0f !important; border-left-color: #22c55e; }
+    [data-theme="dark"] .ctrl-table tbody tr.urg-concluido { background: #172554 !important; border-left-color: #60a5fa; }
+
+    /* Due date colors */
+    .due-overdue { color: #d1395c; font-weight: 600; }
+    .due-today { color: #e8823a; font-weight: 600; }
+    .due-soon { color: #b5a007; font-weight: 500; }
+    .due-ok { color: #6d6e6f; }
+
+    /* Urgency pill */
+    .urgency-pill {
+        display: inline-block; font-size: 11px; font-weight: 600;
+        padding: 2px 8px; border-radius: 10px; font-variant-numeric: tabular-nums;
+    }
+    .urgency-pill--red { background: #fdf2f4; color: #d1395c; }
+    .urgency-pill--yellow { background: #fef8e7; color: #b5a007; }
+    .urgency-pill--green { background: #edf9ee; color: #1a7f37; }
+    [data-theme="dark"] .urgency-pill--red { background: #3d1520; color: #f87171; }
+    [data-theme="dark"] .urgency-pill--yellow { background: #3d3200; color: #fcd34d; }
+    [data-theme="dark"] .urgency-pill--green { background: #14532d; color: #86efac; }
+
+    /* Status badge */
+    .status-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 12px; font-weight: 500; cursor: pointer;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot--pendente { background: #94a3b8; }
+    .status-dot--em_andamento { background: #3b82f6; }
+    .status-dot--concluido { background: #22c55e; }
+    .status-dot--perdido { background: #ef4444; }
+
+    /* Dias Restantes countdown */
+    .dias-countdown {
+        display: inline-block; font-size: 13px; font-weight: 700;
+        font-variant-numeric: tabular-nums; min-width: 32px; text-align: center;
+    }
+    .dias-vencido { color: #dc2626; }
+    .dias-urgente { color: #d97706; }
+    .dias-ok { color: #16a34a; }
+
+    /* Botão concluir inline */
+    .btn-concluir-inline {
+        border: none; background: none; cursor: pointer; color: #94a3b8;
+        font-size: 14px; padding: 4px; border-radius: 4px; transition: all 0.15s;
+    }
+    .btn-concluir-inline:hover { background: #d1fae5; color: #16a34a; }
+    [data-theme="dark"] .btn-concluir-inline:hover { background: #064e3b; color: #34d399; }
+
+    /* Editable cell */
+    td.editable { cursor: text; }
+    td.editable:hover { outline: 1px solid #d1d5db; outline-offset: -1px; border-radius: 3px; }
+    td.editable.editing { outline: 2px solid var(--accent, #1C2447); outline-offset: -2px; background: #fff !important; }
+    .ctrl-inline-input { font-size: 13px; }
+
+    /* Assignee */
+    .assignee-cell { display: flex; align-items: center; gap: 8px; }
+    .assignee-avatar {
+        width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+        background: #e6e3e1; display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 700; color: #6d6e6f;
+    }
+    .assignee-empty { color: #94a3b8; font-size: 12px; }
+    .assignee-empty:hover { color: var(--accent, #1C2447); }
+
+    /* Processo link */
+    .col-processo a {
+        color: #1e1f21; text-decoration: none; font-weight: 600;
+    }
+    .col-processo a:hover { color: var(--accent, #1C2447); text-decoration: underline; }
+    [data-theme="dark"] .col-processo a { color: #e2e8f0; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .ctrl-table td, .ctrl-table th { font-size: 12px; padding: 0 8px; }
+        .col-cliente { display: none; }
+    }
+    .action-btn {
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .action-btn-concluir { background: #d1fae5; color: #065f46; }
+    .action-btn-concluir:hover { background: #a7f3d0; }
+    .action-btn-excluir { background: #fee2e2; color: #991b1b; }
+    .action-btn-excluir:hover { background: #fecaca; }
+
+    /* Dias restantes badges */
+    .dias-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        min-width: 36px;
+        text-align: center;
+    }
+    .dias-verde { background: #d1fae5; color: #065f46; }
+    .dias-amarelo { background: #fef3c7; color: #92400e; }
+    .dias-vermelho { background: #fee2e2; color: #991b1b; }
+
+    /* Inline edit */
+    .editable-cell {
+        cursor: pointer;
+        border-bottom: 1px dashed rgba(100,100,100,0.3);
+        padding-bottom: 1px;
+        transition: background 0.2s;
+    }
+    .editable-cell:hover {
+        background: rgba(28, 36, 71, 0.08);
+        border-bottom-color: #1C2447;
+    }
+    .inline-edit-input {
+        border: 1px solid #1C2447;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 0.875rem;
+        width: 100%;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(28, 36, 71, 0.2);
+    }
+    .inline-edit-select {
+        border: 1px solid #1C2447;
+        border-radius: 4px;
+        padding: 2px 4px;
+        font-size: 0.8rem;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(28, 36, 71, 0.2);
+    }
+    @keyframes flash-green {
+        0% { background: #d1fae5; }
+        100% { background: transparent; }
+    }
+    .save-flash {
+        animation: flash-green 0.8s ease-out;
+    }
+
+    .ctrl-modal .modal-content {
+        border-radius: 16px;
+        border: none;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+    }
+    .ctrl-modal .modal-header {
+        border-bottom: 1px solid #e2e8f0;
+        padding: 1.25rem 1.5rem;
+    }
+    .ctrl-modal .modal-body { padding: 1.5rem; }
+    .ctrl-modal .modal-footer {
+        border-top: 1px solid #e2e8f0;
+        padding: 1rem 1.5rem;
+    }
+    [data-theme="dark"] .ctrl-modal .modal-content {
+        background: #1e293b;
+        box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+    }
+    [data-theme="dark"] .ctrl-modal .modal-header { border-color: #334155; }
+    [data-theme="dark"] .ctrl-modal .modal-footer { border-color: #334155; }
+
+    .intimacao-item {
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+    .intimacao-item:hover { border-color: #1C2447; }
+    [data-theme="dark"] .intimacao-item { border-color: #334155; }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #94a3b8;
+    }
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        display: block;
+        color: #cbd5e1;
+    }
+
+    .venc-hoje { color: #dc2626; font-weight: 700; }
+    .venc-urgente { color: #d97706; font-weight: 600; }
+    .venc-vencido { color: #7f1d1d; font-weight: 700; text-decoration: line-through; }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Productivity section */
+    .produtividade-section {
+        border-radius: 12px;
+        border: 1px solid rgba(14, 165, 233, 0.15);
+        background: var(--bs-body-bg, #fff);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    [data-theme="dark"] .produtividade-section {
+        background: var(--bs-dark, #1e1e1e);
+        border-color: rgba(14, 165, 233, 0.2);
+    }
+    .prod-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    .prod-header h5 {
+        font-weight: 700;
+        margin: 0;
+    }
+    .prod-meta-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 6px 14px;
+        border-radius: 9999px;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+    .prod-meta-hit { background: #d1fae5; color: #065f46; }
+    .prod-meta-miss { background: #fef3c7; color: #92400e; }
+    [data-theme="dark"] .prod-meta-hit { background: #064e3b; color: #34d399; }
+    [data-theme="dark"] .prod-meta-miss { background: #422006; color: #fbbf24; }
+    .prod-total-badge {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1C2447;
+    }
+    .prod-chart-container {
+        position: relative;
+        max-width: 250px;
+        margin: 0 auto;
+    }
+
+    /* ===== Row Action Dropdown ===== */
+    .ctrl-dropdown { position: relative; display: inline-block; }
+    .ctrl-dropdown-trigger {
+        width: 32px; height: 32px; border-radius: 8px; border: none;
+        background: transparent; cursor: pointer; font-size: 1.1rem;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0.4; transition: all 0.18s;
+    }
+    .ctrl-dropdown-trigger:hover { opacity: 1; background: rgba(0,0,0,0.06); }
+    .ctrl-dropdown-menu {
+        display: none; position: absolute; right: 0; top: 100%;
+        min-width: 200px; padding: 6px 0; border-radius: 12px; z-index: 100;
+        background: var(--bs-body-bg, #fff); border: 1px solid rgba(0,0,0,0.08);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    }
+    .ctrl-dropdown.is-open .ctrl-dropdown-menu { display: block; animation: dropIn 0.15s ease; }
+    @keyframes dropIn { from { opacity: 0; transform: translateY(-4px) scale(0.97); } to { opacity: 1; transform: none; } }
+    .ctrl-dropdown-item {
+        display: flex; align-items: center; gap: 8px; width: 100%;
+        padding: 8px 14px; border: none; background: none; cursor: pointer;
+        font-size: 0.84rem; color: var(--text-primary, #1a1a1a); transition: background 0.12s;
+    }
+    .ctrl-dropdown-item:hover { background: rgba(0,0,0,0.04); }
+    .ctrl-dropdown-item--danger { color: #dc2626; }
+    .ctrl-dropdown-item--danger:hover { background: rgba(220,38,38,0.06); }
+    .ctrl-dropdown-divider { height: 1px; margin: 4px 8px; background: rgba(0,0,0,0.06); }
+    [data-theme="dark"] .ctrl-dropdown-menu {
+        background: #1e293b; border-color: rgba(255,255,255,0.08);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    [data-theme="dark"] .ctrl-dropdown-item { color: #e2e8f0; }
+    [data-theme="dark"] .ctrl-dropdown-item:hover { background: rgba(255,255,255,0.06); }
+    [data-theme="dark"] .ctrl-dropdown-divider { background: rgba(255,255,255,0.06); }
+
+    /* ===== Bulk Actions Bar ===== */
+    .ctrl-bulk-bar {
+        display: none; align-items: center; gap: 12px;
+        padding: 10px 16px; background: rgba(28, 36, 71,0.06);
+        border-bottom: 1px solid rgba(28, 36, 71,0.15); font-size: 0.85rem;
+    }
+    .ctrl-bulk-bar.is-visible { display: flex; }
+    .ctrl-bulk-bar__count { font-weight: 600; color: var(--accent, #1C2447); }
+    .ctrl-bulk-btn {
+        padding: 5px 12px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1);
+        background: #fff; cursor: pointer; font-size: 0.8rem; transition: all 0.15s;
+    }
+    .ctrl-bulk-btn:hover { border-color: var(--accent, #1C2447); color: var(--accent, #1C2447); }
+    .ctrl-bulk-btn--danger { color: #dc2626; border-color: rgba(220,38,38,0.2); }
+    .ctrl-bulk-btn--danger:hover { background: rgba(220,38,38,0.06); border-color: #dc2626; }
+    [data-theme="dark"] .ctrl-bulk-btn { background: #1e293b; border-color: rgba(255,255,255,0.1); color: #e2e8f0; }
+
+    /* ===== Selected Row ===== */
+    .glass-table tbody tr.is-selected { background-color: rgba(28, 36, 71,0.08) !important; }
+    .glass-table tbody tr.is-selected:hover { background-color: rgba(28, 36, 71,0.12) !important; }
+
+    /* ===== Checkbox ===== */
+    .ctrl-check {
+        width: 16px; height: 16px; border-radius: 4px; cursor: pointer;
+        accent-color: var(--accent, #1C2447);
+    }
+    .col-check { width: 40px; text-align: center; padding-right: 0 !important; }
+
+    /* ===== Toast ===== */
+    .ctrl-toast {
+        position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+        padding: 10px 20px; border-radius: 10px; font-size: 0.85rem; font-weight: 500;
+        z-index: 9999; opacity: 0; transition: all 0.3s ease;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+    .ctrl-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .ctrl-toast--success { background: #059669; color: white; }
+    .ctrl-toast--error { background: #dc2626; color: white; }
+    .ctrl-toast--info { background: #0284c7; color: white; }
+
+    /* ===== Gridstack overrides ===== */
+    .grid-stack { min-height: 200px; }
+    .grid-stack-item-content {
+        border-radius: 16px; overflow: hidden;
+        background: var(--bs-body-bg, #fff);
+        border: 1px solid rgba(0,0,0,0.06);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .gs-widget-header {
+        padding: 8px 12px; font-size: 0.7rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;
+        cursor: move; border-bottom: 1px solid rgba(0,0,0,0.04);
+        display: flex; align-items: center; gap: 6px;
+    }
+    .gs-widget-header .gs-grip { opacity: 0.3; font-size: 0.8rem; }
+    .gs-widget-body { padding: 0; overflow: auto; height: calc(100% - 32px); }
+    /* Locked layout: hide headers + drag/resize handles */
+    .grid-locked .gs-widget-header { display: none !important; }
+    .grid-locked .gs-widget-body { height: 100% !important; }
+    .grid-locked .grid-stack-item > .ui-resizable-handle,
+    .grid-locked .grid-stack-item > .grid-stack-item-content > .ui-resizable-handle { display: none !important; }
+    [data-theme="dark"] .grid-stack-item-content {
+        background: var(--bs-dark, #1e1e1e); border-color: rgba(255,255,255,0.06);
+    }
+
+    /* ===== CaseHub Basic controladoria polish ===== */
+    body.casehub-browser-basic .controladoria-shell {
+        --ctrl-danger: #c73737;
+        --ctrl-warning: #a66a18;
+        --ctrl-success: #25775d;
+        --ctrl-surface: var(--surface-raised, #f8f7f3);
+        --ctrl-base: var(--surface-base, #f3f2ef);
+        --ctrl-sunken: var(--surface-sunken, #e8e7e3);
+        --ctrl-text: var(--text-primary, #20201e);
+        --ctrl-muted: var(--text-muted, #8c8a83);
+        display: grid;
+        gap: 14px;
+        padding-bottom: 36px;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-header {
+        align-items: center;
+        margin-bottom: 0;
+        gap: 14px;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-header h2 {
+        margin: 0;
+        font: 760 1.45rem/1.1 var(--font-heading, system-ui);
+        color: var(--ctrl-text);
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-header p {
+        margin-top: 4px;
+        color: var(--text-secondary, #5e5d58);
+        font-size: 0.92rem;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-header i {
+        color: var(--text-secondary, #5e5d58) !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-btn-group {
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-panel {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid var(--border-default, rgba(32,32,30,0.11));
+        border-radius: 8px;
+        background: var(--ctrl-surface);
+        box-shadow: var(--nu-raised-tight, 0 1px 3px rgba(0,0,0,0.08));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-panel__header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-panel__header strong {
+        color: var(--ctrl-text);
+        font-size: 0.92rem;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-panel__header span {
+        color: var(--text-secondary, #5e5d58);
+        font-size: 0.78rem;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-card {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+        padding: 12px;
+        border: 1px solid var(--border-subtle, rgba(32,32,30,0.08));
+        border-radius: 8px;
+        background: var(--ctrl-base);
+        box-shadow: var(--nu-raised-tight, 0 1px 3px rgba(0,0,0,0.07));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-card__title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ctrl-text);
+        font-size: 0.82rem;
+        font-weight: 760;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-card__badge {
+        width: fit-content;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: var(--ctrl-sunken);
+        color: var(--text-secondary, #5e5d58);
+        box-shadow: var(--nu-pressed-soft);
+        font-size: 0.68rem;
+        font-weight: 760;
+        line-height: 1.2;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-dot {
+        flex: 0 0 auto;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--ctrl-muted);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--ctrl-muted) 18%, transparent);
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-card--ok .ctrl-api-dot {
+        background: var(--ctrl-success);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--ctrl-success) 18%, transparent);
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-card--warn .ctrl-api-dot {
+        background: var(--ctrl-warning);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--ctrl-warning) 18%, transparent);
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-card--down .ctrl-api-dot {
+        background: var(--ctrl-danger);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--ctrl-danger) 18%, transparent);
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-card p,
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-card small {
+        margin: 0;
+        color: var(--text-secondary, #5e5d58);
+        font-size: 0.75rem;
+        line-height: 1.4;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-top: 2px;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-actions__buttons {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-actions .btn-ctrl {
+        min-height: 38px;
+        padding: 8px 12px;
+        white-space: nowrap;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-api-note {
+        max-width: 500px;
+        margin: 0;
+        color: var(--text-secondary, #5e5d58);
+        font-size: 0.75rem;
+        line-height: 1.35;
+        text-align: right;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-grid-static {
+        min-height: 0 !important;
+        display: grid !important;
+        gap: 14px !important;
+        height: auto !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .grid-stack-item {
+        position: relative !important;
+        left: auto !important;
+        top: auto !important;
+        transform: none !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .grid-stack-item-content {
+        position: relative !important;
+        inset: auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible;
+        border-radius: 8px !important;
+        border-color: var(--border-default, rgba(32,32,30,0.11)) !important;
+        background: var(--ctrl-surface) !important;
+        box-shadow: var(--nu-raised-tight, 0 1px 3px rgba(0,0,0,0.08)) !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .gs-widget-header {
+        display: none !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .gs-widget-body {
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-kpi-grid > [class*="col-"] {
+        width: auto;
+        max-width: none;
+        padding: 0;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-card {
+        min-height: 96px;
+        padding: 16px 18px;
+        border: 0;
+        background: var(--ctrl-base) !important;
+        box-shadow: var(--nu-raised-tight) !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-card:hover {
+        transform: translateY(var(--nu-press-lift, 1px));
+        box-shadow: var(--nu-pressed-soft) !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-card .card-value {
+        color: var(--ctrl-text) !important;
+        font-size: 1.8rem;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-card .card-label {
+        color: var(--text-secondary, #5e5d58);
+        font-size: 0.78rem;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-card .card-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--ctrl-sunken) !important;
+        box-shadow: var(--nu-pressed-soft);
+        color: var(--text-secondary, #5e5d58) !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .card-fatal .card-value,
+    body.casehub-browser-basic .controladoria-shell .card-fatal .card-icon {
+        color: var(--ctrl-danger) !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .card-proximos .card-value,
+    body.casehub-browser-basic .controladoria-shell .card-proximos .card-icon {
+        color: var(--ctrl-warning) !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .card-concluidos .card-value,
+    body.casehub-browser-basic .controladoria-shell .card-concluidos .card-icon {
+        color: var(--ctrl-success) !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .produtividade-section {
+        background: transparent !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .prod-header {
+        margin-bottom: 10px;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-filters {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(138px, 0.18fr)) auto auto;
+        gap: 10px;
+        align-items: center;
+        padding: 14px !important;
+        border-bottom: 1px solid var(--border-subtle, rgba(32,32,30,0.07));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-filters input,
+    body.casehub-browser-basic .controladoria-shell .ctrl-filters select {
+        min-width: 0 !important;
+        width: 100%;
+        height: 38px;
+        padding: 0 12px;
+        font-size: 0.83rem;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table-wrap {
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        min-height: 48px;
+        padding: 10px 14px;
+        border-bottom-color: var(--border-subtle, rgba(32,32,30,0.07));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table-toolbar__title {
+        color: var(--ctrl-text);
+        font-size: 0.9rem;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .prazo-sort-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .prazo-sort-btn,
+    body.casehub-browser-basic .controladoria-shell .ctrl-bulk-btn,
+    body.casehub-browser-basic .controladoria-shell .ctrl-table-toolbar__btn {
+        min-height: 34px;
+        padding: 0 12px;
+        border: 1px solid var(--border-default, rgba(32,32,30,0.11));
+        border-radius: 8px;
+        background: var(--ctrl-base);
+        color: var(--ctrl-text);
+        box-shadow: var(--nu-raised-tight, 0 1px 3px rgba(0,0,0,0.08));
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .prazo-sort-btn:hover,
+    body.casehub-browser-basic .controladoria-shell .ctrl-bulk-btn:hover,
+    body.casehub-browser-basic .controladoria-shell .ctrl-table-toolbar__btn:hover {
+        background: var(--ctrl-base);
+        color: var(--ctrl-text);
+        border-color: var(--border-default, rgba(32,32,30,0.11));
+        box-shadow: var(--nu-pressed-soft, inset 2px 2px 4px rgba(0,0,0,0.08));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .prazo-sort-btn.is-active {
+        background: var(--ctrl-sunken);
+        color: var(--ctrl-text);
+        box-shadow: var(--nu-pressed-soft, inset 2px 2px 4px rgba(0,0,0,0.08));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-bulk-bar {
+        display: none;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 8px 14px;
+        border-bottom: 1px solid var(--border-subtle, rgba(32,32,30,0.07));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-bulk-bar.is-visible {
+        display: flex;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table-scroll {
+        overflow-x: auto;
+        overflow-y: visible;
+        max-width: 100%;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table-scroll--empty {
+        overflow-x: hidden;
+        margin-inline: 0;
+        padding-inline: 0;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table {
+        min-width: 1120px;
+        font-size: 0.82rem;
+        color: var(--ctrl-text);
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table-scroll--empty .ctrl-table {
+        min-width: 0;
+        width: 100%;
+        table-layout: fixed;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table th {
+        height: 38px;
+        background: color-mix(in srgb, var(--ctrl-surface) 86%, var(--ctrl-base));
+        color: var(--ctrl-muted);
+        font-size: 0.72rem;
+        font-weight: 690;
+        text-transform: uppercase;
+        border-bottom-color: var(--border-subtle, rgba(32,32,30,0.07));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table td {
+        height: 44px;
+        border-bottom-color: var(--border-subtle, rgba(32,32,30,0.07));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table tbody tr.urg-vermelho,
+    body.casehub-browser-basic .controladoria-shell .ctrl-table tbody tr.urg-amarelo,
+    body.casehub-browser-basic .controladoria-shell .ctrl-table tbody tr.urg-verde,
+    body.casehub-browser-basic .controladoria-shell .ctrl-table tbody tr.urg-concluido {
+        background: transparent !important;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table tbody tr.urg-vermelho {
+        box-shadow: inset 4px 0 0 var(--ctrl-danger);
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table tbody tr.urg-amarelo {
+        box-shadow: inset 4px 0 0 var(--ctrl-warning);
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table tbody tr.urg-verde {
+        box-shadow: inset 4px 0 0 color-mix(in srgb, var(--ctrl-success) 55%, var(--ctrl-muted));
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-table tbody tr.urg-concluido {
+        box-shadow: inset 4px 0 0 var(--ctrl-success);
+        opacity: 0.7;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-empty-state {
+        display: table-cell;
+        width: 100%;
+        min-height: 0;
+        padding: 0;
+        color: var(--text-secondary, #5e5d58);
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-empty-state__box {
+        display: grid;
+        justify-items: center;
+        align-content: center;
+        gap: 10px;
+        min-height: 320px;
+        max-width: 560px;
+        margin: 0 auto;
+        padding: 44px 20px;
+        text-align: center;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-empty-state__box span {
+        line-height: 1.5;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-empty-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 4px;
+    }
+
+    body.casehub-browser-basic .controladoria-shell #prodLegend {
+        min-height: 170px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-empty-state__icon {
+        width: 54px;
+        height: 54px;
+        display: grid;
+        place-items: center;
+        border-radius: 10px;
+        background: var(--ctrl-base);
+        color: var(--text-muted, #8c8a83);
+        box-shadow: var(--nu-pressed-soft);
+        font-size: 1.35rem;
+    }
+
+    body.casehub-browser-basic .controladoria-shell .ctrl-overdue-mobile-alert {
+        display: none;
+    }
+
+    @media (max-width: 1180px) {
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-cards {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-filters {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 700px) {
+        body.casehub-browser-basic .controladoria-shell {
+            gap: 12px;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-header {
+            display: grid;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-btn-group {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-btn-group .btn-ctrl,
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-actions .btn-ctrl {
+            min-height: 44px;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-actions {
+            display: grid;
+            align-items: stretch;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-actions__buttons {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-actions .btn-ctrl {
+            width: 100%;
+            justify-content: center;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-note {
+            max-width: none;
+            text-align: left;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-kpi-grid,
+        body.casehub-browser-basic .controladoria-shell .ctrl-filters,
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-cards {
+            grid-template-columns: 1fr;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-card {
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 7px 10px;
+            align-items: start;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-card__title {
+            grid-column: 1;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-card p,
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-card small {
+            grid-column: 1 / -1;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-api-card__badge {
+            grid-row: 1;
+            grid-column: 2;
+            white-space: nowrap;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-overdue-mobile-alert {
+            display: grid;
+            gap: 10px;
+            padding: 12px;
+            border: 1px solid rgba(199, 55, 55, 0.26);
+            border: 1px solid color-mix(in srgb, var(--ctrl-danger) 26%, transparent);
+            border-radius: 8px;
+            background: rgba(199, 55, 55, 0.09);
+            background: color-mix(in srgb, var(--ctrl-danger) 9%, var(--ctrl-base));
+            box-shadow: var(--nu-raised-tight);
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-overdue-mobile-alert__copy {
+            display: grid;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-overdue-mobile-alert strong {
+            color: var(--ctrl-text);
+            font-size: 0.9rem;
+            line-height: 1.25;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-overdue-mobile-alert span {
+            color: var(--text-secondary, #5e5d58);
+            font-size: 0.78rem;
+            line-height: 1.35;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-overdue-mobile-alert__actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-overdue-mobile-alert .btn-ctrl {
+            justify-content: center;
+            min-height: 44px;
+            padding: 8px 10px;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-card {
+            min-height: 88px;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .prod-header,
+        body.casehub-browser-basic .controladoria-shell .prod-header > div {
+            display: grid !important;
+            width: 100%;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .prazo-sort-bar {
+            display: none;
+        }
+
+        body.casehub-browser-basic .controladoria-shell .ctrl-table-scroll {
+            margin-inline: -8px;
+            padding-inline: 8px;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-dialog {
+            align-items: end;
+            max-width: none;
+            min-height: 100%;
+            margin: 0;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-content {
+            max-height: 86vh;
+            width: 100%;
+            border-width: 1px !important;
+            border-radius: 16px 16px 0 0 !important;
+            background: var(--surface-raised, #f8f7f3);
+            box-shadow: var(--elevation-3);
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-header {
+            padding: 14px !important;
+            background: var(--surface-raised, #f8f7f3) !important;
+            color: var(--ctrl-text) !important;
+            border-bottom: 1px solid var(--border-subtle, rgba(32,32,30,0.07)) !important;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-header > .d-flex {
+            gap: 10px !important;
+            min-width: 0;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-header > .d-flex > div:first-child {
+            width: 40px !important;
+            height: 40px !important;
+            border-radius: 8px !important;
+            background: rgba(199, 55, 55, 0.12) !important;
+            background: color-mix(in srgb, var(--ctrl-danger) 12%, var(--ctrl-base)) !important;
+            color: var(--ctrl-danger);
+            box-shadow: var(--nu-pressed-soft);
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-title {
+            font-size: 0.95rem;
+            line-height: 1.2;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-header small {
+            color: var(--text-secondary, #5e5d58);
+            opacity: 1 !important;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .btn-close {
+            position: relative;
+            filter: none;
+            min-width: 44px;
+            min-height: 44px;
+            margin: -8px -8px -8px auto;
+            border-radius: 8px;
+            background: var(--surface-base, #f3f2ef);
+            background-image: none;
+            box-shadow: var(--nu-raised-tight);
+            opacity: 1;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .btn-close::before {
+            content: "\00d7";
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: var(--ctrl-text);
+            font-size: 1rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-body {
+            max-height: 58vh !important;
+            padding: 12px !important;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos table,
+        body.casehub-browser-basic #modalPrazosVencidos tbody,
+        body.casehub-browser-basic #modalPrazosVencidos tr,
+        body.casehub-browser-basic #modalPrazosVencidos td {
+            display: block;
+            width: 100%;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos thead {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            margin: -1px;
+            padding: 0;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos tbody tr {
+            display: grid;
+            gap: 6px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            background: var(--ctrl-base);
+            box-shadow: var(--nu-raised-tight);
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos tbody tr:last-child {
+            margin-bottom: 0;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos tbody td {
+            display: block;
+            min-width: 0;
+            max-width: none !important;
+            padding: 0 !important;
+            border: 0;
+            color: var(--ctrl-text);
+            font-size: 0.82rem;
+            line-height: 1.35;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .ctrl-mobile-cell-label {
+            display: block;
+            margin-bottom: 2px;
+            color: var(--text-secondary, #5e5d58);
+            font-size: 0.72rem;
+            font-weight: 760;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-footer {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            padding: 12px !important;
+            border-top: 1px solid var(--border-subtle, rgba(32,32,30,0.07)) !important;
+        }
+
+        body.casehub-browser-basic #modalPrazosVencidos .modal-footer .btn-ctrl {
+            justify-content: center;
+            min-height: 44px;
+            width: 100%;
+        }
+    }
+
+    #modalPrazosVencidos .ctrl-mobile-cell-label {
+        display: none;
+    }
+
+</style>
+{% if product|default('') != 'lite' %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/10.3.1/gridstack.min.css">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid controladoria-shell" data-testid="controladoria-shell">
+
+    <!-- Header (fixed, not in grid) -->
+    <div class="ctrl-header">
+        <div>
+            <h2><i class="fas fa-gavel me-2" style="color: #1C2447;"></i>Controladoria Juridica</h2>
+            <p>Controle de Prazos Processuais</p>
+        </div>
+        <div class="ctrl-btn-group">
+            <a href="{{ PREFIX }}/controladoria/export/excel" class="btn-ctrl">
+                <i class="fas fa-file-excel"></i> Exportar Excel
+            </a>
+            <button class="btn-ctrl" data-bs-toggle="modal" data-bs-target="#modalIntimacoes">
+                <i class="fas fa-search"></i> Buscar Intimacoes
+            </button>
+            <button class="btn-ctrl btn-ctrl-primary glass-btn--primary" data-bs-toggle="modal" data-bs-target="#modalNovoPrazo">
+                <i class="fas fa-plus"></i> Novo Prazo
+            </button>
+        </div>
+    </div>
+
+    <section id="controladoriaApiSummary" class="ctrl-api-panel" aria-label="Status das APIs de prazos">
+        <header class="ctrl-api-panel__header">
+            <strong>Status das APIs de prazos</strong>
+            <span>Este painel separa integracao oficial PDPJ dos sistemas subsidiarios.</span>
+        </header>
+        <div class="ctrl-api-cards">
+            {% for api_card in api_status_cards %}
+            <article class="ctrl-api-card ctrl-api-card--{{ api_card.status }}">
+                <div class="ctrl-api-card__title">
+                    <span class="ctrl-api-dot" aria-hidden="true"></span>
+                    <strong>{{ api_card.name }}</strong>
+                </div>
+                <span class="ctrl-api-card__badge">{{ api_card.badge_text }}</span>
+                <p>{{ api_card.reason }}</p>
+                {% if api_card.detail %}<small>{{ api_card.detail }}</small>{% endif %}
+            </article>
+            {% endfor %}
+        </div>
+        <div class="ctrl-api-actions" aria-label="Acoes das APIs de prazos" data-testid="controladoria-api-actions">
+            <div class="ctrl-api-actions__buttons">
+                <button type="button" class="btn-ctrl btn-ctrl-primary glass-btn--primary" data-bs-toggle="modal" data-bs-target="#modalIntimacoes">
+                    <i class="fas fa-search"></i> Buscar subsidiarias
+                </button>
+                <a class="btn-ctrl" href="{{ PREFIX }}/integrations">
+                    <i class="fas fa-plug"></i> Ver integracoes
+                </a>
+                <a class="btn-ctrl" href="{{ PREFIX }}/oauth/pdpj/connect">
+                    <i class="fas fa-scale-balanced"></i> Conectar PDPJ
+                </a>
+            </div>
+            <p class="ctrl-api-note">
+                Chaves de Escavador/JusBrasil ficam no servidor. No navegador, o operador inicia buscas e valida status sem expor segredo.
+            </p>
+        </div>
+    </section>
+
+    {% if prazos_vencidos_total > 0 %}
+    <section class="ctrl-overdue-mobile-alert" aria-label="Prazos vencidos">
+        <div class="ctrl-overdue-mobile-alert__copy">
+            <strong>{{ prazos_vencidos_total }} prazo{{ 's' if prazos_vencidos_total != 1 else '' }} vencido{{ 's' if prazos_vencidos_total != 1 else '' }}</strong>
+            <span>Confira a lista de prazos vencidos em um painel dedicado para facilitar a navegacao.</span>
+        </div>
+        <div class="ctrl-overdue-mobile-alert__actions">
+            <button type="button" class="btn-ctrl" data-bs-toggle="modal" data-bs-target="#modalPrazosVencidos">
+                <i class="fas fa-list-check"></i> Ver lista
+            </button>
+            <a href="{{ PREFIX }}/controladoria?status=pendente" class="btn-ctrl btn-ctrl-primary">
+                <i class="fas fa-filter"></i> Filtrar
+            </a>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- ===== Gridstack Layout ===== -->
+    <div class="grid-stack ctrl-grid-static" id="ctrl-grid" data-testid="controladoria-grid">
+
+    <!-- Widget: Stat Cards -->
+    <div class="grid-stack-item" gs-x="0" gs-y="0" gs-w="12" gs-h="2" gs-id="stat-cards" gs-min-h="2">
+    <div class="grid-stack-item-content">
+    <div class="gs-widget-header"><span class="gs-grip">&#9776;</span> Resumo</div>
+    <div class="gs-widget-body" style="padding: 12px;">
+    <div class="ctrl-kpi-grid" data-testid="controladoria-kpis">
+        <div class="col-sm-6 col-xl-3">
+            <div class="ctrl-card glass-card card-total">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="card-value" id="statTotal">{{ stats.total }}</div>
+                        <div class="card-label">Total de Prazos</div>
+                    </div>
+                    <div class="card-icon"><i class="fas fa-calendar-alt"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="ctrl-card glass-card card-fatal">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="card-value" id="statFatais">{{ stats.fatais_hoje }}</div>
+                        <div class="card-label">Fatais (Hoje)</div>
+                    </div>
+                    <div class="card-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="ctrl-card glass-card card-proximos">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="card-value" id="statProximos">{{ stats.proximos }}</div>
+                        <div class="card-label">Proximos (7 dias)</div>
+                    </div>
+                    <div class="card-icon"><i class="fas fa-clock"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="ctrl-card glass-card card-concluidos">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="card-value" id="statConcluidos">{{ stats.concluidos }}</div>
+                        <div class="card-label">Concluidos</div>
+                    </div>
+                    <div class="card-icon"><i class="fas fa-check-circle"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div><!-- /gs-widget-body -->
+    </div><!-- /grid-stack-item-content -->
+    </div><!-- /grid-stack-item stat-cards -->
+
+    <!-- Widget: Produtividade (Pie Chart) -->
+    <div class="grid-stack-item" gs-x="0" gs-y="2" gs-w="12" gs-h="4" gs-id="produtividade" gs-min-h="3">
+    <div class="grid-stack-item-content">
+    <div class="gs-widget-header"><span class="gs-grip">&#9776;</span> Produtividade</div>
+    <div class="gs-widget-body" style="padding: 16px;">
+    <div class="produtividade-section" id="produtividadeSection" style="border: none; box-shadow: none; padding: 0; margin: 0;">
+        <div class="prod-header">
+            <div class="d-flex align-items-center gap-3">
+                <h5><i class="fas fa-chart-pie me-2" style="color: #1C2447;"></i>Produtividade Mensal</h5>
+                <select id="prodMesSelect" class="form-select glass-input" style="width: auto; min-width: 160px; font-size: 0.875rem;">
+                    {% set meses_prod = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'] %}
+                    {% for m in range(1, 13) %}
+                    <option value="2026-{{ '%02d'|format(m) }}"
+                        {% if m == now().month %}selected{% endif %}>
+                        {{ meses_prod[m-1] }} 2026
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="prod-total-badge" id="prodTotal">0</span>
+                <span class="text-muted" style="font-size: 0.85rem;">peticoes concluidas</span>
+                <span class="prod-meta-badge prod-meta-miss" id="prodMetaBadge">
+                    <i class="fas fa-times-circle" id="prodMetaIcon"></i>
+                    <span id="prodMetaText">Meta: 0/100</span>
+                </span>
+            </div>
+        </div>
+        <div class="row align-items-center">
+            <div class="col-md-5">
+                <div class="prod-chart-container">
+                    <canvas id="prodPieChart"></canvas>
+                </div>
+            </div>
+            <div class="col-md-7">
+                <div id="prodLegend" class="mt-3 mt-md-0">
+                    <p class="text-muted text-center">Carregando dados...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div><!-- /gs-widget-body -->
+    </div><!-- /grid-stack-item-content -->
+    </div><!-- /grid-stack-item produtividade -->
+
+    <!-- Widget: Filtros + Tabela de Prazos -->
+    <div class="grid-stack-item" gs-x="0" gs-y="7" gs-w="12" gs-h="10" gs-id="tabela-prazos" gs-min-h="5">
+    <div class="grid-stack-item-content">
+    <div class="gs-widget-header"><span class="gs-grip">&#9776;</span> Prazos</div>
+    <div class="gs-widget-body" style="overflow: auto;">
+
+    <!-- Filtros -->
+    <form method="get" action="{{ PREFIX }}/controladoria" class="ctrl-filters" data-testid="controladoria-filters" style="padding: 12px 16px; margin: 0;">
+        <input type="text" name="search" placeholder="Buscar por cliente, processo, responsavel..."
+               value="{{ search }}" class="form-control glass-input" style="flex: 1; min-width: 250px;">
+        <select name="mes" class="form-select glass-input" style="min-width: 160px;">
+            <option value="">Todos os meses</option>
+            {% set meses_nomes = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'] %}
+            {% for m in range(1, 13) %}
+            <option value="2026-{{ '%02d'|format(m) }}" {% if mes_filter == '2026-' + '%02d'|format(m) %}selected{% endif %}>
+                {{ meses_nomes[m-1] }} 2026
+            </option>
+            {% endfor %}
+        </select>
+        <select name="status" class="form-select glass-input" style="min-width: 150px;">
+            <option value="">Ativos</option>
+            <option value="todos" {% if status_filter == 'todos' %}selected{% endif %}>Todos ({{ stats.total }})</option>
+            <option value="concluido" {% if status_filter == 'concluido' %}selected{% endif %}>Concluidos ({{ stats.concluidos }})</option>
+        </select>
+        <select name="tribunal" class="form-select glass-input" style="min-width: 130px;">
+            <option value="">Todos tribunais</option>
+            {% for trib in tribunais_disponiveis %}
+            <option value="{{ trib }}" {% if tribunal_filter == trib %}selected{% endif %}>{{ trib }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn-ctrl">
+            <i class="fas fa-filter"></i> Filtrar
+        </button>
+        {% if search or status_filter or mes_filter %}
+        <a href="{{ PREFIX }}/controladoria" class="btn-ctrl">
+            <i class="fas fa-times"></i> Limpar
+        </a>
+        {% endif %}
+    </form>
+
+    {% set meses_abrev = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'] %}
+
+    <!-- Prazos Table — Asana style -->
+    <div class="ctrl-table-wrap" id="prazosTable">
+
+        <!-- Toolbar -->
+        <div class="ctrl-table-toolbar">
+            <span class="ctrl-table-toolbar__title">Prazos</span>
+            <span class="ctrl-table-toolbar__count">
+                {{ prazos|length }} exibido{{ 's' if prazos|length != 1 else '' }}{% if prazos_truncated %}+{% endif %}
+                {% if prazos_truncated %}· refine filtros para ver mais{% endif %}
+            </span>
+            <span style="flex:1;"></span>
+            <div class="prazo-sort-bar" style="border:0;padding:0;">
+                <button class="prazo-sort-btn" data-sort="Inicio" onclick="sortPrazos(this)">Inicio</button>
+                <button class="prazo-sort-btn is-active" data-sort="Vencimento" onclick="sortPrazos(this)">Vencimento</button>
+                <button class="prazo-sort-btn" data-sort="Dias" onclick="sortPrazos(this)">Prazo</button>
+                <button class="prazo-sort-btn" data-sort="Processo" onclick="sortPrazos(this)">Processo</button>
+                <button class="prazo-sort-btn" data-sort="Cliente" onclick="sortPrazos(this)">Cliente</button>
+            </div>
+        </div>
+
+        <!-- Bulk bar -->
+        <div class="ctrl-bulk-bar" id="ctrl-bulk">
+            <span class="ctrl-bulk-bar__count" id="ctrl-bulk-count">0</span>
+            <button type="button" class="ctrl-bulk-btn" onclick="bulkConcluir()">Concluir</button>
+            <button type="button" class="ctrl-bulk-btn ctrl-bulk-btn--danger" onclick="bulkExcluir()">Excluir</button>
+            <button type="button" class="ctrl-bulk-btn" id="ctrl-deselect" style="margin-left:auto;">Limpar</button>
+        </div>
+
+        <!-- Table -->
+        <div class="ctrl-table-scroll{% if not prazos %} ctrl-table-scroll--empty{% endif %}" data-testid="controladoria-table-scroll">
+        <table class="ctrl-table">
+            <thead>
+                <tr>
+                    <th class="col-check"><input type="checkbox" class="ctrl-check" id="ctrl-check-all"></th>
+                    <th class="sortable-th" data-sort="Processo" style="min-width:160px;">Processo</th>
+                    <th class="sortable-th" data-sort="Cliente" style="min-width:220px;">Cliente</th>
+                    <th class="sortable-th" data-sort="Inicio" style="width:80px;">Inicio</th>
+                    <th class="sortable-th" data-sort="Dias" style="width:55px;">Prazo</th>
+                    <th class="sortable-th" data-sort="Vencimento" style="width:80px;">Vencimento</th>
+                    <th style="min-width:250px;">Descricao</th>
+                    <th style="width:120px;">Responsavel</th>
+                    <th class="sortable-th" data-sort="DiasRestantes" style="width:90px;">Restantes</th>
+                    <th style="width:40px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% if prazos %}
+                {% for prazo in prazos %}
+                <tr data-prazo-id="{{ prazo.id }}" data-status="{{ prazo.status }}"
+                    data-sort-vencimento="{{ prazo.data_vencimento.strftime('%Y-%m-%d') if prazo.data_vencimento else '9999-12-31' }}"
+                    data-sort-inicio="{{ prazo.data_inicio.strftime('%Y-%m-%d') if prazo.data_inicio else (prazo.data_intimacao.strftime('%Y-%m-%d') if prazo.data_intimacao else '9999-12-31') }}"
+                    data-sort-processo="{{ prazo.processo }}"
+                    data-sort-cliente="{{ prazo.cliente }}"
+                    data-sort-dias="{{ prazo.dias_prazo if prazo.dias_prazo else 9999 }}"
+                    data-sort-diasrestantes="{{ prazo.dias_restantes if prazo.dias_restantes is not none else 9999 }}"
+                    class="{% if prazo.urgencia == 'concluido' %}urg-concluido{% elif prazo.urgencia in ('vencido', 'fatal') %}urg-vermelho{% elif prazo.urgencia in ('urgente', 'amarelo') %}urg-amarelo{% else %}urg-verde{% endif %}">
+                    <td class="col-check"><input type="checkbox" class="ctrl-check ctrl-row-check"></td>
+                    <td class="col-processo editable" data-field="processo" data-prazo-id="{{ prazo.id }}">
+                        {% if prazo.case_id %}
+                        <a href="{{ PREFIX }}/cases/{{ prazo.case_id }}">{{ prazo.processo }}</a>
+                        {% else %}
+                        <span>{{ prazo.processo }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-cliente editable" data-field="cliente" data-prazo-id="{{ prazo.id }}">{{ prazo.cliente }}</td>
+                    <td class="col-inicio editable" data-field="data_inicio" data-prazo-id="{{ prazo.id }}">
+                        {% if prazo.data_inicio %}{{ prazo.data_inicio.strftime('%d/%m') }}{% elif prazo.data_intimacao %}{{ prazo.data_intimacao.strftime('%d/%m') }}{% else %}—{% endif %}
+                    </td>
+                    <td class="col-dias editable" data-field="dias_prazo" data-prazo-id="{{ prazo.id }}">
+                        <span class="urgency-pill urgency-pill--{% if prazo.dias_restantes is not none %}{% if prazo.dias_restantes > 7 %}green{% elif prazo.dias_restantes > 0 %}yellow{% else %}red{% endif %}{% else %}green{% endif %}">
+                            {{ prazo.dias_prazo }}
+                        </span>
+                    </td>
+                    <td class="col-vencimento">
+                        {% if prazo.data_vencimento %}
+                        <span class="{% if prazo.urgencia == 'vencido' %}due-overdue{% elif prazo.urgencia == 'fatal' %}due-today{% elif prazo.urgencia in ('urgente', 'amarelo') %}due-soon{% else %}due-ok{% endif %}">
+                            {{ prazo.data_vencimento.strftime('%d/%m') }}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="desc-cell" data-field="descricao" data-prazo-id="{{ prazo.id }}" data-raw-value="{{ prazo.descricao }}" onclick="abrirModalDescricao(this)" style="cursor:pointer;">
+                        {{ prazo.descricao[:60] + '...' if prazo.descricao and prazo.descricao|length > 60 else prazo.descricao or '' }}
+                        {% if prazo.tipo_peticao %}
+                        <span class="tipo-peticao-badge" data-field="tipo_peticao" data-prazo-id="{{ prazo.id }}"
+                              onclick="event.stopPropagation(); window.editTipoPeticao(this);"
+                              style="display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;background:#ede9fe;color:#5b21b6;cursor:pointer;margin-left:4px;font-weight:500;"
+                              title="Clique para alterar tipo">{{ prazo.tipo_peticao }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="editable" data-field="responsavel" data-prazo-id="{{ prazo.id }}">
+                        {% if prazo.responsavel and prazo.responsavel != '—' %}
+                        <div class="assignee-cell">
+                            <div class="assignee-avatar">{{ prazo.responsavel.split()[0][0]|upper }}{{ prazo.responsavel.split()[-1][0]|upper if prazo.responsavel.split()|length > 1 else '' }}</div>
+                            <span>{{ prazo.responsavel }}</span>
+                        </div>
+                        {% else %}
+                        <span class="assignee-empty">Atribuir</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-dias-restantes" data-sort-value="{{ prazo.dias_restantes if prazo.dias_restantes is not none else 9999 }}">
+                        {% if prazo.dias_restantes is not none %}
+                        <span class="dias-countdown {% if prazo.dias_restantes <= 0 %}dias-vencido{% elif prazo.dias_restantes <= 7 %}dias-urgente{% else %}dias-ok{% endif %}">
+                            {{ prazo.dias_restantes }}
+                        </span>
+                        {% else %}
+                        <span class="dias-countdown dias-ok">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="col-actions" style="width:40px;text-align:center;">
+                        {% if prazo.status != 'concluido' %}
+                        <button class="btn-concluir-inline" data-prazo-id="{{ prazo.id }}" title="Concluir prazo">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        {% else %}
+                        <button class="btn-reabrir-inline" data-prazo-id="{{ prazo.id }}" title="Reabrir prazo"
+                                style="border:none;background:none;cursor:pointer;color:#6d6a62;font-size:14px;padding:4px;border-radius:4px;">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="10" class="ctrl-empty-state">
+                    <div class="ctrl-empty-state__box">
+                        <strong>Nenhum prazo processual cadastrado no CaseHub.</strong>
+                        <span>A importacao oficial por OAB depende da autorizacao PDPJ/CNJ. Enquanto ela nao estiver validada, a equipe pode usar "Buscar Intimacoes" para consultar fontes subsidiarias e "Novo Prazo" para registrar manualmente o que precisa ser controlado.</span>
+                        <div class="ctrl-empty-actions">
+                            <button class="ctrl-table-toolbar__btn" data-bs-toggle="modal" data-bs-target="#modalIntimacoes">Buscar APIs</button>
+                            <button class="ctrl-table-toolbar__btn" data-bs-toggle="modal" data-bs-target="#modalNovoPrazo">Novo Prazo</button>
+                        </div>
+                    </div>
+                </td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    </div><!-- /gs-widget-body -->
+    </div><!-- /grid-stack-item-content -->
+    </div><!-- /grid-stack-item tabela-prazos -->
+
+    </div><!-- /grid-stack #ctrl-grid -->
+</div><!-- /container-fluid -->
+
+<!-- ============================================================ -->
+<!-- Modal: Novo Prazo -->
+<!-- ============================================================ -->
+<div class="modal fade ctrl-modal" id="modalNovoPrazo" tabindex="-1" aria-labelledby="modalNovoPrazoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovoPrazoLabel">
+                    <i class="fas fa-plus-circle me-2" style="color: #1C2447;"></i>Novo Prazo Processual
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form id="formNovoPrazo" method="post" action="{{ PREFIX }}/controladoria/novo-prazo">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="np_case_id" class="form-label">Processo</label>
+                            <select name="case_id" id="np_case_id" class="form-select glass-input" onchange="toggleProcessoManual()">
+                                <option value="">— Selecione —</option>
+                                <option value="__manual__">+ Digitar numero manualmente</option>
+                                <optgroup label="Processos cadastrados">
+                                {% for case in cases %}
+                                <option value="{{ case.id }}">
+                                    {{ case.case_number or 'Sem numero' }} — {{ case.case_name or 'Sem nome' }}
+                                </option>
+                                {% endfor %}
+                                {% if cases_truncated %}
+                                <option disabled>Mais processos disponiveis por numero manual</option>
+                                {% endif %}
+                                </optgroup>
+                            </select>
+                            {% if cases_truncated %}
+                            <input type="search" id="np_case_search" class="form-control glass-input mt-2"
+                                   autocomplete="off" placeholder="Buscar processo por numero, nome, cliente ou ID">
+                            <div id="np_case_search_results" class="list-group mt-2" hidden></div>
+                            {% endif %}
+                            <input type="text" name="processo_manual" id="np_processo_manual" class="form-control glass-input mt-2"
+                                   placeholder="Ex: 5000123-45.2026.8.13.0145" style="display:none;">
+                            <small id="np_processo_manual_hint" class="text-muted" style="display:none;">
+                                Processo sera cadastrado automaticamente no sistema.
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="np_tipo" class="form-label">Tipo de Prazo <span class="text-danger">*</span></label>
+                            <select name="tipo" id="np_tipo" class="form-select glass-input" required onchange="atualizarDias()">
+                                <option value="">— Selecione —</option>
+                                {% for key, info in prazos_comuns.items() %}
+                                <option value="{{ key }}" data-dias="{{ info.dias }}">
+                                    {{ info.descricao }} ({{ info.dias }} dias — {{ info.ref }})
+                                </option>
+                                {% endfor %}
+                                <option value="personalizado" data-dias="">Personalizado...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="np_data_intimacao" class="form-label">Data da Intimacao <span class="text-danger">*</span></label>
+                            <input type="date" name="data_intimacao" id="np_data_intimacao" class="form-control glass-input" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="np_dias_prazo" class="form-label">Dias Uteis</label>
+                            <input type="number" name="dias_prazo" id="np_dias_prazo" class="form-control glass-input"
+                                   min="1" max="365" placeholder="Auto">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="np_uf" class="form-label">UF</label>
+                            <select name="uf" id="np_uf" class="form-select glass-input">
+                                {% set ufs = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'] %}
+                                {% for uf in ufs %}
+                                <option value="{{ uf }}" {% if uf == 'MG' %}selected{% endif %}>{{ uf }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="np_responsavel" class="form-label">Responsavel</label>
+                            <input type="text" name="responsavel" id="np_responsavel" class="form-control glass-input"
+                                   placeholder="Nome do advogado responsavel">
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="dobro" id="np_dobro" class="form-check-input" value="true">
+                                <label for="np_dobro" class="form-check-label">
+                                    Prazo em Dobro (CPC Art. 229 — Fazenda Publica / Defensoria)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label for="np_descricao" class="form-label">Descricao / Observacoes</label>
+                            <textarea name="descricao" id="np_descricao" class="form-control glass-input" rows="2"
+                                      placeholder="Detalhes adicionais sobre o prazo..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Preview do calculo -->
+                    <div id="previewCalculo" class="mt-3 p-3 rounded-3 d-none" style="background: #f0f9ff; border: 1px solid #bae6fd;">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="fas fa-calculator" style="color: #1C2447;"></i>
+                            <strong>Pre-visualizacao do Prazo</strong>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <small class="text-muted">Inicio do prazo:</small><br>
+                                <strong id="prevInicio">—</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">Vencimento:</small><br>
+                                <strong id="prevVencimento" style="color: #dc2626;">—</strong>
+                            </div>
+                            <div class="col-md-4">
+                                <small class="text-muted">Dias uteis:</small><br>
+                                <strong id="prevDias">—</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-ctrl" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn-ctrl btn-ctrl-primary glass-btn--primary">
+                        <i class="fas fa-save me-1"></i> Salvar Prazo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Modal: Buscar Intimacoes (ComunicaAPI CNJ/PJE) -->
+<!-- ============================================================ -->
+<div class="modal fade ctrl-modal" id="modalIntimacoes" tabindex="-1" aria-labelledby="modalIntimacoesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalIntimacoesLabel">
+                    <i class="fas fa-search me-2" style="color: #1C2447;"></i>Buscar Intimacoes (CNJ/PJE)
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    Consulta intimacoes via API oficial do CNJ (ComunicaAPI PJE). Busca por numero da OAB e periodo.
+                </p>
+                <div id="intimacoesApiStatus" class="mb-3" style="border:1px solid var(--border-default, #e5e7eb);border-radius:8px;padding:10px 12px;background:var(--surface-raised, #f8fafc);">
+                    <div class="d-flex flex-wrap justify-content-between gap-2">
+                        <div>
+                            <small class="text-muted d-block">API em uso</small>
+                            <strong id="intimacoesApiProvider">Aguardando busca</strong>
+                        </div>
+                        <div>
+                            <small class="text-muted d-block">Status</small>
+                            <span id="intimacoesApiProviderStatus" class="badge bg-secondary">idle</span>
+                        </div>
+                        <div>
+                            <small class="text-muted d-block">Grant PDPJ</small>
+                            <span id="intimacoesApiGrant">—</span>
+                        </div>
+                        <div>
+                            <small class="text-muted d-block">Ultima tentativa</small>
+                            <span id="intimacoesApiLastAttempt">—</span>
+                        </div>
+                    </div>
+                    <div class="mt-2" style="font-size:0.82rem;">
+                        <span class="text-muted">Motivo:</span>
+                        <span id="intimacoesApiReason">A busca ainda nao foi executada.</span>
+                    </div>
+                    <div id="intimacoesApiErrorWrap" class="mt-1 d-none" style="font-size:0.78rem;color:#b91c1c;">
+                        <span>Ultimo erro:</span>
+                        <code id="intimacoesApiError"></code>
+                    </div>
+                    <details id="intimacoesApiChainWrap" class="mt-2 d-none" style="font-size:0.78rem;">
+                        <summary>Ver cadeia de APIs</summary>
+                        <ul id="intimacoesApiChain" class="mb-0 mt-2 ps-3"></ul>
+                    </details>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <label for="int_oab_numero" class="form-label">Numero OAB</label>
+                        <input type="text" id="int_oab_numero" class="form-control glass-input" placeholder="209176">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="int_oab_uf" class="form-label">UF</label>
+                        <select id="int_oab_uf" class="form-select glass-input">
+                            <option value="MG" selected>MG</option>
+                            <option value="RJ">RJ</option>
+                            <option value="SP">SP</option>
+                            <option value="DF">DF</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="int_data_inicio" class="form-label">Data Inicial</label>
+                        <input type="date" id="int_data_inicio" class="form-control glass-input">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="int_data_fim" class="form-label">Data Final</label>
+                        <input type="date" id="int_data_fim" class="form-control glass-input">
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="button" class="btn-ctrl btn-ctrl-primary w-100" onclick="buscarIntimacoes()" title="Buscar">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="intimacoesLoading" class="text-center py-4 d-none">
+                    <div class="spinner-border" role="status" style="color: #1C2447;"></div>
+                    <p class="mt-2 text-muted">Consultando ComunicaAPI CNJ/PJE...</p>
+                </div>
+
+                <div id="intimacoesResultado" class="d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong id="intimacoesContagem">0 intimacoes encontradas</strong>
+                            <small class="text-muted ms-2" id="intimacoesProcessos"></small>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <label style="font-size:0.8rem;cursor:pointer;user-select:none;">
+                                <input type="checkbox" id="intimSelectAll" onchange="toggleSelectAllIntimacoes(this)" checked>
+                                <span id="intimSelectCount">Todas selecionadas</span>
+                            </label>
+                            <button id="intimacoesImportarBtn" class="btn-ctrl btn-ctrl-primary" onclick="importarIntimacoesSelecionadas()" style="font-size:0.8rem;padding:4px 12px;">
+                                <i class="fas fa-download me-1"></i> Importar
+                            </button>
+                        </div>
+                    </div>
+                    <div id="intimacoesLista" style="max-height: 400px; overflow-y: auto;"></div>
+                    <div id="intimacoesErros" class="mt-2"></div>
+                </div>
+
+                <div id="intimacoesVazio" class="empty-state d-none">
+                    <i id="intimacoesVazioIcon" class="fas fa-inbox"></i>
+                    <p id="intimacoesVazioTexto">Nenhuma intimacao encontrada no periodo selecionado.</p>
+                    <small id="intimacoesVazioDetalhe" class="text-muted d-block"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Concluir duplicado REMOVIDO — usa modalConcluirPrazo abaixo -->
+
+<!-- Modal: Alerta de Prazos Vencidos -->
+{% if prazos_vencidos_total > 0 %}
+<div class="modal fade" id="modalPrazosVencidos" tabindex="-1" aria-labelledby="modalPrazosVencidosLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="border: 2px solid #dc2626; border-radius: 16px; overflow: hidden;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: white; border-bottom: none; padding: 1.25rem 1.5rem;">
+                <div class="d-flex align-items-center gap-3">
+                    <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title mb-0" id="modalPrazosVencidosLabel" style="font-weight: 700;">
+                            {{ prazos_vencidos_total }} Prazo{{ 's' if prazos_vencidos_total != 1 else '' }} Vencido{{ 's' if prazos_vencidos_total != 1 else '' }}!
+                        </h5>
+                        <small style="opacity: 0.85;">Atencao urgente necessaria</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem; max-height: 400px; overflow-y: auto;">
+                <table class="table table-sm mb-0" style="font-size: 0.875rem;">
+                    <thead>
+                        <tr style="background: #fee2e2;">
+                            <th>Processo</th>
+                            <th>Cliente</th>
+                            <th>Tipo</th>
+                            <th>Vencimento</th>
+                            <th>Dias Atrasado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in prazos_vencidos[:15] %}
+                        <tr>
+                            <td class="fw-semibold" data-label="Processo"><span class="ctrl-mobile-cell-label">Processo</span>{{ p.processo }}</td>
+                            <td data-label="Cliente"><span class="ctrl-mobile-cell-label">Cliente</span>{{ p.cliente }}</td>
+                            <td data-label="Tipo"><span class="ctrl-mobile-cell-label">Tipo</span>{{ p.tipo or '—' }}</td>
+                            <td data-label="Vencimento"><span class="ctrl-mobile-cell-label">Vencimento</span>{{ p.data_vencimento.strftime('%d/%m/%Y') if p.data_vencimento else '—' }}</td>
+                            <td data-label="Atraso">
+                                <span class="ctrl-mobile-cell-label">Atraso</span>
+                                <span class="badge" style="background: #dc2626; color: white; font-weight: 700;">
+                                    {{ (p.dias_restantes|abs) if p.dias_restantes else '?' }} dia{{ 's' if p.dias_restantes and (p.dias_restantes|abs) != 1 else '' }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if prazos_vencidos_remaining > 0 %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">
+                                ... e mais {{ prazos_vencidos_remaining }} prazo(s)
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid #fee2e2; padding: 1rem 1.5rem;">
+                <button type="button" class="btn-ctrl" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Fechar
+                </button>
+                <a href="{{ PREFIX }}/controladoria?status=pendente" class="btn-ctrl btn-ctrl-primary" style="background: #dc2626; border-color: #dc2626;">
+                    <i class="fas fa-eye me-1"></i> Ver Todos os Prazos
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Modal: Descrição — Texto Completo da Publicação (igual Lovable) -->
+<div class="modal fade" id="modalDescricao" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+        <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header" style="padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb;">
+                <h5 class="modal-title" style="font-weight: 600; font-size: 0.95rem;">
+                    Descricao — Texto Completo da Publicacao
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.75rem;">Edite o conteudo abaixo e clique Salvar.</p>
+                <input type="hidden" id="descPrazoId">
+                <textarea id="descTexto" class="form-control" rows="5" style="border-radius: 8px; font-size: 0.9rem; resize: vertical; min-height: 100px;"></textarea>
+            </div>
+            <div class="modal-footer" style="padding: 0.75rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                <button type="button" class="btn-ctrl" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn-ctrl btn-ctrl-primary" onclick="salvarDescricao()">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Concluir Prazo (tipo de petição) -->
+<div class="modal fade" id="modalConcluirPrazo" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+        <div class="modal-content" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header" style="background: #059669; color: white; padding: 1rem 1.5rem;">
+                <h5 class="modal-title" style="font-weight: 700;">
+                    <i class="fas fa-check-circle me-2"></i>Concluir Prazo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="concluirPrazoId">
+                <p style="font-size: 0.875rem; color: #64748b; margin-bottom: 1rem;">
+                    Selecione o tipo de petição para alimentar o gráfico de produtividade:
+                </p>
+                <select id="concluirTipoPeticao" class="form-select" style="border-radius: 8px; font-size: 0.9rem;">
+                    <option value="Pet. Simples" selected>Pet. Simples</option>
+                    <option value="Impugnacao ou decote RPV">Impugnação ou decote RPV</option>
+                    <option value="Manif. Laudo/Quesitos">Manif. Laudo/Quesitos</option>
+                    <option value="Informa pericia ou audiencia">Informa perícia ou audiência</option>
+                    <option value="Pet. Complexa">Pet. Complexa</option>
+                    <option value="Defesas">Defesas</option>
+                    <option value="Replicas">Réplicas</option>
+                    <option value="Recursos">Recursos</option>
+                    <option value="C.razoes">C.razões</option>
+                    <option value="Outros">Outros</option>
+                </select>
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                <button type="button" class="btn-ctrl" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn-ctrl btn-ctrl-primary" style="background: #059669; border-color: #059669;" onclick="confirmarConclusao()">
+                    <i class="fas fa-check me-1"></i> Concluir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% if product|default('') != 'lite' %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gridstack.js/10.3.1/gridstack-all.js"></script>
+{% endif %}
+<script src="/static/js/controladoria-table.js"></script>
+<script>
+// ============================================================
+// Gridstack initialization for Controladoria
+// ============================================================
+var ctrlGrid;
+var CTRL_STORAGE_KEY = 'casehub-ctrl-layout';
+
+function initCtrlGrid() {
+    var el = document.getElementById('ctrl-grid');
+    if (!el) return;
+    if (document.body.classList.contains('casehub-browser-basic') || typeof GridStack === 'undefined') {
+        el.classList.add('grid-locked');
+        return;
+    }
+    ctrlGrid = GridStack.init({
+        column: 12,
+        cellHeight: 60,
+        float: true,
+        animate: true,
+        margin: 6,
+        resizable: { handles: 'se,sw,ne,nw,e,w,s,n' },
+        removable: false,
+    }, el);
+
+    // Load saved layout
+    var saved = localStorage.getItem(CTRL_STORAGE_KEY);
+    if (saved) {
+        try {
+            var layout = JSON.parse(saved);
+            ctrlGrid.load(layout, true);
+        } catch (e) { /* ignore */ }
+    }
+
+    // Auto-save on change
+    ctrlGrid.on('change', function() {
+        var items = ctrlGrid.getGridItems();
+        var layout = items.map(function(item) {
+            var node = item.gridstackNode;
+            return { id: node.id, x: node.x, y: node.y, w: node.w, h: node.h };
+        });
+        localStorage.setItem(CTRL_STORAGE_KEY, JSON.stringify(layout));
+    });
+}
+
+function resetCtrlLayout() {
+    localStorage.removeItem(CTRL_STORAGE_KEY);
+    location.reload();
+}
+
+function toggleSidebar() {
+    var sidebar = document.querySelector('.sidebar');
+    var main = document.querySelector('.main-content, .content-wrapper, main');
+    if (!sidebar) return;
+    if (sidebar.style.display === 'none') {
+        sidebar.style.display = '';
+        if (main) main.style.marginLeft = '';
+    } else {
+        sidebar.style.display = 'none';
+        if (main) main.style.marginLeft = '0';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initCtrlGrid);
+document.addEventListener('casehub:soft-navigation', initCtrlGrid);
+
+// PREFIX for JS API calls
+window.CASEHUB_PREFIX = '{{ PREFIX }}';
+</script>
+<script>
+// Inline editing is now in /static/js/controladoria-table.js
+// Pass org users to JS
+window.ORG_USERS = {{ org_users|tojson }};
+
+var PREFIX = '{{ PREFIX }}';
+
+/* Inline editing now handled by /static/js/controladoria-table.js */
+
+// ============================================================
+// Novo Prazo form helpers
+// ============================================================
+function toggleProcessoManual() {
+    const sel = document.getElementById('np_case_id');
+    const manual = document.getElementById('np_processo_manual');
+    const hint = document.getElementById('np_processo_manual_hint');
+    if (sel.value === '__manual__') {
+        manual.style.display = 'block';
+        hint.style.display = 'block';
+        manual.required = true;
+        manual.focus();
+    } else {
+        manual.style.display = 'none';
+        hint.style.display = 'none';
+        manual.required = false;
+        manual.value = '';
+    }
+}
+
+function initNovoPrazoCaseSearch() {
+    const search = document.getElementById('np_case_search');
+    const select = document.getElementById('np_case_id');
+    const results = document.getElementById('np_case_search_results');
+    if (!search || !select || !results || search.dataset.basicCaseSearchInit === 'true') return;
+
+    search.dataset.basicCaseSearchInit = 'true';
+    let timer = null;
+
+    function clearResults() {
+        results.hidden = true;
+        results.innerHTML = '';
+    }
+
+    search.addEventListener('input', function() {
+        const query = search.value.trim();
+        window.clearTimeout(timer);
+        if (query.length < 2 && !/^\d+$/.test(query)) {
+            clearResults();
+            return;
+        }
+
+        timer = window.setTimeout(async function() {
+            try {
+                const response = await fetch(`${PREFIX}/controladoria/cases/search?q=${encodeURIComponent(query)}`, {
+                    headers: { 'Accept': 'application/json' },
+                });
+                if (!response.ok) {
+                    clearResults();
+                    return;
+                }
+                const data = await response.json();
+                const items = Array.isArray(data.items) ? data.items : [];
+                if (!items.length) {
+                    clearResults();
+                    return;
+                }
+                results.innerHTML = items.map(function(item) {
+                    const label = String(item.label || '').replace(/[&<>"']/g, function(ch) {
+                        return ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[ch];
+                    });
+                    return `<button type="button" class="list-group-item list-group-item-action" data-case-id="${item.id}" data-case-label="${label}">${label}</button>`;
+                }).join('');
+                results.hidden = false;
+            } catch (error) {
+                clearResults();
+            }
+        }, 250);
+    });
+
+    results.addEventListener('click', function(event) {
+        const button = event.target.closest('[data-case-id]');
+        if (!button) return;
+        const caseId = button.dataset.caseId;
+        const label = button.dataset.caseLabel;
+        let option = select.querySelector(`option[value="${caseId}"]`);
+        if (!option) {
+            option = new Option(label, caseId);
+            select.appendChild(option);
+        }
+        select.value = caseId;
+        search.value = label;
+        clearResults();
+        toggleProcessoManual();
+    });
+}
+
+function atualizarDias() {
+    const sel = document.getElementById('np_tipo');
+    const diasInput = document.getElementById('np_dias_prazo');
+    const opt = sel.options[sel.selectedIndex];
+    const dias = opt.dataset.dias;
+    if (dias) {
+        diasInput.value = dias;
+        diasInput.readOnly = true;
+    } else {
+        diasInput.value = '';
+        diasInput.readOnly = false;
+        diasInput.focus();
+    }
+    calcularPreview();
+}
+
+async function calcularPreview() {
+    const dataInt = document.getElementById('np_data_intimacao').value;
+    const dias = document.getElementById('np_dias_prazo').value;
+    const uf = document.getElementById('np_uf').value;
+    const dobro = document.getElementById('np_dobro').checked;
+    const preview = document.getElementById('previewCalculo');
+
+    if (!dataInt || !dias) {
+        preview.classList.add('d-none');
+        return;
+    }
+
+    try {
+        const tipo = document.getElementById('np_tipo').value;
+        const body = {
+            data_intimacao: dataInt,
+            estado: uf,
+            dobro: dobro,
+        };
+        if (tipo && tipo !== 'personalizado') {
+            body.tipo = tipo;
+        } else {
+            body.dias = parseInt(dias);
+        }
+
+        const resp = await fetch(PREFIX + '/prazos/calcular', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const result = await resp.json();
+
+        if (result.vencimento) {
+            document.getElementById('prevInicio').textContent = formatarData(result.inicio_prazo);
+            document.getElementById('prevVencimento').textContent = formatarData(result.vencimento);
+            document.getElementById('prevDias').textContent = result.dias_uteis + ' dias uteis' +
+                (result.dobro ? ' (dobro)' : '');
+            preview.classList.remove('d-none');
+        }
+    } catch (e) {
+        console.error('Erro ao calcular preview:', e);
+    }
+}
+
+function formatarData(iso) {
+    if (!iso) return '—';
+    const parts = iso.split('-');
+    return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+// Listeners para recalcular preview
+document.getElementById('np_data_intimacao').addEventListener('change', calcularPreview);
+document.getElementById('np_dias_prazo').addEventListener('input', calcularPreview);
+document.getElementById('np_uf').addEventListener('change', calcularPreview);
+document.getElementById('np_dobro').addEventListener('change', calcularPreview);
+
+// ============================================================
+// Buscar intimacoes via ComunicaAPI CNJ/PJE (por OAB)
+// ============================================================
+function setIntimacoesEmpty(iconClass, message, detail) {
+    const vazio = document.getElementById('intimacoesVazio');
+    const icon = document.getElementById('intimacoesVazioIcon');
+    const text = document.getElementById('intimacoesVazioTexto');
+    const detailEl = document.getElementById('intimacoesVazioDetalhe');
+    if (icon) icon.className = iconClass || 'fas fa-inbox';
+    if (text) text.textContent = message || 'Nenhuma intimacao encontrada no periodo selecionado.';
+    if (detailEl) {
+        detailEl.textContent = detail || '';
+        detailEl.classList.toggle('d-none', !detail);
+    }
+    if (vazio) vazio.classList.remove('d-none');
+}
+
+function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, function(ch) {
+        return ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[ch];
+    });
+}
+
+function setApiStatus(data) {
+    data = data || {};
+    const provider = document.getElementById('intimacoesApiProvider');
+    const status = document.getElementById('intimacoesApiProviderStatus');
+    const grant = document.getElementById('intimacoesApiGrant');
+    const lastAttempt = document.getElementById('intimacoesApiLastAttempt');
+    const reason = document.getElementById('intimacoesApiReason');
+    const errorWrap = document.getElementById('intimacoesApiErrorWrap');
+    const error = document.getElementById('intimacoesApiError');
+    const chainWrap = document.getElementById('intimacoesApiChainWrap');
+    const chain = document.getElementById('intimacoesApiChain');
+    const pageProvider = document.getElementById('ctrlApiProvider');
+    const pageStatus = document.getElementById('ctrlApiStatus');
+    const pageReason = document.getElementById('ctrlApiReason');
+
+    if (provider) provider.textContent = data.provider || data.source || 'Nenhuma API';
+    if (pageProvider) pageProvider.textContent = data.provider || data.source || 'Nenhuma API';
+    if (grant) grant.textContent = data.grant_attempted || 'none';
+    if (lastAttempt) lastAttempt.textContent = data.last_attempt_at || '—';
+    if (reason) reason.textContent = data.reason || data.message || 'Sem detalhe informado.';
+    if (pageReason) pageReason.textContent = data.reason || data.message || 'Sem detalhe informado.';
+
+    if (status) {
+        const providerStatus = data.provider_status || 'unknown';
+        status.textContent = providerStatus;
+        status.className = 'badge ' + (
+            providerStatus === 'ok' ? 'bg-success' :
+            providerStatus === 'fallback' || providerStatus === 'fallback_limited' ? 'bg-warning text-dark' :
+            providerStatus === 'failed' ? 'bg-danger' :
+            'bg-secondary'
+        );
+        if (pageStatus) {
+            pageStatus.textContent = providerStatus;
+            pageStatus.className = status.className;
+        }
+    }
+
+    if (errorWrap && error) {
+        if (data.last_error || data.code) {
+            errorWrap.classList.remove('d-none');
+            error.textContent = data.last_error || data.code;
+        } else {
+            errorWrap.classList.add('d-none');
+            error.textContent = '';
+        }
+    }
+
+    if (chainWrap && chain) {
+        const attempts = Array.isArray(data.fallback_chain) ? data.fallback_chain : [];
+        chain.innerHTML = '';
+        if (attempts.length > 0) {
+            chainWrap.classList.remove('d-none');
+            attempts.forEach(function(attempt) {
+                const li = document.createElement('li');
+                li.textContent = (attempt.provider || 'API') + ': ' +
+                    (attempt.status || 'unknown') + ' — ' +
+                    (attempt.reason || 'sem motivo') +
+                    (attempt.count ? ' (' + attempt.count + ')' : '');
+                chain.appendChild(li);
+            });
+        } else {
+            chainWrap.classList.add('d-none');
+        }
+    }
+}
+
+async function buscarIntimacoes() {
+    const oabNumero = document.getElementById('int_oab_numero').value.trim();
+    const oabUf = document.getElementById('int_oab_uf').value;
+    const dataInicio = document.getElementById('int_data_inicio').value;
+    const dataFim = document.getElementById('int_data_fim').value;
+    const loading = document.getElementById('intimacoesLoading');
+    const resultado = document.getElementById('intimacoesResultado');
+    const vazio = document.getElementById('intimacoesVazio');
+    const connectPdpj = document.getElementById('intimacoesConnectPdpj');
+
+    if (!oabNumero) {
+        alert('Informe o numero da OAB');
+        document.getElementById('int_oab_numero').focus();
+        return;
+    }
+
+    loading.classList.remove('d-none');
+    resultado.classList.add('d-none');
+    vazio.classList.add('d-none');
+    setApiStatus({
+        provider: 'Consultando...',
+        provider_status: 'pending',
+        reason: 'Executando cadeia de APIs para OAB ' + oabNumero + '/' + oabUf + '.',
+        grant_attempted: 'pending',
+        last_attempt_at: '—',
+    });
+    setIntimacoesEmpty('fas fa-inbox', 'Nenhuma intimacao encontrada no periodo selecionado.', '');
+    vazio.classList.add('d-none');
+
+    try {
+        const resp = await fetch(PREFIX + '/controladoria/buscar-comunicaapi', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                numero_oab: oabNumero,
+                uf_oab: oabUf,
+                data_inicio: dataInicio,
+                data_fim: dataFim,
+            }),
+        });
+        const data = await resp.json();
+        loading.classList.add('d-none');
+        setApiStatus(data);
+
+        if (!resp.ok || data.success === false || data.error) {
+            const code = data.code ? 'Codigo: ' + data.code : '';
+            setIntimacoesEmpty(
+                'fas fa-triangle-exclamation',
+                data.message || data.error || 'Integracao CNJ indisponivel no momento.',
+                [data.source || '', code].filter(Boolean).join(' · ')
+            );
+            return;
+        }
+
+        if (data.intimacoes && data.intimacoes.length > 0) {
+            resultado.classList.remove('d-none');
+            window._intimacoesData = data.intimacoes; // Store for import
+            document.getElementById('intimacoesContagem').textContent =
+                data.total + ' intimacao(oes) encontrada(s)';
+            document.getElementById('intimacoesProcessos').textContent =
+                'OAB ' + oabNumero + '/' + oabUf;
+
+            const lista = document.getElementById('intimacoesLista');
+            lista.innerHTML = '';
+            data.intimacoes.forEach(function(int_item, idx) {
+                const importable = int_item.importable !== false;
+                const div = document.createElement('div');
+                div.className = 'intimacao-item';
+                div.style.cssText = 'padding:10px 12px;border-bottom:1px solid #f0f0f0;display:flex;gap:10px;align-items:flex-start;';
+                div.innerHTML =
+                    '<input type="checkbox" class="intim-check" data-idx="' + idx + '"' + (importable ? ' checked' : ' disabled') + ' style="margin-top:4px;flex-shrink:0;">' +
+                    '<div style="flex:1;min-width:0;">' +
+                    '<strong style="font-size:0.85rem;">' + escapeHtml(int_item.numero_processo || '—') + '</strong>' +
+                    ' <small class="text-muted">' + escapeHtml(int_item.tipo_comunicacao || 'Intimacao') + '</small>' +
+                    (int_item.source ? ' <small class="badge bg-light text-dark">' + escapeHtml(int_item.source) + '</small>' : '') +
+                    (!importable ? ' <small class="badge bg-warning text-dark">consulta</small>' : '') +
+                    (int_item.orgao || int_item.tribunal ? '<br><small class="text-muted">' + escapeHtml(int_item.orgao || int_item.tribunal) + '</small>' : '') +
+                    (int_item.texto ? '<br><small style="color:#555;display:block;margin-top:3px;max-height:36px;overflow:hidden;text-overflow:ellipsis;line-height:1.3;">' + escapeHtml(int_item.texto.substring(0, 120)) + (int_item.texto.length > 120 ? '...' : '') + '</small>' : '') +
+                    '</div>' +
+                    '<span class="badge" style="background:#1C2447;color:#fff;font-size:0.7rem;flex-shrink:0;">' + escapeHtml(int_item.data_disponibilizacao || '—') + '</span>';
+                lista.appendChild(div);
+            });
+            updateIntimSelectCount();
+            // Listen for checkbox changes
+            lista.addEventListener('change', updateIntimSelectCount);
+        } else {
+            setIntimacoesEmpty(
+                'fas fa-inbox',
+                'Consulta executada sem intimações no período selecionado.',
+                data.source || 'ComunicaAPI PJE/CNJ'
+            );
+        }
+    } catch (e) {
+        loading.classList.add('d-none');
+        setApiStatus({
+            provider: 'Controladoria',
+            provider_status: 'failed',
+            reason: 'Falha de rede ou resposta invalida ao buscar intimacoes.',
+            last_error: e && e.message ? e.message : String(e),
+            grant_attempted: 'unknown',
+            fallback_chain: [],
+        });
+        setIntimacoesEmpty(
+            'fas fa-wifi',
+            'Erro de conexao ao consultar a ComunicaAPI.',
+            'Verifique a rede e tente novamente.'
+        );
+        console.error('Erro ao buscar intimacoes:', e);
+    }
+}
+
+// ============================================================
+// Importação de intimações
+// ============================================================
+function updateIntimSelectCount() {
+    var checks = document.querySelectorAll('.intim-check:not(:disabled)');
+    var checked = document.querySelectorAll('.intim-check:checked:not(:disabled)');
+    var label = document.getElementById('intimSelectCount');
+    var selectAll = document.getElementById('intimSelectAll');
+    var importBtn = document.getElementById('intimacoesImportarBtn');
+    if (label) label.textContent = checked.length + ' de ' + checks.length + ' selecionada(s)';
+    if (selectAll) selectAll.checked = checks.length > 0 && checked.length === checks.length;
+    if (importBtn) importBtn.disabled = checked.length === 0;
+}
+
+function toggleSelectAllIntimacoes(masterCheckbox) {
+    document.querySelectorAll('.intim-check:not(:disabled)').forEach(function(cb) {
+        cb.checked = masterCheckbox.checked;
+    });
+    updateIntimSelectCount();
+}
+
+async function importarIntimacoesSelecionadas() {
+    var data = window._intimacoesData;
+    if (!data) return;
+
+    var checked = document.querySelectorAll('.intim-check:checked');
+    if (checked.length === 0) {
+        alert('Selecione ao menos uma intimacao para importar.');
+        return;
+    }
+
+    var selected = [];
+    checked.forEach(function(cb) {
+        var idx = parseInt(cb.dataset.idx);
+        if (data[idx]) selected.push(data[idx]);
+    });
+
+    try {
+        var resp = await fetch(PREFIX + '/controladoria/importar-intimacoes', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ intimacoes: selected }),
+        });
+        var result = await resp.json();
+        if (result.success) {
+            var msg = result.imported + ' importada(s)';
+            if (result.skipped > 0) msg += ', ' + result.skipped + ' duplicata(s) ignorada(s)';
+            if (window.showToast) showToast(msg, 'success');
+            else alert(msg);
+            // Close modal and reload after short delay — guard see #207.
+            var intimEl = document.getElementById('modalIntimacoes');
+            var modal = (typeof bootstrap !== 'undefined' && bootstrap.Modal && intimEl) ? bootstrap.Modal.getInstance(intimEl) : null;
+            if (modal) modal.hide();
+            setTimeout(function() { location.reload(); }, 800);
+        } else {
+            alert('Erro: ' + (result.error || 'falha na importacao'));
+        }
+    } catch (e) {
+        alert('Erro de conexao ao importar.');
+        console.error(e);
+    }
+}
+
+// ============================================================
+// Auto-refresh stats every 60s
+// ============================================================
+setInterval(async function() {
+    try {
+        const resp = await fetch(PREFIX + '/controladoria/api/stats');
+        const stats = await resp.json();
+        document.getElementById('statTotal').textContent = stats.total;
+        document.getElementById('statFatais').textContent = stats.fatais_hoje;
+        document.getElementById('statProximos').textContent = stats.proximos;
+        document.getElementById('statConcluidos').textContent = stats.concluidos;
+    } catch (e) {}
+}, 60000);
+
+// ============================================================
+// Concluir modal logic
+// ============================================================
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.btn-abrir-concluir');
+    if (!btn) return;
+    e.preventDefault();
+    const prazoId = btn.dataset.prazoId;
+    document.getElementById('concluirPrazoId').value = prazoId;
+    document.getElementById('concluirTipoPeticao').value = '';
+    // Auto-fill today's date
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById('concluirDataConclusao').value = hoje;
+    // Guard against missing element / bundle — see #207.
+    const concluirEl = document.getElementById('modalConcluir');
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !concluirEl) return;
+    const modal = bootstrap.Modal.getOrCreateInstance(concluirEl);
+    modal.show();
+});
+
+async function confirmarConcluir() {
+    const prazoId = document.getElementById('concluirPrazoId').value;
+    const tipoPeticao = document.getElementById('concluirTipoPeticao').value;
+    const dataConclusao = document.getElementById('concluirDataConclusao').value;
+
+    if (!tipoPeticao) {
+        alert('Selecione o tipo de peticao.');
+        return;
+    }
+
+    const btn = document.getElementById('btnConfirmarConcluir');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Salvando...';
+
+    try {
+        const resp = await fetch(PREFIX + '/controladoria/' + prazoId + '/concluir', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                tipo_peticao: tipoPeticao,
+                data_conclusao: dataConclusao
+            })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            // Close modal and reload — guard see #207.
+            const concluirEl = document.getElementById('modalConcluir');
+            const concluirInst = (typeof bootstrap !== 'undefined' && bootstrap.Modal && concluirEl) ? bootstrap.Modal.getInstance(concluirEl) : null;
+            if (concluirInst) concluirInst.hide();
+            location.reload();
+        } else {
+            alert('Erro: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (err) {
+        console.error('Erro ao concluir:', err);
+        alert('Erro de conexao.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i> Confirmar Conclusao';
+    }
+}
+
+// ============================================================
+// Produtividade Pie Chart
+// ============================================================
+var PROD_COLORS = [
+    '#1C2447', '#6D9EEB', '#059669', '#d97706', '#dc2626',
+    '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#94a3b8'
+];
+
+var prodChart = null;
+
+async function loadProdutividade(mes) {
+    try {
+        const resp = await fetch(PREFIX + '/controladoria/api/produtividade?mes=' + encodeURIComponent(mes));
+        const data = await resp.json();
+
+        // Update total
+        document.getElementById('prodTotal').textContent = data.total;
+
+        // Update meta badge
+        const metaBadge = document.getElementById('prodMetaBadge');
+        const metaIcon = document.getElementById('prodMetaIcon');
+        const metaText = document.getElementById('prodMetaText');
+        if (data.meta_batida) {
+            metaBadge.className = 'prod-meta-badge prod-meta-hit';
+            metaIcon.className = 'fas fa-check-circle';
+            metaText.textContent = 'Meta batida! ' + data.total + '/' + data.meta;
+        } else {
+            metaBadge.className = 'prod-meta-badge prod-meta-miss';
+            metaIcon.className = 'fas fa-times-circle';
+            metaText.textContent = 'Meta: ' + data.total + '/' + data.meta;
+        }
+
+        // Build chart data
+        const labels = Object.keys(data.tipos);
+        const values = Object.values(data.tipos);
+
+        // Destroy old chart
+        if (prodChart) {
+            prodChart.destroy();
+            prodChart = null;
+        }
+
+        const legendDiv = document.getElementById('prodLegend');
+
+        if (labels.length === 0) {
+            document.getElementById('prodPieChart').getContext('2d').clearRect(0, 0, 320, 320);
+            legendDiv.innerHTML = '<p class="text-muted text-center mt-4">Nenhuma peticao concluida neste mes.</p>';
+            return;
+        }
+
+        const ctx = document.getElementById('prodPieChart').getContext('2d');
+        prodChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: PROD_COLORS.slice(0, labels.length),
+                    borderWidth: 2,
+                    borderColor: getComputedStyle(document.body).getPropertyValue('--bs-body-bg') || '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                const pct = Math.round(ctx.parsed / data.total * 100);
+                                return ctx.label + ': ' + ctx.parsed + ' (' + pct + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Custom legend
+        let legendHtml = '<div class="row g-2">';
+        labels.forEach(function(label, i) {
+            const pct = Math.round(values[i] / data.total * 100);
+            legendHtml += '<div class="col-sm-6">' +
+                '<div class="d-flex align-items-center gap-2" style="font-size: 0.85rem;">' +
+                '<span style="width:12px;height:12px;border-radius:3px;background:' + PROD_COLORS[i % PROD_COLORS.length] + ';flex-shrink:0;"></span>' +
+                '<span>' + label + '</span>' +
+                '<span class="ms-auto fw-bold">' + values[i] + ' <small class="text-muted">(' + pct + '%)</small></span>' +
+                '</div></div>';
+        });
+        legendHtml += '</div>';
+        legendDiv.innerHTML = legendHtml;
+
+    } catch (err) {
+        console.error('Erro ao carregar produtividade:', err);
+    }
+}
+
+function initControladoriaProdutividade() {
+    if (!document.querySelector('.controladoria-shell')) return;
+    const mesSelect = document.getElementById('prodMesSelect');
+    if (!mesSelect || mesSelect.dataset.basicProdInit === 'true') return;
+    mesSelect.dataset.basicProdInit = 'true';
+    loadProdutividade(mesSelect.value);
+    mesSelect.addEventListener('change', function() {
+        loadProdutividade(this.value);
+    });
+
+    // Auto-show modal de prazos vencidos
+    const modalVencidos = document.getElementById('modalPrazosVencidos');
+    if (modalVencidos) {
+        const dismissed = sessionStorage.getItem('prazosVencidosDismissed');
+        const isMobileViewport = window.matchMedia && window.matchMedia('(max-width: 700px)').matches;
+        modalVencidos.addEventListener('hidden.bs.modal', function() {
+            sessionStorage.setItem('prazosVencidosDismissed', '1');
+        });
+        if (!dismissed && !isMobileViewport) {
+            setTimeout(function() {
+                // Guard against missing bundle — see #207.
+                if (typeof bootstrap === 'undefined' || !bootstrap.Modal) return;
+                const bsModal = bootstrap.Modal.getOrCreateInstance(modalVencidos);
+                bsModal.show();
+            }, 500);
+        }
+    }
+}
+
+// Load on page load
+document.addEventListener('DOMContentLoaded', initControladoriaProdutividade);
+document.addEventListener('DOMContentLoaded', initNovoPrazoCaseSearch);
+document.addEventListener('casehub:soft-navigation', initControladoriaProdutividade);
+document.addEventListener('casehub:soft-navigation', initNovoPrazoCaseSearch);
+</script>
+{% endblock %}

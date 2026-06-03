@@ -1,0 +1,328 @@
+{% extends "app/base.html" %}
+{% set active_module = 'controladoria' %}
+{% block title %}Prazos · Dashboard · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="fas fa-calendar-check me-2"></i>Calculadora de Prazos</h2>
+            <p class="text-muted mb-0">Prazos processuais conforme CPC (dias úteis)</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Calculator Form -->
+        <div class="col-lg-5 mb-4">
+            <div class="card glass-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Calcular Prazo</h5>
+                </div>
+                <div class="card-body">
+                    <form id="prazoForm">
+                        <div class="mb-3">
+                            <label for="data_intimacao" class="form-label">Data da Intimacao</label>
+                            <input type="date" class="form-control glass-input" id="data_intimacao" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="tipo_prazo" class="form-label">Tipo de Prazo</label>
+                            <select class="form-select glass-input" id="tipo_prazo">
+                                <option value="">-- Selecione um prazo comum --</option>
+                                {% for key, prazo in prazos_comuns.items() %}
+                                <option value="{{ key }}" data-dias="{{ prazo.dias }}" data-ref="{{ prazo.ref }}">
+                                    {{ prazo.descricao }} ({{ prazo.dias }} dias - {{ prazo.ref }})
+                                </option>
+                                {% endfor %}
+                                <option value="personalizado">Prazo Personalizado...</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3 d-none" id="diasCustomContainer">
+                            <label for="dias_custom" class="form-label">Dias Úteis</label>
+                            <input type="number" class="form-control glass-input" id="dias_custom" min="1" max="365" placeholder="Ex: 30">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="estado" class="form-label">Estado (UF)</label>
+                            <select class="form-select glass-input" id="estado">
+                                <option value="AC">AC</option>
+                                <option value="AL">AL</option>
+                                <option value="AM">AM</option>
+                                <option value="AP">AP</option>
+                                <option value="BA">BA</option>
+                                <option value="CE">CE</option>
+                                <option value="DF">DF</option>
+                                <option value="ES">ES</option>
+                                <option value="GO">GO</option>
+                                <option value="MA">MA</option>
+                                <option value="MG" selected>MG</option>
+                                <option value="MS">MS</option>
+                                <option value="MT">MT</option>
+                                <option value="PA">PA</option>
+                                <option value="PB">PB</option>
+                                <option value="PE">PE</option>
+                                <option value="PI">PI</option>
+                                <option value="PR">PR</option>
+                                <option value="RJ">RJ</option>
+                                <option value="RN">RN</option>
+                                <option value="RO">RO</option>
+                                <option value="RR">RR</option>
+                                <option value="RS">RS</option>
+                                <option value="SC">SC</option>
+                                <option value="SE">SE</option>
+                                <option value="SP">SP</option>
+                                <option value="TO">TO</option>
+                            </select>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="dobro">
+                            <label class="form-check-label" for="dobro">
+                                Prazo em Dobro (CPC Art. 229 - Fazenda Publica / DP / MP)
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary w-100">
+                            <i class="fas fa-calculator me-2"></i>Calcular
+                        </button>
+                    </form>
+
+                    <hr>
+
+                    <button class="btn btn-outline-secondary w-100" id="btnTodosPrazos">
+                        <i class="fas fa-list me-2"></i>Calcular Todos os Prazos Comuns
+                    </button>
+                </div>
+            </div>
+
+            <!-- Holidays Card -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-calendar-day me-2"></i>Feriados</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-2">
+                        <input type="number" class="form-control glass-input" id="anoFeriados" value="2026" min="2000" max="2100">
+                        <button class="btn btn-outline-primary glass-btn glass-btn--ghost" id="btnFeriados">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    <div id="feriadosList" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="col-lg-7">
+            <!-- Single result -->
+            <div class="card d-none" id="resultCard">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Resultado</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <small class="text-muted d-block">Data da Intimacao</small>
+                                <strong class="h5" id="resIntimacao">-</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3">
+                                <small class="text-muted d-block">Início do Prazo</small>
+                                <strong class="h5" id="resInicio">-</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 border-danger">
+                                <small class="text-muted d-block">Vencimento</small>
+                                <strong class="h4 text-danger" id="resVencimento">-</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <small class="text-muted">Dias Úteis</small>
+                            <div class="h5" id="resDiasUteis">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Dias Corridos</small>
+                            <div class="h5" id="resDiasCorridos">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Referencia</small>
+                            <div class="h6" id="resRef">-</div>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Estado</small>
+                            <div class="h6" id="resEstado">-</div>
+                        </div>
+                    </div>
+                    <div id="resAlertas" class="mt-3"></div>
+                </div>
+            </div>
+
+            <!-- All deadlines result -->
+            <div class="card d-none" id="todosResultCard">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Todos os Prazos</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>Dias</th>
+                                    <th>Referencia</th>
+                                    <th>Vencimento</th>
+                                </tr>
+                            </thead>
+                            <tbody id="todosPrazosBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const PREFIX = '{{ PREFIX }}';
+
+function formatDate(isoStr) {
+    if (!isoStr) return '-';
+    const parts = isoStr.split('-');
+    return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+// Toggle custom days input
+document.getElementById('tipo_prazo').addEventListener('change', function() {
+    const container = document.getElementById('diasCustomContainer');
+    container.classList.toggle('d-none', this.value !== 'personalizado');
+});
+
+// Calculate single deadline
+document.getElementById('prazoForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const tipo = document.getElementById('tipo_prazo').value;
+    const data_intimacao = document.getElementById('data_intimacao').value;
+    const estado = document.getElementById('estado').value;
+    const dobro = document.getElementById('dobro').checked;
+
+    if (!data_intimacao) { alert('Informe a data da intimacao'); return; }
+    if (!tipo) { alert('Selecione o tipo de prazo'); return; }
+
+    const body = { data_intimacao, estado, dobro };
+    if (tipo === 'personalizado') {
+        const dias = document.getElementById('dias_custom').value;
+        if (!dias) { alert('Informe o número de dias'); return; }
+        body.dias = parseInt(dias);
+    } else {
+        body.tipo = tipo;
+    }
+
+    try {
+        const resp = await fetch(PREFIX + '/prazos/calcular', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const result = await resp.json();
+        if (!resp.ok) { alert(result.error || 'Erro'); return; }
+
+        document.getElementById('resIntimacao').textContent = formatDate(result.data_intimacao);
+        document.getElementById('resInicio').textContent = formatDate(result.inicio_prazo);
+        document.getElementById('resVencimento').textContent = formatDate(result.vencimento);
+        document.getElementById('resDiasÚteis').textContent = result.dias_uteis;
+        document.getElementById('resDiasCorridos').textContent = result.dias_corridos;
+        document.getElementById('resRef').textContent = result.ref || '-';
+        document.getElementById('resEstado').textContent = result.estado;
+
+        let alertas = '';
+        if (result.recesso) {
+            alertas += '<div class="alert alert-warning"><i class="fas fa-snowflake me-2"></i>O prazo atravessa o recesso judiciario (20/dez a 20/jan). Os dias de recesso não foram contados.</div>';
+        }
+        if (result.dobro) {
+            alertas += '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>Prazo em dobro aplicado (CPC Art. 229).</div>';
+        }
+        if (result.feriados_no_periodo && result.feriados_no_periodo.length > 0) {
+            alertas += '<div class="alert alert-secondary"><i class="fas fa-calendar-times me-2"></i>Feriados no período: ' + result.feriados_no_periodo.map(formatDate).join(', ') + '</div>';
+        }
+        document.getElementById('resAlertas').innerHTML = alertas;
+
+        document.getElementById('resultCard').classList.remove('d-none');
+        document.getElementById('todosResultCard').classList.add('d-none');
+    } catch (err) {
+        alert('Erro de conexão: ' + err.message);
+    }
+});
+
+// Calculate all common deadlines
+document.getElementById('btnTodosPrazos').addEventListener('click', async function() {
+    const data_intimacao = document.getElementById('data_intimacao').value;
+    const estado = document.getElementById('estado').value;
+
+    if (!data_intimacao) { alert('Informe a data da intimacao'); return; }
+
+    try {
+        const resp = await fetch(PREFIX + '/prazos/todos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data_intimacao, estado }),
+        });
+        const result = await resp.json();
+        if (!resp.ok) { alert(result.error || 'Erro'); return; }
+
+        const tbody = document.getElementById('todosPrazosBody');
+        tbody.innerHTML = '';
+        result.prazos.forEach(function(p) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td>' + p.descricao + '</td>' +
+                           '<td><span class="badge bg-secondary">' + p.dias + ' dias</span></td>' +
+                           '<td><code>' + p.ref + '</code></td>' +
+                           '<td><strong>' + formatDate(p.vencimento) + '</strong></td>';
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('todosResultCard').classList.remove('d-none');
+        document.getElementById('resultCard').classList.add('d-none');
+    } catch (err) {
+        alert('Erro de conexão: ' + err.message);
+    }
+});
+
+// List holidays
+document.getElementById('btnFeriados').addEventListener('click', async function() {
+    const ano = document.getElementById('anoFeriados').value;
+    const estado = document.getElementById('estado').value;
+
+    try {
+        const resp = await fetch(PREFIX + '/prazos/feriados/' + ano + '?estado=' + estado);
+        const result = await resp.json();
+        if (!resp.ok) { alert(result.error || 'Erro'); return; }
+
+        let html = '<small class="text-muted">' + result.total + ' feriados em ' + ano + ' (' + result.estado + ')</small>';
+        html += '<ul class="list-group list-group-flush mt-2">';
+        result.feriados.forEach(function(f) {
+            html += '<li class="list-group-item d-flex justify-content-between align-items-center py-1">' +
+                    '<span>' + formatDate(f.data) + '</span>' +
+                    '<span class="badge bg-secondary">' + f.dia_semana + '</span></li>';
+        });
+        html += '</ul>';
+        document.getElementById('feriadosList').innerHTML = html;
+    } catch (err) {
+        alert('Erro: ' + err.message);
+    }
+});
+
+// Set today as default date
+document.getElementById('data_intimacao').valueAsDate = new Date();
+</script>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

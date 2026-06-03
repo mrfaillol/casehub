@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="{{ lang|default('pt-BR') }}" data-theme="{{ ui_theme|default(theme|default('light')) }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Maestro IA</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="/static/css/themes/_tokens.css">
+    {% if ui_theme in ['glass', 'desktop', 'neuromorphic', 'white-label'] %}
+    <link rel="stylesheet" href="/static/css/themes/{{ ui_theme }}.css">
+    {% endif %}
+    <link rel="stylesheet" href="/static/css/templates/assistente-chat-embed.css">
+</head>
+<body class="assistente-chat-embed-body">
+    <header class="assistente-chat-embed-header">
+        <h1 class="assistente-chat-embed-title">
+            <i class="fas fa-wand-magic-sparkles assistente-chat-embed-title-icon" aria-hidden="true"></i>
+            <span>Maestro IA</span>
+        </h1>
+        <span class="assistente-chat-embed-status"
+              data-status="{{ 'online' if ollama_status.status == 'online' else 'offline' }}"
+              id="statusBadge"
+              role="status"
+              aria-live="polite">
+            <span class="assistente-chat-embed-status-dot" id="statusDot" aria-hidden="true"></span>
+            <span id="statusText">{{ 'Online' if ollama_status.status == 'online' else 'Offline' }}</span>
+        </span>
+    </header>
+
+    <main class="assistente-chat-embed-messages"
+          id="chatMessages"
+          role="log"
+          aria-live="polite"
+          aria-label="Conversa com o Maestro IA">
+        <section class="assistente-chat-embed-welcome" id="welcomeCard" aria-labelledby="welcomeTitle">
+            <div class="assistente-chat-embed-welcome-icon" aria-hidden="true">
+                <i class="fas fa-wand-magic-sparkles"></i>
+            </div>
+            <h2 id="welcomeTitle" class="assistente-chat-embed-welcome-title">Maestro IA</h2>
+            <p class="assistente-chat-embed-welcome-text">Assistente jurídico inteligente do seu escritório.</p>
+            <button type="button" class="assistente-chat-embed-suggestion"
+                    onclick="sendQuickAction('Faça um resumo geral do escritório hoje')">
+                <i class="fas fa-clipboard-list assistente-chat-embed-suggestion-icon" aria-hidden="true"></i>
+                <span>Resumo do dia</span>
+            </button>
+            <button type="button" class="assistente-chat-embed-suggestion"
+                    onclick="sendQuickAction('Quais são os prazos urgentes desta semana?')">
+                <i class="fas fa-exclamation-triangle assistente-chat-embed-suggestion-icon" aria-hidden="true"></i>
+                <span>Prazos urgentes</span>
+            </button>
+            <button type="button" class="assistente-chat-embed-suggestion"
+                    onclick="sendQuickAction('Qual o status geral dos processos?')">
+                <i class="fas fa-chart-pie assistente-chat-embed-suggestion-icon" aria-hidden="true"></i>
+                <span>Status dos processos</span>
+            </button>
+        </section>
+
+        <div class="assistente-chat-embed-thinking"
+             id="thinkingIndicator"
+             data-active="false"
+             aria-hidden="true">
+            <div class="assistente-chat-embed-avatar" aria-hidden="true">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="assistente-chat-embed-thinking-content">
+                <i class="fas fa-circle-notch fa-spin assistente-chat-embed-thinking-icon" aria-hidden="true"></i>
+                <span>Pensando&hellip;</span>
+            </div>
+        </div>
+    </main>
+
+    <footer class="assistente-chat-embed-input-area">
+        <label for="chatInput" class="assistente-chat-embed-sr-only">Mensagem para o Maestro IA</label>
+        <textarea id="chatInput"
+                  class="assistente-chat-embed-textarea"
+                  placeholder="Digite sua mensagem..."
+                  rows="1"
+                  aria-label="Mensagem para o Maestro IA"
+                  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+        <button type="button"
+                class="assistente-chat-embed-send"
+                id="sendBtn"
+                onclick="sendMessage()"
+                aria-label="Enviar mensagem">
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+        </button>
+    </footer>
+
+    <script>
+    const PREFIX = '{{ PREFIX }}';
+    let chatHistory = [];
+    let isProcessing = false;
+
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const thinkingIndicator = document.getElementById('thinkingIndicator');
+    const welcomeCard = document.getElementById('welcomeCard');
+
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+    });
+
+    function addMessage(role, content) {
+        if (welcomeCard) welcomeCard.style.display = 'none';
+
+        var div = document.createElement('div');
+        div.className = 'assistente-chat-embed-message';
+        div.setAttribute('data-role', role);
+
+        var avatar = document.createElement('div');
+        avatar.className = 'assistente-chat-embed-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        avatar.innerHTML = role === 'user'
+            ? '<i class="fas fa-user"></i>'
+            : '<i class="fas fa-robot"></i>';
+
+        var bubbleWrap = document.createElement('div');
+        bubbleWrap.className = 'assistente-chat-embed-bubble-wrap';
+
+        var bubble = document.createElement('div');
+        bubble.className = 'assistente-chat-embed-bubble';
+        var html = content
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+        bubble.innerHTML = html;
+        bubbleWrap.appendChild(bubble);
+
+        if (role === 'assistant') {
+            var tags = document.createElement('div');
+            tags.className = 'assistente-chat-embed-tags';
+            ['Me conte mais', 'Próximos passos?'].forEach(function(text) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'assistente-chat-embed-tag';
+                btn.textContent = text;
+                btn.onclick = function() { this.disabled = true; sendQuickAction(text); };
+                tags.appendChild(btn);
+            });
+            bubbleWrap.appendChild(tags);
+        }
+
+        div.appendChild(avatar);
+        div.appendChild(bubbleWrap);
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function sendQuickAction(text) {
+        chatInput.value = text;
+        sendMessage();
+    }
+
+    async function sendMessage() {
+        var message = chatInput.value.trim();
+        if (!message || isProcessing) return;
+
+        isProcessing = true;
+        sendBtn.disabled = true;
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+
+        addMessage('user', message);
+        chatHistory.push({ role: 'user', content: message });
+
+        thinkingIndicator.setAttribute('data-active', 'true');
+        thinkingIndicator.setAttribute('aria-hidden', 'false');
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        try {
+            var resp = await fetch(PREFIX + '/assistente/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message, history: chatHistory })
+            });
+            var data = await resp.json();
+            thinkingIndicator.setAttribute('data-active', 'false');
+            thinkingIndicator.setAttribute('aria-hidden', 'true');
+
+            if (data.status === 'offline') {
+                addMessage('assistant', 'O assistente não está disponível no momento.');
+            } else {
+                addMessage('assistant', data.response);
+                chatHistory.push({ role: 'assistant', content: data.response });
+            }
+        } catch (err) {
+            thinkingIndicator.setAttribute('data-active', 'false');
+            thinkingIndicator.setAttribute('aria-hidden', 'true');
+            addMessage('assistant', 'Erro ao se comunicar com o servidor.');
+        }
+
+        isProcessing = false;
+        sendBtn.disabled = false;
+        chatInput.focus();
+    }
+
+    chatInput.focus();
+    </script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="{% if product == 'lite' %}pt-BR{% else %}{{ lang|default('en') }}{% endif %}" data-theme="{{ theme|default('light') }}" data-product="{{ product }}">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/svg+xml" href="/static/brand-kit/favicon/casehub-favicon-degrade-4.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if product == "lite" %}Escolher Plano - {{ org_name|default('CaseHub') }}{% else %}Choose Plan - {{ org_name|default('CaseHub') }}{% endif %}</title>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+
+    <!-- Design system canonical (tokens → reset → components) -->
+    <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/reset.css">
+    <link rel="stylesheet" href="/static/css/components/buttons.css">
+    <link rel="stylesheet" href="/static/css/components/forms.css">
+    <link rel="stylesheet" href="/static/css/components/cards.css">
+
+    <style>
+        body {
+            background: var(--surface-2);
+            color: var(--text);
+            min-height: 100vh;
+            font-family: 'Instrument Sans', system-ui, sans-serif;
+            display: flex; align-items: center; justify-content: center;
+            padding: var(--space-5) var(--space-4);
+        }
+        .plan-wrapper { width: 100%; max-width: 900px; }
+
+        .plan-card-main {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: var(--space-7);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .step-indicator {
+            display: flex; justify-content: center; gap: var(--space-2);
+            margin-bottom: var(--space-5);
+        }
+        .step-dot {
+            width: 8px; height: 8px;
+            border-radius: var(--radius-pill);
+            background: var(--border-strong);
+            transition: background 150ms var(--ease-organic),
+                        transform 150ms var(--ease-organic);
+        }
+        .step-dot.active { background: var(--accent); transform: scale(1.3); }
+        .step-dot.done { background: var(--success-500); }
+
+        .plan-hero-title {
+            font-family: 'Instrument Serif', Georgia, serif;
+            font-size: var(--fs-2xl);
+            font-weight: var(--fw-regular);
+            color: var(--text);
+            margin-bottom: var(--space-1);
+            text-align: center;
+            letter-spacing: -0.01em;
+        }
+        .plan-hero-sub {
+            text-align: center;
+            color: var(--text-muted);
+            margin-bottom: var(--space-6);
+            font-size: var(--fs-sm);
+        }
+
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-5);
+        }
+
+        .sr-only {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+        }
+
+        .plan-option {
+            display: block; cursor: pointer;
+            background: var(--surface-2);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-5);
+            position: relative;
+            transition: background 150ms var(--ease-organic),
+                        border-color 150ms var(--ease-organic),
+                        transform 150ms var(--ease-organic);
+        }
+        .plan-option:hover {
+            border-color: var(--border-strong);
+            background: var(--surface-3);
+            transform: translateY(-2px);
+        }
+        .plan-option:has(input:checked) {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .plan-option:focus-within {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+        .plan-option.recommended {
+            border-color: var(--accent);
+        }
+
+        .plan-badge {
+            position: absolute;
+            top: -10px; right: var(--space-4);
+            background: var(--accent);
+            color: var(--accent-contrast, #fff);
+            font-size: var(--fs-xs);
+            font-weight: var(--fw-bold);
+            padding: 2px var(--space-3);
+            border-radius: var(--radius-pill);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .plan-option h3 {
+            font-family: 'Instrument Sans', sans-serif;
+            font-size: var(--fs-md);
+            font-weight: var(--fw-semibold);
+            color: var(--text);
+            margin-bottom: var(--space-2);
+        }
+        .plan-price {
+            font-family: 'Instrument Serif', Georgia, serif;
+            font-size: var(--fs-2xl);
+            font-weight: var(--fw-regular);
+            color: var(--accent);
+            margin-bottom: var(--space-1);
+            letter-spacing: -0.02em;
+        }
+        .plan-price span {
+            font-family: 'Instrument Sans', sans-serif;
+            font-size: var(--fs-sm);
+            font-weight: var(--fw-regular);
+            color: var(--text-muted);
+        }
+
+        .plan-features {
+            list-style: none; padding: 0; margin: var(--space-4) 0 0;
+        }
+        .plan-features li {
+            padding: var(--space-2) 0;
+            font-size: var(--fs-sm);
+            color: var(--text);
+            display: flex; align-items: flex-start; gap: var(--space-2);
+        }
+        .plan-features li i {
+            color: var(--success-500);
+            font-size: 11px;
+            margin-top: 5px;
+            flex-shrink: 0;
+        }
+
+        .plan-limits {
+            font-size: var(--fs-xs);
+            color: var(--text-muted);
+            margin-top: var(--space-3);
+            padding-top: var(--space-3);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .btn-row {
+            display: flex; gap: var(--space-3); justify-content: center;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .plan-option, .step-dot { transition: none; }
+            .plan-option:hover { transform: none; }
+        }
+
+        @media (max-width: 640px) {
+            .plan-card-main { padding: var(--space-5); }
+            .plan-hero-title { font-size: var(--fs-xl); }
+        }
+    </style>
+</head>
+<body>
+    <div class="plan-wrapper">
+        <div class="plan-card-main">
+            <div class="step-indicator" aria-label="Step {{ step }} of {{ total_steps }}">
+                {% for i in range(1, total_steps + 1) %}
+                <div class="step-dot {% if i == step %}active{% elif i < step %}done{% endif %}" aria-hidden="true"></div>
+                {% endfor %}
+            </div>
+
+            <h1 class="plan-hero-title" data-editable-block="plan-title">{% if product == "lite" %}Escolher um Plano{% else %}Choose Your Plan{% endif %}</h1>
+            <p class="plan-hero-sub" data-editable-block="plan-subtitle">{% if product == "lite" %}Todos os planos incluem 14 dias de teste gratis. Cancele quando quiser.{% else %}All plans include a 14-day free trial. Cancel anytime.{% endif %}</p>
+
+            <form method="POST" action="{{ PREFIX }}/setup/plan" id="planForm">
+                <div class="plans-grid">
+                    {% for key, plan in plans.items() %}
+                    <label class="plan-option {% if key == 'office' %}recommended{% endif %}">
+                        <input type="radio" name="plan" value="{{ key }}" class="sr-only"
+                               {% if (org.plan if org.plan in plans else 'office') == key %}checked{% endif %}>
+                        {% if key == 'office' %}
+                        <div class="plan-badge">{% if product == "lite" %}Mais Popular{% else %}Most Popular{% endif %}</div>
+                        {% endif %}
+                        <h3>{{ plan.name }}</h3>
+                        <div class="plan-price">
+                            {% if plan.price %}
+                                {% if product == "lite" %}R$ {{ plan.price }}<span>/mês</span>{% else %}${{ plan.price }}<span>/mo</span>{% endif %}
+                            {% else %}
+                                {{ plan.price_label|default('Sob consulta') }}
+                            {% endif %}
+                        </div>
+                        <ul class="plan-features">
+                            {% for feature in plan.features %}
+                            <li><i class="fas fa-check" aria-hidden="true"></i> {{ feature }}</li>
+                            {% endfor %}
+                        </ul>
+                        <div class="plan-limits">
+                            {% set users_label = ('Usuários ilimitados' if product == 'lite' else 'Unlimited users') if plan.max_users is none or plan.max_users < 0 else (plan.max_users ~ (' usuários' if product == 'lite' else ' users')) %}
+                            {% set clients_label = ('clientes ilimitados' if product == 'lite' else 'unlimited clients') if plan.max_clients is none or plan.max_clients < 0 else (plan.max_clients ~ (' clientes' if product == 'lite' else ' clients')) %}
+                            {{ users_label }} &middot; {{ clients_label }} &middot; {{ plan.max_storage_gb }}GB{% if product != "lite" %} storage{% endif %}
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <div class="btn-row">
+                    <button type="submit" class="btn btn--primary btn--lg">
+                        {% if product == "lite" %}Continuar{% else %}Continue{% endif %}
+                        <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

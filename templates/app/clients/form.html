@@ -1,0 +1,260 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% set is_edit = client is defined and client and client.id %}
+{% block title %}{% if is_edit %}Editar cliente · {{ client.full_name }}{% else %}Novo cliente{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Clientes ·
+      {% if is_edit %}Editando {{ client.client_number or '%04d'|format(client.id) }}{% else %}Novo cadastro{% endif %}
+    </span>
+    <h1>
+      {% if is_edit %}
+        Editar <em>{{ client.full_name }}</em>
+      {% else %}
+        Cadastrar <em>cliente</em>
+      {% endif %}
+    </h1>
+    <p class="ch-page-head__sub">
+      Campos com <span style="color: var(--c-danger);">*</span> são obrigatórios. Dados criptografados (CPF, RG, passaporte) ficam protegidos em repouso.
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/clients">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+<form method="post"
+      action="{% if is_edit %}{{ PREFIX }}/clients/{{ client.id }}/edit{% else %}{{ PREFIX }}/clients/new{% endif %}"
+      class="ch-grid"
+      style="grid-template-columns: 1fr; gap: var(--space-5);"
+      novalidate>
+
+  {# ─── Identificação ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Identificação</span>
+        <h2 class="ch-card__title">Dados pessoais</h2>
+      </div>
+      <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="first_name">Nome <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input" id="first_name" name="first_name" type="text" required minlength="2"
+               value="{{ client.first_name if client else '' }}" autocomplete="given-name" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="last_name">Sobrenome <span style="color: var(--c-danger);">*</span></label>
+        <input class="ch-input" id="last_name" name="last_name" type="text" required minlength="2"
+               value="{{ client.last_name if client else '' }}" autocomplete="family-name" />
+      </div>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="email">E-mail</label>
+        <input class="ch-input" id="email" name="email" type="email"
+               value="{{ client.email if client else '' }}" autocomplete="email" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="phone">Telefone</label>
+        <input class="ch-input" id="phone" name="phone" type="tel"
+               value="{{ client.phone if client else '' }}" autocomplete="tel" />
+      </div>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="whatsapp">WhatsApp</label>
+        <input class="ch-input" id="whatsapp" name="whatsapp" type="tel"
+               value="{{ client.whatsapp if client else '' }}" placeholder="+55 32 99999-9999" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="date_of_birth">Data de nascimento</label>
+        <input class="ch-input" id="date_of_birth" name="date_of_birth" type="date"
+               value="{{ client.date_of_birth.strftime('%Y-%m-%d') if client and client.date_of_birth else '' }}" />
+      </div>
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="address">Endereço</label>
+      <textarea class="ch-textarea" id="address" name="address" rows="2"
+                placeholder="Rua, número, complemento, bairro, cidade — UF">{{ client.address if client else '' }}</textarea>
+    </div>
+  </article>
+
+  {# ─── Documentos BR ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Documentos</span>
+        <h2 class="ch-card__title">CPF · RG · CNPJ · OAB</h2>
+      </div>
+      <span data-icon="file" data-icon-size="20" style="color: var(--c-blue);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="cpf">CPF</label>
+        <input class="ch-input ch-mono" id="cpf" name="cpf" type="text"
+               value="{{ client.cpf|default('') }}" placeholder="000.000.000-00" inputmode="numeric" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="rg">RG</label>
+        <input class="ch-input ch-mono" id="rg" name="rg" type="text"
+               value="{{ client.rg|default('') }}" />
+      </div>
+    </div>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="cnpj">CNPJ (PJ)</label>
+        <input class="ch-input ch-mono" id="cnpj" name="cnpj" type="text"
+               value="{{ client.cnpj|default('') }}" placeholder="00.000.000/0000-00" inputmode="numeric" />
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="oab_number">OAB (se advogado)</label>
+        <input class="ch-input ch-mono" id="oab_number" name="oab_number" type="text"
+               value="{{ client.oab_number|default('') }}" placeholder="OAB/MG 123456" />
+      </div>
+    </div>
+    <details style="margin-top: var(--space-2);">
+      <summary style="cursor: pointer; font-size: var(--fs-sm); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+        Documentos US (opcional) <span data-icon="chevron_down" data-icon-size="12"></span>
+      </summary>
+      <div class="ch-grid ch-grid--3" style="margin-top: var(--space-3);">
+        <div class="ch-field">
+          <label class="ch-field__label" for="alien_number">Alien Number (A#)</label>
+          <input class="ch-input ch-mono" id="alien_number" name="alien_number" type="text"
+                 value="{{ client.alien_number if client else '' }}" placeholder="A###-###-###" />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="passport_number">Passport</label>
+          <input class="ch-input ch-mono" id="passport_number" name="passport_number" type="text"
+                 value="{{ client.passport_number if client else '' }}" />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="ssn">SSN</label>
+          <input class="ch-input ch-mono" id="ssn" name="ssn" type="text"
+                 value="{{ client.ssn if client else '' }}" placeholder="###-##-####" />
+        </div>
+      </div>
+    </details>
+  </article>
+
+  {# ─── Classificação ─── #}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Classificação</span>
+        <h2 class="ch-card__title">Status & tipo</h2>
+      </div>
+      <span data-icon="target" data-icon-size="20" style="color: var(--c-pollen);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      <div class="ch-field">
+        <label class="ch-field__label" for="client_type">Tipo de cliente</label>
+        <select class="ch-select" id="client_type" name="client_type">
+          <option value="individual" {% if client and client.client_type == 'individual' %}selected{% endif %}>Pessoa física</option>
+          <option value="company" {% if client and client.client_type == 'company' %}selected{% endif %}>Pessoa jurídica</option>
+          <option value="lawyer" {% if client and client.client_type == 'lawyer' %}selected{% endif %}>Advogado parceiro</option>
+        </select>
+      </div>
+      <div class="ch-field">
+        <label class="ch-field__label" for="status">Status <span style="color: var(--c-danger);">*</span></label>
+        <select class="ch-select" id="status" name="status" required>
+          <option value="lead" {% if client and client.status == 'lead' %}selected{% endif %}>Lead</option>
+          <option value="prospect" {% if client and client.status == 'prospect' %}selected{% endif %}>Prospecto</option>
+          <option value="active" {% if not client or client.status == 'active' %}selected{% endif %}>Ativo</option>
+          <option value="approved" {% if client and client.status == 'approved' %}selected{% endif %}>Aprovado</option>
+          <option value="denied" {% if client and client.status == 'denied' %}selected{% endif %}>Negado</option>
+          <option value="closed" {% if client and client.status == 'closed' %}selected{% endif %}>Encerrado</option>
+        </select>
+      </div>
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="country_of_origin">Cidade / país de origem</label>
+      <input class="ch-input" id="country_of_origin" name="country_of_origin" type="text"
+             value="{{ client.country_of_origin if client else '' }}" />
+    </div>
+    <div class="ch-field">
+      <label class="ch-field__label" for="notes">Observações</label>
+      <textarea class="ch-textarea" id="notes" name="notes" rows="4"
+                placeholder="Histórico, contexto, alertas internos…">{{ client.notes if client else '' }}</textarea>
+    </div>
+  </article>
+
+  {# ─── Campos personalizados ─── #}
+  {% if custom_fields and custom_fields|length > 0 %}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Customização</span>
+        <h2 class="ch-card__title">Campos personalizados</h2>
+      </div>
+      <span data-icon="settings" data-icon-size="20" style="color: var(--fg-muted);"></span>
+    </header>
+    <div class="ch-grid ch-grid--2">
+      {% for field in custom_fields %}
+      <div class="ch-field">
+        <label class="ch-field__label" for="cf_{{ field.field_name }}">
+          {{ field.field_label }}
+          {% if field.required %}<span style="color: var(--c-danger);">*</span>{% endif %}
+        </label>
+        {% if field.field_type == 'text' %}
+          <input class="ch-input" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" type="text"
+                 value="{{ field.value or '' }}" {% if field.required %}required{% endif %} />
+        {% elif field.field_type == 'textarea' %}
+          <textarea class="ch-textarea" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" rows="3"
+                    {% if field.required %}required{% endif %}>{{ field.value or '' }}</textarea>
+        {% elif field.field_type == 'number' %}
+          <input class="ch-input ch-mono" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" type="number"
+                 value="{{ field.value or '' }}" {% if field.required %}required{% endif %} />
+        {% elif field.field_type == 'date' %}
+          <input class="ch-input ch-mono" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" type="date"
+                 value="{{ field.value or '' }}" {% if field.required %}required{% endif %} />
+        {% elif field.field_type == 'select' %}
+          <select class="ch-select" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}"
+                  {% if field.required %}required{% endif %}>
+            <option value="">— Selecione —</option>
+            {% for opt in (field.options or []) %}
+              <option value="{{ opt }}" {% if field.value == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        {% elif field.field_type == 'checkbox' %}
+          <label class="ch-checkbox">
+            <input type="checkbox" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" value="true"
+                   {% if field.value == 'true' or field.value == true %}checked{% endif %}
+                   {% if field.required %}required{% endif %} />
+            Sim
+          </label>
+        {% else %}
+          <input class="ch-input" id="cf_{{ field.field_name }}" name="cf_{{ field.field_name }}" type="text"
+                 value="{{ field.value or '' }}" {% if field.required %}required{% endif %} />
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+  {% endif %}
+
+  {# ─── Actions ─── #}
+  <div class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+    <div style="font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+      {% if is_edit %}
+        Atualizando ID #{{ client.id }}
+      {% else %}
+        Novo cadastro · {{ today.strftime('%d/%m/%Y') if today else '' }}
+      {% endif %}
+    </div>
+    <div style="display: flex; gap: var(--space-2);">
+      <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/clients">Cancelar</a>
+      <button class="ch-btn ch-btn--primary" type="submit">
+        <span data-icon="check"></span>
+        {% if is_edit %}Salvar alterações{% else %}Cadastrar cliente{% endif %}
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}

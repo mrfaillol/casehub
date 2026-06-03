@@ -1,0 +1,105 @@
+/* ==========================================================================
+   CaseHub Wallpaper — Céu animado (CSS-only, zero Three.js)
+   Substitui o gradient radial escuro em LIGHT mode por céu suave animado.
+   Dark mode inalterado (mantém gradient cósmico existente em glass-override.css).
+
+   Princípio (ver memory/feedback_art_vs_performance.md + agents/ui-ux-designer.md):
+   - Arte aplicada sem sacrificar perf
+   - Sem Three.js/WebGL no app principal
+   - GPU-only (transform, background-position)
+   - ≤ 3 surfaces GPU simultâneas
+   ========================================================================== */
+
+/* Canvas do shader — global (login + desktop). Fica atrás da UI, inerte a cliques. */
+#skyCanvas,
+.desktop-wallpaper-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Override do body.view-os::before em LIGHT mode com céu suave animado */
+html[data-theme="light"] body.view-os::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+
+  /* Stack de 3 camadas: céu base + blobs cirrus + brilho sutil */
+  background:
+    /* Cirrus nuvens rosas/lavanda (suave) */
+    radial-gradient(ellipse 55% 40% at 20% 25%, rgba(255, 200, 210, 0.35) 0%, transparent 60%),
+    /* Sol quente (amanhecer/entardecer) */
+    radial-gradient(ellipse 45% 35% at 75% 20%, rgba(255, 220, 180, 0.45) 0%, transparent 55%),
+    /* Nuvem turquesa flutuante */
+    radial-gradient(ellipse 60% 45% at 60% 70%, rgba(180, 220, 240, 0.4) 0%, transparent 65%),
+    /* Céu base (gradient vertical suave) */
+    linear-gradient(180deg, #b8d4f0 0%, #d8e8f4 30%, #ecf1f7 60%, #f6f1ec 100%);
+
+  background-size: 200% 200%, 200% 200%, 200% 200%, 100% 100%;
+  background-position: 0% 0%, 100% 0%, 50% 100%, center center;
+
+  animation: sky-drift 60s ease-in-out infinite alternate;
+  transform: translateZ(0);  /* promove GPU layer estável */
+}
+
+/* Keyframes — movimento orgânico lento estilo nuvens */
+@keyframes sky-drift {
+  0% {
+    background-position: 0% 0%, 100% 0%, 50% 100%, center center;
+  }
+  50% {
+    background-position: 40% 20%, 60% 30%, 70% 60%, center center;
+  }
+  100% {
+    background-position: 80% 40%, 20% 60%, 30% 80%, center center;
+  }
+}
+
+/* Segunda camada (::after watermark logo) mais sutil em light */
+html[data-theme="light"] body.view-os::after {
+  opacity: 0.08;
+  mix-blend-mode: multiply;
+}
+
+/* ==========================================================================
+   Budget de performance
+   ========================================================================== */
+
+/* Performance mode: congela animação mas mantém visual */
+body.view-os.performance-mode::before {
+  animation: none !important;
+  background-position: 40% 20%, 60% 30%, 70% 60%, center center !important;
+}
+
+/* Reduced motion: sem drift */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="light"] body.view-os::before {
+    animation: none;
+  }
+}
+
+/* Mobile/tablet: mantém céu mas sem animação (GPU mais apertada) */
+body.viewport-mobile.desktop::before,
+body.viewport-tablet.desktop::before {
+  animation-duration: 120s;  /* mais lento */
+}
+
+/* Durante drag de janela: pausa wallpaper pra dar main thread ao drag */
+body.is-dragging.desktop::before,
+body.dragging-active.desktop::before {
+  animation-play-state: paused;
+}
+
+/* ==========================================================================
+   Modo dark — garantir zero interferência (regras originais em glass-override.css
+   permanecem intocadas; aqui apenas reforça que este arquivo não aplica em dark)
+   ========================================================================== */
+html[data-theme="dark"] body.view-os::before {
+  /* mantém regras de glass-override.css — nada faz aqui */
+}

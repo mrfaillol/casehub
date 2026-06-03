@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artist Board · CaseHub</title>
+    <link rel="stylesheet" href="/static/css/tokens.css?v=1">
+    <link rel="stylesheet" href="/static/css/reset.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/buttons.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/cards.css?v=1">
+    <link rel="stylesheet" href="/static/css/templates/artist-board-index.css?v=1">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="ab-page">
+    <a class="ab-skip-link" href="#ab-main">Pular para conteúdo principal</a>
+
+    <header class="ab-topbar">
+        <div class="ab-title">
+            <h1>
+                <i class="fas fa-palette" aria-hidden="true"></i>
+                <span>Artist Board</span>
+            </h1>
+            <p>Produção cron gen-lab + mutator + artist. Mais recente no topo.</p>
+        </div>
+        <div class="ab-stats" role="group" aria-label="Estatísticas de produção">
+            <div class="ab-stat"><strong>{{ candidates_count }}</strong> <span>candidates locais</span></div>
+            <div class="ab-stat"><strong>{% if digest and digest.get('mutator_candidates_24h') is not none %}{{ digest.mutator_candidates_24h }}{% else %}—{% endif %}</strong> <span>últimas 24h (oracle)</span></div>
+        </div>
+    </header>
+
+    <nav class="ab-nav" aria-label="Atalhos do artist board">
+        <a class="ab-nav-link" href="{{ PREFIX }}/refactor-review/">
+            <i class="fas fa-code-compare" aria-hidden="true"></i>
+            <span>Refactor Review</span>
+        </a>
+        <a class="ab-nav-link" href="https://app.example.com/lab/" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-flask" aria-hidden="true"></i>
+            <span>Gen-Lab</span>
+        </a>
+        <a class="ab-nav-link" href="{{ PREFIX }}/artist-board/api/feed">
+            <i class="fas fa-rss" aria-hidden="true"></i>
+            <span>JSON feed</span>
+        </a>
+    </nav>
+
+    {% if digest and digest.get('mix_disabled') %}
+    <div class="ab-banner" role="status">
+        <i class="fas fa-info-circle" aria-hidden="true"></i>
+        <span>Mix cego do gen-lab <strong>desligado</strong> ({{ digest.mix_reason or 'SKIP_MIX=1' }}). Apenas mutator (H.2) + gemini-create rodam. Artist gate pendente.</span>
+    </div>
+    {% endif %}
+
+    {% if candidates %}
+    <main id="ab-main" class="ab-grid" aria-label="Lista de candidates">
+        {% for c in candidates %}
+        <article class="ab-card" aria-labelledby="ab-card-{{ loop.index }}-key">
+            <div class="ab-preview" aria-hidden="true">
+                <iframe src="{{ c.url }}" loading="lazy" sandbox="allow-same-origin" title="Preview de {{ c.template_key }}"></iframe>
+            </div>
+            <div class="ab-body">
+                <div id="ab-card-{{ loop.index }}-key" class="ab-key">
+                    <i class="fas fa-window-maximize" aria-hidden="true"></i>
+                    <span>{{ c.template_key }}</span>
+                </div>
+                <div class="ab-meta">
+                    <span><i class="far fa-clock" aria-hidden="true"></i> <span class="ab-meta-date">{{ c.date }}</span></span>
+                    <span><code>{{ c.candidate_id }}</code></span>
+                    <span>{{ (c.size / 1024)|round(1) }} KB</span>
+                </div>
+                <div class="ab-actions">
+                    <a class="ab-action" href="{{ c.compare_url }}">
+                        <i class="fas fa-code-compare" aria-hidden="true"></i>
+                        <span>compare</span>
+                    </a>
+                    <a class="ab-action" href="{{ c.url }}" target="_blank" rel="noopener noreferrer">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                        <span>raw</span>
+                    </a>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </main>
+    {% else %}
+    <main id="ab-main" class="ab-empty" aria-label="Nenhum candidate disponível">
+        <p><i class="fas fa-hourglass-half" aria-hidden="true"></i> Nenhum candidate local ainda.</p>
+        <p>Mutator cron Oracle <code>*/30 * * * *</code> produz candidates em <code>templates/_archive/&lt;key&gt;/lab-gen-*.html</code>. Aguarde próximo tick.</p>
+    </main>
+    {% endif %}
+</body>
+</html>

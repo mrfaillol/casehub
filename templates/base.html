@@ -1,0 +1,2542 @@
+{% set product = product|default("lite") %}
+{% set persisted_ui_theme = user.ui_theme if user and user.ui_theme else none %}
+{% if product == "lite" and (not persisted_ui_theme or persisted_ui_theme == "desktop") %}
+{% set ui_theme = ui_theme|default("neuromorphic") %}
+{% else %}
+{% set ui_theme = ui_theme|default(persisted_ui_theme if persisted_ui_theme else 'desktop') %}
+{% endif %}
+{% set is_desktop_frame = request and request.query_params.get('desktop_frame') == '1' %}
+{% set is_browser_basic = product == "lite" and ui_theme != "desktop" and not is_desktop_frame %}
+{% set active_release_notice = casehub_release_notice|default(none) %}
+<!DOCTYPE html>
+{# Set default translations if not provided #}
+{% set t = t|default({
+    'nav_dashboard': 'Dashboard',
+    'nav_clients': 'Clients',
+    'nav_cases': 'Cases',
+    'nav_documents': 'Documents',
+    'nav_tasks': 'Tasks',
+    'nav_billing': 'Billing',
+    'nav_calendar': 'Calendar',
+    'processes': 'Processes',
+    'custom_fields': 'Custom Fields',
+    'webhooks': 'Webhooks',
+    'nav_uscis': 'USCIS',
+    'nav_admin': 'Admin',
+    'nav_logout': 'Logout'
+}) %}
+<html lang="{{ lang|default('en') }}" class="{% if is_desktop_frame %}iframe-mode-html{% endif %}" data-theme="{{ theme|default('light') }}" data-org="{{ org_slug|default('') }}" style="--org-primary: {{ org_theme_primary|default('#111111') }}; --org-secondary: {{ org_theme_secondary|default('#f8f9fa') }}; --org-bg: {{ org_theme_bg|default('#f5f5f7') }};">
+<head>
+    {% include "partials/head_meta.html" %}
+    <title>{% block title %}{{ org_name|default('CaseHub') }}{% endblock %}</title>
+    {% if product == "lite" %}
+    <style>html,body{background:#f3f2ef;color:#20201e;}</style>
+    {% endif %}
+    {% include "partials/head_css.html" %}
+    {% block extra_css %}{% endblock %}
+    {% if product == "lite" %}
+    <link rel="stylesheet" href="{{ asset_url('css/casehub-browser-basic.css') }}">
+    {% endif %}
+    {% if product == "lite" and casehub_maestro_fab_enabled|default(false) %}
+    <script>
+    (function () {
+        try {
+            if (window.innerWidth > 1040 && localStorage.getItem('maestro-docked') === '1') {
+                document.documentElement.classList.add('casehub-maestro-restore-docked');
+            }
+        } catch (_) {}
+    })();
+    </script>
+    {% endif %}
+    {% if user and product == "lite" and active_release_notice and active_release_notice.enabled and not is_desktop_frame %}
+    <link rel="stylesheet" href="{{ asset_url('css/casehub-release-notice.css') }}">
+    {% endif %}
+
+</head>
+<body class="{{ ui_theme|default('glass') }} {% if is_browser_basic %}casehub-browser-basic{% endif %} {% if is_desktop_frame %}iframe-mode{% endif %}"{% if demo_mode %} style="padding-top:40px;"{% endif %}>
+
+{% if ui_theme == 'desktop' and not is_desktop_frame %}
+<!-- Global OS Splash Screen -->
+<div id="global-splash">
+    <div class="splash-loader">
+        <i class="fas fa-cube splash-logo-icon"></i>
+    </div>
+    <div class="splash-text">CaseHub OS</div>
+</div>
+<script>
+    window.addEventListener('load', () => {
+        const splash = document.getElementById('global-splash');
+        if (splash) {
+            setTimeout(() => {
+                splash.classList.add('loaded');
+                setTimeout(() => splash.remove(), 1000);
+            }, 600);
+        }
+    });
+</script>
+{% endif %}
+
+{% if demo_mode %}
+<div id="demo-banner" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:#1a6b7a;color:#fff;text-align:center;padding:10px 16px;font-size:0.85rem;font-family:system-ui,sans-serif;display:flex;justify-content:center;align-items:center;gap:12px;">
+    <span>Modo Demo — dados fictícios, ações externas desabilitadas.</span>
+    <a href="https://app.example.com" style="color:#fff;text-decoration:underline;font-weight:600;">Conhecer o CaseHub</a>
+</div>
+{% endif %}
+<!-- Password Change Modal (insistent for first login) -->
+{% if user and user.must_change_password %}
+<div class="modal fade" id="changePasswordModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Altere sua Senha</h5>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Por seguranca, você deve alterar sua senha no primeiro acesso ao sistema.</p>
+                <form action="{{ PREFIX }}/change-password" method="POST" id="changePasswordForm">
+                    <div class="mb-3">
+                        <label class="form-label">Senha Atual</label>
+                        <input type="password" name="current_password" class="form-control glass-input" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nova Senha</label>
+                        <input type="password" name="new_password" class="form-control glass-input" required minlength="8">
+                        <small class="text-muted">Mínimo 8 caracteres</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirmar Nova Senha</label>
+                        <input type="password" name="confirm_password" class="form-control glass-input" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary glass-btn glass-btn--primary w-100">
+                        <i class="fas fa-key me-1"></i> Alterar Senha
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Guard: only construct Bootstrap Modal when both the element and the
+    // bootstrap bundle are actually present. Without this guard, a missing
+    // element makes BaseComponent's constructor early-return before
+    // `_config` is set, and Modal._initializeBackDrop() then throws
+    // "Cannot read properties of undefined (reading 'backdrop')". See #207.
+    var el = document.getElementById('changePasswordModal');
+    if (!el || !el.classList.contains('modal')) return;
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal) return;
+    try {
+        bootstrap.Modal.getOrCreateInstance(el).show();
+    } catch (e) {
+        if (window.console) console.warn('changePasswordModal init failed:', e);
+    }
+});
+</script>
+{% endif %}
+
+<!-- Welcome Toast -->
+{% if request.query_params.get('welcome') == '1' %}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header bg-success text-white">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong class="me-auto">Bem-vindo!</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body">
+            Ola, {{ user.name }}! Logado como {{ user.email }}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Success/Error Toasts -->
+{% if request.query_params.get('success') == 'password_changed' %}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div class="toast show" role="alert">
+        <div class="toast-header bg-success text-white">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong class="me-auto">Sucesso!</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body">Senha alterada com sucesso!</div>
+    </div>
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') == 'wrong_password' %}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div class="toast show" role="alert">
+        <div class="toast-header bg-danger text-white">
+            <i class="fas fa-times-circle me-2"></i>
+            <strong class="me-auto">Erro</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body">Senha atual incorreta!</div>
+    </div>
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') == 'password_mismatch' %}
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div class="toast show" role="alert">
+        <div class="toast-header bg-danger text-white">
+            <i class="fas fa-times-circle me-2"></i>
+            <strong class="me-auto">Erro</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body">As senhas não coincidem!</div>
+    </div>
+</div>
+{% endif %}
+
+{% if user and product == "lite" and active_release_notice and active_release_notice.enabled and not is_desktop_frame %}
+<div class="casehub-release-notice"
+     data-casehub-release-notice
+     data-notice-id="{{ active_release_notice.id }}"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="casehub-release-notice-title"
+     hidden>
+    <div class="casehub-release-notice__dialog">
+        <header class="casehub-release-notice__header">
+            <div>
+                <p class="casehub-release-notice__eyebrow">
+                    <i class="fas fa-circle-info" aria-hidden="true"></i>
+                    {{ active_release_notice.eyebrow }}
+                </p>
+                <h2 id="casehub-release-notice-title">{{ active_release_notice.title }}</h2>
+                <p class="casehub-release-notice__intro">{{ active_release_notice.intro }}</p>
+            </div>
+            <button type="button" class="casehub-release-notice__close" data-casehub-release-close aria-label="Fechar comunicado">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </header>
+
+        <div class="casehub-release-notice__body">
+            <section class="casehub-release-notice__section">
+                <h3><i class="fas fa-scale-balanced" aria-hidden="true"></i>{{ active_release_notice.pdpj_title }}</h3>
+                <ul>
+                    {% for item in active_release_notice.pdpj_items %}
+                    <li>{{ item }}</li>
+                    {% endfor %}
+                </ul>
+            </section>
+
+            <section class="casehub-release-notice__section">
+                <h3><i class="fas fa-clipboard-check" aria-hidden="true"></i>{{ active_release_notice.fallback_title }}</h3>
+                <p>{{ active_release_notice.fallback_body }}</p>
+            </section>
+
+            <section class="casehub-release-notice__section">
+                <h3><i class="fas fa-list-check" aria-hidden="true"></i>{{ active_release_notice.patch_title }}</h3>
+                <ul>
+                    {% for note in active_release_notice.patch_notes %}
+                    <li>{{ note }}</li>
+                    {% endfor %}
+                </ul>
+            </section>
+
+            <section class="casehub-release-notice__section casehub-release-notice__section--message">
+                <h3><i class="fas fa-user-pen" aria-hidden="true"></i>{{ active_release_notice.victor_title }}</h3>
+                <p>{{ active_release_notice.victor_message }}</p>
+            </section>
+        </div>
+
+        <footer class="casehub-release-notice__footer">
+            <button type="button" class="casehub-release-notice__button" data-casehub-release-close>
+                {{ active_release_notice.cta_label }}
+            </button>
+        </footer>
+    </div>
+</div>
+<script>
+(function () {
+    var notice = document.querySelector('[data-casehub-release-notice]');
+    if (!notice) return;
+
+    var noticeId = notice.getAttribute('data-notice-id') || 'casehub-release-notice';
+    var storageKey = 'casehub-release-notice:' + noticeId;
+    var alreadySeen = false;
+    var previouslyFocused = null;
+    try {
+        alreadySeen = window.localStorage.getItem(storageKey) === '1';
+    } catch (_) {}
+    if (alreadySeen) return;
+
+    function getFocusableElements() {
+        return Array.prototype.slice.call(notice.querySelectorAll(
+            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter(function (el) {
+            return el.offsetParent !== null || el === document.activeElement;
+        });
+    }
+
+    function handleKeydown(event) {
+        if (notice.hidden) return;
+        if (event.key === 'Escape') {
+            closeNotice();
+            return;
+        }
+        if (event.key !== 'Tab') return;
+
+        var focusable = getFocusableElements();
+        if (!focusable.length) return;
+
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+
+        if (!notice.contains(document.activeElement)) {
+            event.preventDefault();
+            if (event.shiftKey) last.focus();
+            else first.focus();
+            return;
+        }
+
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    }
+
+    function closeNotice() {
+        notice.hidden = true;
+        document.documentElement.classList.remove('casehub-release-notice-open');
+        document.removeEventListener('keydown', handleKeydown);
+        try {
+            window.localStorage.setItem(storageKey, '1');
+        } catch (_) {}
+        if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+            try {
+                previouslyFocused.focus({ preventScroll: true });
+            } catch (_) {}
+        }
+    }
+
+    notice.querySelectorAll('[data-casehub-release-close]').forEach(function (button) {
+        button.addEventListener('click', closeNotice);
+    });
+    notice.addEventListener('click', function (event) {
+        if (event.target === notice) closeNotice();
+    });
+    document.addEventListener('keydown', handleKeydown);
+
+    document.addEventListener('DOMContentLoaded', function () {
+        previouslyFocused = document.activeElement;
+        notice.hidden = false;
+        document.documentElement.classList.add('casehub-release-notice-open');
+        var closeButton = notice.querySelector('[data-casehub-release-close]');
+        if (closeButton) closeButton.focus({ preventScroll: true });
+    });
+})();
+</script>
+{% endif %}
+
+
+    {% if not is_desktop_frame %}
+    {% if ui_theme == 'desktop' %}
+    <!-- Sky Shader wallpaper (light mode + daylight BRT) — desliga auto em dark/night/perf-mode -->
+    <canvas id="skyCanvas" class="desktop-wallpaper-canvas" aria-hidden="true"></canvas>
+    <script type="module" src="/static/js/desktop/wallpaper-sky-shader.js?v=1" defer></script>
+    {% endif %}
+    {% if ui_theme == 'desktop' %}
+    <div class="ui-os-dock-wrapper">
+        <!-- 1. Bolha da Logo Start -->
+        <div class="os-dock-bubble os-dock-logo" onclick="window.location.href='{{ PREFIX }}/dashboard'" title="Dashboard">
+            <div class="logo-squircle"></div>
+        </div>
+
+        <!-- 2. Bolha de Janelas Abertas (dinâmica — aparece quando windows.size > 0) -->
+        <div class="os-dock-bubble os-dock-windows" id="openWindowsDock" data-empty="true" role="toolbar" aria-label="Janelas abertas">
+            <div class="open-windows-list" id="openWindowsList"></div>
+        </div>
+
+        <!-- 3. Bolha Central Apps (Scrollável) -->
+        <nav class="os-dock-bubble os-dock-apps dock-apps-nav" data-framer-component="sidebar">
+            <ul class="nav flex-column">
+                {% if product == "lite" %}
+                {% include "partials/sidebar_lite.html" %}
+                {% else %}
+                {% include "partials/sidebar_immigration.html" %}
+                {% endif %}{# end product branching #}
+
+                {% if internal_tools_enabled %}
+                <div class="sidebar-divider"></div>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ PREFIX }}/artist-board/" title="Artist Board — produção cron gen-lab">
+                        <i class="fas fa-palette"></i> Artist
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ PREFIX }}/refactor-review/" title="Painel de Review (old × new)">
+                        <i class="fas fa-code-compare"></i> Review
+                    </a>
+                </li>
+                {% endif %}{# internal_tools_enabled — gate Sentinela T9 #}
+                {% if product == "lite" %}
+                <li class="nav-item mt-2">
+                    <a class="nav-link" href="#" onclick="localStorage.removeItem('casehub_tour_done');startOnboardingTour();return false;">
+                        <i class="fas fa-question-circle"></i> Ver Tutorial
+                    </a>
+                </li>
+                {% if ui_theme != 'desktop' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ PREFIX }}/manual">
+                        <i class="fas fa-book"></i> Manual
+                    </a>
+                </li>
+                {% endif %}
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- 3. Bolha End (Usuário) -->
+        <div class="os-dock-bubble os-dock-user user-dock-item" id="userDockBubble">
+            <button class="user-dock-exit-os" onclick="fetch('{{ PREFIX }}/api/user/theme',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({theme:'glass'})}).then(r=>r.ok?location.reload():alert('Falha: '+r.status)).catch(e=>alert('Erro: '+e.message))" title="Sair do modo OS">
+                <i class="fas fa-arrow-right-from-bracket"></i>
+            </button>
+            <button class="user-dock-avatar" id="userDockAvatarBtn"
+                    onclick="document.getElementById('userDockDropdown').classList.toggle('open')"
+                    title="{{ user.name if user else 'User' }} — menu"
+                    aria-label="Menu do usuário"
+                    {% if user and user.photo_url %}style="background-image:url('{{ user.photo_url }}');background-size:cover;background-position:center;color:transparent;"{% endif %}>{{ (user.name[0]|upper) if user and user.name else 'U' }}</button>
+            <div class="user-dock-dropdown" id="userDockDropdown">
+                <div class="user-dock-dropdown-header">
+                    <strong>{{ user.name if user else 'User' }}</strong>
+                    <small>{{ user.email if user else '' }}</small>
+                </div>
+                {# Items movidos do dock (admin/superadmin) #}
+                {% if user and user.user_type in ['admin', 'superadmin'] %}
+                <a href="{{ PREFIX }}/settings" onclick="if(window.osWindowManager){event.preventDefault();window.osWindowManager.launchApp('{{ PREFIX }}/settings','Configurações','fas fa-cog');document.getElementById('userDockDropdown').classList.remove('open');}"><i class="fas fa-cog"></i> Configurações</a>
+                <a href="{{ PREFIX }}/notifications" onclick="if(window.osWindowManager){event.preventDefault();window.osWindowManager.launchApp('{{ PREFIX }}/notifications','Notificações','fas fa-bell');document.getElementById('userDockDropdown').classList.remove('open');}"><i class="fas fa-bell"></i> Notificações</a>
+                <a href="{{ PREFIX }}/admin" onclick="if(window.osWindowManager){event.preventDefault();window.osWindowManager.launchApp('{{ PREFIX }}/admin','Admin','fas fa-user-shield');document.getElementById('userDockDropdown').classList.remove('open');}"><i class="fas fa-user-shield"></i> Admin</a>
+                <a href="{{ PREFIX }}/admin/customizacao" onclick="if(window.osWindowManager){event.preventDefault();window.osWindowManager.launchApp('{{ PREFIX }}/admin/customizacao','Customização','fas fa-palette');document.getElementById('userDockDropdown').classList.remove('open');}"><i class="fas fa-palette"></i> Customização</a>
+                {% endif %}
+                <a href="{{ PREFIX }}/manual" onclick="if(window.osWindowManager){event.preventDefault();window.osWindowManager.launchApp('{{ PREFIX }}/manual','Manual','fas fa-book');document.getElementById('userDockDropdown').classList.remove('open');}"><i class="fas fa-book"></i> Manual</a>
+                <div class="user-dock-dropdown-divider"></div>
+                <a href="{{ PREFIX }}/profile" onclick="if(window.osWindowManager){event.preventDefault();window.osWindowManager.launchApp('{{ PREFIX }}/profile','Perfil','fas fa-user');document.getElementById('userDockDropdown').classList.remove('open');}"><i class="fas fa-user"></i> Perfil</a>
+                <a href="#" onclick="toggleTheme();return false;"><i class="fas fa-moon"></i> Tema Escuro</a>
+                <a href="#" onclick="toggleOSMode();return false;"><i class="fas fa-desktop"></i> Modo Web/OS</a>
+                <a href="#" class="user-dropdown-toggle" data-toggle="perf" onclick="document.body.classList.toggle('performance-mode');try{localStorage.setItem('casehub-perf-mode',document.body.classList.contains('performance-mode')?'1':'0')}catch(_){}this.classList.toggle('active',document.body.classList.contains('performance-mode'));return false;">
+                    <i class="fas fa-bolt"></i> Modo Economia
+                    <span class="user-dropdown-badge"></span>
+                </a>
+                <a href="#" class="user-dropdown-toggle disabled" data-toggle="view" aria-disabled="true" onclick="alert('Modo Web Clássico em reconstrução — voltará após refactor dos templates.');return false;" style="opacity:.55;cursor:not-allowed;">
+                    <i class="fas fa-layer-group"></i> Visualização: <strong class="user-dropdown-view-label">OS-like</strong> <span style="font-size:11px;opacity:.6;">(em breve)</span>
+                </a>
+                <script>
+                // Sincroniza estado visual dos toggles com o estado atual
+                (function(){
+                    if (window._userDropdownStateSync) return;
+                    window._userDropdownStateSync = true;
+                    function sync() {
+                        var perfEl = document.querySelector('.user-dropdown-toggle[data-toggle="perf"]');
+                        if (perfEl) perfEl.classList.toggle('active', document.body.classList.contains('performance-mode'));
+                        var viewLabel = document.querySelector('.user-dropdown-view-label');
+                        if (viewLabel && window.CaseHubView) {
+                            var v = window.CaseHubView.get();
+                            viewLabel.textContent = v === 'os' ? 'OS-like' : 'Web Classic';
+                        }
+                    }
+                    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sync, {once:true});
+                    else sync();
+                    document.addEventListener('casehub:view:change', sync);
+                })();
+                </script>
+                <div class="user-dock-dropdown-divider"></div>
+                <a href="{{ PREFIX }}/logout" class="user-dock-logout"><i class="fas fa-sign-out-alt"></i> Sair</a>
+            </div>
+            <script>
+            // Fechar dropdown clicando fora (user-dock)
+            (function() {
+                if (window._userDockClickOutBound) return;
+                window._userDockClickOutBound = true;
+                document.addEventListener('click', function(e) {
+                    var dd = document.getElementById('userDockDropdown');
+                    var av = document.getElementById('userDockAvatarBtn');
+                    if (!dd || !dd.classList.contains('open')) return;
+                    if ((av && av.contains(e.target)) || dd.contains(e.target)) return;
+                    dd.classList.remove('open');
+                });
+            })();
+            </script>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Mobile overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+
+    {% if is_browser_basic %}
+    {% include "partials/browser_basic_rail.html" %}
+    {% endif %}
+
+    <main class="main-content" data-framer-component="main-content">
+        {% if not is_desktop_frame %}
+        {% if is_browser_basic %}
+        <header class="casehub-basic-mobile-header" aria-label="CaseHub">
+            <a class="casehub-basic-mobile-header__brand" href="{{ PREFIX }}/dashboard" aria-label="CaseHub {{ t.nav_dashboard }}">
+                <span class="casehub-basic-mobile-header__mark" aria-hidden="true">
+                    <img class="casehub-basic-mobile-header__mark-img"
+                         src="/static/brand-kit/logo/casehub-logo-login-mark-blue.svg"
+                         alt=""
+                         width="30"
+                         height="32">
+                </span>
+                <img class="casehub-basic-mobile-header__wordmark"
+                     src="/static/brand-kit/logo/casehub-wordmark-blue.svg"
+                     alt=""
+                     width="112"
+                     height="28">
+            </a>
+        </header>
+        {% include "partials/browser_basic_tabs.html" %}
+        {% else %}
+        {% include "partials/topbar.html" %}
+        {% include "partials/tab_bar.html" %}
+        {% endif %}
+        {% endif %}
+
+        {% if ui_theme == 'desktop' and not is_desktop_frame %}
+        <div class="macos-window macos-app-window" id="mainAppWindow" data-framer-component="app-window">
+            <div class="macos-titlebar">
+                <div class="traffic-lights">
+                    <div class="traffic-dot close" data-action="close"></div>
+                    <div class="traffic-dot minimize" data-action="minimize"></div>
+                    <div class="traffic-dot maximize" data-action="maximize"></div>
+                </div>
+                <!-- Universal title, can be dynamically tied to page via JS -->
+                <div class="os-window-title">
+                    <i class="fas fa-layer-group" style="margin-right:6px; opacity:0.6;"></i>
+                    <span id="osAppDynamicTitle">CaseHub</span>
+                </div>
+                <button id="split-btn" class="titlebar-btn" onclick="toggleSplitScreen()"
+                        title="Dividir tela" aria-label="Split screen">
+                    <i class="fas fa-columns"></i>
+                </button>
+            </div>
+            <div class="macos-window-content app-content-scroll">
+        {% endif %}
+
+        {% block content %}{% endblock %}
+
+        {% if ui_theme == 'desktop' and not is_desktop_frame %}
+            </div>
+        </div>
+
+        <!-- Global Chrome Cluster (top-right) — substitui funções únicas que eram do topbar -->
+        <div id="osGlobalChrome" class="os-global-chrome">
+            <button id="notificationBellBtn" class="os-chrome-btn" onclick="toggleNotificationPanel()"
+                    title="Notificações" aria-label="Notificações">
+                <i class="fas fa-bell"></i>
+                <span id="notifBadge" class="notif-badge">0</span>
+            </button>
+        </div>
+        <div id="notificationPanel" class="notification-panel">
+            <div class="notif-panel-header">
+                <strong class="notif-panel-title">Notificações</strong>
+                <button class="notif-mark-read-btn" onclick="markAllNotifRead()">Marcar todas como lidas</button>
+            </div>
+            <div id="notificationList" class="notif-panel-list">
+                <div class="text-center text-muted py-4 notif-loading">Carregando...</div>
+            </div>
+            <div class="notif-panel-footer">
+                <a href="/casehub/notifications" class="notif-view-all-link">Ver todas</a>
+            </div>
+        </div>
+
+        <!-- Launchpad Overlay -->
+        <div id="osLaunchpad" class="os-launchpad">
+            <div class="os-launchpad-search-container">
+                <div class="glass-input-wrapper">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="launchpadSearch" placeholder="Buscar apps e atalhos..." class="launchpad-search-input" autocomplete="off" spellcheck="false">
+                </div>
+            </div>
+            <div class="os-launchpad-grid" id="launchpadGrid">
+                <!-- Apps will be injected here via Javascript -->
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not is_desktop_frame %}
+        {% include "partials/tab_bar_close.html" %}
+        {% endif %}
+    </main>
+
+    {% if product != "lite" %}
+    <!-- Alpha Feedback Bar -->
+    <div class="alpha-banner">
+        <div class="alpha-text">
+            <i class="fas fa-flask"></i>
+            <span>CaseHub v{{ version|default('2.0.0') }} - Em desenvolvimento ativo</span>
+        </div>
+        <button class="feedback-btn" onclick="openFeedbackModal()">
+            <i class="fas fa-comment-dots me-1"></i> Feedback
+        </button>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div class="modal fade" id="feedbackModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-comment-dots me-2"></i>Enviar Feedback</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Encontrou um bug? Tem uma sugestao? Conta pra gente!
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-select glass-input" id="feedbackType">
+                            <option value="bug">Bug / Erro</option>
+                            <option value="suggestion">Sugestao</option>
+                            <option value="question">Duvida</option>
+                            <option value="other">Outro</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mensagem *</label>
+                        <textarea class="form-control glass-input" id="feedbackMessage" rows="4" placeholder="Descreva o problema ou sugestao..."></textarea>
+                    </div>
+                    <div class="small text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Página atual: <code id="feedbackPage"></code>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary glass-btn glass-btn--primary" onclick="sendFeedback()">
+                        <i class="fas fa-paper-plane me-1"></i> Enviar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ======================================
+        // THEME TOGGLE (light/dark mode)
+        // ======================================
+        (function() {
+            var saved = localStorage.getItem('casehub-theme');
+            // Light mode is default on first visit
+            if (!saved) saved = 'light';
+            document.documentElement.setAttribute('data-theme', saved);
+        })();
+
+        function toggleTheme() {
+            var current = document.documentElement.getAttribute('data-theme') || 'light';
+            var next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('casehub-theme', next);
+        }
+
+        // Auto-follow OS dark mode changes (only if user hasn't manually set a preference)
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                if (!localStorage.getItem('casehub-theme')) {
+                    document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+                }
+            });
+        }
+
+        // Sidebar section toggle
+        function toggleSection(sectionId) {
+            const items = document.getElementById(sectionId + '-items');
+            const chevron = document.getElementById(sectionId + '-chevron');
+            const header = chevron.closest('.sidebar-section-header');
+
+            if (items.classList.contains('collapsed')) {
+                items.classList.remove('collapsed');
+                items.style.maxHeight = '500px';
+                header.classList.remove('collapsed');
+            } else {
+                items.classList.add('collapsed');
+                items.style.maxHeight = '0';
+                header.classList.add('collapsed');
+            }
+
+            // Save state to localStorage
+            const state = JSON.parse(localStorage.getItem('sidebarState') || '{}');
+            state[sectionId] = items.classList.contains('collapsed');
+            localStorage.setItem('sidebarState', JSON.stringify(state));
+        }
+
+        // Restore sidebar state on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const state = JSON.parse(localStorage.getItem('sidebarState') || '{}');
+            ['jurídico', 'admin'].forEach(sectionId => {
+                if (state[sectionId]) {
+                    const items = document.getElementById(sectionId + '-items');
+                    const chevron = document.getElementById(sectionId + '-chevron');
+                    if (!items || !chevron) return;
+                    const header = chevron.closest('.sidebar-section-header');
+                    items.classList.add('collapsed');
+                    items.style.maxHeight = '0';
+                    if (header) header.classList.add('collapsed');
+                }
+            });
+
+            // Close sidebar when clicking a link on mobile
+            if (window.innerWidth <= 768) {
+                document.querySelectorAll('.sidebar .nav-link, .casehub-basic-rail__item').forEach(link => {
+                    link.addEventListener('click', closeMobileSidebar);
+                });
+            }
+        });
+
+        // Mobile sidebar functions
+        function toggleMobileSidebar() {
+            const sidebar = document.querySelector('.sidebar, .casehub-basic-rail');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (!sidebar || !overlay) return;
+            sidebar.classList.toggle('mobile-open');
+            overlay.classList.toggle('active');
+            document.body.style.overflow = sidebar.classList.contains('mobile-open') ? 'hidden' : '';
+        }
+
+        function closeMobileSidebar() {
+            const sidebar = document.querySelector('.sidebar, .casehub-basic-rail');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (!sidebar || !overlay) return;
+            sidebar.classList.remove('mobile-open');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Close sidebar on window resize to desktop
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                closeMobileSidebar();
+            }
+        });
+
+        // Feedback functions
+        let feedbackModal;
+        document.addEventListener('DOMContentLoaded', function() {
+            // Guard against missing element / bundle — see #207.
+            const feedbackEl = document.getElementById('feedbackModal');
+            if (!feedbackEl || !feedbackEl.classList.contains('modal')) return;
+            if (typeof bootstrap === 'undefined' || !bootstrap.Modal) return;
+            try {
+                feedbackModal = bootstrap.Modal.getOrCreateInstance(feedbackEl);
+            } catch (e) {
+                if (window.console) console.warn('feedbackModal init failed:', e);
+            }
+        });
+
+        function openFeedbackModal() {
+            if (!feedbackModal) return;
+            document.getElementById('feedbackPage').textContent = window.location.pathname;
+            document.getElementById('feedbackMessage').value = '';
+            document.getElementById('feedbackType').value = 'bug';
+            feedbackModal.show();
+        }
+
+        function sendFeedback() {
+            const type = document.getElementById('feedbackType').value;
+            const message = document.getElementById('feedbackMessage').value.trim();
+            const page = window.location.pathname;
+
+            if (!message) {
+                alert('Por favor, escreva uma mensagem');
+                return;
+            }
+
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Enviando...';
+
+            fetch('{{ PREFIX }}/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type, message, page })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    feedbackModal.hide();
+                    alert('Feedback enviado! Obrigado!');
+                } else {
+                    alert('Erro ao enviar: ' + (data.error || 'Tente novamente'));
+                }
+            })
+            .catch(err => {
+                alert('Erro: ' + err);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Enviar';
+            });
+        }
+
+        // ======================================
+        // GLOBAL TABLE SORTING
+        // ======================================
+        // Auto-initialize sortable tables on page load
+        // Add class "sortable-table" to <table> and "sortable" to <th> elements
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initSortableTables();
+        });
+
+        function initSortableTables() {
+            // Find all tables with sortable class or sortable headers
+            document.querySelectorAll('table').forEach(table => {
+                const sortableHeaders = table.querySelectorAll('th.sortable');
+                if (sortableHeaders.length === 0) return;
+
+                // Add sort icons if not present
+                sortableHeaders.forEach(th => {
+                    if (!th.querySelector('.sort-icon')) {
+                        const icon = document.createElement('i');
+                        icon.className = 'fas fa-sort sort-icon';
+                        th.appendChild(icon);
+                    }
+
+                    // Add click handler if not already added
+                    if (!th.dataset.sortInit) {
+                        th.dataset.sortInit = 'true';
+                        th.addEventListener('click', function() {
+                            sortTable(table, th);
+                        });
+                    }
+                });
+            });
+        }
+
+        function sortTable(table, th) {
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            if (rows.length === 0) return;
+
+            const colIndex = Array.from(th.parentNode.children).indexOf(th);
+            const isAsc = th.classList.contains('sort-asc');
+            const newDir = isAsc ? 'desc' : 'asc';
+
+            // Reset all headers in this table
+            th.closest('thead').querySelectorAll('th.sortable').forEach(header => {
+                header.classList.remove('sort-asc', 'sort-desc');
+                const icon = header.querySelector('.sort-icon');
+                if (icon) icon.className = 'fas fa-sort sort-icon';
+            });
+
+            // Set new sort direction
+            th.classList.add('sort-' + newDir);
+            const icon = th.querySelector('.sort-icon');
+            if (icon) icon.className = 'fas fa-sort-' + (newDir === 'asc' ? 'up' : 'down') + ' sort-icon';
+
+            // Sort rows
+            rows.sort((a, b) => {
+                let cellA = a.cells[colIndex];
+                let cellB = b.cells[colIndex];
+                if (!cellA || !cellB) return 0;
+
+                // Get text content, ignore badges/icons
+                let valA = cellA.textContent.trim().toLowerCase();
+                let valB = cellB.textContent.trim().toLowerCase();
+
+                // Try numeric comparison first
+                const numA = parseFloat(valA.replace(/[^0-9.-]/g, ''));
+                const numB = parseFloat(valB.replace(/[^0-9.-]/g, ''));
+
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return newDir === 'asc' ? numA - numB : numB - numA;
+                }
+
+                // Date comparison
+                const dateA = Date.parse(valA);
+                const dateB = Date.parse(valB);
+                if (!isNaN(dateA) && !isNaN(dateB)) {
+                    return newDir === 'asc' ? dateA - dateB : dateB - dateA;
+                }
+
+                // String comparison
+                if (valA < valB) return newDir === 'asc' ? -1 : 1;
+                if (valA > valB) return newDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Reorder rows in DOM
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+    <!-- casehub-route-scripts-start -->
+    {% block extra_js %}{% endblock %}
+    <!-- casehub-route-scripts-end -->
+
+    <!-- Notification Bell System -->
+    {% if user %}
+    <script>
+    (function() {
+        const NOTIF_API = '{{ PREFIX }}/api/notifications';
+        let notifPanelOpen = false;
+
+        const NOTIF_ICONS = {
+            document_received: 'fa-file-upload',
+            document_approved: 'fa-check-circle',
+            document_rejected: 'fa-times-circle',
+            task_created: 'fa-tasks',
+            deadline_approaching: 'fa-clock',
+            client_email: 'fa-envelope',
+            whatsapp_message: 'fa-comment-dots'
+        };
+        const _cs = getComputedStyle(document.documentElement);
+        const SEVERITY_COLORS = {
+            info: _cs.getPropertyValue('--color-info').trim() || '#3b82f6',
+            warning: _cs.getPropertyValue('--color-warning').trim() || '#f59e0b',
+            urgent: _cs.getPropertyValue('--color-danger').trim() || '#ef4444'
+        };
+
+        async function pollUnreadCount() {
+            try {
+                const res = await fetch(NOTIF_API + '/unread-count');
+                if (!res.ok) return;
+                const data = await res.json();
+                const badge = document.getElementById('notifBadge');
+                if (!badge) return;
+                if (data.count > 0) {
+                    badge.textContent = data.count > 99 ? '99+' : data.count;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            } catch(e) {}
+        }
+
+        pollUnreadCount();
+        setInterval(pollUnreadCount, 10000);
+
+        window.toggleNotificationPanel = async function() {
+            const panel = document.getElementById('notificationPanel');
+            if (!panel) return;
+            notifPanelOpen = !notifPanelOpen;
+            panel.style.display = notifPanelOpen ? 'block' : 'none';
+            if (notifPanelOpen) await loadNotifications();
+        };
+
+        document.addEventListener('click', function(e) {
+            const wrapper = document.querySelector('.notification-bell-wrapper');
+            if (wrapper && !wrapper.contains(e.target) && notifPanelOpen) {
+                document.getElementById('notificationPanel').style.display = 'none';
+                notifPanelOpen = false;
+            }
+        });
+
+        async function loadNotifications() {
+            const list = document.getElementById('notificationList');
+            if (!list) return;
+            try {
+                const res = await fetch(NOTIF_API + '/recent?limit=15');
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+
+                if (data.notifications.length === 0) {
+                    list.innerHTML = '<div class="text-center text-muted py-4" style="font-size:0.85rem;"><i class="fas fa-check-circle me-2"></i>{% if product == "lite" %}Tudo em dia!{% else %}All caught up!{% endif %}</div>';
+                    return;
+                }
+
+                list.innerHTML = data.notifications.map(function(n) {
+                    const icon = NOTIF_ICONS[n.type] || 'fa-bell';
+                    const color = SEVERITY_COLORS[n.severity] || SEVERITY_COLORS.info;
+                    const bg = n.is_read ? 'transparent' : 'var(--color-badge-info-bg)';
+                    const fw = n.is_read ? '400' : '600';
+                    const dot = !n.is_read ? '<div style="width:8px;height:8px;border-radius:50%;background:var(--color-info);margin-top:6px;flex-shrink:0;"></div>' : '';
+                    const url = n.action_url || '';
+
+                    return '<div onclick="notifClick(' + n.id + ',\'' + url + '\')" ' +
+                        'style="padding:12px 16px;border-bottom:1px solid var(--border-color-light);cursor:pointer;display:flex;gap:12px;align-items:flex-start;' +
+                        'transition:background 0.2s;background:' + bg + ';" ' +
+                        'onmouseover="this.style.background=\'var(--table-hover-bg)\'" ' +
+                        'onmouseout="this.style.background=\'' + bg + '\'">' +
+                        '<i class="fas ' + icon + '" style="color:' + color + ';margin-top:3px;font-size:0.9rem;"></i>' +
+                        '<div style="flex:1;min-width:0;">' +
+                        '<div style="font-size:0.85rem;font-weight:' + fw + ';color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + n.title + '</div>' +
+                        '<div style="font-size:0.75rem;color:var(--text-secondary);margin-top:2px;">' + (n.message ? n.message.substring(0, 80) : '') + '</div>' +
+                        '<div style="font-size:0.7rem;color:var(--color-panel-text-dim);margin-top:2px;">' + n.time_ago + '</div>' +
+                        '</div>' + dot + '</div>';
+                }).join('');
+            } catch(e) {
+                list.innerHTML = '<div class="text-center text-muted py-4">{% if product == "lite" %}Erro ao carregar notificações{% else %}Error loading notifications{% endif %}</div>';
+            }
+        }
+
+        window.notifClick = async function(id, url) {
+            try {
+                await fetch(NOTIF_API + '/mark-read', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: [id]})
+                });
+            } catch(e) {}
+            if (url) window.location.href = url;
+            else await loadNotifications();
+            pollUnreadCount();
+        };
+
+        window.markAllNotifRead = async function() {
+            try {
+                await fetch(NOTIF_API + '/mark-read', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: []})
+                });
+                await loadNotifications();
+                pollUnreadCount();
+            } catch(e) {}
+        };
+    })();
+    </script>
+    {% endif %}
+
+    <!-- Activity Tracker removed (ILC legacy) -->
+
+<!-- =============================================== -->
+<!-- =============================================== -->
+<!-- LEGAL ASSISTANT - Legal Assistant v1.0 -->
+<!-- Adicionar ANTES do STICKY CHAT no base.html -->
+<!-- =============================================== -->
+<style>
+/* Legal Assistant Button */
+.legal-assistant-btn {
+    position: fixed;
+    bottom: 130px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-warning) 0%, #d97706 100%);
+    border: none;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+    cursor: pointer;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+.legal-assistant-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6);
+}
+.legal-assistant-btn i {
+    color: white;
+    font-size: 1.3rem;
+}
+.legal-assistant-btn .context-indicator {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--color-online-dot);
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--color-panel-bg);
+}
+
+/* Legal Assistant Window */
+.legal-assistant-window {
+    position: fixed;
+    bottom: 200px;
+    right: 20px;
+    width: 420px;
+    height: 520px;
+    background: var(--color-panel-bg);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    z-index: 100;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+.legal-assistant-window.open {
+    display: flex;
+    animation: slideUp 0.3s ease;
+}
+
+.legal-assistant-header {
+    background: linear-gradient(135deg, var(--color-warning) 0%, #d97706 100%);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+}
+.legal-assistant-header h6 {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+.legal-assistant-header .close-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    opacity: 0.8;
+    font-size: 1.1rem;
+}
+.legal-assistant-header .close-btn:hover {
+    opacity: 1;
+}
+
+/* Context bar */
+.legal-context-bar {
+    background: var(--color-panel-bg-mid);
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    color: var(--color-panel-text-muted);
+    border-bottom: 1px solid var(--color-panel-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.legal-context-bar i {
+    color: var(--color-warning);
+}
+.legal-context-bar .context-info {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.legal-context-bar .refresh-context {
+    background: none;
+    border: none;
+    color: var(--color-panel-text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.legal-context-bar .refresh-context:hover {
+    background: var(--color-panel-border);
+    color: var(--color-warning);
+}
+
+/* Messages area */
+.legal-assistant-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: var(--color-panel-bg-deep);
+}
+
+.legal-message {
+    max-width: 90%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+.legal-message.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--color-warning) 0%, #d97706 100%);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+.legal-message.assistant {
+    align-self: flex-start;
+    background: var(--color-panel-bg-mid);
+    color: var(--color-panel-text);
+    border-bottom-left-radius: 4px;
+    border-left: 3px solid var(--color-warning);
+}
+.legal-message .sources {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--color-panel-border);
+    font-size: 0.7rem;
+    color: var(--color-panel-text-muted);
+    font-style: italic;
+}
+.legal-message.typing {
+    background: var(--color-panel-bg-mid);
+    color: var(--color-panel-text-muted);
+}
+.legal-message.typing::after {
+    content: '...';
+    animation: dots 1.5s infinite;
+}
+@keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60%, 100% { content: '...'; }
+}
+
+/* Welcome message */
+.legal-welcome {
+    text-align: center;
+    padding: 20px;
+    color: var(--color-panel-text-muted);
+}
+.legal-welcome i {
+    font-size: 2.5rem;
+    color: var(--color-warning);
+    margin-bottom: 12px;
+}
+.legal-welcome h5 {
+    color: var(--color-panel-text);
+    margin-bottom: 8px;
+}
+.legal-welcome p {
+    font-size: 0.8rem;
+    margin-bottom: 16px;
+}
+.legal-welcome .quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+.legal-welcome .quick-action {
+    background: var(--color-panel-bg-mid);
+    border: 1px solid var(--color-panel-border);
+    color: var(--color-panel-text);
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.legal-welcome .quick-action:hover {
+    background: rgba(245, 158, 11, 0.13);
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+}
+
+/* Input area */
+.legal-assistant-input {
+    padding: 12px;
+    background: var(--color-panel-bg);
+    border-top: 1px solid var(--color-panel-border);
+}
+.legal-assistant-input .input-row {
+    display: flex;
+    gap: 8px;
+}
+.legal-assistant-input textarea {
+    flex: 1;
+    background: var(--color-panel-bg-mid);
+    border: 1px solid var(--input-border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: var(--color-panel-text);
+    font-size: 0.85rem;
+    resize: none;
+    min-height: 44px;
+    max-height: 100px;
+}
+.legal-assistant-input textarea:focus {
+    outline: none;
+    border-color: var(--color-warning);
+}
+.legal-assistant-input textarea::placeholder {
+    color: var(--color-panel-text-dim);
+}
+.legal-assistant-input button {
+    background: linear-gradient(135deg, var(--color-warning) 0%, #d97706 100%);
+    border: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+.legal-assistant-input button:hover {
+    transform: scale(1.05);
+}
+.legal-assistant-input button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+    .legal-assistant-window {
+        width: calc(100% - 20px);
+        right: 10px;
+        bottom: 150px;
+        height: 55vh;
+    }
+    .legal-assistant-btn {
+        bottom: 100px;
+        right: 10px;
+    }
+}
+</style>
+
+<!-- Legal Assistant Button -->
+{% if product == "immigration" %}
+<button class="legal-assistant-btn" id="legalAssistantBtn" onclick="toggleLegalAssistant()" title="Assistente Jurídico AILA">
+    <i class="fas fa-balance-scale"></i>
+    <span class="context-indicator" id="contextIndicator"></span>
+</button>
+
+<!-- Legal Assistant Window -->
+<div class="legal-assistant-window" id="legalAssistantWindow">
+    <div class="legal-assistant-header">
+        <div>
+            <h6><i class="fas fa-balance-scale me-2"></i>Legal Assistant</h6>
+            <small style="opacity: 0.8; font-size: 0.7rem;">Powered by AILA Knowledge Base</small>
+        </div>
+        <button class="close-btn" onclick="toggleLegalAssistant()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="legal-context-bar">
+        <i class="fas fa-crosshairs"></i>
+        <span class="context-info" id="contextInfo">Capturando contexto...</span>
+        <button class="refresh-context" onclick="refreshContext()" title="Atualizar contexto">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+    <div class="legal-assistant-messages" id="legalMessages">
+        <div class="legal-welcome">
+            <i class="fas fa-balance-scale"></i>
+            <h5>Legal Assistant</h5>
+            <p>Tenho acesso a 30.913 documentos AILA, Kurzban, Practice Pointers e mais. Posso analisar o que esta na sua tela e responder duvidas de imigracao.</p>
+            <div class="quick-actions">
+                <button class="quick-action" onclick="askQuickQuestion('Analise o caso deste cliente')">Analisar caso</button>
+                <button class="quick-action" onclick="askQuickQuestion('Quais documentos faltam?')">Docs faltando</button>
+                <button class="quick-action" onclick="askQuickQuestion('Proximos passos para este caso')">Próximos passos</button>
+                <button class="quick-action" onclick="askQuickQuestion('Riscos e preocupacoes')">Riscos</button>
+            </div>
+        </div>
+    </div>
+    <div class="legal-assistant-input">
+        <div class="input-row">
+            <textarea id="legalInput" placeholder="Pergunte sobre imigracao, análise de caso, documentos..." onkeypress="handleLegalKeyPress(event)"></textarea>
+            <button onclick="sendLegalQuestion()" id="legalSendBtn">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===============================================
+// LEGAL ASSISTANT - JavaScript
+// ===============================================
+const LEGAL_API = "{{ PREFIX }}/api/legal-assistant";
+let legalOpen = false;
+let currentContext = {};
+let legalHistory = [];
+
+function toggleLegalAssistant() {
+    const window = document.getElementById('legalAssistantWindow');
+    const btn = document.getElementById('legalAssistantBtn');
+    legalOpen = !legalOpen;
+
+    if (legalOpen) {
+        window.classList.add('open');
+        btn.querySelector('i').className = 'fas fa-times';
+        refreshContext();
+        document.getElementById('legalInput').focus();
+    } else {
+        window.classList.remove('open');
+        btn.querySelector('i').className = 'fas fa-balance-scale';
+    }
+}
+
+function refreshContext() {
+    // Capture current page context
+    currentContext = {
+        url: window.location.pathname,
+        page_type: detectPageType(),
+        client_id: extractClientId(),
+        case_id: extractCaseId(),
+        email_id: extractEmailId(),
+        document_id: extractDocumentId(),
+        visible_data: extractVisibleData()
+    };
+
+    // Update context display
+    const contextInfo = document.getElementById('contextInfo');
+    let contextText = '';
+
+    if (currentContext.client_id) {
+        const clientName = document.querySelector('.client-name, .card-title, h1')?.textContent?.trim() || 'Cliente';
+        contextText = `Cliente: ${clientName}`;
+    } else if (currentContext.page_type === 'cases') {
+        contextText = 'Página de Casos';
+    } else if (currentContext.page_type === 'documents') {
+        contextText = 'Página de Documentos';
+    } else if (currentContext.page_type === 'dashboard') {
+        contextText = 'Dashboard';
+    } else {
+        contextText = 'CaseHub - ' + currentContext.url;
+    }
+
+    contextInfo.textContent = contextText;
+}
+
+function detectPageType() {
+    const path = window.location.pathname;
+    if (path.includes('/client/')) return 'client';
+    if (path.includes('/case/')) return 'case';
+    if (path.includes('/email')) return 'email';
+    if (path.includes('/document')) return 'document';
+    if (path.includes('/cases')) return 'cases';
+    if (path.includes('/documents')) return 'documents';
+    if (path.includes('/dashboard') || path === '/casehub' || path === '/casehub/') return 'dashboard';
+    return 'other';
+}
+
+function extractClientId() {
+    const path = window.location.pathname;
+    const match = path.match(/\/client\/(\d+)/);
+    return match ? match[1] : null;
+}
+
+function extractCaseId() {
+    const path = window.location.pathname;
+    const match = path.match(/\/case\/(\d+)/);
+    return match ? match[1] : null;
+}
+
+function extractEmailId() {
+    const path = window.location.pathname;
+    const match = path.match(/\/email\/(\d+)/);
+    return match ? match[1] : null;
+}
+
+function extractDocumentId() {
+    const path = window.location.pathname;
+    const match = path.match(/\/document\/(\d+)/);
+    return match ? match[1] : null;
+}
+
+function extractVisibleData() {
+    // Extract key visible data from the page
+    const data = {};
+
+    // Try to get client info
+    const clientCard = document.querySelector('.client-info, .client-details, [data-client]');
+    if (clientCard) {
+        data.client_visible = clientCard.textContent.substring(0, 500);
+    }
+
+    // Try to get case info
+    const caseInfo = document.querySelector('.case-info, .case-details, [data-case]');
+    if (caseInfo) {
+        data.case_visible = caseInfo.textContent.substring(0, 500);
+    }
+
+    // Try to get table data
+    const tables = document.querySelectorAll('table');
+    if (tables.length > 0) {
+        data.table_headers = Array.from(tables[0].querySelectorAll('th')).map(th => th.textContent.trim()).join(', ');
+    }
+
+    // Get page title/heading
+    const heading = document.querySelector('h1, .page-title, .card-header h5');
+    if (heading) {
+        data.page_title = heading.textContent.trim();
+    }
+
+    return data;
+}
+
+function handleLegalKeyPress(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendLegalQuestion();
+    }
+}
+
+function askQuickQuestion(question) {
+    document.getElementById('legalInput').value = question;
+    sendLegalQuestion();
+}
+
+async function sendLegalQuestion() {
+    const input = document.getElementById('legalInput');
+    const btn = document.getElementById('legalSendBtn');
+    const question = input.value.trim();
+
+    if (!question) return;
+
+    btn.disabled = true;
+    input.disabled = true;
+
+    // Add user message
+    addLegalMessage(question, 'user');
+    input.value = '';
+
+    // Add typing indicator
+    const typingId = addLegalMessage('Analisando', 'assistant typing');
+
+    try {
+        // Refresh context before sending
+        refreshContext();
+
+        const res = await fetch(LEGAL_API + '/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                question: question,
+                context: currentContext,
+                history: legalHistory.slice(-6) // Last 3 exchanges
+            })
+        });
+
+        // Remove typing indicator
+        document.getElementById(typingId)?.remove();
+
+        if (!res.ok) throw new Error('Request failed');
+
+        const data = await res.json();
+        addLegalMessage(data.response, 'assistant', data.sources);
+
+        // Add to history
+        legalHistory.push({ role: 'user', content: question });
+        legalHistory.push({ role: 'assistant', content: data.response });
+
+    } catch (e) {
+        console.error('Legal assistant error:', e);
+        document.getElementById(typingId)?.remove();
+        addLegalMessage('Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente.', 'assistant');
+    } finally {
+        btn.disabled = false;
+        input.disabled = false;
+        input.focus();
+    }
+}
+
+function addLegalMessage(text, type, sources = null) {
+    const container = document.getElementById('legalMessages');
+
+    // Remove welcome message if present
+    const welcome = container.querySelector('.legal-welcome');
+    if (welcome) welcome.remove();
+
+    const id = 'msg-' + Date.now();
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = `legal-message ${type}`;
+
+    if (type.includes('typing')) {
+        div.textContent = text;
+    } else {
+        // Format markdown-like text
+        let formattedText = text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n/g, '<br>');
+
+        div.innerHTML = formattedText;
+
+        if (sources && sources.length > 0) {
+            const sourcesDiv = document.createElement('div');
+            sourcesDiv.className = 'sources';
+            sourcesDiv.textContent = 'Fontes: ' + sources.join(', ');
+            div.appendChild(sourcesDiv);
+        }
+    }
+
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+
+    return id;
+}
+
+// Initialize context on page load
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(refreshContext, 1000);
+});
+</script>
+{% endif %}{# end product == "immigration" for Legal Assistant #}
+<!-- END LEGAL ASSISTANT -->
+<!-- STICKY CHAT - Team Chat v1.0 -->
+<!-- =============================================== -->
+<style>
+/* Sticky Chat Styles */
+.sticky-chat-btn { /* Moved below legal assistant */
+    position: fixed;
+    bottom: 60px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-chart-1) 0%, var(--color-chart-2) 100%);
+    border: none;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    cursor: pointer;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+.sticky-chat-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+.sticky-chat-btn i {
+    color: white;
+    font-size: 1.4rem;
+}
+.sticky-chat-btn .unread-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--color-danger-alt);
+    color: white;
+    font-size: 0.7rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.sticky-chat-window {
+    position: fixed;
+    bottom: 130px;
+    right: 20px;
+    width: 380px;
+    height: 500px;
+    background: var(--color-panel-bg);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    z-index: 9997;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--color-panel-border);
+}
+.sticky-chat-window.open {
+    display: flex;
+    animation: slideUp 0.3s ease;
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sticky-chat-header {
+    background: linear-gradient(135deg, var(--color-chart-1) 0%, var(--color-chart-2) 100%);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: white;
+}
+.sticky-chat-header h6 {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+.sticky-chat-header .close-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    opacity: 0.8;
+    font-size: 1.1rem;
+}
+.sticky-chat-header .close-btn:hover {
+    opacity: 1;
+}
+
+.sticky-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--color-panel-bg-deep);
+}
+
+.chat-message {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    position: relative;
+}
+.chat-message.self {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--color-chart-1) 0%, var(--color-chart-2) 100%);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+.chat-message.other {
+    align-self: flex-start;
+    background: var(--color-panel-bg-mid);
+    color: var(--color-panel-text);
+    border-bottom-left-radius: 4px;
+}
+.chat-message.bot {
+    background: var(--bg-success-override);
+    border-left: 3px solid var(--color-success);
+}
+.chat-message.assistant {
+    background: var(--bg-info-override);
+    border-left: 3px solid var(--color-chart-1);
+}
+.chat-message .sender {
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    opacity: 0.8;
+}
+.chat-message .time {
+    font-size: 0.65rem;
+    opacity: 0.6;
+    margin-top: 4px;
+    text-align: right;
+}
+.chat-message .mention {
+    background: rgba(102, 126, 234, 0.3);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.sticky-chat-input {
+    padding: 12px;
+    background: var(--color-panel-bg);
+    border-top: 1px solid var(--color-panel-border);
+}
+.sticky-chat-input .mentions-hint {
+    font-size: 0.7rem;
+    color: var(--color-panel-text-dim);
+    margin-bottom: 8px;
+}
+.sticky-chat-input .mentions-hint span {
+    background: var(--color-panel-bg-mid);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-right: 6px;
+    cursor: pointer;
+}
+.sticky-chat-input .mentions-hint span:hover {
+    background: var(--sortable-hover-bg);
+}
+.sticky-chat-input .input-row {
+    display: flex;
+    gap: 8px;
+}
+.sticky-chat-input input {
+    flex: 1;
+    background: var(--color-panel-bg-mid);
+    border: 1px solid var(--input-border);
+    border-radius: 20px;
+    padding: 10px 16px;
+    color: var(--color-panel-text);
+    font-size: 0.85rem;
+}
+.sticky-chat-input input:focus {
+    outline: none;
+    border-color: var(--color-chart-1);
+}
+.sticky-chat-input input::placeholder {
+    color: var(--color-panel-text-dim);
+}
+.sticky-chat-input button {
+    background: linear-gradient(135deg, var(--color-chart-1) 0%, var(--color-chart-2) 100%);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+.sticky-chat-input button:hover {
+    transform: scale(1.1);
+}
+.sticky-chat-input button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Online users indicator */
+.chat-online-users {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+.chat-online-users .user-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-success);
+}
+.chat-online-users small {
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
+/* Mobile adjustments */
+@media (max-width: 480px) {
+    .sticky-chat-window {
+        width: calc(100% - 20px);
+        right: 10px;
+        bottom: 80px;
+        height: 60vh;
+    }
+    .sticky-chat-btn { /* Moved below legal assistant */
+        bottom: 50px;
+        right: 10px;
+    }
+}
+
+/* Toast Notification System - UX Warnings Resolution */
+.custom-toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s ease;
+}
+.custom-toast.success {
+    background: rgba(34,197,94,0.15);
+    color: var(--color-toast-success);
+    border-left: 4px solid var(--color-toast-success-border);
+}
+.custom-toast.error {
+    background: rgba(239,68,68,0.15);
+    color: var(--color-toast-error);
+    border-left: 4px solid var(--color-toast-error-border);
+}
+.custom-toast.warning {
+    background: rgba(245,158,11,0.15);
+    color: var(--color-toast-warning);
+    border-left: 4px solid var(--color-toast-warning-border);
+}
+.custom-toast.info {
+    background: rgba(59,130,246,0.15);
+    color: var(--color-toast-info);
+    border-left: 4px solid var(--color-toast-info-border);
+}
+@keyframes slideIn {
+    from { transform: translateX(400px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+</style>
+
+{% if product != "lite" %}
+<!-- Chat Button -->
+<button class="sticky-chat-btn" id="stickyChatBtn" onclick="toggleStickyChat()" title="Team Chat">
+    <i class="fas fa-comments"></i>
+    <span class="unread-badge" id="chatUnreadBadge" style="display: none;">0</span>
+</button>
+
+<!-- Chat Window -->
+<div class="sticky-chat-window" id="stickyChatWindow">
+    <div class="sticky-chat-header">
+        <div>
+            <h6><i class="fas fa-comments me-2"></i>Team Chat</h6>
+            <div class="chat-online-users">
+                <span class="user-dot"></span>
+                <small id="chatOnlineCount">Conectando...</small>
+            </div>
+        </div>
+        <button class="close-btn" onclick="toggleStickyChat()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="sticky-chat-messages" id="chatMessages">
+        <div class="text-center text-muted py-4" id="chatLoading">
+            <i class="fas fa-spinner fa-spin me-2"></i>Carregando mensagens...
+        </div>
+    </div>
+    <div class="sticky-chat-input">
+        <div class="mentions-hint">
+            <span onclick="insertMention('@whatsapp')">@whatsapp</span>
+            <span onclick="insertMention('@assistente')">@assistente</span>
+        </div>
+        <div class="input-row">
+            <input type="text" id="chatInput" placeholder="Digite uma mensagem..." onkeypress="handleChatKeyPress(event)">
+            <button onclick="sendChatMessage()" id="chatSendBtn">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===============================================
+// STICKY CHAT - JavaScript
+// ===============================================
+const CHAT_API = "{{ PREFIX }}/api/chat";
+let chatOpen = false;
+let lastMessageId = 0;
+let chatPollInterval = null;
+let currentUser = "{{ user.name if user else 'Guest' }}";
+let currentUserId = parseInt("{{ user.id if user else 0 }}");
+
+function toggleStickyChat() {
+    const window = document.getElementById('stickyChatWindow');
+    const btn = document.getElementById('stickyChatBtn');
+    chatOpen = !chatOpen;
+
+    if (chatOpen) {
+        window.classList.add('open');
+        btn.querySelector('i').className = 'fas fa-times';
+        loadChatMessages();
+        startChatPolling();
+        document.getElementById('chatUnreadBadge').style.display = 'none';
+        document.getElementById('chatInput').focus();
+    } else {
+        window.classList.remove('open');
+        btn.querySelector('i').className = 'fas fa-comments';
+        stopChatPolling();
+    }
+}
+
+function insertMention(mention) {
+    const input = document.getElementById('chatInput');
+    input.value += mention + ' ';
+    input.focus();
+}
+
+function handleChatKeyPress(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+    }
+}
+
+async function loadChatMessages() {
+    try {
+        const res = await fetch(CHAT_API + '/messages');
+        if (!res.ok) throw new Error('Failed to load');
+        const data = await res.json();
+        renderMessages(data.messages || []);
+        document.getElementById('chatOnlineCount').textContent = (data.online || 1) + ' online';
+        if (data.messages && data.messages.length > 0) {
+            lastMessageId = data.messages[data.messages.length - 1].id;
+        }
+    } catch (e) {
+        console.error('Chat load error:', e);
+        document.getElementById('chatMessages').innerHTML =
+            '<div class="text-center text-muted py-4"><i class="fas fa-exclamation-triangle me-2"></i>Erro ao carregar</div>';
+    }
+}
+
+function renderMessages(messages) {
+    const container = document.getElementById('chatMessages');
+    if (messages.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-4">Nenhuma mensagem ainda. Comece a conversa!</div>';
+        return;
+    }
+
+    container.innerHTML = messages.map(msg => {
+        let cssClass = msg.user_id === currentUserId ? 'self' : 'other';
+        if (msg.is_bot) cssClass = 'other bot';
+        if (msg.is_assistant) cssClass = 'other assistant';
+
+        // Highlight mentions
+        let text = msg.text.replace(/@(whatsapp|assistente)/gi, '<span class="mention">@$1</span>');
+
+        return `
+            <div class="chat-message ${cssClass}">
+                <div class="sender">${msg.sender || 'Unknown'}</div>
+                <div>${text}</div>
+                <div class="time">${msg.time || ''}</div>
+            </div>
+        `;
+    }).join('');
+
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const btn = document.getElementById('chatSendBtn');
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    btn.disabled = true;
+    input.disabled = true;
+
+    try {
+        const res = await fetch(CHAT_API + '/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+
+        if (!res.ok) throw new Error('Send failed');
+
+        input.value = '';
+        await loadChatMessages();
+    } catch (e) {
+        console.error('Send error:', e);
+        alert('Erro ao enviar mensagem');
+    } finally {
+        btn.disabled = false;
+        input.disabled = false;
+        input.focus();
+    }
+}
+
+function startChatPolling() {
+    if (chatPollInterval) return;
+    chatPollInterval = setInterval(async () => {
+        if (!chatOpen) return;
+        try {
+            const res = await fetch(CHAT_API + '/messages?since=' + lastMessageId);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.messages && data.messages.length > 0) {
+                await loadChatMessages();
+            }
+            document.getElementById('chatOnlineCount').textContent = (data.online || 1) + ' online';
+        } catch (e) {
+            console.log('Poll error:', e);
+        }
+    }, 3000);
+}
+
+function stopChatPolling() {
+    if (chatPollInterval) {
+        clearInterval(chatPollInterval);
+        chatPollInterval = null;
+    }
+}
+
+// Check for new messages when chat is closed
+setInterval(async () => {
+    if (chatOpen) return;
+    try {
+        const res = await fetch(CHAT_API + '/unread');
+        if (!res.ok) return;
+        const data = await res.json();
+        const badge = document.getElementById('chatUnreadBadge');
+        if (data.count > 0) {
+            badge.textContent = data.count > 9 ? '9+' : data.count;
+            badge.style.display = 'flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    } catch (e) {}
+}, 10000);
+</script>
+<!-- END STICKY CHAT -->
+{% endif %}{# end product != "lite" for sticky chat #}
+
+{% if product != "lite" %}
+<!-- TICKET REPORT SYSTEM -->
+<style>
+.ticket-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-ticket-bg) 0%, var(--color-ticket-bg-dark) 100%);
+    border: none;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    cursor: pointer;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    color: white;
+    font-size: 1.1rem;
+}
+.ticket-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
+}
+</style>
+
+<button class="ticket-fab" onclick="openTicketModal()" title="Report a Problem">
+    <i class="fas fa-bug"></i>
+</button>
+
+<div class="modal fade" id="ticketModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--color-ticket-bg) 0%, var(--color-ticket-bg-dark) 100%); border: none;">
+                <h5 class="modal-title" style="color: white;"><i class="fas fa-bug me-2"></i>Report a Problem</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Title <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control glass-input" id="ticketTitle" placeholder="Brief description of the problem" maxlength="200">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control glass-input" id="ticketDescription" rows="3" placeholder="What happened? What were you trying to do?"></textarea>
+                </div>
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select glass-input" id="ticketCategory">
+                            <option value="Bug">Bug / Error</option>
+                            <option value="UI/UX Issue">UI/UX Issue</option>
+                            <option value="Data Issue">Data Issue</option>
+                            <option value="Performance">Performance</option>
+                            <option value="Access/Permission">Access/Permission</option>
+                            <option value="Feature Request">Feature Request</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="form-label">Severity</label>
+                        <select class="form-select glass-input" id="ticketSeverity">
+                            <option value="Low">Low</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="High">High</option>
+                            <option value="Critical">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="small text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Auto-captured: page URL, version, browser, timestamp
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger glass-btn glass-btn--danger" onclick="submitTicket()" id="ticketSubmitBtn">
+                    <i class="fas fa-paper-plane me-1"></i> Submit Ticket
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ asset_url('js/ticket-modal.js') }}" defer></script>
+<!-- END TICKET REPORT SYSTEM -->
+{% endif %}{# end product != "lite" for ticket system #}
+<!-- Toast & Modal System (stub references removed — files not present) -->
+
+    {% if product == "lite" %}
+<!-- Onboarding Tour — Basic (Plano Cláusula 2.1) vs Pro+ (legacy 20 steps) -->
+{% if user and user.id %}
+<script>
+    // Injected by base.html for the tour scripts; safe defaults if fields missing.
+    window.casehubUser = {
+        id: {{ user.id|tojson }},
+        name: {{ (user.name or "")|tojson }},
+        email: {{ (user.email or "")|tojson }},
+        plan: {{ (org_settings.plan if org_settings else (org.plan if org and org.plan is defined else "starter"))|tojson }},
+        onboarding_completed_at: {% if user.onboarding_completed_at %}{{ user.onboarding_completed_at.isoformat()|tojson }}{% else %}null{% endif %},
+        onboarding_tour_step: {{ (user.onboarding_tour_step or "")|tojson }},
+        prefix: {{ PREFIX|tojson }},
+        demo: false
+    };
+</script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@13.0.3/dist/css/shepherd.css">
+<link rel="stylesheet" href="/static/css/tour.css">
+<script src="https://cdn.jsdelivr.net/npm/shepherd.js@13.0.3/dist/js/shepherd.min.js"></script>
+{# Basic tour for starter plan (Cláusula 2.1 — 4 módulos canônicos) #}
+{% set _plan = (org.plan if org and (org.plan is defined) else 'starter') %}
+{% if _plan in ('starter', None) or _plan|lower == 'basic' %}
+<script src="/static/js/onboarding-tour-basic.js" defer></script>
+{% elif enable_basic_onboarding_tour|default(false) %}
+<script src="/static/js/onboarding-tour.js"></script>
+{% endif %}
+{% endif %}
+{% endif %}
+
+<!-- Fix sidebar active state -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const currentPath = window.location.pathname;
+    const links = document.querySelectorAll('.sidebar .nav-link');
+    let bestMatch = null;
+    let bestLen = 0;
+    links.forEach(function(link) {
+        link.classList.remove('active');
+        var href = link.getAttribute('href');
+        if (href && href !== '#' && currentPath.startsWith(href) && href.length > bestLen) {
+            bestMatch = link;
+            bestLen = href.length;
+        }
+    });
+    if (bestMatch) {
+        bestMatch.classList.add('active');
+        // If inside a collapsed sidebar section, expand it
+        var sectionItems = bestMatch.closest('.sidebar-section-items');
+        if (sectionItems) {
+            sectionItems.style.maxHeight = '500px';
+            var chevron = sectionItems.previousElementSibling;
+            if (chevron) {
+                var chevronIcon = chevron.querySelector('.chevron');
+                if (chevronIcon) chevronIcon.classList.remove('collapsed');
+            }
+        }
+    }
+});
+
+/* Close user dropdown when clicking outside */
+document.addEventListener('click', function(e) {
+    var menu = document.getElementById('userMenu');
+    if (menu && !e.target.closest('.user-dropdown')) {
+        menu.style.display = 'none';
+    }
+});
+</script>
+
+{% if product == "lite" and casehub_maestro_fab_enabled|default(false) %}
+<!-- Maestro IA Floating Chat -->
+<button id="maestro-fab"
+        class="casehub-maestro-fab"
+        type="button"
+        onclick="toggleMaestroDrawer()"
+        title="Maestro IA"
+        aria-label="Abrir Maestro IA"
+        aria-controls="maestro-drawer"
+        aria-expanded="false">
+    <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
+</button>
+<div id="maestro-overlay"
+     class="casehub-maestro-overlay"
+     onclick="toggleMaestroDrawer()"
+     hidden></div>
+<div id="maestro-drawer"
+     class="casehub-maestro-drawer"
+     role="dialog"
+     aria-modal="false"
+     aria-label="Maestro IA"
+     aria-hidden="true">
+    <div class="casehub-maestro-drawer__header">
+        <div class="casehub-maestro-drawer__title">
+            <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
+            <span>Maestro IA</span>
+        </div>
+        <div class="casehub-maestro-drawer__actions">
+            <button id="maestro-dock-btn"
+                    class="casehub-maestro-drawer__action"
+                    type="button"
+                    onclick="toggleMaestroDock()"
+                    title="Fixar ao lado"
+                    aria-label="Fixar Maestro ao lado"
+                    aria-pressed="false">
+                <i id="maestro-dock-icon" class="fas fa-thumbtack" aria-hidden="true"></i>
+            </button>
+            <button class="casehub-maestro-drawer__action"
+                    type="button"
+                    onclick="toggleMaestroDrawer()"
+                    aria-label="Fechar Maestro IA"
+                    title="Fechar Maestro IA">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+    </div>
+    <iframe id="maestro-iframe"
+            class="casehub-maestro-drawer__frame"
+            title="Maestro IA - assistente juridico contextual"
+            loading="lazy"></iframe>
+</div>
+<script>
+(function () {
+    var maestroOpen = false;
+    var maestroDocked = false;
+    var compactQuery = window.matchMedia ? window.matchMedia('(max-width: 1040px)') : null;
+
+    function isCompact() {
+        return compactQuery ? compactQuery.matches : window.innerWidth <= 1040;
+    }
+
+    function setStoredDocked(value) {
+        try {
+            if (value) localStorage.setItem('maestro-docked', '1');
+            else localStorage.removeItem('maestro-docked');
+        } catch (_) {}
+    }
+
+    function loadMaestroFrame() {
+        var iframe = document.getElementById('maestro-iframe');
+        if (iframe && !iframe.src) iframe.src = '{{ PREFIX }}/assistente?embed=1';
+    }
+
+    function getFocusableMaestroElement(container) {
+        if (!container) return null;
+        return container.querySelector('button, [href], iframe, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    }
+
+    function setMaestroBackgroundInert(active) {
+        var allowedIds = {
+            'maestro-fab': true,
+            'maestro-overlay': true,
+            'maestro-drawer': true
+        };
+
+        Array.prototype.forEach.call(document.body.children, function (node) {
+            if (!node || allowedIds[node.id] || node.tagName === 'SCRIPT' || node.tagName === 'STYLE') return;
+
+            if (active) {
+                if (!node.hasAttribute('data-maestro-prev-aria-hidden')) {
+                    node.setAttribute('data-maestro-prev-aria-hidden', node.getAttribute('aria-hidden') || '');
+                }
+                if (!node.hasAttribute('data-maestro-prev-inert')) {
+                    node.setAttribute('data-maestro-prev-inert', node.hasAttribute('inert') ? '1' : '0');
+                }
+                node.setAttribute('aria-hidden', 'true');
+                node.setAttribute('inert', '');
+                return;
+            }
+
+            if (node.hasAttribute('data-maestro-prev-aria-hidden')) {
+                var previousAriaHidden = node.getAttribute('data-maestro-prev-aria-hidden');
+                if (previousAriaHidden) node.setAttribute('aria-hidden', previousAriaHidden);
+                else node.removeAttribute('aria-hidden');
+                node.removeAttribute('data-maestro-prev-aria-hidden');
+            }
+            if (node.hasAttribute('data-maestro-prev-inert')) {
+                if (node.getAttribute('data-maestro-prev-inert') === '1') node.setAttribute('inert', '');
+                else node.removeAttribute('inert');
+                node.removeAttribute('data-maestro-prev-inert');
+            }
+        });
+    }
+
+    function applyMaestroState() {
+        var compact = isCompact();
+        var drawer = document.getElementById('maestro-drawer');
+        var overlay = document.getElementById('maestro-overlay');
+        var fab = document.getElementById('maestro-fab');
+        var dockBtn = document.getElementById('maestro-dock-btn');
+        var dockIcon = document.getElementById('maestro-dock-icon');
+
+        if (compact && maestroDocked) {
+            maestroDocked = false;
+            setStoredDocked(false);
+        }
+
+        document.body.classList.toggle('casehub-maestro-open', maestroOpen);
+        document.body.classList.toggle('casehub-maestro-docked', maestroOpen && maestroDocked && !compact);
+        document.body.classList.toggle('casehub-maestro-compact', compact);
+
+        var overlayModal = maestroOpen && !maestroDocked && !compact;
+        setMaestroBackgroundInert(overlayModal);
+
+        if (fab) fab.setAttribute('aria-expanded', maestroOpen ? 'true' : 'false');
+        if (drawer) {
+            drawer.setAttribute('aria-hidden', maestroOpen ? 'false' : 'true');
+            drawer.setAttribute('aria-modal', overlayModal ? 'true' : 'false');
+        }
+        if (overlay) overlay.hidden = !maestroOpen || maestroDocked || compact;
+        if (dockBtn) {
+            dockBtn.hidden = compact;
+            dockBtn.setAttribute('aria-pressed', maestroDocked && !compact ? 'true' : 'false');
+            dockBtn.classList.toggle('is-docked', maestroDocked && !compact);
+        }
+        if (dockIcon) dockIcon.classList.toggle('is-docked', maestroDocked && !compact);
+    }
+
+    window.toggleMaestroDrawer = function () {
+        var wasOpen = maestroOpen;
+        maestroOpen = !maestroOpen;
+        if (maestroOpen) {
+            loadMaestroFrame();
+            maestroDocked = !isCompact();
+            setStoredDocked(maestroDocked);
+        } else {
+            maestroDocked = false;
+            setStoredDocked(false);
+        }
+        applyMaestroState();
+        if (maestroOpen) {
+            var focusTarget = getFocusableMaestroElement(document.getElementById('maestro-drawer'));
+            if (focusTarget) focusTarget.focus({ preventScroll: true });
+        } else if (wasOpen) {
+            var fab = document.getElementById('maestro-fab');
+            if (fab) fab.focus({ preventScroll: true });
+        }
+    };
+
+    window.toggleMaestroDock = function () {
+        if (!maestroOpen || isCompact()) return;
+        maestroDocked = !maestroDocked;
+        setStoredDocked(maestroDocked);
+        applyMaestroState();
+    };
+
+    // Persist docked state across page navigations (skip on compact viewports)
+    document.addEventListener('DOMContentLoaded', function() {
+        try {
+            if (localStorage.getItem('maestro-docked') === '1' && window.innerWidth > 1040) {
+                maestroOpen = true;
+                maestroDocked = true;
+                loadMaestroFrame();
+            }
+        } catch (_) {}
+        applyMaestroState();
+        document.documentElement.classList.remove('casehub-maestro-restore-docked');
+    // Persist split state
+    if (localStorage.getItem('split-open') === '1') {
+        var splitUrl = localStorage.getItem('split-url');
+        if (splitUrl) {
+            splitOpen = true;
+            var panel = document.getElementById('split-panel');
+            var main2 = document.querySelector('.main-content');
+            var sidebar = document.querySelector('.sidebar');
+            if (panel) { panel.style.display = 'block'; }
+            if (main2) { main2.style.width = 'calc(50vw - var(--sidebar-width, 250px))'; }
+            document.getElementById('split-iframe').src = splitUrl;
+            var nav = document.getElementById('split-nav');
+            if (nav) nav.value = splitUrl;
+        }
+    }
+    });
+
+    if (compactQuery && compactQuery.addEventListener) {
+        compactQuery.addEventListener('change', applyMaestroState);
+    } else {
+        window.addEventListener('resize', applyMaestroState);
+    }
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && maestroOpen) {
+            event.stopPropagation();
+            window.toggleMaestroDrawer();
+        }
+    });
+})();
+</script>
+{% endif %}
+
+{% if product == "lite" %}
+<div id="split-panel" style="display:none;position:fixed;right:0;top:0;width:50vw;height:100vh;
+    background:var(--bg-body);border-left:1px solid var(--border-color);z-index:9990;
+    box-shadow:-4px 0 16px rgba(0,0,0,0.1);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;
+        border-bottom:1px solid var(--border-color);background:var(--bg-card);">
+        <select id="split-nav" class="form-select glass-input" style="max-width:200px;font-size:13px;" onchange="loadSplitPage(this.value)">
+            <option value="">Selecionar página...</option>
+            <option value="/casehub/clients">Clientes</option>
+            <option value="/casehub/cases">Processos</option>
+            <option value="/casehub/tasks/kanban">Tarefas</option>
+            <option value="/casehub/documents">Documentos</option>
+            <option value="/casehub/calendar">Agenda</option>
+            <option value="/casehub/prazos">Prazos</option>
+            <option value="/casehub/tools">Ferramentas</option>
+            <option value="/casehub/assistente?embed=1">Maestro IA</option>
+        </select>
+        <button onclick="toggleSplitScreen()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-secondary);">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <iframe id="split-iframe" style="width:100%;height:calc(100vh - 45px);border:none;"></iframe>
+</div>
+<script>
+var splitOpen = false;
+function toggleSplitScreen() {
+    splitOpen = !splitOpen;
+    var panel = document.getElementById('split-panel');
+    var main = document.querySelector('.main-content');
+    var sidebar = document.querySelector('.sidebar');
+    if (splitOpen) {
+        panel.style.display = 'block';
+        if (main) main.style.width = 'calc(50vw - var(--sidebar-width, 250px))';
+        /* Sidebar keeps full width — no squeezing */
+        localStorage.setItem('split-open', '1');
+    } else {
+        panel.style.display = 'none';
+        if (main) main.style.width = '';
+        localStorage.removeItem('split-open');
+        localStorage.removeItem('split-url');
+    }
+}
+function loadSplitPage(url) {
+    if (url) {
+        document.getElementById('split-iframe').src = url;
+        localStorage.setItem('split-url', url);
+    }
+}
+</script>
+{% endif %}
+
+{% if org_features is defined and org_features and org_features.get('hub_tabs') %}
+<script src="{{ asset_url('js/tab-manager.js') }}" defer></script>
+<script>
+// Sidebar → normal navigation for internal pages
+// TabManager is for EXTERNAL tools only (added via "+" button or org pinned tabs)
+// Internal CaseHub pages navigate normally (no iframe nesting)
+document.addEventListener('DOMContentLoaded', function() {
+    if (!window.casehubTabs) return;
+
+    // Load org pinned tabs on startup
+    fetch('{{ PREFIX }}/api/hub/org-tabs')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.tabs && data.tabs.length) {
+                data.tabs.forEach(function(tab) {
+                    window.casehubTabs.openTab(tab.url, tab.title, tab.icon || 'fas fa-globe');
+                });
+                // Switch back to home after loading pinned tabs
+                window.casehubTabs.switchTab('home');
+            }
+        })
+        .catch(function() {});
+});
+</script>
+{% endif %}
+
+{% if ui_theme == 'desktop' and not is_desktop_frame %}
+<script src="/static/js/desktop/resource-manager.js?v=20"></script>
+<script src="/static/js/desktop/window-manager.js?v=20"></script>
+<script src="/static/js/desktop/launchpad.js?v=20"></script>
+<script src="/static/js/desktop/notion-edit.js?v=2" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // SPA Interceptor: Hijack dock app clicks
+    document.querySelectorAll('.sidebar .nav-link, .os-launchpad-grid .app-icon').forEach(link => {
+        link.addEventListener('click', function(e) {
+            // Ignore if it's explicitly a '#' link or manual navigation
+            let url = this.getAttribute('href') || this.dataset.url;
+            if (!url || url === '#' || url.includes('/logout')) return;
+            
+            // Only hijack internal prefixes
+            if (url.startsWith('{{ PREFIX }}/')) {
+                e.preventDefault();
+                const title = this.textContent.trim() || this.getAttribute('title') || 'App';
+                let iconClass = 'fas fa-layer-group';
+                const iTag = this.querySelector('i, svg');
+                if (iTag && iTag.className) iconClass = iTag.className.replace(' me-2', '');
+                
+                if (window.osWindowManager) {
+                    window.osWindowManager.launchApp(url, title, iconClass);
+                }
+            }
+        });
+    });
+});
+</script>
+{% endif %}
+
+</body>
+</html>

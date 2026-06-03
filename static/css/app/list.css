@@ -1,0 +1,138 @@
+/* CaseHub App · List rows + tables */
+
+.ch-list {
+  display: flex; flex-direction: column;
+  gap: 1px;
+  background: var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.ch-list__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-card);
+  transition: background var(--motion-fast) var(--ease-out);
+  text-decoration: none; color: var(--fg-default);
+}
+.ch-list__row:hover { background: var(--surface-card-2); }
+.ch-list__icon {
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--surface-app);
+  box-shadow: inset 0 0 0 1px var(--line);
+  flex: 0 0 36px;
+  color: var(--c-green-d);
+}
+.ch-list__icon svg { width: 18px; height: 18px; }
+.ch-list__body { min-width: 0; }
+.ch-list__title {
+  font-size: var(--fs-sm); font-weight: 600; color: var(--fg-default);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin: 0;
+}
+.ch-list__meta {
+  font-size: var(--fs-xs); color: var(--fg-muted);
+  margin: 2px 0 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ch-list__right {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+/* Table component — wrap forces horizontal scroll INSIDE the wrap,
+   not bleeding to viewport. min-width: 0 + max-width: 100% on wrap. */
+.ch-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  min-width: 0;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+.ch-table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  font-size: var(--fs-sm);
+  background: var(--surface-card);
+}
+.ch-table thead th {
+  text-align: left; padding: var(--space-3) var(--space-4);
+  font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--fg-muted); font-weight: 700;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-card-2);
+  white-space: nowrap;
+}
+.ch-table tbody td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-default); vertical-align: middle;
+}
+.ch-table tbody tr:last-child td { border-bottom: none; }
+.ch-table tbody tr { transition: background var(--motion-fast) var(--ease-out); }
+.ch-table tbody tr:hover { background: var(--surface-card-2); }
+
+/* Cor de fundo da linha por urgencia — pedido [parceiro] + equipe ([usuário]/Isadora) 02/06/2026:
+   fundo COMPLETO por nivel de urgencia p/ senso de urgencia ("vencido fundo vermelho" — Victor).
+   Tokens semanticos (--danger/--warning/--success) via color-mix p/ adaptar a Glass claro e modo escuro.
+   A divisoria sutil entre linhas (C7) ja vem de .ch-table tbody td { border-bottom: var(--line) }. */
+.ch-prazo-row--vencido   { background: color-mix(in srgb, var(--danger) 12%, var(--surface-card)); }
+.ch-prazo-row--fatal     { background: color-mix(in srgb, var(--danger) 18%, var(--surface-card)); }
+.ch-prazo-row--amarelo   { background: color-mix(in srgb, var(--warning) 12%, var(--surface-card)); }
+.ch-prazo-row--verde     { background: var(--surface-card); }
+.ch-prazo-row--concluido { background: color-mix(in srgb, var(--success) 8%, var(--surface-card)); }
+/* hover aprofunda o MESMO tom, preservando o sinal de urgencia (Doherty: feedback imediato) */
+.ch-table tbody tr.ch-prazo-row--vencido:hover   { background: color-mix(in srgb, var(--danger) 18%, var(--surface-card)); }
+.ch-table tbody tr.ch-prazo-row--fatal:hover     { background: color-mix(in srgb, var(--danger) 26%, var(--surface-card)); }
+.ch-table tbody tr.ch-prazo-row--amarelo:hover   { background: color-mix(in srgb, var(--warning) 18%, var(--surface-card)); }
+.ch-table tbody tr.ch-prazo-row--concluido:hover { background: color-mix(in srgb, var(--success) 12%, var(--surface-card)); }
+
+/* Mobile card pattern: data-label fallback when collapsed */
+@media (max-width: 720px) {
+  .ch-table--responsive thead { display: none; }
+  .ch-table--responsive,
+  .ch-table--responsive tbody,
+  .ch-table--responsive tr,
+  .ch-table--responsive td { display: block; width: 100%; }
+  .ch-table--responsive tr {
+    margin-bottom: var(--space-3);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-card);
+  }
+  .ch-table--responsive td {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: var(--space-3);
+    border-bottom: 1px solid var(--line);
+  }
+  .ch-table--responsive td::before {
+    content: attr(data-label);
+    font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--fg-muted); font-weight: 700;
+  }
+  .ch-table--responsive td:last-child { border-bottom: none; }
+}
+
+.ch-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-4);
+  text-align: center; color: var(--fg-muted);
+}
+.ch-empty__icon {
+  width: 48px; height: 48px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--surface-card-2);
+  color: var(--fg-faint);
+  margin-bottom: var(--space-2);
+}
+.ch-empty__icon svg { width: 24px; height: 24px; }
+.ch-empty h3 {
+  margin: 0; font-family: var(--display); font-size: var(--fs-lg);
+  color: var(--fg-default); font-weight: 700;
+}
+.ch-empty p { margin: 0; max-width: 50ch; font-size: var(--fs-sm); }

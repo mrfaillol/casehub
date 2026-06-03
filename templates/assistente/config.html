@@ -1,0 +1,970 @@
+{% extends "base.html" %}
+
+{% block title %}Configuração - Maestro IA{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/assistente-config.css">
+{% endblock %}
+
+{% block content %}
+<main class="assistente-config-main" aria-labelledby="assistente-config-title">
+    <header class="assistente-config-header">
+        <div class="assistente-config-heading">
+            <a href="{{ PREFIX }}/assistente" class="assistente-config-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar ao Chat</span>
+            </a>
+            <h1 id="assistente-config-title" class="assistente-config-title">
+                <i class="fas fa-robot assistente-config-title-icon" aria-hidden="true"></i>
+                <span>Configuração do Maestro IA</span>
+            </h1>
+        </div>
+        <div class="assistente-config-toggle">
+            {% if product == "lite" %}
+            <label class="pill-toggle">
+                <input type="checkbox" id="maestroEnabled" {{ 'checked' if maestro_enabled else '' }} aria-label="Ativar Maestro IA">
+                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+            </label>
+            {% else %}
+            <label class="assistente-config-switch">
+                <input type="checkbox" id="maestroEnabled" {{ 'checked' if maestro_enabled else '' }} aria-label="Ativar Maestro IA">
+                <span class="assistente-config-switch-track" aria-hidden="true"></span>
+            </label>
+            {% endif %}
+            <span id="enabledLabel" class="assistente-config-toggle-label" data-state="{{ 'on' if maestro_enabled else 'off' }}">
+                {{ 'Ativado' if maestro_enabled else 'Desativado' }}
+            </span>
+        </div>
+    </header>
+
+    <div class="assistente-config-tabs" role="tablist" aria-label="Configuração do assistente">
+        <button type="button" class="assistente-config-tab" role="tab" id="assistente-tab-status"
+                aria-selected="true" aria-controls="assistente-panel-status" data-tab="status">
+            <i class="fas fa-signal" aria-hidden="true"></i>
+            <span>Status e Modelo</span>
+        </button>
+        <button type="button" class="assistente-config-tab" role="tab" id="assistente-tab-fontes"
+                aria-selected="false" aria-controls="assistente-panel-fontes" data-tab="fontes">
+            <i class="fas fa-book-open" aria-hidden="true"></i>
+            <span>Fontes</span>
+            <span id="fontesCountBadge" class="assistente-config-tab-count">{{ sources_count }}</span>
+        </button>
+        <button type="button" class="assistente-config-tab" role="tab" id="assistente-tab-contexto"
+                aria-selected="false" aria-controls="assistente-panel-contexto" data-tab="contexto">
+            <i class="fas fa-building" aria-hidden="true"></i>
+            <span>Contexto do Escritório</span>
+        </button>
+        <button type="button" class="assistente-config-tab" role="tab" id="assistente-tab-personalidade"
+                aria-selected="false" aria-controls="assistente-panel-personalidade" data-tab="personalidade">
+            <i class="fas fa-brain" aria-hidden="true"></i>
+            <span>Personalidade</span>
+        </button>
+        <button type="button" class="assistente-config-tab" role="tab" id="assistente-tab-historico"
+                aria-selected="false" aria-controls="assistente-panel-historico" data-tab="historico">
+            <i class="fas fa-chart-line" aria-hidden="true"></i>
+            <span>Histórico e Analytics</span>
+        </button>
+    </div>
+
+    <!-- ── TAB 1: Status e Modelo ───────────────────────── -->
+    <section class="assistente-config-panel" id="assistente-panel-status"
+             role="tabpanel" aria-labelledby="assistente-tab-status" data-active="true">
+        <div class="assistente-config-grid">
+            <div class="assistente-config-grid-col">
+                <article class="assistente-config-card" aria-labelledby="assistente-card-ollama-title">
+                    <h2 id="assistente-card-ollama-title" class="assistente-config-card-title">
+                        <i class="fas fa-signal" aria-hidden="true"></i>
+                        <span>Status do Ollama</span>
+                    </h2>
+
+                    <div class="assistente-config-status-row">
+                        <span class="assistente-config-status-pill" id="statusPill"
+                              data-state="{{ ollama_status.status }}" aria-live="polite">
+                            <span class="assistente-config-status-dot" aria-hidden="true"></span>
+                            <span>{{ 'Online' if ollama_status.status == 'online' else 'Offline' }}</span>
+                        </span>
+                        <button type="button" class="assistente-config-btn assistente-config-btn--ghost" onclick="refreshStatus()">
+                            <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                            <span>Atualizar</span>
+                        </button>
+                    </div>
+
+                    {% if ollama_status.models %}
+                    <div class="assistente-config-field">
+                        <label for="modelSelect" class="assistente-config-label">Modelo Ativo</label>
+                        <select class="assistente-config-select" id="modelSelect">
+                            {% for model in ollama_status.models %}
+                            <option value="{{ model }}">{{ model }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="assistente-config-field">
+                        <span class="assistente-config-label" id="modelsListLabel">Modelos Disponíveis</span>
+                        <ul class="assistente-config-model-list" id="modelsList" aria-labelledby="modelsListLabel">
+                            {% for model in ollama_status.models %}
+                            <li class="assistente-config-model-tag">
+                                <i class="fas fa-cube" aria-hidden="true"></i>
+                                <span>{{ model }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% else %}
+                    <p class="assistente-config-card-desc" id="noModelsMsg">
+                        Nenhum modelo disponível. Instale com: <code>ollama pull llama3.1:8b</code>
+                    </p>
+                    {% endif %}
+
+                    <div class="assistente-config-pull-row">
+                        <label for="pullModelInput" class="assistente-config-sr-only">Nome do modelo a baixar</label>
+                        <input type="text" id="pullModelInput" class="assistente-config-input"
+                               placeholder="Ex: llama3.1:8b, mistral, gemma2...">
+                        <button type="button" class="assistente-config-btn assistente-config-btn--primary" onclick="pullModel()" id="pullBtn">
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                            <span>Puxar Novo Modelo</span>
+                        </button>
+                    </div>
+                </article>
+            </div>
+
+            <div class="assistente-config-grid-col">
+                <article class="assistente-config-card" aria-labelledby="assistente-card-uso-title">
+                    <h2 id="assistente-card-uso-title" class="assistente-config-card-title">
+                        <i class="fas fa-tachometer-alt" aria-hidden="true"></i>
+                        <span>Uso Hoje</span>
+                    </h2>
+                    <div class="assistente-config-stat assistente-config-stat--accent">
+                        <div class="assistente-config-stat-icon" aria-hidden="true"><i class="fas fa-bolt"></i></div>
+                        <div class="assistente-config-stat-value" id="tokensToday">{{ tokens_today }}</div>
+                        <div class="assistente-config-stat-label">tokens processados hoje</div>
+                    </div>
+                </article>
+
+                <article class="assistente-config-card" aria-labelledby="assistente-card-sobre-title">
+                    <h2 id="assistente-card-sobre-title" class="assistente-config-card-title">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>Sobre</span>
+                    </h2>
+                    <ul class="assistente-config-about">
+                        <li><i class="fas fa-check-circle" aria-hidden="true"></i><span>Roda localmente via Ollama</span></li>
+                        <li><i class="fas fa-check-circle" aria-hidden="true"></i><span>Dados nunca saem do servidor</span></li>
+                        <li><i class="fas fa-check-circle" aria-hidden="true"></i><span>Conhece processos e prazos</span></li>
+                        <li><i class="fas fa-check-circle" aria-hidden="true"></i><span>Sem custos de API externa</span></li>
+                    </ul>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── TAB 2: Fontes de Conhecimento ─────────────────── -->
+    <section class="assistente-config-panel" id="assistente-panel-fontes"
+             role="tabpanel" aria-labelledby="assistente-tab-fontes" data-active="false">
+        <article class="assistente-config-card" aria-labelledby="assistente-card-fontes-title">
+            <h2 id="assistente-card-fontes-title" class="assistente-config-card-title">
+                <i class="fas fa-book-open" aria-hidden="true"></i>
+                <span>Fontes de Conhecimento</span>
+                <span class="assistente-config-tab-count" id="sourcesTotal">{{ sources_count }}</span>
+            </h2>
+            <p class="assistente-config-card-desc">
+                Adicione documentos e textos para o assistente usar como base de conhecimento. Similar ao Google NotebookLM.
+            </p>
+
+            <button type="button" class="assistente-config-upload" id="uploadZone"
+                    aria-label="Selecionar arquivo para upload"
+                    onclick="document.getElementById('fileInput').click()">
+                <div class="assistente-config-upload-icon" aria-hidden="true">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <p class="assistente-config-upload-text">Arraste arquivos aqui ou clique para selecionar</p>
+                <p class="assistente-config-upload-formats">PDF, TXT, DOCX — Máximo 10MB</p>
+            </button>
+            <input type="file" id="fileInput" class="assistente-config-file-input"
+                   accept=".pdf,.txt,.docx" onchange="uploadFile(this)">
+
+            <div id="sourcesList" class="assistente-config-sources" aria-live="polite">
+                <div class="assistente-config-empty" id="sourcesLoading">
+                    <i class="fas fa-spinner assistente-config-spin" aria-hidden="true"></i>
+                    <span>Carregando fontes...</span>
+                </div>
+            </div>
+
+            <div class="assistente-config-manual">
+                <h3 class="assistente-config-manual-title">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
+                    <span>Adicionar Texto Manual</span>
+                </h3>
+                <div class="assistente-config-field">
+                    <label for="manualSourceName" class="assistente-config-label">Nome da fonte</label>
+                    <input type="text" id="manualSourceName" class="assistente-config-input assistente-config-input--full"
+                           placeholder="Ex: Regimento Interno">
+                </div>
+                <div class="assistente-config-field">
+                    <label for="manualSourceContent" class="assistente-config-label">Conteúdo</label>
+                    <textarea id="manualSourceContent" class="assistente-config-textarea assistente-config-textarea--short"
+                              placeholder="Cole aqui o texto que o assistente deve conhecer..."></textarea>
+                </div>
+                <div>
+                    <button type="button" class="assistente-config-btn assistente-config-btn--primary" onclick="addManualSource()">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>Adicionar Fonte</span>
+                    </button>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <!-- ── TAB 3: Contexto do Escritório ─────────────────── -->
+    <section class="assistente-config-panel" id="assistente-panel-contexto"
+             role="tabpanel" aria-labelledby="assistente-tab-contexto" data-active="false">
+        <article class="assistente-config-card" aria-labelledby="assistente-card-contexto-title">
+            <h2 id="assistente-card-contexto-title" class="assistente-config-card-title">
+                <i class="fas fa-building" aria-hidden="true"></i>
+                <span>Contexto do Escritório (Auto-Sync)</span>
+            </h2>
+            <p class="assistente-config-card-desc">
+                Dados extraídos automáticamente do banco de dados do CaseHub.
+            </p>
+
+            <div class="assistente-config-stat-grid" id="contextStats">
+                <div class="assistente-config-stat">
+                    <div class="assistente-config-stat-icon" aria-hidden="true"><i class="fas fa-users"></i></div>
+                    <div class="assistente-config-stat-value" id="ctxClientes">-</div>
+                    <div class="assistente-config-stat-label">clientes cadastrados</div>
+                </div>
+                <div class="assistente-config-stat">
+                    <div class="assistente-config-stat-icon" aria-hidden="true"><i class="fas fa-clipboard-list"></i></div>
+                    <div class="assistente-config-stat-value" id="ctxProcessos">-</div>
+                    <div class="assistente-config-stat-label">processos <span id="ctxAtivos"></span></div>
+                </div>
+                <div class="assistente-config-stat">
+                    <div class="assistente-config-stat-icon" aria-hidden="true"><i class="fas fa-clock"></i></div>
+                    <div class="assistente-config-stat-value" id="ctxPrazos">-</div>
+                    <div class="assistente-config-stat-label">prazos pendentes</div>
+                </div>
+                <div class="assistente-config-stat">
+                    <div class="assistente-config-stat-icon" aria-hidden="true"><i class="fas fa-check-square"></i></div>
+                    <div class="assistente-config-stat-value" id="ctxTarefas">-</div>
+                    <div class="assistente-config-stat-label">tarefas</div>
+                </div>
+                <div class="assistente-config-stat">
+                    <div class="assistente-config-stat-icon" aria-hidden="true"><i class="fas fa-file-alt"></i></div>
+                    <div class="assistente-config-stat-value" id="ctxDocumentos">-</div>
+                    <div class="assistente-config-stat-label">documentos</div>
+                </div>
+            </div>
+
+            <div class="assistente-config-card-actions">
+                <span class="assistente-config-sync-meta" id="lastSyncLabel">
+                    <i class="fas fa-clock" aria-hidden="true"></i>
+                    <span>Última sincronização: nunca</span>
+                </span>
+                <button type="button" class="assistente-config-btn assistente-config-btn--primary" onclick="syncContext()" id="syncBtn">
+                    <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                    <span>Sincronizar Agora</span>
+                </button>
+            </div>
+        </article>
+
+        <article class="assistente-config-card" aria-labelledby="assistente-card-custom-title">
+            <h2 id="assistente-card-custom-title" class="assistente-config-card-title">
+                <i class="fas fa-pen-fancy" aria-hidden="true"></i>
+                <span>Contexto Customizado</span>
+            </h2>
+            <p class="assistente-config-card-desc">
+                Informações adicionais que o assistente deve conhecer (áreas de atuação, sócios, procedimentos).
+            </p>
+            <div class="assistente-config-field">
+                <label for="customContext" class="assistente-config-sr-only">Contexto customizado</label>
+                <textarea id="customContext" class="assistente-config-textarea"
+                    placeholder="Ex: O escritório é especializado em Direito Civil e Trabalhista, atende pessoas físicas e empresas, e preza por um atendimento próximo e ágil...">{{ custom_context or '' }}</textarea>
+            </div>
+            <div>
+                <button type="button" class="assistente-config-btn assistente-config-btn--primary" onclick="saveContext()">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>Salvar Contexto</span>
+                </button>
+            </div>
+        </article>
+    </section>
+
+    <!-- ── TAB 4: Personalidade ──────────────────────────── -->
+    <section class="assistente-config-panel" id="assistente-panel-personalidade"
+             role="tabpanel" aria-labelledby="assistente-tab-personalidade" data-active="false">
+        <div class="assistente-config-grid">
+            <div class="assistente-config-grid-col">
+                <article class="assistente-config-card" aria-labelledby="assistente-card-prompt-title">
+                    <h2 id="assistente-card-prompt-title" class="assistente-config-card-title">
+                        <i class="fas fa-brain" aria-hidden="true"></i>
+                        <span>Prompt de Sistema</span>
+                    </h2>
+                    <p class="assistente-config-card-desc">
+                        Defina como o assistente deve se comportar. Este texto é enviado antes de cada conversa.
+                    </p>
+                    <div class="assistente-config-field">
+                        <label for="systemPrompt" class="assistente-config-sr-only">Prompt de sistema</label>
+                        <textarea id="systemPrompt" class="assistente-config-textarea assistente-config-textarea--tall"
+                            placeholder="Você é o Maestro, assistente jurídico inteligente...">{{ personality.get('system_prompt', '') if personality else '' }}</textarea>
+                    </div>
+
+                    <div class="assistente-config-field">
+                        <span class="assistente-config-label">Presets Rápidos</span>
+                        <div class="assistente-config-presets">
+                            <button type="button" class="assistente-config-preset" onclick="applyPreset('formal')">
+                                <div class="assistente-config-preset-name">Formal Jurídico</div>
+                                <div class="assistente-config-preset-desc">Responda de forma técnica e profissional, citando artigos de lei e jurisprudência quando relevante. Use linguagem formal.</div>
+                            </button>
+                            <button type="button" class="assistente-config-preset" onclick="applyPreset('direto')">
+                                <div class="assistente-config-preset-name">Direto e Conciso</div>
+                                <div class="assistente-config-preset-desc">Seja breve e objetivo nas respostas. Foque no essencial sem rodeios. Use bullet points quando possível.</div>
+                            </button>
+                            <button type="button" class="assistente-config-preset" onclick="applyPreset('didatico')">
+                                <div class="assistente-config-preset-name">Didático</div>
+                                <div class="assistente-config-preset-desc">Explique conceitos jurídicos de forma simples e acessível. Use exemplos práticos e analogias do cotidiano.</div>
+                            </button>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <div class="assistente-config-grid-col">
+                <article class="assistente-config-card" aria-labelledby="assistente-card-comportamento-title">
+                    <h2 id="assistente-card-comportamento-title" class="assistente-config-card-title">
+                        <i class="fas fa-sliders-h" aria-hidden="true"></i>
+                        <span>Comportamento</span>
+                    </h2>
+
+                    <div class="assistente-config-toggle-row">
+                        <label class="assistente-config-toggle-row-label" for="toggleCiteLaws">Citar artigos de lei automaticamente</label>
+                        {% if product == "lite" %}
+                        <label class="pill-toggle">
+                            <input type="checkbox" id="toggleCiteLaws" {{ 'checked' if personality and personality.get('cite_laws') else '' }}>
+                            <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                        </label>
+                        {% else %}
+                        <span class="assistente-config-switch">
+                            <input type="checkbox" id="toggleCiteLaws" {{ 'checked' if personality and personality.get('cite_laws') else '' }}>
+                            <span class="assistente-config-switch-track" aria-hidden="true"></span>
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="assistente-config-toggle-row">
+                        <label class="assistente-config-toggle-row-label" for="toggleReasoning">Incluir fundamentação nas respostas</label>
+                        {% if product == "lite" %}
+                        <label class="pill-toggle">
+                            <input type="checkbox" id="toggleReasoning" {{ 'checked' if personality and personality.get('include_reasoning') else '' }}>
+                            <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                        </label>
+                        {% else %}
+                        <span class="assistente-config-switch">
+                            <input type="checkbox" id="toggleReasoning" {{ 'checked' if personality and personality.get('include_reasoning') else '' }}>
+                            <span class="assistente-config-switch-track" aria-hidden="true"></span>
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="assistente-config-toggle-row">
+                        <label class="assistente-config-toggle-row-label" for="toggleClarification">Perguntar quando houver dúvida</label>
+                        {% if product == "lite" %}
+                        <label class="pill-toggle">
+                            <input type="checkbox" id="toggleClarification" {{ 'checked' if personality and personality.get('ask_clarification', True) else '' }}>
+                            <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                        </label>
+                        {% else %}
+                        <span class="assistente-config-switch">
+                            <input type="checkbox" id="toggleClarification" {{ 'checked' if personality and personality.get('ask_clarification', True) else '' }}>
+                            <span class="assistente-config-switch-track" aria-hidden="true"></span>
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="assistente-config-toggle-row">
+                        <label class="assistente-config-toggle-row-label" for="toggleNextSteps">Sugerir próximos passos ao final</label>
+                        {% if product == "lite" %}
+                        <label class="pill-toggle">
+                            <input type="checkbox" id="toggleNextSteps" {{ 'checked' if personality and personality.get('suggest_next_steps', True) else '' }}>
+                            <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
+                        </label>
+                        {% else %}
+                        <span class="assistente-config-switch">
+                            <input type="checkbox" id="toggleNextSteps" {{ 'checked' if personality and personality.get('suggest_next_steps', True) else '' }}>
+                            <span class="assistente-config-switch-track" aria-hidden="true"></span>
+                        </span>
+                        {% endif %}
+                    </div>
+                </article>
+                <button type="button" class="assistente-config-btn assistente-config-btn--primary assistente-config-btn--block" onclick="savePersonality()">
+                    <i class="fas fa-save" aria-hidden="true"></i>
+                    <span>Salvar Personalidade</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── TAB 5: Histórico e Analytics ──────────────────── -->
+    <section class="assistente-config-panel" id="assistente-panel-historico"
+             role="tabpanel" aria-labelledby="assistente-tab-historico" data-active="false">
+        <div class="assistente-config-grid">
+            <div class="assistente-config-grid-col">
+                <article class="assistente-config-card" aria-labelledby="assistente-card-chart-title">
+                    <h2 id="assistente-card-chart-title" class="assistente-config-card-title">
+                        <i class="fas fa-chart-line" aria-hidden="true"></i>
+                        <span>Perguntas por Dia (Últimos 7 dias)</span>
+                    </h2>
+                    <div class="assistente-config-chart">
+                        <canvas id="dailyChart" aria-label="Gráfico de perguntas por dia"></canvas>
+                    </div>
+                </article>
+
+                <article class="assistente-config-card" aria-labelledby="assistente-card-history-title">
+                    <div class="assistente-config-card-actions">
+                        <h2 id="assistente-card-history-title" class="assistente-config-card-title">
+                            <i class="fas fa-history" aria-hidden="true"></i>
+                            <span>Conversas Recentes</span>
+                        </h2>
+                        <button type="button" class="assistente-config-btn assistente-config-btn--danger" onclick="clearHistory()">
+                            <i class="fas fa-trash" aria-hidden="true"></i>
+                            <span>Limpar Histórico</span>
+                        </button>
+                    </div>
+                    <div class="assistente-config-table-wrap">
+                        <table class="assistente-config-table" id="historyTable">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Data/Hora</th>
+                                    <th scope="col">Pergunta</th>
+                                    <th scope="col">Tokens</th>
+                                    <th scope="col">Modelo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyBody">
+                                <tr><td colspan="4" class="assistente-config-empty">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </div>
+
+            <div class="assistente-config-grid-col">
+                <article class="assistente-config-card" aria-labelledby="assistente-card-resumo-title">
+                    <h2 id="assistente-card-resumo-title" class="assistente-config-card-title">
+                        <i class="fas fa-chart-bar" aria-hidden="true"></i>
+                        <span>Resumo</span>
+                    </h2>
+                    <div class="assistente-config-stat assistente-config-stat--accent">
+                        <div class="assistente-config-stat-icon" aria-hidden="true"><i class="fas fa-comments"></i></div>
+                        <div class="assistente-config-stat-value" id="totalConversations">-</div>
+                        <div class="assistente-config-stat-label">total de conversas</div>
+                    </div>
+                    <div class="assistente-config-stat assistente-config-stat--accent">
+                        <div class="assistente-config-stat-icon" aria-hidden="true"><i class="fas fa-bolt"></i></div>
+                        <div class="assistente-config-stat-value" id="totalTokens">-</div>
+                        <div class="assistente-config-stat-label">tokens processados</div>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+</main>
+
+<div class="assistente-config-overlay" id="previewOverlay" role="dialog"
+     aria-modal="true" aria-labelledby="previewTitle" onclick="closePreview(event)">
+    <div class="assistente-config-modal" onclick="event.stopPropagation()">
+        <h2 id="previewTitle" class="assistente-config-modal-title">Preview</h2>
+        <pre id="previewContent" class="assistente-config-modal-pre"></pre>
+        <button type="button" class="assistente-config-btn assistente-config-btn--ghost assistente-config-modal-close" onclick="closePreview()">Fechar</button>
+    </div>
+</div>
+
+<div class="assistente-config-toast" id="toastMsg" role="status" aria-live="polite"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+    const PREFIX = '{{ PREFIX }}';
+    const tokenStyles = getComputedStyle(document.documentElement);
+    const tokenColor = name => tokenStyles.getPropertyValue(name).trim();
+    let dailyChart = null;
+
+    function switchTab(name, btn) {
+        document.querySelectorAll('.assistente-config-panel').forEach(p => p.setAttribute('data-active', 'false'));
+        document.querySelectorAll('.assistente-config-tab').forEach(t => t.setAttribute('aria-selected', 'false'));
+        const panel = document.getElementById('assistente-panel-' + name);
+        if (panel) panel.setAttribute('data-active', 'true');
+        if (btn) btn.setAttribute('aria-selected', 'true');
+
+        if (name === 'fontes') loadSources();
+        if (name === 'historico') { loadHistory(); loadAnalytics(); }
+        if (name === 'contexto') syncContextDisplay();
+    }
+
+    document.querySelectorAll('.assistente-config-tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab, tab));
+    });
+
+    function showToast(message, type) {
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = message;
+        toast.setAttribute('data-type', type);
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3500);
+    }
+
+    function toggleEnabled() {
+        const enabled = document.getElementById('maestroEnabled').checked;
+        const label = document.getElementById('enabledLabel');
+        label.textContent = enabled ? 'Ativado' : 'Desativado';
+        label.setAttribute('data-state', enabled ? 'on' : 'off');
+        fetch(`${PREFIX}/assistente/config/contexto`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contexto: document.getElementById('customContext').value, enabled })
+        });
+    }
+    document.getElementById('maestroEnabled').addEventListener('change', toggleEnabled);
+
+    async function refreshStatus() {
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/api/status`);
+            const data = await resp.json();
+            const pill = document.getElementById('statusPill');
+            pill.setAttribute('data-state', data.status);
+            pill.innerHTML = '<span class="assistente-config-status-dot" aria-hidden="true"></span><span>' +
+                (data.status === 'online' ? 'Online' : 'Offline') + '</span>';
+
+            const list = document.getElementById('modelsList');
+            if (list && data.models && data.models.length > 0) {
+                list.innerHTML = data.models.map(m =>
+                    '<li class="assistente-config-model-tag"><i class="fas fa-cube" aria-hidden="true"></i><span>' + m + '</span></li>'
+                ).join('');
+                const sel = document.getElementById('modelSelect');
+                if (sel) {
+                    sel.innerHTML = data.models.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+                }
+            }
+            const noModels = document.getElementById('noModelsMsg');
+            if (noModels && data.models && data.models.length > 0) noModels.style.display = 'none';
+            showToast('Status atualizado', 'success');
+        } catch(e) {
+            showToast('Erro ao verificar status', 'error');
+        }
+    }
+    window.refreshStatus = refreshStatus;
+
+    async function pullModel() {
+        const model = document.getElementById('pullModelInput').value.trim();
+        if (!model) { showToast('Digite o nome do modelo', 'error'); return; }
+        const btn = document.getElementById('pullBtn');
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.innerHTML = '<i class="fas fa-spinner assistente-config-spin" aria-hidden="true"></i><span>Puxando...</span>';
+        showToast('Iniciando download de ' + model + '...', 'success');
+
+        try {
+            const resp = await fetch('http://localhost:11434/api/pull', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: model, stream: false })
+            });
+            if (resp.ok) {
+                showToast('Modelo ' + model + ' baixado com sucesso!', 'success');
+                refreshStatus();
+            } else {
+                showToast('Erro ao baixar modelo', 'error');
+            }
+        } catch(e) {
+            showToast('Erro de conexão com Ollama', 'error');
+        }
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        btn.innerHTML = '<i class="fas fa-download" aria-hidden="true"></i><span>Puxar Novo Modelo</span>';
+    }
+    window.pullModel = pullModel;
+
+    const SOURCE_ICONS = {
+        'pdf': 'fa-file-pdf',
+        'txt': 'fa-file-alt',
+        'docx': 'fa-file-word',
+        'auto_sync': 'fa-sync',
+        'manual': 'fa-pen'
+    };
+
+    function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function formatDate(iso) {
+        if (!iso) return '-';
+        const d = new Date(iso);
+        return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str == null ? '' : String(str);
+        return div.innerHTML;
+    }
+
+    async function loadSources() {
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/fontes`);
+            const data = await resp.json();
+            const list = document.getElementById('sourcesList');
+            const badge = document.getElementById('sourcesTotal');
+            const tabBadge = document.getElementById('fontesCountBadge');
+
+            if (!data.sources || data.sources.length === 0) {
+                list.innerHTML = '<div class="assistente-config-empty">Nenhuma fonte adicionada ainda. Faça upload de um documento ou adicione texto manualmente.</div>';
+                badge.textContent = '0';
+                tabBadge.textContent = '0';
+                return;
+            }
+
+            badge.textContent = data.sources.length;
+            tabBadge.textContent = data.sources.length;
+
+            let totalSize = 0;
+            let html = '';
+            data.sources.forEach(s => {
+                totalSize += s.file_size || 0;
+                const iconClass = SOURCE_ICONS[s.source_type] || SOURCE_ICONS['manual'];
+                const previewText = (s.preview || '').replace(/`/g, "'").replace(/\\/g, '\\\\');
+                html += `
+                    <div class="assistente-config-source" id="source-${s.id}">
+                        <span class="assistente-config-source-icon" data-type="${escapeHtml(s.source_type)}" aria-hidden="true"><i class="fas ${iconClass}"></i></span>
+                        <div class="assistente-config-source-info">
+                            <div class="assistente-config-source-name">${escapeHtml(s.name)}</div>
+                            <div class="assistente-config-source-meta">${formatDate(s.created_at)} · ${formatBytes(s.file_size)} · ${escapeHtml((s.source_type || '').toUpperCase())}</div>
+                        </div>
+                        <span class="assistente-config-source-badge" data-state="${s.indexed ? 'indexed' : 'pending'}">${s.indexed ? 'Indexado' : 'Pendente'}</span>
+                        <div class="assistente-config-source-actions">
+                            <button type="button" class="assistente-config-btn assistente-config-btn--ghost assistente-config-btn--icon" onclick="previewSource('${escapeHtml(s.name)}', \`${previewText}\`)" aria-label="Pré-visualizar fonte"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                            <button type="button" class="assistente-config-btn assistente-config-btn--danger assistente-config-btn--icon" onclick="deleteSource(${s.id})" aria-label="Remover fonte"><i class="fas fa-times" aria-hidden="true"></i></button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += `<div class="assistente-config-source-summary">${data.sources.length} fontes · ${formatBytes(totalSize)} total</div>`;
+            list.innerHTML = html;
+        } catch(e) {
+            document.getElementById('sourcesList').innerHTML = '<div class="assistente-config-empty">Erro ao carregar fontes</div>';
+        }
+    }
+    window.loadSources = loadSources;
+
+    async function uploadFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) { showToast('Arquivo muito grande (max 10MB)', 'error'); return; }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('name', file.name);
+
+        showToast('Enviando ' + file.name + '...', 'success');
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/upload-fonte`, { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadSources();
+            } else {
+                showToast(data.message || 'Erro no upload', 'error');
+            }
+        } catch(e) {
+            showToast('Erro de conexão', 'error');
+        }
+        input.value = '';
+    }
+    window.uploadFile = uploadFile;
+
+    async function addManualSource() {
+        const name = document.getElementById('manualSourceName').value.trim();
+        const content = document.getElementById('manualSourceContent').value.trim();
+        if (!content) { showToast('Digite o conteúdo da fonte', 'error'); return; }
+
+        const formData = new FormData();
+        formData.append('name', name || 'Texto manual');
+        formData.append('content', content);
+
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/upload-fonte`, { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                document.getElementById('manualSourceName').value = '';
+                document.getElementById('manualSourceContent').value = '';
+                loadSources();
+            } else {
+                showToast(data.message || 'Erro', 'error');
+            }
+        } catch(e) {
+            showToast('Erro de conexão', 'error');
+        }
+    }
+    window.addManualSource = addManualSource;
+
+    async function deleteSource(id) {
+        if (!confirm('Remover esta fonte de conhecimento?')) return;
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/fonte/${id}`, { method: 'DELETE' });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Fonte removida', 'success');
+                const el = document.getElementById('source-' + id);
+                if (el) el.remove();
+                loadSources();
+            } else {
+                showToast(data.message || 'Erro', 'error');
+            }
+        } catch(e) {
+            showToast('Erro de conexão', 'error');
+        }
+    }
+    window.deleteSource = deleteSource;
+
+    function previewSource(name, text) {
+        document.getElementById('previewTitle').textContent = name;
+        document.getElementById('previewContent').textContent = text || '(sem conteúdo)';
+        document.getElementById('previewOverlay').setAttribute('data-open', 'true');
+    }
+    window.previewSource = previewSource;
+
+    function closePreview(e) {
+        if (e && e.target !== document.getElementById('previewOverlay')) return;
+        document.getElementById('previewOverlay').setAttribute('data-open', 'false');
+    }
+    window.closePreview = closePreview;
+
+    const uploadZone = document.getElementById('uploadZone');
+    if (uploadZone) {
+        ['dragenter', 'dragover'].forEach(evt => {
+            uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.setAttribute('data-state', 'dragover'); });
+        });
+        ['dragleave', 'drop'].forEach(evt => {
+            uploadZone.addEventListener(evt, e => { e.preventDefault(); uploadZone.removeAttribute('data-state'); });
+        });
+        uploadZone.addEventListener('drop', e => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const input = document.getElementById('fileInput');
+                input.files = files;
+                uploadFile(input);
+            }
+        });
+    }
+
+    async function syncContext() {
+        const btn = document.getElementById('syncBtn');
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.innerHTML = '<i class="fas fa-spinner assistente-config-spin" aria-hidden="true"></i><span>Sincronizando...</span>';
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/sincronizar`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Contexto sincronizado!', 'success');
+                updateContextStats(data.stats);
+                document.getElementById('lastSyncLabel').innerHTML = '<i class="fas fa-clock" aria-hidden="true"></i><span>Última sincronização: agora</span>';
+            } else {
+                showToast(data.message || 'Erro', 'error');
+            }
+        } catch(e) {
+            showToast('Erro de conexão', 'error');
+        }
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        btn.innerHTML = '<i class="fas fa-sync-alt" aria-hidden="true"></i><span>Sincronizar Agora</span>';
+    }
+    window.syncContext = syncContext;
+
+    function syncContextDisplay() {
+        syncContext();
+    }
+
+    function updateContextStats(stats) {
+        if (!stats) return;
+        document.getElementById('ctxClientes').textContent = stats.clientes || 0;
+        document.getElementById('ctxProcessos').textContent = stats.processos || 0;
+        document.getElementById('ctxAtivos').textContent = stats.processos_ativos ? '(' + stats.processos_ativos + ' ativos)' : '';
+        document.getElementById('ctxPrazos').textContent = stats.prazos || 0;
+        document.getElementById('ctxTarefas').textContent = stats.tarefas || 0;
+        document.getElementById('ctxDocumentos').textContent = stats.documentos || 0;
+    }
+
+    async function saveContext() {
+        const contexto = document.getElementById('customContext').value;
+        const enabled = document.getElementById('maestroEnabled').checked;
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/contexto`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contexto, enabled })
+            });
+            const data = await resp.json();
+            showToast(data.success ? 'Contexto salvo!' : (data.message || 'Erro'), data.success ? 'success' : 'error');
+        } catch(e) {
+            showToast('Erro de conexão', 'error');
+        }
+    }
+    window.saveContext = saveContext;
+
+    const PRESETS = {
+        formal: 'Você é um assistente jurídico formal e técnico. Responda sempre em português brasileiro, citando artigos de lei, jurisprudência e doutrina quando relevante. Use linguagem formal e precisa. Estruture as respostas com fundamentação legal.',
+        direto: 'Você é um assistente jurídico objetivo e conciso. Responda em português brasileiro de forma breve e direta. Use bullet points. Foque no essencial sem rodeios. Seja prático nas sugestões.',
+        didatico: 'Você é um assistente jurídico didático e acessível. Explique conceitos jurídicos de forma simples em português brasileiro. Use exemplos práticos e analogias do cotidiano. Evite jargão técnico desnecessário. Quando usar termos técnicos, explique-os.'
+    };
+
+    function applyPreset(name) {
+        document.getElementById('systemPrompt').value = PRESETS[name] || '';
+    }
+    window.applyPreset = applyPreset;
+
+    async function savePersonality() {
+        const payload = {
+            system_prompt: document.getElementById('systemPrompt').value,
+            cite_laws: document.getElementById('toggleCiteLaws').checked,
+            include_reasoning: document.getElementById('toggleReasoning').checked,
+            ask_clarification: document.getElementById('toggleClarification').checked,
+            suggest_next_steps: document.getElementById('toggleNextSteps').checked,
+        };
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/personalidade`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+            showToast(data.success ? 'Personalidade salva!' : (data.message || 'Erro'), data.success ? 'success' : 'error');
+        } catch(e) {
+            showToast('Erro de conexão', 'error');
+        }
+    }
+    window.savePersonality = savePersonality;
+
+    async function loadHistory() {
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/histórico`);
+            const data = await resp.json();
+            const tbody = document.getElementById('historyBody');
+
+            if (!data.history || data.history.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="assistente-config-empty">Nenhuma conversa registrada</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.history.map(h => `
+                <tr>
+                    <td class="assistente-config-table-time">${formatDate(h.created_at)}</td>
+                    <td class="assistente-config-table-message" title="${escapeHtml(h.message || '')}">${escapeHtml(h.message || '-')}</td>
+                    <td>${h.tokens_used || 0}</td>
+                    <td><span class="assistente-config-model-tag">${escapeHtml(h.model || '-')}</span></td>
+                </tr>
+            `).join('');
+        } catch(e) {
+            document.getElementById('historyBody').innerHTML = '<tr><td colspan="4" class="assistente-config-empty">Erro ao carregar</td></tr>';
+        }
+    }
+
+    async function loadAnalytics() {
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/analytics`);
+            const data = await resp.json();
+
+            document.getElementById('totalConversations').textContent = data.total_conversations || 0;
+            document.getElementById('totalTokens').textContent = (data.total_tokens || 0).toLocaleString();
+
+            if (data.daily && data.daily.length > 0) {
+                const labels = data.daily.map(d => {
+                    const dt = new Date(d.date);
+                    return dt.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' });
+                });
+                const counts = data.daily.map(d => d.count);
+
+                const ctx = document.getElementById('dailyChart');
+                if (dailyChart) dailyChart.destroy();
+
+                const accent = tokenColor('--accent');
+                const accentMuted = tokenColor('--accent-muted');
+                const textMuted = tokenColor('--text-muted');
+                const borderSubtle = tokenColor('--border-subtle');
+
+                dailyChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Perguntas',
+                            data: counts,
+                            borderColor: accent,
+                            backgroundColor: accentMuted,
+                            fill: true,
+                            tension: 0.4,
+                            pointBackgroundColor: accent,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            borderWidth: 2,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { stepSize: 1, color: textMuted, font: { size: 11 } },
+                                grid: { color: borderSubtle },
+                            },
+                            x: {
+                                ticks: { color: textMuted, font: { size: 11 } },
+                                grid: { display: false },
+                            }
+                        }
+                    }
+                });
+            }
+        } catch(e) {
+            console.error('Analytics error:', e);
+        }
+    }
+
+    async function clearHistory() {
+        if (!confirm('Tem certeza que deseja limpar todo o histórico de conversas? Esta ação não pode ser desfeita.')) return;
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/config/histórico`, { method: 'DELETE' });
+            const data = await resp.json();
+            if (data.success) {
+                showToast('Histórico limpo!', 'success');
+                loadHistory();
+                loadAnalytics();
+            } else {
+                showToast(data.message || 'Erro', 'error');
+            }
+        } catch(e) {
+            showToast('Erro de conexão', 'error');
+        }
+    }
+    window.clearHistory = clearHistory;
+
+    setInterval(async () => {
+        try {
+            const resp = await fetch(`${PREFIX}/assistente/api/status`);
+            const data = await resp.json();
+            const pill = document.getElementById('statusPill');
+            if (pill) {
+                pill.setAttribute('data-state', data.status);
+                pill.innerHTML = '<span class="assistente-config-status-dot" aria-hidden="true"></span><span>' +
+                    (data.status === 'online' ? 'Online' : 'Offline') + '</span>';
+            }
+        } catch(e) {}
+    }, 30000);
+})();
+</script>
+{% endblock %}

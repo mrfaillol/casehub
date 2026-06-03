@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Próximos Eventos{% else %}Upcoming Notifications{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-calendar-alt me-2"></i>{% if product == "lite" %}Próximos Eventos{% else %}Upcoming Notifications{% endif %}</h2>
+    <a href="{{ PREFIX }}/notifications" class="btn btn-outline-secondary">
+        <i class="fas fa-cog me-1"></i> {% if product == "lite" %}Configurações{% else %}Settings{% endif %}
+    </a>
+</div>
+
+<div class="row">
+    <!-- Overdue Tasks -->
+    <div class="col-md-4 mb-4">
+        <div class="card border-danger h-100 glass-card">
+            <div class="card-header bg-danger text-white">
+                <i class="fas fa-exclamation-circle me-2"></i>{% if product == "lite" %}Tarefas Atrasadas{% else %}Overdue Tasks{% endif %}
+                <span class="badge bg-light text-danger float-end">{{ overdue_tasks|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if overdue_tasks %}
+                <ul class="list-group list-group-flush">
+                    {% for task in overdue_tasks[:10] %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <a href="{{ PREFIX }}/tasks/{{ task.id }}" class="text-decoration-none">
+                                    {{ task.title }}
+                                </a>
+                                <br>
+                                <small class="text-danger">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    {% if product == "lite" %}Prazo: {{ task.due_date.strftime('%d/%m/%Y') }}{% else %}Due: {{ task.due_date.strftime('%m/%d/%Y') }}{% endif %}
+                                </small>
+                            </div>
+                            {% if task.priority == 'urgent' %}
+                            <span class="badge bg-danger">{% if product == "lite" %}URGENTE{% else %}URGENT{% endif %}</span>
+                            {% elif task.priority == 'high' %}
+                            <span class="badge bg-warning text-dark">{% if product == "lite" %}ALTA{% else %}HIGH{% endif %}</span>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% if overdue_tasks|length > 10 %}
+                <div class="p-2 text-center">
+                    <a href="{{ PREFIX }}/tasks?filter=overdue">{% if product == "lite" %}Ver todas as {{ overdue_tasks|length }} tarefas atrasadas{% else %}View all {{ overdue_tasks|length }} overdue tasks{% endif %}</a>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted text-center py-4 mb-0">
+                    <i class="fas fa-check-circle fa-2x mb-2 text-success d-block"></i>
+                    {% if product == "lite" %}Nenhuma tarefa atrasada!{% else %}No overdue tasks!{% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Upcoming Tasks (Next 7 Days) -->
+    <div class="col-md-4 mb-4">
+        <div class="card border-warning h-100 glass-card">
+            <div class="card-header bg-warning text-dark">
+                <i class="fas fa-clock me-2"></i>{% if product == "lite" %}Vence Esta Semana{% else %}Due This Week{% endif %}
+                <span class="badge bg-dark float-end">{{ upcoming_tasks|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if upcoming_tasks %}
+                <ul class="list-group list-group-flush">
+                    {% for task in upcoming_tasks[:10] %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <a href="{{ PREFIX }}/tasks/{{ task.id }}" class="text-decoration-none">
+                                    {{ task.title }}
+                                </a>
+                                <br>
+                                <small class="text-muted">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    {% if product == "lite" %}{{ task.due_date.strftime('%a, %d/%m') }}{% else %}{{ task.due_date.strftime('%a, %m/%d') }}{% endif %}
+                                </small>
+                            </div>
+                            {% if task.priority == 'urgent' %}
+                            <span class="badge bg-danger">!</span>
+                            {% elif task.priority == 'high' %}
+                            <span class="badge bg-warning text-dark">!</span>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% if upcoming_tasks|length > 10 %}
+                <div class="p-2 text-center">
+                    <a href="{{ PREFIX }}/tasks">{% if product == "lite" %}Ver todas as tarefas{% else %}View all tasks{% endif %}</a>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted text-center py-4 mb-0">
+                    <i class="fas fa-calendar-check fa-2x mb-2 text-muted d-block"></i>
+                    {% if product == "lite" %}Nenhuma tarefa para esta semana{% else %}No tasks due this week{% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- RFE Cases -->
+    {% if product != "lite" %}
+    <div class="col-md-4 mb-4">
+        <div class="card border-info h-100">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-file-alt me-2"></i>RFE Cases
+                <span class="badge bg-light text-info float-end">{{ rfe_cases|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if rfe_cases %}
+                <ul class="list-group list-group-flush">
+                    {% for case in rfe_cases[:10] %}
+                    <li class="list-group-item">
+                        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="text-decoration-none">
+                            {{ case.case_name or case.case_number or "Case #" ~ case.id }}
+                        </a>
+                        <br>
+                        <small class="text-muted">{{ case.visa_type or 'N/A' }}</small>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% if rfe_cases|length > 10 %}
+                <div class="p-2 text-center">
+                    <a href="{{ PREFIX }}/cases?status=rfe">View all RFE cases</a>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted text-center py-4 mb-0">
+                    <i class="fas fa-check-circle fa-2x mb-2 text-success d-block"></i>
+                    No RFE cases
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Notification Schedule -->
+<div class="card glass-card">
+    <div class="card-header">
+        <i class="fas fa-paper-plane me-2"></i>{% if product == "lite" %}Notificações Agendadas{% else %}Scheduled Notifications{% endif %}
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            {% if product == "lite" %}
+            Com base nas suas tarefas e configurações atuais, veja quando as notificações serão enviadas:
+            {% else %}
+            Based on your current tasks and settings, here's when notifications would be sent:
+            {% endif %}
+        </p>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>{% if product == "lite" %}Data{% else %}Date{% endif %}</th>
+                        <th>{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                        <th>{% if product == "lite" %}Tarefa/Processo{% else %}Task/Case{% endif %}</th>
+                        <th>{% if product == "lite" %}Destinatário{% else %}Recipient{% endif %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in upcoming_tasks[:5] %}
+                    <tr>
+                        <td>{% if product == "lite" %}{{ task.due_date.strftime('%d/%m/%Y') }}{% else %}{{ task.due_date.strftime('%m/%d/%Y') }}{% endif %}</td>
+                        <td><span class="badge bg-warning text-dark">{% if product == "lite" %}Prazo{% else %}Deadline{% endif %}</span></td>
+                        <td>{{ task.title }}</td>
+                        <td>{{ user.email }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% if not upcoming_tasks %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">{% if product == "lite" %}Nenhuma notificação agendada{% else %}No scheduled notifications{% endif %}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

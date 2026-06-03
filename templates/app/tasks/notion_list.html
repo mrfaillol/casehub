@@ -1,0 +1,818 @@
+{% extends "app/base.html" %}
+{% set active_module = 'kanban' %}
+{% block title %}Tasks · Notion_List · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <style>
+    /* Page-specific Tabs */
+    .tab-notion {
+        border-radius: 20px;
+        padding: 8px 20px;
+        margin-right: 8px;
+        font-weight: 500;
+        border: 2px solid transparent;
+        transition: all 0.2s;
+    }
+    .tab-notion:hover {
+        opacity: 0.85;
+    }
+    .tab-notion.active {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .tab-all {
+        background: #6c757d;
+        color: white;
+    }
+    .tab-all.active, .tab-all:hover {
+        background: #5a6268;
+        color: white;
+    }
+    .tab-juliana {
+        background: rgba(220, 53, 69, 0.1);
+        color: #ef4444;
+        border-color: #ef4444;
+    }
+    .tab-juliana.active {
+        background: #ef4444;
+        color: white;
+    }
+    .tab-ana {
+        background: rgba(255, 193, 7, 0.1);
+        color: #856404;
+        border-color: #f59e0b;
+    }
+    .tab-ana.active {
+        background: #f59e0b;
+        color: #212529;
+    }
+    .source-badge-juliana {
+        background: #ef4444;
+        color: white;
+    }
+    .source-badge-ana {
+        background: #f59e0b;
+        color: #212529;
+    }
+    .task-row:hover {
+        background: rgba(0,0,0,0.02);
+    }
+    .status-todo { color: #6c757d; }
+    .status-doing { color: #1C2447; }
+    .status-done { color: #22c55e; }
+    .priority-urgente { background: #ef4444; color: white; }
+    .priority-alta { background: #fd7e14; color: white; }
+    .priority-normal { background: #6c757d; color: white; }
+    .priority-baixa { background: #adb5bd; color: #212529; }
+    .notion-link {
+        color: #6ab0ff;
+        text-decoration: none;
+    }
+    .notion-link:hover {
+        color: #8ac4ff;
+        text-decoration: underline;
+    }
+
+    /* Action Buttons */
+    .action-btns {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+        align-items: center;
+    }
+    .action-btns .btn {
+        padding: 4px 8px;
+        font-size: 12px;
+        line-height: 1;
+        border-radius: 4px;
+    }
+
+    /* === KANBAN STYLES === */
+    .view-toggle-container {
+        display: inline-flex;
+        gap: 4px;
+        background: #f0f0f0;
+        padding: 4px;
+        border-radius: 8px;
+        margin-left: 16px;
+    }
+    .view-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border: none;
+        background: transparent;
+        color: #666;
+        cursor: pointer;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    .view-toggle:hover {
+        background: rgba(0,0,0,0.05);
+    }
+    .view-toggle.active {
+        background: #6366f1;
+        color: white;
+        box-shadow: 0 2px 4px rgba(99,102,241,0.3);
+    }
+
+    /* Kanban Board */
+    .kanban-board {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        min-height: 500px;
+        padding: 16px 0;
+    }
+    @media (max-width: 1200px) {
+        .kanban-board {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    @media (max-width: 768px) {
+        .kanban-board {
+            grid-template-columns: 1fr;
+        }
+    }
+    .kanban-column {
+        background: #f8f9fa;
+        border-radius: 12px;
+        min-height: 400px;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #e9ecef;
+    }
+    .kanban-column-header {
+        padding: 14px 16px;
+        border-radius: 12px 12px 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: 600;
+        font-size: 14px;
+    }
+    .kanban-column-header .count {
+        background: rgba(255,255,255,0.3);
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+    }
+    .kanban-column-body {
+        padding: 12px;
+        flex: 1;
+        overflow-y: auto;
+        max-height: 600px;
+    }
+    .kanban-column.drag-over {
+        background: #e8f4ff;
+        border-color: #6366f1;
+    }
+
+    /* Kanban Cards */
+    .kanban-card {
+        background: white;
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 10px;
+        cursor: grab;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transition: all 0.2s ease;
+    }
+    .kanban-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+    .kanban-card.dragging {
+        opacity: 0.5;
+        transform: rotate(3deg) scale(1.02);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+    .kanban-card-title {
+        font-weight: 600;
+        font-size: 13px;
+        color: #1a1a2e;
+        margin-bottom: 8px;
+        line-height: 1.4;
+    }
+    .kanban-card-title a {
+        color: inherit;
+        text-decoration: none;
+    }
+    .kanban-card-title a:hover {
+        color: #6366f1;
+    }
+    .kanban-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        font-size: 11px;
+    }
+    .kanban-card-meta .badge {
+        font-weight: 500;
+    }
+    .kanban-card-client {
+        color: #666;
+        font-size: 12px;
+        margin-bottom: 6px;
+    }
+    .kanban-card-date {
+        color: #999;
+        font-size: 11px;
+        margin-top: 8px;
+    }
+    .kanban-card-date.overdue {
+        color: #ef4444;
+        font-weight: 600;
+    }
+
+    /* Status Colors */
+    .kanban-column[data-status="A fazer"] .kanban-column-header,
+    .kanban-column[data-status="To Do"] .kanban-column-header {
+        background: linear-gradient(135deg, #6c757d, #5a6268);
+        color: white;
+    }
+    .kanban-column[data-status="Em andamento"] .kanban-column-header,
+    .kanban-column[data-status="Doing"] .kanban-column-header,
+    .kanban-column[data-status="In Progress"] .kanban-column-header {
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        color: white;
+    }
+    .kanban-column[data-status="Concluido"] .kanban-column-header,
+    .kanban-column[data-status="Done"] .kanban-column-header {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+    }
+    .kanban-column[data-status="Cancelado"] .kanban-column-header,
+    .kanban-column[data-status="Cancelled"] .kanban-column-header {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+    }
+
+    /* Animations */
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .kanban-card {
+        animation: slideIn 0.3s ease;
+    }
+
+    /* Hide views */
+    .view-list { display: block; }
+    .view-kanban { display: none; }
+    body.kanban-mode .view-list { display: none; }
+    body.kanban-mode .view-kanban { display: block; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="fab fa-notion me-2"></i>Notion Tasks</h2>
+        <p class="text-muted mb-0">Tasks from Notion databases (Juliana + Ana Clara)</p>
+    </div>
+    <div>
+        <a href="{{ PREFIX }}/tasks/notion/new" class="btn btn-primary glass-btn glass-btn--primary me-2">
+            <i class="fas fa-plus me-1"></i> Nova Task
+        </a>
+        <button class="btn btn-outline-secondary" onclick="refreshTasks()" title="Refresh from Notion">
+            <i class="fas fa-sync-alt" id="refreshIcon"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Task Source Tabs -->
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <a class="nav-link active" href="{{ PREFIX }}/tasks/notion">
+            <i class="fab fa-notion me-1"></i> Notion Tasks (Juliana + Ana)
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="{{ PREFIX }}/tasks/local">
+            <i class="fas fa-database me-1"></i> Tasks Locais
+        </a>
+    </li>
+</ul>
+
+{% if error %}
+<div class="alert alert-danger">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    Error loading Notion tasks: {{ error }}
+</div>
+{% endif %}
+
+<!-- View Toggle + Tabs -->
+<div class="mb-4 d-flex align-items-center flex-wrap">
+    <div>
+        <a href="{{ PREFIX }}/tasks/notion" class="btn tab-notion tab-all {% if not selected_source %}active{% endif %}">
+            <i class="fas fa-list me-1"></i> Todas
+            <span class="badge bg-light text-dark ms-1">{{ total_count }}</span>
+        </a>
+    <a href="{{ PREFIX }}/tasks/notion?source=juliana" class="btn tab-notion tab-juliana {% if selected_source == 'juliana' %}active{% endif %}">
+        <i class="fas fa-circle me-1" style="font-size:8px"></i> Juliana
+        <span class="badge bg-light text-danger ms-1">{{ juliana_count }}</span>
+    </a>
+    <a href="{{ PREFIX }}/tasks/notion?source=ana" class="btn tab-notion tab-ana {% if selected_source == 'ana' %}active{% endif %}">
+        <i class="fas fa-circle me-1" style="font-size:8px"></i> Ana Clara
+        <span class="badge bg-light text-dark ms-1">{{ ana_count }}</span>
+    </a>
+    </div>
+
+    <!-- View Toggle -->
+    <div class="view-toggle-container">
+        <button id="view-list-btn" class="view-toggle active" onclick="switchView('list')">
+            <i class="fas fa-list"></i> Lista
+        </button>
+        <button id="view-kanban-btn" class="view-toggle" onclick="switchView('kanban')">
+            <i class="fas fa-columns"></i> Kanban
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center py-3">
+                <h3 class="mb-0">{{ overdue_count }}</h3>
+                <small>Atrasadas</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning">
+            <div class="card-body text-center py-3">
+                <h3 class="mb-0">{{ today_count }}</h3>
+                <small>Vencem Hoje</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center py-3">
+                <h3 class="mb-0">{{ tasks|length }}</h3>
+                <small>Mostrando</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card glass-card">
+            <div class="card-body text-center py-3">
+                <a href="{{ PREFIX }}/tasks" class="text-decoration-none">
+                    <i class="fas fa-database me-1"></i> Ver Tasks Locais
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+    <form method="get" class="row g-2 align-items-center">
+        {% if selected_source %}
+        <input type="hidden" name="source" value="{{ selected_source }}">
+        {% endif %}
+
+        <div class="col-auto">
+            <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">Status</option>
+                {% for s in all_statuses %}
+                <option value="{{ s }}" {% if selected_status == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-auto">
+            <select name="visa_type" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">Visa Type</option>
+                {% for v in all_visa_types %}
+                <option value="{{ v }}" {% if selected_visa_type == v %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-auto">
+            <select name="client" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">Cliente</option>
+                {% for c in all_clients %}
+                <option value="{{ c }}" {% if selected_client == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-auto">
+            <select name="priority" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">Prioridade</option>
+                {% for p in all_priorities %}
+                <option value="{{ p }}" {% if selected_priority == p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if selected_status or selected_visa_type or selected_client or selected_priority %}
+        <div class="col-auto">
+            <a href="{{ PREFIX }}/tasks/notion{% if selected_source %}?source={{ selected_source }}{% endif %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-times me-1"></i> Limpar
+            </a>
+        </div>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Tasks Table (List View) -->
+<div class="card view-list">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:80px">Origem</th>
+                    <th>Task</th>
+                    <th>Cliente</th>
+                    <th>Visa</th>
+                    <th>Due Date</th>
+                    <th>Status</th>
+                    <th>Prioridade</th>
+                    <th style="width:80px">Ação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr class="task-row {% if task.status in ['Done', 'Concluido'] %}text-muted{% endif %}">
+                    <td>
+                        <span class="badge source-badge-{{ task.source }}" title="{{ task.source_name }}">
+                            {{ task.source|capitalize }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{{ task.notion_url }}" target="_blank" class="notion-link">
+                            <strong>{{ task.title or '(Sem título)' }}</strong>
+                            <i class="fas fa-external-link-alt ms-1" style="font-size:10px;opacity:0.5"></i>
+                        </a>
+                        {% if task.description %}
+                        <br><small class="text-muted">{{ task.description[:50] }}{% if task.description|length > 50 %}...{% endif %}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.client_names %}
+                            {% for client in task.client_names %}
+                            <span class="badge bg-light text-dark me-1">{{ client }}</span>
+                            {% endfor %}
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.visa_type %}
+                        <span class="badge bg-info">{{ task.visa_type }}</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.due_date %}
+                            {% set today = now()|string %}
+                            {% if task.due_date < today and task.status not in ['Done', 'Concluido'] %}
+                                <span class="text-danger">
+                                    <i class="fas fa-exclamation-circle me-1"></i>{{ task.due_date }}
+                                </span>
+                            {% elif task.due_date == today %}
+                                <span class="text-warning">
+                                    <i class="fas fa-clock me-1"></i>Hoje
+                                </span>
+                            {% else %}
+                                {{ task.due_date }}
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.status %}
+                            {% if task.status in ['Done', 'Concluido'] %}
+                                <span class="badge bg-success">{{ task.status }}</span>
+                            {% elif task.status in ['Doing', 'In Progress', 'Em andamento'] %}
+                                <span class="badge bg-primary">{{ task.status }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ task.status }}</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if task.priority %}
+                            {% set prio_class = 'normal' %}
+                            {% if task.priority|lower == 'urgente' %}{% set prio_class = 'urgente' %}
+                            {% elif task.priority|lower == 'alta' %}{% set prio_class = 'alta' %}
+                            {% elif task.priority|lower == 'baixa' %}{% set prio_class = 'baixa' %}
+                            {% endif %}
+                            <span class="badge priority-{{ prio_class }}">{{ task.priority }}</span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="action-btns">
+                            <a href="{{ task.notion_url }}" target="_blank" class="btn btn-outline-primary glass-btn glass-btn--ghost" title="Abrir no Notion">
+                                <i class="fab fa-notion"></i>
+                            </a>
+                            {% if task.document_url %}
+                            <a href="{{ task.document_url }}" target="_blank" class="btn btn-outline-secondary" title="Ver Documento">
+                                <i class="fas fa-file"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center py-5 text-muted">
+                        <i class="fab fa-notion fa-3x mb-3 d-block"></i>
+                        {% if error %}
+                        Erro ao carregar tasks do Notion
+                        {% else %}
+                        Nenhuma task encontrada
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if tasks %}
+<div class="mt-3 text-muted small view-list">
+    <i class="fas fa-info-circle me-1"></i>
+    Mostrando {{ tasks|length }} tasks. Clique em uma task para abrir no Notion.
+</div>
+{% endif %}
+
+<!-- Kanban View -->
+<div class="view-kanban" id="kanban-container">
+    <div id="kanban-board" class="kanban-board"></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<!-- Block 1: Server data (isolated - errors here won't break functions) -->
+<script>
+var PREFIX = "{{ PREFIX }}";
+try {
+    var tasksData = {{ tasks_json|safe }};
+} catch(e) {
+    console.warn('[Tasks] Error parsing inline data:', e);
+    var tasksData = [];
+}
+</script>
+
+<!-- Block 2: Pure JavaScript functions (no Jinja2 = no conflicts) -->
+<script>
+// Status configuration
+const statusConfig = {
+    'A fazer': { order: 1 },
+    'To Do': { order: 1 },
+    'Em andamento': { order: 2 },
+    'Doing': { order: 2 },
+    'In Progress': { order: 2 },
+    'Concluido': { order: 3 },
+    'Done': { order: 3 },
+    'Cancelado': { order: 4 },
+    'Cancelled': { order: 4 }
+};
+
+// Normalize status to standard names
+function normalizeStatus(status) {
+    if (!status) return 'A fazer';
+    const s = status.toLowerCase();
+    if (s.includes('fazer') || s === 'to do') return 'A fazer';
+    if (s.includes('andamento') || s === 'doing' || s.includes('progress')) return 'Em andamento';
+    if (s.includes('conclu') || s === 'done') return 'Concluido';
+    if (s.includes('cancel')) return 'Cancelado';
+    return status;
+}
+
+// Get unique statuses from tasks
+function getStatusColumns() {
+    const statuses = new Set();
+    tasksData.forEach(t => {
+        const normalized = normalizeStatus(t.status);
+        statuses.add(normalized);
+    });
+    ['A fazer', 'Em andamento', 'Concluido', 'Cancelado'].forEach(s => statuses.add(s));
+    return Array.from(statuses).sort((a, b) => {
+        const orderA = statusConfig[a]?.order || 99;
+        const orderB = statusConfig[b]?.order || 99;
+        return orderA - orderB;
+    });
+}
+
+// Current view mode
+let currentViewMode = localStorage.getItem('notionTasksViewMode') || 'list';
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // If tasksData is empty (Block 1 had error), fetch via API
+    if (!tasksData || tasksData.length === 0) {
+        fetch(PREFIX + '/tasks/api/notion/tasks')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.tasks) {
+                    tasksData = data.tasks;
+                }
+                if (currentViewMode === 'kanban') {
+                    switchView('kanban');
+                }
+            })
+            .catch(err => console.error('[Tasks] API fallback failed:', err));
+    } else {
+        if (currentViewMode === 'kanban') {
+            switchView('kanban');
+        }
+    }
+});
+
+// Switch between views
+function switchView(mode) {
+    currentViewMode = mode;
+    localStorage.setItem('notionTasksViewMode', mode);
+
+    const listBtn = document.getElementById('view-list-btn');
+    const kanbanBtn = document.getElementById('view-kanban-btn');
+
+    if (mode === 'kanban') {
+        document.body.classList.add('kanban-mode');
+        listBtn.classList.remove('active');
+        kanbanBtn.classList.add('active');
+        renderKanbanBoard();
+    } else {
+        document.body.classList.remove('kanban-mode');
+        listBtn.classList.add('active');
+        kanbanBtn.classList.remove('active');
+    }
+}
+
+// Render Kanban board
+function renderKanbanBoard() {
+    const board = document.getElementById('kanban-board');
+    if (!board) return;
+
+    const statuses = getStatusColumns();
+
+    let html = '';
+    statuses.forEach(status => {
+        const tasks = tasksData.filter(t => normalizeStatus(t.status) === status);
+
+        html += `
+            <div class="kanban-column" data-status="${status}">
+                <div class="kanban-column-header">
+                    <span>${status}</span>
+                    <span class="count">${tasks.length}</span>
+                </div>
+                <div class="kanban-column-body"
+                     ondragover="handleDragOver(event)"
+                     ondrop="handleDrop(event, '${status}')"
+                     ondragleave="handleDragLeave(event)">
+                    ${tasks.map(task => renderKanbanCard(task)).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    board.innerHTML = html;
+}
+
+// Render a single Kanban card
+function renderKanbanCard(task) {
+    const today = new Date().toISOString().split('T')[0];
+    const isOverdue = task.due_date && task.due_date < today &&
+                      !['Concluido', 'Done', 'Cancelado', 'Cancelled'].includes(task.status);
+
+    const clients = task.client_names && task.client_names.length > 0
+        ? task.client_names.join(', ')
+        : '';
+
+    const priorityClass = task.priority ? `priority-${task.priority.toLowerCase()}` : '';
+
+    return `
+        <div class="kanban-card"
+             draggable="true"
+             data-task-id="${task.id}"
+             ondragstart="handleDragStart(event, '${task.id}')"
+             ondragend="handleDragEnd(event)">
+            <div class="kanban-card-title">
+                <a href="${task.notion_url || '#'}" target="_blank">
+                    ${task.title || '(Sem título)'}
+                    <i class="fas fa-external-link-alt ms-1" style="font-size:9px;opacity:0.4"></i>
+                </a>
+            </div>
+            ${clients ? `<div class="kanban-card-client"><i class="fas fa-user me-1"></i>${clients}</div>` : ''}
+            <div class="kanban-card-meta">
+                ${task.visa_type ? `<span class="badge bg-info">${task.visa_type}</span>` : ''}
+                ${task.priority ? `<span class="badge ${priorityClass}">${task.priority}</span>` : ''}
+                ${task.source ? `<span class="badge source-badge-${task.source}">${task.source}</span>` : ''}
+            </div>
+            ${task.due_date ? `
+                <div class="kanban-card-date ${isOverdue ? 'overdue' : ''}">
+                    <i class="fas fa-calendar me-1"></i>${task.due_date}
+                    ${isOverdue ? ' <i class="fas fa-exclamation-circle"></i>' : ''}
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Drag & Drop handlers
+let draggedTaskId = null;
+
+function handleDragStart(event, taskId) {
+    draggedTaskId = taskId;
+    event.target.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragEnd(event) {
+    event.target.classList.remove('dragging');
+    document.querySelectorAll('.kanban-column').forEach(col => {
+        col.classList.remove('drag-over');
+    });
+}
+
+function handleDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const column = event.target.closest('.kanban-column');
+    if (column) {
+        column.classList.add('drag-over');
+    }
+}
+
+function handleDragLeave(event) {
+    const column = event.target.closest('.kanban-column');
+    if (column && !column.contains(event.relatedTarget)) {
+        column.classList.remove('drag-over');
+    }
+}
+
+function handleDrop(event, newStatus) {
+    event.preventDefault();
+    const column = event.target.closest('.kanban-column');
+    if (column) {
+        column.classList.remove('drag-over');
+    }
+
+    if (!draggedTaskId) return;
+
+    const task = tasksData.find(t => t.id === draggedTaskId);
+    if (task) {
+        task.status = newStatus;
+        renderKanbanBoard();
+        showToast('Task movida para "' + newStatus + '"');
+    }
+
+    draggedTaskId = null;
+}
+
+// Toast notification
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #1a1a2e;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+}
+
+// Refresh tasks from Notion API
+function refreshTasks() {
+    const icon = document.getElementById('refreshIcon');
+    icon.classList.add('fa-spin');
+
+    fetch(PREFIX + '/tasks/api/notion/tasks?refresh=true')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                showToast('Erro ao atualizar: ' + (data.error || 'Unknown'));
+                icon.classList.remove('fa-spin');
+            }
+        })
+        .catch(err => {
+            showToast('Erro: ' + err);
+            icon.classList.remove('fa-spin');
+        });
+}
+</script>
+{% endblock %}

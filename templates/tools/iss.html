@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}ISS - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-iss.css">
+{% endblock %}
+
+{% block content %}
+<div class="iss-main" aria-labelledby="iss-page-title">
+    <header class="iss-header iss-no-print">
+        <div>
+            <h1 class="iss-header__title" id="iss-page-title">
+                <i class="fas fa-concierge-bell" aria-hidden="true"></i>
+                <span>ISS — Imposto sobre Serviços</span>
+            </h1>
+            <p class="iss-header__subtitle">LC 116/2003, LC 157/2016</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="iss-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    <div class="iss-grid {% if resultado %}iss-grid--with-result{% else %}iss-grid--centered{% endif %}">
+        <section aria-labelledby="iss-form-title">
+            <form class="iss-form" method="POST" action="{{ PREFIX }}/tools/iss/calcular">
+                <div class="iss-card">
+                    <div class="iss-card__body">
+                        <h2 class="iss-section-title" id="iss-form-title">Dados do Serviço</h2>
+
+                        <div class="iss-field">
+                            <label class="iss-label" for="valor_servico">Valor do Serviço (R$)</label>
+                            <div class="iss-input-group">
+                                <span class="iss-input-addon iss-input-addon--prefix" aria-hidden="true">R$</span>
+                                <input class="iss-input"
+                                       type="number"
+                                       id="valor_servico"
+                                       name="valor_servico"
+                                       step="0.01"
+                                       min="0"
+                                       inputmode="decimal"
+                                       value="{{ form.valor_servico if form else '' }}"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="iss-field-row">
+                            <div class="iss-field">
+                                <label class="iss-label" for="aliquota">Alíquota Municipal (%)</label>
+                                <div class="iss-input-group iss-input-group--suffix">
+                                    <input class="iss-input"
+                                           type="number"
+                                           id="aliquota"
+                                           name="aliquota"
+                                           step="0.01"
+                                           min="2"
+                                           max="5"
+                                           inputmode="decimal"
+                                           value="{{ form.aliquota if form else '5.0' }}"
+                                           aria-describedby="aliquota-hint"
+                                           required>
+                                    <span class="iss-input-addon iss-input-addon--suffix" aria-hidden="true">%</span>
+                                </div>
+                                <small class="iss-hint" id="aliquota-hint">Mínimo 2%, máximo 5%</small>
+                            </div>
+                            <div class="iss-field">
+                                <label class="iss-label" for="municipio">Município (opcional)</label>
+                                <input class="iss-input--plain"
+                                       type="text"
+                                       id="municipio"
+                                       name="municipio"
+                                       value="{{ form.municipio if form else '' }}"
+                                       placeholder="Ex: Juiz de Fora/MG">
+                            </div>
+                        </div>
+
+                        <div class="iss-actions iss-no-print">
+                            <button type="submit" class="iss-btn iss-btn--primary">
+                                <i class="fas fa-calculator" aria-hidden="true"></i>
+                                <span>Calcular ISS</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        {% if resultado %}
+        <section class="iss-result" id="resultado" aria-labelledby="iss-result-title">
+            <article class="iss-card">
+                <header class="iss-card__header">
+                    <h2 class="iss-card__header-title" id="iss-result-title">
+                        <i class="fas fa-receipt" aria-hidden="true"></i>
+                        <span>Resultado do Cálculo</span>
+                    </h2>
+                </header>
+
+                <div class="iss-table-wrapper">
+                    <table class="iss-table">
+                        <tbody>
+                            <tr>
+                                <th scope="row">Valor do Serviço</th>
+                                <td>R$ {{ resultado.valor_servico_fmt }}</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">Alíquota</th>
+                                <td>{{ resultado.aliquota }}%</td>
+                            </tr>
+                            {% if resultado.municipio %}
+                            <tr>
+                                <th scope="row">Município</th>
+                                <td>{{ resultado.municipio }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="iss-row--total">
+                                <th scope="row">ISS a Pagar</th>
+                                <td>R$ {{ resultado.iss_fmt }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="iss-card__footer">
+                    <div class="iss-legal">
+                        <p class="iss-legal__title">
+                            <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </p>
+                        <ul class="iss-legal__list">
+                            {% for ref in resultado.fundamentacao %}
+                            <li>{{ ref }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <div class="iss-print-actions iss-no-print">
+                        <button type="button" class="iss-btn iss-btn--secondary" onclick="window.print()">
+                            <i class="fas fa-print" aria-hidden="true"></i>
+                            <span>Imprimir</span>
+                        </button>
+                    </div>
+                </footer>
+            </article>
+        </section>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

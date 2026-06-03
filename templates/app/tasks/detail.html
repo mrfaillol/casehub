@@ -1,0 +1,295 @@
+{% extends "app/base.html" %}
+{% set active_module = 'kanban' %}
+{% block title %}{{ task.title }} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Tarefa · #{{ task.id }}
+      {% if task.status %} ·
+        {% if task.status == 'completed' %}<span style="color: var(--c-green-d);">Concluída</span>
+        {% elif task.status == 'in_progress' %}<span style="color: var(--c-info);">Em andamento</span>
+        {% elif task.status == 'blocked' %}<span style="color: var(--c-danger);">Bloqueada</span>
+        {% else %}<span style="color: var(--c-warn);">Pendente</span>{% endif %}
+      {% endif %}
+    </span>
+    <h1><em>{{ task.title }}</em></h1>
+    {% if task.tags %}
+    <p class="ch-page-head__sub" style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+      {% for tag in task.tags.split(',') if tag.strip() %}
+      <span class="ch-pill"><span class="dot"></span>{{ tag.strip() }}</span>
+      {% endfor %}
+    </p>
+    {% endif %}
+  </div>
+  <div class="ch-page-head__actions">
+    {% if task.status != 'completed' %}
+    <form method="post" action="{{ PREFIX }}/tasks/{{ task.id }}/complete" style="margin: 0; display: inline-flex;">
+      <button class="ch-btn" type="submit" style="color: var(--c-green-d);">
+        <span data-icon="check"></span> Concluir
+      </button>
+    </form>
+    {% endif %}
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/tasks/{{ task.id }}/edit">
+      <span data-icon="settings"></span> Editar
+    </a>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);">
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Detalhes</span>
+        <h2 class="ch-card__title">Status & metadados</h2>
+      </div>
+    </header>
+    <div class="ch-list" role="list">
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="flame"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">
+            {% if task.priority == 'urgent' %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>Urgente</span>
+            {% elif task.priority == 'high' %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>Alta</span>
+            {% elif task.priority == 'medium' %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>Média</span>
+            {% else %}
+              <span class="ch-pill"><span class="dot"></span>Baixa</span>
+            {% endif %}
+          </p>
+          <p class="ch-list__meta">Prioridade</p>
+        </div>
+      </div>
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="target"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ task.task_type or '—' }}</p>
+          <p class="ch-list__meta">Tipo</p>
+        </div>
+      </div>
+      {% if task.estimated_hours %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><strong style="font-family: var(--mono); font-size: 10px;">HR</strong></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title ch-mono">{{ task.estimated_hours }}h</p>
+          <p class="ch-list__meta">Horas estimadas</p>
+        </div>
+      </div>
+      {% endif %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="user"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ task.assignee.name if task.assignee else 'Não atribuído' }}</p>
+          <p class="ch-list__meta">Responsável</p>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Datas</span>
+        <h2 class="ch-card__title">Cronograma</h2>
+      </div>
+    </header>
+    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0;">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Vencimento</span>
+        <span>
+          {% if task.due_date %}
+            <strong class="ch-mono">{{ task.due_date.strftime('%d/%m/%Y') }}</strong>
+            {% if task.due_date < now() and task.status != 'completed' %}
+              <span class="ch-pill ch-pill--danger" style="margin-left: var(--space-2);"><span class="dot"></span>Atrasada</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Lembrete</span>
+        <strong class="ch-mono">{{ task.reminder_date.strftime('%d/%m/%Y') if task.reminder_date else '—' }}</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Criada</span>
+        <strong class="ch-mono">{{ task.created_at.strftime('%d/%m/%Y às %H:%M') if task.created_at else '—' }}</strong>
+      </div>
+      {% if task.completed_at %}
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Concluída</span>
+        <strong class="ch-mono" style="color: var(--c-green-d);">{{ task.completed_at.strftime('%d/%m/%Y às %H:%M') }}</strong>
+      </div>
+      {% endif %}
+    </div>
+  </article>
+</section>
+
+{% if task.description %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Descrição</span>
+      <h2 class="ch-card__title">Contexto</h2>
+    </div>
+  </header>
+  <pre style="white-space: pre-wrap; word-wrap: break-word; font-family: var(--sans); color: var(--fg-default); margin: 0; line-height: var(--lh-base);">{{ task.description }}</pre>
+</section>
+{% endif %}
+
+{% if task.subtasks and task.subtasks|length > 0 %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Decomposição</span>
+      <h2 class="ch-card__title">Subtarefas</h2>
+    </div>
+    <span class="ch-pill ch-pill--info"><span class="dot"></span>
+      {{ task.subtasks|selectattr('status', 'equalto', 'completed')|list|length }}/{{ task.subtasks|length }} concluídas
+    </span>
+  </header>
+  <div class="ch-list">
+    {% for sub in task.subtasks %}
+    <div class="ch-list__row" style="{% if sub.status == 'completed' %}opacity: 0.6;{% endif %}">
+      <span class="ch-list__icon" aria-hidden="true">
+        <label class="ch-checkbox" style="margin: 0;">
+          <input type="checkbox" {% if sub.status == 'completed' %}checked{% endif %}
+                 onchange="toggleSubtask({{ sub.id }}, this)" style="cursor: pointer;">
+        </label>
+      </span>
+      <div class="ch-list__body">
+        <p class="ch-list__title" style="{% if sub.status == 'completed' %}text-decoration: line-through;{% endif %}">{{ sub.title }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if task.client or task.case %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Vínculos</span>
+      <h2 class="ch-card__title">Registros relacionados</h2>
+    </div>
+  </header>
+  <div class="ch-list">
+    {% if task.client %}
+    <a class="ch-list__row" href="{{ PREFIX }}/clients/{{ task.client.id }}">
+      <span class="ch-list__icon"><span data-icon="user"></span></span>
+      <div class="ch-list__body">
+        <p class="ch-list__title">{{ task.client.first_name }} {{ task.client.last_name }}</p>
+        <p class="ch-list__meta">Cliente</p>
+      </div>
+      <div class="ch-list__right"><span data-icon="chevron_right" data-icon-size="14"></span></div>
+    </a>
+    {% endif %}
+    {% if task.case %}
+    <a class="ch-list__row" href="{{ PREFIX }}/cases/{{ task.case.id }}">
+      <span class="ch-list__icon"><span data-icon="folder"></span></span>
+      <div class="ch-list__body">
+        <p class="ch-list__title">{{ task.case.case_number or task.case.case_name or ('Processo #' + task.case.id|string) }}</p>
+        <p class="ch-list__meta">Processo</p>
+      </div>
+      <div class="ch-list__right"><span data-icon="chevron_right" data-icon-size="14"></span></div>
+    </a>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="ch-card" id="comments" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Conversa</span>
+      <h2 class="ch-card__title">Comentários</h2>
+    </div>
+    <span class="ch-pill"><span class="dot"></span>{{ comments|length if comments is defined else 0 }}</span>
+  </header>
+  {% if comments is defined and comments|length > 0 %}
+  <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+    {% for comment in comments %}
+    <article style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-1);">
+      <span aria-hidden="true"
+            style="width: 32px; height: 32px; border-radius: 50%; background: var(--c-navy); color: var(--c-pollen); display: inline-flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: var(--fs-xs); font-weight: 600;">
+        {{ comment.user.name[0]|upper if comment.user else '?' }}
+      </span>
+      <div>
+        <header style="display: flex; gap: var(--space-2); align-items: baseline; margin-bottom: var(--space-1); flex-wrap: wrap;">
+          <strong>{{ comment.user.name if comment.user else 'Usuário' }}</strong>
+          <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
+            {{ comment.created_at.strftime('%d/%m/%Y às %H:%M') }}
+          </span>
+        </header>
+        <p style="white-space: pre-wrap; margin: 0; line-height: var(--lh-base);">{{ comment.content }}</p>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="ch-empty" style="padding: var(--space-4) 0;">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="inbox"></span></span>
+    <p style="margin: 0;">Nenhum comentário ainda.</p>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ PREFIX }}/tasks/{{ task.id }}/comments"
+        style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line);">
+    <div class="ch-field">
+      <label class="ch-field__label" for="content">Novo comentário</label>
+      <textarea class="ch-textarea" id="content" name="content" rows="3" placeholder="Escreva um comentário…" required></textarea>
+    </div>
+    <div style="display: flex; justify-content: flex-end;">
+      <button type="submit" class="ch-btn ch-btn--primary">
+        <span data-icon="check"></span> Publicar comentário
+      </button>
+    </div>
+  </form>
+</section>
+
+<section class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+  <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint); letter-spacing: 0.10em; text-transform: uppercase;">
+    ID #{{ task.id }} · Última atualização {{ task.updated_at.strftime('%d/%m/%Y') if task.updated_at else (task.created_at.strftime('%d/%m/%Y') if task.created_at else '—') }}
+  </span>
+  <form method="post" action="{{ PREFIX }}/tasks/{{ task.id }}/delete"
+        onsubmit="return confirm('Deletar esta tarefa? Esta ação não pode ser desfeita.');"
+        style="margin: 0;">
+    <button class="ch-btn ch-btn--ghost" type="submit" style="color: var(--c-danger);">
+      <span data-icon="x"></span> Deletar tarefa
+    </button>
+  </form>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function toggleSubtask(subtaskId, checkbox) {
+    const PREFIX = '{{ PREFIX }}';
+    try {
+        const resp = await fetch(`${PREFIX}/tasks/api/${subtaskId}/subtask/toggle`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            const row = checkbox.closest('.ch-list__row');
+            const titleEl = row.querySelector('.ch-list__title');
+            if (data.status === 'completed') {
+                row.style.opacity = '0.6';
+                if (titleEl) titleEl.style.textDecoration = 'line-through';
+            } else {
+                row.style.opacity = '1';
+                if (titleEl) titleEl.style.textDecoration = 'none';
+            }
+        } else {
+            checkbox.checked = !checkbox.checked;
+        }
+    } catch (err) {
+        console.error('Failed to toggle subtask:', err);
+        checkbox.checked = !checkbox.checked;
+    }
+}
+</script>
+{% endblock %}

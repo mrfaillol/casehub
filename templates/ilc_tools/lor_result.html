@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}LOR Generated - Tools - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/ilc-tools/lor" class="btn btn-outline-secondary btn-sm mb-2">
+        <i class="fas fa-arrow-left me-1"></i> {{ 'Nova LOR' if lang == 'pt-BR' else 'New LOR' }}
+    </a>
+    <h2><i class="fas fa-check-circle text-success me-2"></i>{{ 'LOR Gerada com Sucesso' if lang == 'pt-BR' else 'LOR Generated Successfully' }}</h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-file-alt me-2"></i>Letter of Recommendation</span>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-primary" onclick="copyToClipboard()">
+                        <i class="fas fa-copy me-1"></i> {{ 'Copiar' if lang == 'pt-BR' else 'Copy' }}
+                    </button>
+                    <a href="{{ PREFIX }}/ilc-tools/lor/download?id={{ result.id }}" class="btn btn-sm btn-outline-success">
+                        <i class="fas fa-download me-1"></i> Word
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="lorContent" class="p-3 bg-light rounded" style="white-space: pre-wrap; font-family: 'Times New Roman', serif; line-height: 1.8;">{{ result.content if result.content else result.letter if result.letter else 'No content generated' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>{{ 'Detalhes' if lang == 'pt-BR' else 'Details' }}
+            </div>
+            <div class="card-body">
+                <dl class="mb-0 small">
+                    <dt>{{ 'Beneficiário' if lang == 'pt-BR' else 'Beneficiary' }}</dt>
+                    <dd>{{ lor_data.beneficiary_name }}</dd>
+
+                    <dt>{{ 'Área' if lang == 'pt-BR' else 'Field' }}</dt>
+                    <dd>{{ lor_data.field_of_expertise }}</dd>
+
+                    <dt>{{ 'Escritor' if lang == 'pt-BR' else 'Writer' }}</dt>
+                    <dd>{{ lor_data.writer_name }}</dd>
+
+                    <dt>{{ 'Instituição' if lang == 'pt-BR' else 'Institution' }}</dt>
+                    <dd>{{ lor_data.writer_institution }}</dd>
+
+                    {% if case_id %}
+                    <dt>{{ 'Vinculado ao Caso' if lang == 'pt-BR' else 'Linked to Case' }}</dt>
+                    <dd><a href="{{ PREFIX }}/cases/{{ case_id }}">Caso #{{ case_id }}</a></dd>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+
+        <div class="card glass-card">
+            <div class="card-body">
+                <a href="{{ PREFIX }}/ilc-tools/lor" class="btn btn-primary glass-btn glass-btn--primary w-100 mb-2">
+                    <i class="fas fa-plus me-1"></i> {{ 'Criar Outra LOR' if lang == 'pt-BR' else 'Create Another LOR' }}
+                </a>
+                <a href="{{ PREFIX }}/ilc-tools" class="btn btn-outline-secondary w-100">
+                    <i class="fas fa-tools me-1"></i> {{ 'Voltar às Ferramentas' if lang == 'pt-BR' else 'Back to Tools' }}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyToClipboard() {
+    const content = document.getElementById('lorContent').innerText;
+    navigator.clipboard.writeText(content).then(function() {
+        alert('{{ 'LOR copiada para a área de transferência!' if lang == 'pt-BR' else 'LOR copied to clipboard!' }}');
+    });
+}
+</script>
+{% endblock %}

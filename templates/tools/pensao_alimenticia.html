@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Pensão Alimentícia - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-pensao-alimenticia.css">
+{% endblock %}
+
+{% block content %}
+<div class="pensao-main" aria-labelledby="pensao-title">
+    <div class="pensao-container">
+        <header class="pensao-header no-print">
+            <div class="pensao-header-text">
+                <h1 id="pensao-title" class="pensao-title">
+                    <i class="fas fa-child pensao-title-icon" aria-hidden="true"></i>
+                    <span>Pensão Alimentícia</span>
+                </h1>
+                <p class="pensao-subtitle">CC Art. 1694-1710</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="pensao-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        {% if error %}
+        <div class="pensao-alert" role="alert">
+            <div>
+                <i class="fas fa-exclamation-triangle pensao-alert-icon" aria-hidden="true"></i>
+                <span>{{ error }}</span>
+            </div>
+            <button type="button" class="pensao-alert-close no-print" aria-label="Fechar alerta" onclick="this.closest('.pensao-alert').remove()">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </div>
+        {% endif %}
+
+        <div class="pensao-layout {% if resultado %}pensao-layout--with-result{% else %}pensao-layout--form-only{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/pensao-alimenticia/calcular" class="pensao-form">
+                <div class="pensao-card">
+                    <div class="pensao-card-body">
+                        <section class="pensao-section" aria-labelledby="pensao-section-alimentante">
+                            <h2 id="pensao-section-alimentante" class="pensao-section-title">Dados do Alimentante</h2>
+
+                            <div class="pensao-field">
+                                <label for="renda" class="pensao-label">Renda do Alimentante (R$)</label>
+                                <div class="pensao-input-group">
+                                    <span class="pensao-input-group-text" aria-hidden="true">R$</span>
+                                    <input type="number" class="pensao-input" id="renda" name="renda"
+                                           step="0.01" min="0" value="{{ form.renda if form else '' }}"
+                                           required aria-required="true">
+                                </div>
+                            </div>
+
+                            <div class="pensao-grid">
+                                <div class="pensao-field">
+                                    <label for="num_filhos" class="pensao-label">Número de Filhos</label>
+                                    <input type="number" class="pensao-input" id="num_filhos" name="num_filhos"
+                                           min="1" max="20" value="{{ form.num_filhos if form else '1' }}"
+                                           required aria-required="true">
+                                </div>
+                                <div class="pensao-field">
+                                    <label for="percentual" class="pensao-label">Percentual da Renda (%)</label>
+                                    <div class="pensao-input-group">
+                                        <input type="number" class="pensao-input" id="percentual" name="percentual"
+                                               step="0.5" min="1" max="100"
+                                               value="{{ form.percentual if form else '30' }}"
+                                               required aria-required="true"
+                                               aria-describedby="pensao-hint-percentual">
+                                        <span class="pensao-input-group-text pensao-input-group-text--suffix" aria-hidden="true">%</span>
+                                    </div>
+                                    <span id="pensao-hint-percentual" class="pensao-hint">Padrão: ~30% para 1 filho, ~33% para 2+</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="pensao-section" aria-labelledby="pensao-section-despesas">
+                            <h2 id="pensao-section-despesas" class="pensao-section-title">Despesas Especiais</h2>
+
+                            <div class="pensao-field">
+                                <label for="despesas_especiais" class="pensao-label">Despesas Extras — Saúde, Educação (R$)</label>
+                                <div class="pensao-input-group">
+                                    <span class="pensao-input-group-text" aria-hidden="true">R$</span>
+                                    <input type="number" class="pensao-input" id="despesas_especiais" name="despesas_especiais"
+                                           step="0.01" min="0"
+                                           value="{{ form.despesas_especiais if form else '0' }}"
+                                           aria-describedby="pensao-hint-despesas">
+                                </div>
+                                <span id="pensao-hint-despesas" class="pensao-hint">Valores extras além do percentual (ex: plano de saúde, escola)</span>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+                <div class="pensao-actions no-print">
+                    <button type="submit" class="pensao-btn pensao-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/pensao-alimenticia" class="pensao-btn pensao-btn--ghost">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+
+            {% if resultado %}
+            <section class="pensao-result" id="resultado" aria-labelledby="pensao-result-title">
+                <article class="pensao-card">
+                    <header class="pensao-card-header">
+                        <h2 id="pensao-result-title" class="pensao-card-title">
+                            <i class="fas fa-file-invoice-dollar" aria-hidden="true"></i>
+                            <span>Resultado — Pensão Alimentícia</span>
+                        </h2>
+                        <button type="button" class="pensao-btn pensao-btn--on-accent pensao-btn--sm no-print" onclick="window.print()">
+                            <i class="fas fa-print" aria-hidden="true"></i>
+                            <span>Imprimir</span>
+                        </button>
+                    </header>
+                    <div class="pensao-card-body">
+                        <div class="pensao-table-wrap">
+                            <table class="pensao-table" aria-label="Resultado do cálculo de pensão alimentícia">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Item</th>
+                                        <th scope="col">Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <th scope="row">Renda do Alimentante</th>
+                                        <td>R$ {{ "%.2f"|format(resultado.renda) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Percentual Aplicado</th>
+                                        <td>{{ resultado.percentual }}%</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Número de Filhos</th>
+                                        <td>{{ resultado.num_filhos }}</td>
+                                    </tr>
+                                    <tr class="pensao-row--highlight">
+                                        <th scope="row">Pensão Total</th>
+                                        <td>R$ {{ "%.2f"|format(resultado.pensao_total) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Pensão por Filho</th>
+                                        <td>R$ {{ "%.2f"|format(resultado.pensao_por_filho) }}</td>
+                                    </tr>
+                                    {% if resultado.despesas_especiais > 0 %}
+                                    <tr>
+                                        <th scope="row">Despesas Especiais</th>
+                                        <td>R$ {{ "%.2f"|format(resultado.despesas_especiais) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Pensão + Despesas</th>
+                                        <td>R$ {{ "%.2f"|format(resultado.pensao_com_despesas) }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Por Filho (com despesas)</th>
+                                        <td>R$ {{ "%.2f"|format(resultado.pensao_por_filho_com_desp) }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    <tr>
+                                        <th scope="row">Em Salários Mínimos (SM = R$ {{ "%.2f"|format(resultado.salario_minimo) }})</th>
+                                        <td>{{ resultado.pensao_em_sm }} SM</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Por Filho em SM</th>
+                                        <td>{{ resultado.pensao_por_filho_sm }} SM</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Comprometimento da Renda</th>
+                                        <td>{{ resultado.comprometimento }}%</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">13º da Pensão</th>
+                                        <td>R$ {{ "%.2f"|format(resultado.pensao_13) }}</td>
+                                    </tr>
+                                    <tr class="pensao-row--total">
+                                        <th scope="row">TOTAL ANUAL (12 meses + 13º)</th>
+                                        <td>R$ {{ "%.2f"|format(resultado.pensao_anual + resultado.pensao_13) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="pensao-card-footer">
+                        <p class="pensao-legal-title">
+                            <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                            <span>Fundamentação Legal</span>
+                        </p>
+                        <ul class="pensao-legal-list">
+                            <li><strong>CC Art. 1694</strong> — Alimentos devidos entre pais e filhos reciprocamente</li>
+                            <li><strong>CC Art. 1695</strong> — Binômio necessidade-possibilidade</li>
+                            <li><strong>CC Art. 1699</strong> — Revisão judicial a qualquer tempo</li>
+                            <li><strong>CC Art. 1710</strong> — Prestações incluem educação se menor</li>
+                            <li><strong>Súmula 277 STJ</strong> — Julgada procedente a investigação de paternidade, os alimentos são devidos a partir da citação</li>
+                        </ul>
+                        <p class="pensao-legal-disclaimer">
+                            <i class="fas fa-info-circle" aria-hidden="true"></i>
+                            <span>Cálculo estimativo. O valor final depende da análise judicial do binômio necessidade-possibilidade. SM vigente: R$ {{ "%.2f"|format(resultado.salario_minimo) }}.</span>
+                        </p>
+                    </div>
+                </article>
+            </section>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 992) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

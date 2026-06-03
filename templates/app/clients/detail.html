@@ -1,0 +1,254 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% block title %}{{ client.full_name if client else 'Cliente' }} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">
+      Cliente · {{ client.client_number or 'CL-%04d'|format(client.id) }}
+      {% if client.status %} ·
+        {% if client.status == 'active' %}<span style="color: var(--c-green-d);">Ativo</span>
+        {% elif client.status == 'lead' %}<span style="color: var(--c-info);">Lead</span>
+        {% elif client.status == 'prospect' %}<span style="color: var(--c-warn);">Prospecto</span>
+        {% elif client.status == 'closed' %}<span style="color: var(--fg-muted);">Encerrado</span>
+        {% else %}{{ client.status }}{% endif %}
+      {% endif %}
+    </span>
+    <h1>{{ client.first_name }} <em>{{ client.last_name }}</em></h1>
+    <p class="ch-page-head__sub">
+      {% if client.email %}<a href="mailto:{{ client.email }}" style="color: var(--c-green-d);">{{ client.email }}</a>{% endif %}
+      {% if client.email and client.phone %} · {% endif %}
+      {% if client.phone %}{{ client.phone }}{% endif %}
+      {% if client.whatsapp %} · WhatsApp <a href="https://wa.me/{{ client.whatsapp|replace('+','')|replace(' ','')|replace('-','') }}" style="color: var(--c-green-d);">{{ client.whatsapp }}</a>{% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/cases/new?client_id={{ client.id }}">
+      <span data-icon="plus"></span> Novo processo
+    </a>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/documents/upload?client_id={{ client.id }}">
+      <span data-icon="docs"></span> Anexar documento
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/clients/{{ client.id }}/edit">
+      <span data-icon="settings"></span> Editar
+    </a>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-5);">
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Identificação</span>
+        <h2 class="ch-card__title">Dados pessoais</h2>
+      </div>
+    </header>
+    <div class="ch-list" role="list">
+      {% if client.cpf %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><strong style="font-family: var(--mono); font-size: 10px;">CPF</strong></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title ch-mono">{{ client.cpf }}</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.rg %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><strong style="font-family: var(--mono); font-size: 10px;">RG</strong></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title ch-mono">{{ client.rg }}</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.cnpj %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><strong style="font-family: var(--mono); font-size: 10px;">CNPJ</strong></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title ch-mono">{{ client.cnpj }}</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.oab_number %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><strong style="font-family: var(--mono); font-size: 10px;">OAB</strong></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title ch-mono">{{ client.oab_number }}</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.date_of_birth %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="calendar"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ client.date_of_birth.strftime('%d/%m/%Y') }}</p>
+          <p class="ch-list__meta">Nascimento</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.country_of_origin %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="target"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ client.country_of_origin }}</p>
+          <p class="ch-list__meta">Origem</p>
+        </div>
+      </div>
+      {% endif %}
+      {% if client.address %}
+      <div class="ch-list__row">
+        <span class="ch-list__icon" aria-hidden="true"><span data-icon="folder"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ client.address }}</p>
+          <p class="ch-list__meta">Endereço</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Histórico</span>
+        <h2 class="ch-card__title">Cadastro & atividade</h2>
+      </div>
+    </header>
+    <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0;">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Cadastrado em</span>
+        <strong>{{ client.created_at.strftime('%d/%m/%Y às %H:%M') if client.created_at else '—' }}</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Tipo</span>
+        <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ client.client_type|default('individual') }}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Processos</span>
+        <strong>{{ (cases|length if cases else 0) }}</strong>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-top: 1px solid var(--line);">
+        <span style="color: var(--fg-muted); font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em; text-transform: uppercase;">Documentos</span>
+        <strong>{{ (documents|length if documents else 0) }}</strong>
+      </div>
+    </div>
+    <footer class="ch-card__footer">
+      <a class="ch-card__action" href="{{ PREFIX }}/whatsapp?client_id={{ client.id }}">
+        <span data-icon="bell"></span> Abrir WhatsApp
+      </a>
+      <a class="ch-card__action" href="{{ PREFIX }}/controladoria?client_id={{ client.id }}">
+        <span data-icon="controladoria"></span> Controladoria
+      </a>
+    </footer>
+  </article>
+</section>
+
+{% if cases and cases|length > 0 %}
+<section class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Processos vinculados</span>
+      <h2 class="ch-card__title">{{ cases|length }} {% if cases|length == 1 %}processo{% else %}processos{% endif %}</h2>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/cases?client_id={{ client.id }}">
+      Ver todos <span data-icon="chevron_right" data-icon-size="14"></span>
+    </a>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>Processo</th>
+          <th>Tipo</th>
+          <th>Status</th>
+          <th>Atualizado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cases %}
+        <tr>
+          <td data-label="Processo">
+            <strong>{{ c.case_number or c.numero_processo or 'CASE-%04d'|format(c.id) }}</strong>
+            <div style="color: var(--fg-muted); font-size: var(--fs-xs);">{{ c.case_name or c.tipo_acao or '' }}</div>
+          </td>
+          <td data-label="Tipo" class="ch-mono" style="font-size: var(--fs-xs);">{{ c.visa_type or c.tipo_acao or '—' }}</td>
+          <td data-label="Status">
+            {% set s = (c.status or 'active')|lower %}
+            {% if s in ['closed','approved','denied','concluido','finalizado'] %}
+              <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ c.status }}</span>
+            {% elif s in ['review','rfe'] %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ c.status }}</span>
+            {% else %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ c.status or 'Ativo' }}</span>
+            {% endif %}
+          </td>
+          <td data-label="Atualizado" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
+            {{ c.updated_at.strftime('%d/%m/%Y') if c.updated_at else '—' }}
+          </td>
+          <td data-label="" style="text-align: right;">
+            <a class="ch-chip" href="{{ PREFIX }}/cases/{{ c.id }}">
+              <span data-icon="chevron_right" data-icon-size="14"></span>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if documents and documents|length > 0 %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Documentos</span>
+      <h2 class="ch-card__title">{{ documents|length }} arquivos</h2>
+    </div>
+    <a class="ch-card__action" href="{{ PREFIX }}/documents?client_id={{ client.id }}">
+      Ver todos <span data-icon="chevron_right" data-icon-size="14"></span>
+    </a>
+  </header>
+  <div class="ch-list">
+    {% for doc in documents[:6] %}
+    <a class="ch-list__row" href="{{ PREFIX }}/documents/{{ doc.id }}">
+      <span class="ch-list__icon"><span data-icon="file"></span></span>
+      <div class="ch-list__body">
+        <p class="ch-list__title">{{ doc.name }}</p>
+        <p class="ch-list__meta">{{ doc.doc_type or 'arquivo' }} · {{ (doc.file_size / 1024)|round(0)|int if doc.file_size else '?' }} KB</p>
+      </div>
+      <div class="ch-list__right">
+        <span class="ch-pill"><span class="dot"></span>{{ doc.uploaded_at.strftime('%d/%m/%Y') if doc.uploaded_at else (doc.created_at.strftime('%d/%m/%Y') if doc.created_at else '') }}</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if client.notes %}
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Observações</span>
+      <h2 class="ch-card__title">Notas internas</h2>
+    </div>
+  </header>
+  <pre style="white-space: pre-wrap; word-wrap: break-word; font-family: var(--sans); color: var(--fg-default); margin: 0; line-height: var(--lh-base);">{{ client.notes }}</pre>
+</section>
+{% endif %}
+
+<section class="ch-card ch-card--compact" style="display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap;">
+  <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint); letter-spacing: 0.10em; text-transform: uppercase;">
+    ID #{{ client.id }} · Última atualização {{ client.updated_at.strftime('%d/%m/%Y') if client.updated_at else (client.created_at.strftime('%d/%m/%Y') if client.created_at else '—') }}
+  </span>
+  <form method="post" action="{{ PREFIX }}/clients/{{ client.id }}/delete"
+        onsubmit="return confirm('Excluir cliente {{ client.full_name }}? Esta ação não pode ser desfeita.');"
+        style="margin: 0;">
+    <button class="ch-btn ch-btn--ghost" type="submit" style="color: var(--c-danger);">
+      <span data-icon="x"></span> Excluir cliente
+    </button>
+  </form>
+</section>
+{% endblock %}

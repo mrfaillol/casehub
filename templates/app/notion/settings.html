@@ -1,0 +1,280 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Notion · Settings · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/notion-settings.css">
+{% endblock %}
+{% block content %}
+<div class="nset-main" aria-labelledby="nset-title">
+    <header class="nset-header">
+        <h1 id="nset-title" class="nset-title">
+            <i class="fab fa-notion" aria-hidden="true"></i>
+            <span>Notion Integration</span>
+        </h1>
+        <p class="nset-subtitle">
+            {{ 'Sincronize dados entre CaseHub e Notion' if lang == 'pt-BR' else 'Sync data between CaseHub and Notion' }}
+        </p>
+    </header>
+
+    {% if error %}
+    <div class="nset-alert nset-alert--danger" role="alert">
+        <i class="fas fa-exclamation-triangle nset-alert-icon" aria-hidden="true"></i>
+        <div class="nset-alert-body">{{ error }}</div>
+    </div>
+    {% endif %}
+
+    <div class="nset-grid">
+        <div class="nset-col">
+            <!-- Connection Settings -->
+            <section class="nset-card" aria-labelledby="nset-config-title">
+                <header class="nset-card-header">
+                    <h2 id="nset-config-title" class="nset-card-title">
+                        <i class="fas fa-plug" aria-hidden="true"></i>
+                        <span>{{ 'Configuração' if lang == 'pt-BR' else 'Configuration' }}</span>
+                    </h2>
+                </header>
+                <div class="nset-card-body">
+                    <form method="POST" action="{{ PREFIX }}/notion/save-config" class="nset-form">
+                        <div class="nset-field">
+                            <label class="nset-label" for="nset-token">Notion API Token</label>
+                            <input id="nset-token" type="password" name="token" class="nset-input nset-input--mono"
+                                   value="{{ config.token }}" placeholder="ntn_...">
+                            <p class="nset-help">
+                                {{ 'Obtenha em notion.so/my-integrations' if lang == 'pt-BR' else 'Get from notion.so/my-integrations' }}
+                            </p>
+                        </div>
+
+                        <div class="nset-field">
+                            <label class="nset-label" for="nset-clients-db">Clients Database ID</label>
+                            <input id="nset-clients-db" type="text" name="clients_database_id" class="nset-input nset-input--mono"
+                                   value="{{ config.clients_database_id }}"
+                                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                        </div>
+
+                        <div class="nset-field">
+                            <label class="nset-label" for="nset-cases-db">Cases Database ID</label>
+                            <input id="nset-cases-db" type="text" name="cases_database_id" class="nset-input nset-input--mono"
+                                   value="{{ config.cases_database_id }}"
+                                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                        </div>
+
+                        <div class="nset-field">
+                            <label class="nset-checkbox" for="nset-auto-sync">
+                                <input id="nset-auto-sync" type="checkbox" class="nset-checkbox-input" name="auto_sync"
+                                       {{ 'checked' if config.auto_sync else '' }}>
+                                <span>{{ 'Sincronização automática' if lang == 'pt-BR' else 'Auto-sync enabled' }}</span>
+                            </label>
+                        </div>
+
+                        <div>
+                            <button type="submit" class="nset-btn nset-btn--primary">
+                                <i class="fas fa-save" aria-hidden="true"></i>
+                                <span>{{ 'Salvar' if lang == 'pt-BR' else 'Save' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Connection Status -->
+            <section class="nset-card" aria-labelledby="nset-status-title">
+                <header class="nset-card-header">
+                    <h2 id="nset-status-title" class="nset-card-title">
+                        <i class="fas fa-wifi" aria-hidden="true"></i>
+                        <span>{{ 'Status da Conexão' if lang == 'pt-BR' else 'Connection Status' }}</span>
+                    </h2>
+                </header>
+                <div class="nset-card-body">
+                    {% if connection_status %}
+                        {% if connection_status.success %}
+                        <div class="nset-alert nset-alert--success nset-alert--inline" role="status">
+                            <i class="fas fa-check-circle nset-alert-icon" aria-hidden="true"></i>
+                            <div class="nset-alert-body">
+                                {{ 'Conectado como' if lang == 'pt-BR' else 'Connected as' }}:
+                                <strong>{{ connection_status.user }}</strong>
+                                <br><small>Type: {{ connection_status.type }}</small>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="nset-alert nset-alert--danger nset-alert--inline" role="alert">
+                            <i class="fas fa-times-circle nset-alert-icon" aria-hidden="true"></i>
+                            <div class="nset-alert-body">
+                                {{ 'Erro' if lang == 'pt-BR' else 'Error' }}: {{ connection_status.error }}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                    <div class="nset-alert nset-alert--neutral nset-alert--inline" role="status">
+                        <i class="fas fa-question-circle nset-alert-icon" aria-hidden="true"></i>
+                        <div class="nset-alert-body">
+                            {{ 'Configure o token para testar a conexão' if lang == 'pt-BR' else 'Configure token to test connection' }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+
+        <div class="nset-col">
+            <!-- Sync Actions -->
+            <section class="nset-card" aria-labelledby="nset-sync-title">
+                <header class="nset-card-header">
+                    <h2 id="nset-sync-title" class="nset-card-title">
+                        <i class="fas fa-sync" aria-hidden="true"></i>
+                        <span>{{ 'Sincronização' if lang == 'pt-BR' else 'Synchronization' }}</span>
+                    </h2>
+                </header>
+                <div class="nset-card-body">
+                    <!-- Clients Sync -->
+                    <div class="nset-sync-row">
+                        <div class="nset-sync-head">
+                            <h3 class="nset-sync-label">
+                                <i class="fas fa-users" aria-hidden="true"></i>
+                                <span>Clients</span>
+                            </h3>
+                            <span class="nset-badge">
+                                {{ client_count }} {{ 'registros' if lang == 'pt-BR' else 'records' }}
+                            </span>
+                        </div>
+                        <div class="nset-sync-actions">
+                            <form method="POST" action="{{ PREFIX }}/notion/sync/clients" class="nset-sync-form">
+                                <input type="hidden" name="direction" value="to_notion">
+                                <button type="submit" class="nset-btn nset-btn--ghost nset-btn--sm"
+                                        {{ 'disabled' if not config.clients_database_id else '' }}>
+                                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                    <span>{{ 'Para Notion' if lang == 'pt-BR' else 'To Notion' }}</span>
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ PREFIX }}/notion/sync/clients" class="nset-sync-form">
+                                <input type="hidden" name="direction" value="from_notion">
+                                <button type="submit" class="nset-btn nset-btn--success nset-btn--sm"
+                                        {{ 'disabled' if not config.clients_database_id else '' }}>
+                                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                                    <span>{{ 'Do Notion' if lang == 'pt-BR' else 'From Notion' }}</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Cases Sync -->
+                    <div class="nset-sync-row">
+                        <div class="nset-sync-head">
+                            <h3 class="nset-sync-label">
+                                <i class="fas fa-folder" aria-hidden="true"></i>
+                                <span>Cases</span>
+                            </h3>
+                            <span class="nset-badge">
+                                {{ case_count }} {{ 'registros' if lang == 'pt-BR' else 'records' }}
+                            </span>
+                        </div>
+                        <div class="nset-sync-actions">
+                            <form method="POST" action="{{ PREFIX }}/notion/sync/cases" class="nset-sync-form">
+                                <input type="hidden" name="direction" value="to_notion">
+                                <button type="submit" class="nset-btn nset-btn--ghost nset-btn--sm"
+                                        {{ 'disabled' if not config.cases_database_id else '' }}>
+                                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                    <span>{{ 'Para Notion' if lang == 'pt-BR' else 'To Notion' }}</span>
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ PREFIX }}/notion/sync/cases" class="nset-sync-form">
+                                <input type="hidden" name="direction" value="from_notion">
+                                <button type="submit" class="nset-btn nset-btn--success nset-btn--sm"
+                                        {{ 'disabled' if not config.cases_database_id else '' }}>
+                                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                                    <span>{{ 'Do Notion' if lang == 'pt-BR' else 'From Notion' }}</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    {% if config.last_sync %}
+                    <div class="nset-last-sync">
+                        <i class="fas fa-clock" aria-hidden="true"></i>
+                        <span>
+                            {{ 'Última sincronização' if lang == 'pt-BR' else 'Last sync' }}: {{ config.last_sync }}
+                        </span>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+
+            <!-- Available Databases -->
+            {% if databases %}
+            <section class="nset-card" aria-labelledby="nset-dbs-title">
+                <header class="nset-card-header">
+                    <h2 id="nset-dbs-title" class="nset-card-title">
+                        <i class="fas fa-database" aria-hidden="true"></i>
+                        <span>{{ 'Databases Disponíveis' if lang == 'pt-BR' else 'Available Databases' }}</span>
+                    </h2>
+                </header>
+                <div class="nset-card-body">
+                    <ul class="nset-db-list">
+                        {% for db in databases %}
+                        <li class="nset-db-item">
+                            <div class="nset-db-info">
+                                <span class="nset-db-name">{{ db.title[0].text.content if db.title else 'Untitled' }}</span>
+                                <span class="nset-db-id">{{ db.id }}</span>
+                            </div>
+                            <button type="button" class="nset-btn nset-btn--icon nset-btn--sm"
+                                    data-nset-copy="{{ db.id }}"
+                                    aria-label="{{ 'Copiar ID' if lang == 'pt-BR' else 'Copy ID' }}: {{ db.id }}">
+                                <i class="fas fa-copy" aria-hidden="true"></i>
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="nset-toast" class="nset-toast" role="status" aria-live="polite" aria-atomic="true"></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+    var toast = document.getElementById('nset-toast');
+    var toastTimer = null;
+
+    function showToast(message) {
+        if (!toast) return;
+        toast.textContent = message;
+        toast.classList.add('is-visible');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+            toast.classList.remove('is-visible');
+        }, 1800);
+    }
+
+    function fallbackCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) { /* noop */ }
+        document.body.removeChild(ta);
+    }
+
+    document.querySelectorAll('[data-nset-copy]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var text = btn.getAttribute('data-nset-copy') || '';
+            var done = function () { showToast('Database ID copied'); };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done, function () {
+                    fallbackCopy(text);
+                    done();
+                });
+            } else {
+                fallbackCopy(text);
+                done();
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

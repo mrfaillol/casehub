@@ -1,0 +1,111 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Bulk · Dashboard · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/bulk-dashboard.css">
+{% endblock %}
+{% block content %}
+<div class="bulk-dashboard-main" aria-labelledby="bulk-dashboard-title">
+
+    {# ── Header ───────────────────────────────────────── #}
+    <header class="bulk-dashboard-header">
+        <h1 id="bulk-dashboard-title" class="bulk-dashboard-title">
+            <i class="fas fa-layer-group" aria-hidden="true"></i>
+            <span>{% if is_lite %}Operações em Lote{% else %}Bulk Operations{% endif %}</span>
+        </h1>
+        <p class="bulk-dashboard-subtitle">
+            {% if is_lite %}Realize ações em múltiplos registros de uma vez{% else %}Perform actions on multiple records at once{% endif %}
+        </p>
+    </header>
+
+    {# ── Quick actions ────────────────────────────────── #}
+    <nav class="bulk-dashboard-actions" aria-label="{% if is_lite %}Atalhos de operações em lote{% else %}Bulk operation shortcuts{% endif %}">
+        <a href="{{ PREFIX }}/bulk/cases" class="bulk-dashboard-action">
+            <span class="bulk-dashboard-action-icon" aria-hidden="true">
+                <i class="fas fa-briefcase"></i>
+            </span>
+            <h2 class="bulk-dashboard-action-title">{% if is_lite %}Processos{% else %}Cases{% endif %}</h2>
+            <p class="bulk-dashboard-action-desc">
+                {% if is_lite %}Atualizar status, atribuir, excluir ou exportar processos{% else %}Update status, assign, delete, or export cases{% endif %}
+            </p>
+        </a>
+
+        <a href="{{ PREFIX }}/bulk/clients" class="bulk-dashboard-action">
+            <span class="bulk-dashboard-action-icon bulk-dashboard-action-icon--success" aria-hidden="true">
+                <i class="fas fa-users"></i>
+            </span>
+            <h2 class="bulk-dashboard-action-title">{% if is_lite %}Clientes{% else %}Clients{% endif %}</h2>
+            <p class="bulk-dashboard-action-desc">
+                {% if is_lite %}Atualizar status, enviar e-mails ou exportar clientes{% else %}Update status, send emails, or export clients{% endif %}
+            </p>
+        </a>
+
+        <div class="bulk-dashboard-action bulk-dashboard-action--disabled" aria-disabled="true">
+            <span class="bulk-dashboard-action-icon bulk-dashboard-action-icon--muted" aria-hidden="true">
+                <i class="fas fa-tasks"></i>
+            </span>
+            <h2 class="bulk-dashboard-action-title">{% if is_lite %}Tarefas{% else %}Tasks{% endif %}</h2>
+            <p class="bulk-dashboard-action-desc">
+                {% if is_lite %}Em breve{% else %}Coming soon{% endif %}
+            </p>
+        </div>
+    </nav>
+
+    {# ── Recent operations ────────────────────────────── #}
+    <section class="bulk-dashboard-card" aria-labelledby="bulk-dashboard-recent-title">
+        <header class="bulk-dashboard-card-header">
+            <h2 id="bulk-dashboard-recent-title" class="bulk-dashboard-card-title">
+                <i class="fas fa-history" aria-hidden="true"></i>
+                <span>{% if is_lite %}Operações Recentes{% else %}Recent Operations{% endif %}</span>
+            </h2>
+        </header>
+        <div class="bulk-dashboard-card-body">
+            {% if recent_ops %}
+            <div class="bulk-dashboard-table-wrap">
+                <table class="bulk-dashboard-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{% if is_lite %}Data{% else %}Date{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Entidade{% else %}Entity{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Operação{% else %}Operation{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Registros{% else %}Records{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Resultado{% else %}Result{% endif %}</th>
+                            <th scope="col">{% if is_lite %}Usuário{% else %}User{% endif %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for op in recent_ops %}
+                        <tr>
+                            <td class="bulk-dashboard-table-date">
+                                {% if is_lite %}{{ op.created_at.strftime('%d/%m/%Y %H:%M') if op.created_at else '-' }}{% else %}{{ op.created_at.strftime('%Y-%m-%d %H:%M') if op.created_at else '-' }}{% endif %}
+                            </td>
+                            <td><span class="bulk-dashboard-badge">{{ op.entity_type }}</span></td>
+                            <td>{{ op.operation }}</td>
+                            <td class="bulk-dashboard-table-count">{{ op.total_count }}</td>
+                            <td>
+                                <span class="bulk-dashboard-result">
+                                    <span class="bulk-dashboard-result-success">{{ op.success_count }} {% if is_lite %}sucesso{% else %}success{% endif %}</span>
+                                    {% if op.failed_count > 0 %}
+                                    <span class="bulk-dashboard-result-sep">/</span>
+                                    <span class="bulk-dashboard-result-failed">{{ op.failed_count }} {% if is_lite %}falha(s){% else %}failed{% endif %}</span>
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>{{ op.user_name or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="bulk-dashboard-empty">
+                {% if is_lite %}Nenhuma operação em lote realizada ainda.{% else %}No bulk operations performed yet.{% endif %}
+            </p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

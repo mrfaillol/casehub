@@ -1,0 +1,912 @@
+{% extends "base.html" %}
+{% block title %}{% if product == "lite" %}Documentos{% else %}Documents{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="fas fa-folder-open me-2"></i>{% if product == "lite" %}Documentos{% else %}Documents{% endif %}</h2>
+    <div class="d-flex gap-2">
+        <div class="d-flex gap-2" role="group">
+            <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-sm active" data-view="list" title="{% if product == 'lite' %}Lista{% else %}List{% endif %}">
+                <i class="fas fa-list"></i>
+            </button>
+            <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-sm" data-view="grid" title="Grid">
+                <i class="fas fa-th-large"></i>
+            </button>
+            <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-sm" data-view="tree" title="{% if product == 'lite' %}Por Cliente{% else %}By Client{% endif %}">
+                <i class="fas fa-sitemap"></i>
+            </button>
+        </div>
+        <a href="{{ PREFIX }}/documents/upload" class="btn btn-primary glass-btn glass-btn--primary btn-sm">
+            <i class="fas fa-upload me-1"></i> {% if product == "lite" %}Enviar{% else %}Upload{% endif %}
+        </a>
+        <button type="button" class="btn btn-outline-success glass-btn glass-btn--ghost btn-sm" data-bs-toggle="modal" data-bs-target="#uploadLocalModal">
+            <i class="fas fa-folder-plus me-1"></i> {% if product == "lite" %}Enviar Arquivo{% else %}Upload Local{% endif %}
+        </button>
+    </div>
+</div>
+
+<!-- Sync Info -->
+<div class="alert alert-info border-0 mb-3 py-2 glass-card">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-sync-alt me-2"></i>
+        <span><strong>Google Drive ↔ CaseHub</strong> · {% if product == "lite" %}Sincronizado a cada 15 min{% else %}Synced every 15 min{% endif %}</span>
+        <span class="ms-auto badge bg-success"><i class="fas fa-check me-1"></i>OK</span>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card glass-card mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <input type="text" class="form-control form-control-sm glass-input" name="search" placeholder="{% if product == 'lite' %}Buscar...{% else %}Search...{% endif %}" value="{{ search or '' }}">
+            </div>
+            <div class="col-md-2">
+                <select name="doc_type" class="form-select form-select-sm glass-input">
+                    <option value="">{% if product == "lite" %}Todos os tipos{% else %}All types{% endif %}</option>
+                    {% if product == "lite" %}
+                    {% for t in ['Procuração','Contrato','Petição','Certidão','Laudo','Comprovante','Foto','Outro'] %}
+                    <option value="{{ t }}" {% if doc_type == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                    {% else %}
+                    {% for t in ['Passaporte','Resume','LOR','Diploma','Tax','Photo','USCIS Form','Outro'] %}
+                    <option value="{{ t }}" {% if doc_type == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="workflow_state" class="form-select form-select-sm glass-input">
+                    <option value="">Status</option>
+                    {% if product == "lite" %}
+                    <option value="approved" {% if workflow_state == "approved" %}selected{% endif %}>Aprovado</option>
+                    <option value="pending_review" {% if workflow_state == "pending_review" %}selected{% endif %}>Pendente</option>
+                    <option value="uploaded" {% if workflow_state == "uploaded" %}selected{% endif %}>Novo</option>
+                    <option value="rejected" {% if workflow_state == "rejected" %}selected{% endif %}>Rejeitado</option>
+                    {% else %}
+                    <option value="approved" {% if workflow_state == "approved" %}selected{% endif %}>Approved</option>
+                    <option value="pending_review" {% if workflow_state == "pending_review" %}selected{% endif %}>Pending</option>
+                    <option value="uploaded" {% if workflow_state == "uploaded" %}selected{% endif %}>New</option>
+                    <option value="rejected" {% if workflow_state == "rejected" %}selected{% endif %}>Rejected</option>
+                    {% endif %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="per_page" class="form-select form-select-sm glass-input" onchange="this.form.submit()">
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50/{% if product == "lite" %}pág{% else %}page{% endif %}</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100/{% if product == "lite" %}pág{% else %}page{% endif %}</option>
+                    <option value="200" {% if per_page == 200 %}selected{% endif %}>200/{% if product == "lite" %}pág{% else %}page{% endif %}</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary glass-btn glass-btn--primary btn-sm"><i class="fas fa-search"></i></button>
+                <a href="{{ PREFIX }}/documents" class="btn btn-outline-secondary glass-btn glass-btn--ghost btn-sm ms-1"><i class="fas fa-times"></i></a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if product == "lite" %}
+<div id="skeleton-loader" class="glass-card" style="padding:20px;margin-bottom:16px;">
+    <div class="skeleton-heading" style="width:180px;margin-bottom:20px;"></div>
+    <div class="skeleton-line" style="width:100%;height:14px;margin-bottom:10px;"></div>
+    <div class="skeleton-line" style="width:100%;height:14px;margin-bottom:10px;"></div>
+    <div class="skeleton-line" style="width:100%;height:14px;margin-bottom:10px;"></div>
+    <div class="skeleton-line" style="width:90%;height:14px;margin-bottom:10px;"></div>
+    <div class="skeleton-line" style="width:70%;height:14px;"></div>
+</div>
+{% endif %}
+
+<!-- Bulk Actions -->
+<div id="bulkActions" class="alert alert-primary glass-card d-none mb-3 py-2">
+    <div class="d-flex align-items-center gap-3">
+        <span><strong id="selectedCount">0</strong> {% if product == "lite" %}selecionados{% else %}selected{% endif %}</span>
+        <button type="button" class="btn btn-outline-danger glass-btn glass-btn--ghost btn-sm" onclick="docExplorer.bulkDelete()">
+            <i class="fas fa-trash me-1"></i>{% if product == "lite" %}Deletar{% else %}Delete{% endif %}
+        </button>
+        <button type="button" class="btn btn-link btn-sm ms-auto" style="color: #1C2447;" onclick="docExplorer.clearSelection()">{% if product == "lite" %}Limpar{% else %}Clear{% endif %}</button>
+    </div>
+</div>
+
+<!-- Header (for List/Grid views) -->
+<div id="listGridHeader" class="d-flex justify-content-between align-items-center mb-2">
+    <div>
+        <input type="checkbox" class="form-check-input me-2" id="selectAll" title="{% if product == 'lite' %}Selecionar todos{% else %}Select all{% endif %}">
+        <strong>{{ total }}</strong> {% if product == "lite" %}documentos{% else %}documents{% endif %} <small class="text-muted">{% if product == "lite" %}(mais recentes primeiro){% else %}(most recent first){% endif %}</small>
+    </div>
+    <small>{{ ((page-1)*per_page)+1 }}-{{ [page*per_page, total]|min }} {% if product == "lite" %}de{% else %}of{% endif %} {{ total }}</small>
+</div>
+
+<!-- Tree View Header (different count) -->
+<div id="treeHeader" class="d-none mb-3">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <strong>{{ all_clients|length }}</strong> {% if product == "lite" %}clientes com documentos{% else %}clients with documents{% endif %}
+            {% if unlinked_count > 0 %}
+            <span class="text-muted">+ {{ unlinked_count }} {% if product == "lite" %}sem cliente{% else %}unlinked{% endif %}</span>
+            {% endif %}
+        </div>
+        <small class="text-muted">Total: {{ total }} {% if product == "lite" %}documentos{% else %}documents{% endif %}</small>
+    </div>
+</div>
+
+<!-- ========== LIST VIEW ========== -->
+<div id="listView" class="card glass-card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th style="width:40px"></th>
+                    <th style="width:50px"></th>
+                    <th>{% if product == "lite" %}Documento{% else %}Document{% endif %}</th>
+                    <th style="width:120px">{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                    <th style="width:220px">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</th>
+                    <th style="width:100px">{% if product == "lite" %}Data{% else %}Date{% endif %}</th>
+                    <th style="width:110px" title="{% if product == 'lite' %}Status Google Drive{% else %}Google Drive Sync Status{% endif %}"><i class="fab fa-google-drive me-1"></i>Drive</th>
+                    <th style="width:80px" title="{% if product == 'lite' %}Status OCR{% else %}OCR Status{% endif %}"><i class="fas fa-file-alt me-1"></i>OCR</th>
+                    <th style="width:70px"></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for doc in documents %}
+            <tr>
+                <td><input type="checkbox" class="form-check-input doc-checkbox" value="{{ doc.id }}"></td>
+                <td class="text-center">
+                    {% if doc.doc_type == "Passaporte" or doc.doc_type == "Passport" %}
+                        <i class="fas fa-passport fa-lg" style="color:#d4a373"></i>
+                    {% elif doc.doc_type == "Resume" %}
+                        <i class="fas fa-file-alt fa-lg" style="color:#4cc9f0"></i>
+                    {% elif doc.doc_type == "LOR" %}
+                        <i class="fas fa-file-signature fa-lg" style="color:#f8961e"></i>
+                    {% elif doc.doc_type == "Diploma" or doc.doc_type == "Transcript" %}
+                        <i class="fas fa-graduation-cap fa-lg" style="color:#9d4edd"></i>
+                    {% elif doc.doc_type == "Tax" or doc.doc_type == "Financial" %}
+                        <i class="fas fa-file-invoice-dollar fa-lg" style="color:#4ade80"></i>
+                    {% elif doc.doc_type == "Photo" %}
+                        <i class="fas fa-portrait fa-lg" style="color:#7c3aed"></i>
+                    {% elif doc.mime_type == "application/pdf" %}
+                        <i class="fas fa-file-pdf fa-lg" style="color:#ef4444"></i>
+                    {% elif doc.mime_type and doc.mime_type.startswith("image/") %}
+                        <i class="fas fa-file-image fa-lg" style="color:#22c55e"></i>
+                    {% elif doc.mime_type and "word" in doc.mime_type %}
+                        <i class="fas fa-file-word fa-lg" style="color:#3b82f6"></i>
+                    {% else %}
+                        <i class="fas fa-file fa-lg" style="color:#94a3b8"></i>
+                    {% endif %}
+                </td>
+                <td>
+                    {% set is_previewable_list = (doc.mime_type == "application/pdf" or (doc.mime_type and doc.mime_type.startswith("image/"))) %}
+                    {% if is_previewable_list %}
+                    <a href="javascript:void(0)" class="text-decoration-none" data-preview-trigger
+                       data-preview-name="{{ doc.name|e }}"
+                       data-preview-url="{{ PREFIX }}/documents/{{ doc.id }}/preview"
+                       data-preview-mime="{{ doc.mime_type|e }}"
+                       data-preview-download="{{ PREFIX }}/documents/{{ doc.id }}/download">
+                        {{ doc.name[:55] }}{% if doc.name|length > 55 %}...{% endif %}
+                    </a>
+                    {% else %}
+                    <a href="{{ PREFIX }}/documents/{{ doc.id }}" class="text-decoration-none">
+                        {{ doc.name[:55] }}{% if doc.name|length > 55 %}...{% endif %}
+                    </a>
+                    {% endif %}
+                </td>
+                <td><span class="badge bg-secondary">{{ doc.doc_type or "—" }}</span></td>
+                <td>
+                    {% if doc.client %}
+                        <a href="{{ PREFIX }}/clients/{{ doc.client.id }}" class="text-decoration-none">
+                            <i class="fas fa-user-circle me-1" style="color:#60a5fa"></i>{{ doc.client.first_name }} {{ doc.client.last_name }}
+                        </a>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td class="small">{{ doc.created_at.strftime("%d/%m/%Y") if doc.created_at else "—" }}</td>
+                <td class="text-center">
+                    {% if doc.drive_sync_status == 'synced' %}
+                        <span class="badge bg-success" title="{% if product == 'lite' %}Sincronizado em {{ doc.drive_synced_at.strftime('%d/%m/%Y %H:%M') if doc.drive_synced_at else '' }}{% else %}Synced to Drive on {{ doc.drive_synced_at.strftime('%d/%m/%Y %H:%M') if doc.drive_synced_at else '' }}{% endif %}">
+                            <i class="fas fa-check-circle me-1"></i>{% if product == "lite" %}Sincronizado{% else %}Synced{% endif %}
+                        </span>
+                    {% elif doc.drive_sync_status == 'pending' %}
+                        <span class="badge bg-warning text-dark" title="{% if product == 'lite' %}Sincronização pendente{% else %}Sync pending{% endif %}">
+                            <i class="fas fa-clock me-1"></i>{% if product == "lite" %}Pendente{% else %}Pending{% endif %}
+                        </span>
+                    {% elif doc.drive_sync_status == 'failed' %}
+                        <span class="badge bg-danger" title="{% if product == 'lite' %}{{ doc.drive_sync_error or 'Falha na sincronização' }}. Tentativas: {{ doc.drive_retry_count or 0 }}{% else %}{{ doc.drive_sync_error or 'Sync failed' }}. Retry count: {{ doc.drive_retry_count or 0 }}{% endif %}">
+                            <i class="fas fa-exclamation-triangle me-1"></i>{% if product == "lite" %}Falhou{% else %}Failed{% endif %}
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary" title="{% if product == 'lite' %}Ainda não sincronizado{% else %}Not synced yet{% endif %}">
+                            <i class="fas fa-minus-circle me-1"></i>{% if product == "lite" %}Não sincronizado{% else %}Not synced{% endif %}
+                        </span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if doc.duplicate_of %}
+                        <span class="badge bg-warning text-dark" title="{% if product == 'lite' %}Duplicado do documento {{ doc.duplicate_of }}{% else %}Duplicate of document {{ doc.duplicate_of }}{% endif %}">
+                            <i class="fas fa-clone me-1"></i>Dup
+                        </span>
+                    {% elif doc.ocr_status == 'completed' %}
+                        <span class="badge bg-success" title="{% if product == 'lite' %}OCR concluído{% else %}OCR completed{% endif %}{% if doc.ocr_confidence %} ({{ (doc.ocr_confidence * 100)|int }}%){% endif %}">
+                            <i class="fas fa-check me-1"></i>{% if product == "lite" %}Feito{% else %}Done{% endif %}
+                        </span>
+                    {% elif doc.ocr_status == 'processing' %}
+                        <span class="badge bg-primary" title="{% if product == 'lite' %}OCR em andamento{% else %}OCR in progress{% endif %}">
+                            <i class="fas fa-spinner fa-spin me-1"></i>{% if product == "lite" %}Processando{% else %}Processing{% endif %}
+                        </span>
+                    {% elif doc.ocr_status == 'failed' %}
+                        <span class="badge bg-danger" title="{% if product == 'lite' %}OCR falhou{% else %}OCR failed{% endif %}">
+                            <i class="fas fa-times me-1"></i>{% if product == "lite" %}Falhou{% else %}Failed{% endif %}
+                        </span>
+                    {% elif doc.mime_type == 'application/pdf' %}
+                        <span class="badge bg-secondary" title="{% if product == 'lite' %}OCR pendente{% else %}OCR pending{% endif %}">
+                            <i class="fas fa-clock me-1"></i>{% if product == "lite" %}Pendente{% else %}Pending{% endif %}
+                        </span>
+                    {% else %}
+                        <span class="badge bg-light text-dark" title="{% if product == 'lite' %}Não é PDF{% else %}Not a PDF{% endif %}">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% set is_previewable_actions = (doc.mime_type == "application/pdf" or (doc.mime_type and doc.mime_type.startswith("image/"))) %}
+                    {% if is_previewable_actions %}
+                    <button class="btn btn-outline-info glass-btn glass-btn--ghost btn-sm me-1" data-preview-trigger
+                            data-preview-name="{{ doc.name|e }}"
+                            data-preview-url="{{ PREFIX }}/documents/{{ doc.id }}/preview"
+                            data-preview-mime="{{ doc.mime_type|e }}"
+                            data-preview-download="{{ PREFIX }}/documents/{{ doc.id }}/download"
+                            title="{% if product == 'lite' %}Visualizar{% else %}Preview{% endif %}"><i class="fas fa-eye"></i></button>
+                    {% endif %}
+                    <button class="btn btn-outline-primary glass-btn glass-btn--ghost btn-sm me-1" data-rename-id="{{ doc.id }}" data-rename-name="{{ doc.name|e }}"><i class="fas fa-edit"></i></button>
+                    <a href="{{ PREFIX }}/documents/{{ doc.id }}/download" class="btn btn-outline-success btn-sm"><i class="fas fa-download"></i></a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="text-center py-5">{% if product == "lite" %}Nenhum documento encontrado{% else %}No documents found{% endif %}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ========== GRID VIEW ========== -->
+<div id="gridView" class="d-none">
+    <div class="row g-3">
+        {% for doc in documents %}
+        <div class="col-6 col-md-4 col-lg-3">
+            <div class="card glass-card h-100 position-relative doc-card" style="overflow:hidden;">
+                <input type="checkbox" class="form-check-input position-absolute doc-checkbox" value="{{ doc.id }}" style="top:10px;left:10px;z-index:10">
+                {% set is_previewable = (doc.mime_type == "application/pdf" or (doc.mime_type and doc.mime_type.startswith("image/"))) %}
+                <a href="{% if is_previewable %}javascript:void(0){% else %}{{ PREFIX }}/documents/{{ doc.id }}{% endif %}" class="text-decoration-none"
+                   {% if is_previewable %}data-preview-trigger
+                   data-preview-name="{{ doc.name|e }}"
+                   data-preview-url="{{ PREFIX }}/documents/{{ doc.id }}/preview"
+                   data-preview-mime="{{ doc.mime_type|e }}"
+                   data-preview-download="{{ PREFIX }}/documents/{{ doc.id }}/download"{% endif %}>
+                    <div class="card-body text-center py-4">
+                        <div class="mb-3">
+                            {% if doc.mime_type == "application/pdf" %}
+                                <i class="fas fa-file-pdf fa-4x" style="color:#ef4444"></i>
+                            {% elif doc.mime_type and doc.mime_type.startswith("image/") %}
+                                <i class="fas fa-file-image fa-4x" style="color:#22c55e"></i>
+                            {% elif doc.mime_type and "word" in doc.mime_type %}
+                                <i class="fas fa-file-word fa-4x" style="color:#3b82f6"></i>
+                            {% elif doc.mime_type and ("spreadsheet" in doc.mime_type or "excel" in doc.mime_type) %}
+                                <i class="fas fa-file-excel fa-4x" style="color:#22c55e"></i>
+                            {% else %}
+                                <i class="fas fa-file fa-4x" style="color:#94a3b8"></i>
+                            {% endif %}
+                        </div>
+                        <div class="fw-medium text-truncate px-2" style="font-size:0.85rem;" title="{{ doc.name }}">{{ doc.name[:30] }}{% if doc.name|length > 30 %}...{% endif %}</div>
+                        {% if doc.client %}
+                        <div class="text-muted mt-1" style="font-size:0.72rem;">
+                            <i class="fas fa-user-circle me-1"></i>{{ doc.client.first_name }} {{ doc.client.last_name }}
+                        </div>
+                        {% endif %}
+                        <div class="text-muted mt-1" style="font-size:0.7rem;">
+                            {{ doc.created_at.strftime("%d/%m/%Y") if doc.created_at else "—" }}
+                        </div>
+                        <div class="mt-2">
+                            {% if doc.workflow_state == "approved" %}
+                                <span class="badge" style="background:rgba(34,197,94,0.15);color:#22c55e;backdrop-filter:blur(4px);border:1px solid rgba(34,197,94,0.2);font-size:0.7rem;">{% if product == "lite" %}Aprovado{% else %}Approved{% endif %}</span>
+                            {% elif doc.workflow_state == "pending_review" %}
+                                <span class="badge" style="background:rgba(245,158,11,0.15);color:#f59e0b;backdrop-filter:blur(4px);border:1px solid rgba(245,158,11,0.2);font-size:0.7rem;">{% if product == "lite" %}Pendente{% else %}Pending{% endif %}</span>
+                            {% elif doc.workflow_state == "rejected" %}
+                                <span class="badge" style="background:rgba(239,68,68,0.15);color:#ef4444;backdrop-filter:blur(4px);border:1px solid rgba(239,68,68,0.2);font-size:0.7rem;">{% if product == "lite" %}Rejeitado{% else %}Rejected{% endif %}</span>
+                            {% elif doc.workflow_state == "uploaded" %}
+                                <span class="badge" style="background:rgba(59,130,246,0.15);color:#3b82f6;backdrop-filter:blur(4px);border:1px solid rgba(59,130,246,0.2);font-size:0.7rem;">{% if product == "lite" %}Novo{% else %}New{% endif %}</span>
+                            {% else %}
+                                <span class="badge" style="background:rgba(148,163,184,0.15);color:#94a3b8;backdrop-filter:blur(4px);border:1px solid rgba(148,163,184,0.2);font-size:0.7rem;">{{ doc.doc_type or "—" }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ========== TREE VIEW (Por Cliente) - USES all_clients ========== -->
+<div id="treeView" class="d-none">
+    <div class="accordion" id="clientAccordion">
+
+        <!-- Iterate over ALL clients (not just those in current page) -->
+        {% for client in all_clients %}
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading{{ client.id }}">
+                <button class="accordion-button collapsed" type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapse{{ client.id }}"
+                        data-client-id="{{ client.id }}"
+                        aria-expanded="false">
+                    <i class="fas fa-user-circle me-2" style="color:#60a5fa"></i>
+                    <strong>{{ client.last_name }}, {{ client.first_name }}</strong>
+                    <span class="badge bg-primary ms-2">{{ client.doc_count }} docs</span>
+                </button>
+            </h2>
+            <div id="collapse{{ client.id }}"
+                 class="accordion-collapse collapse"
+                 data-bs-parent="#clientAccordion"
+                 data-client-id="{{ client.id }}">
+                <div class="accordion-body p-0">
+                    <div class="doc-loading text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                        <p class="text-muted mt-2 mb-0">{% if product == "lite" %}Carregando documentos...{% else %}Loading documents...{% endif %}</p>
+                    </div>
+                    <div class="doc-list d-none">
+                        <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <tbody></tbody>
+                        </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Documents without client -->
+        {% if unlinked_count > 0 %}
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="headingUnlinked">
+                <button class="accordion-button collapsed" type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapseUnlinked"
+                        data-client-id="0"
+                        aria-expanded="false">
+                    <i class="fas fa-question-circle me-2" style="color:#f59e0b"></i>
+                    <strong>Sem Cliente Vinculado</strong>
+                    <span class="badge bg-warning text-dark ms-2">{{ unlinked_count }} docs</span>
+                </button>
+            </h2>
+            <div id="collapseUnlinked"
+                 class="accordion-collapse collapse"
+                 data-bs-parent="#clientAccordion"
+                 data-client-id="0">
+                <div class="accordion-body p-0">
+                    <div class="doc-loading text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                        <p class="text-muted mt-2 mb-0">{% if product == "lite" %}Carregando documentos...{% else %}Loading documents...{% endif %}</p>
+                    </div>
+                    <div class="doc-list d-none">
+                        <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <tbody></tbody>
+                        </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<!-- Pagination (only for List/Grid views) -->
+<div id="paginationWrapper">
+{% set total_pages = (total / per_page)|round(0, "ceil")|int %}
+{% if total_pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center">
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ page-1 }}&per_page={{ per_page }}&search={{ search or '' }}&doc_type={{ doc_type or '' }}&status={{ status or '' }}">«</a>
+        </li>
+        {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ p }}&per_page={{ per_page }}&search={{ search or '' }}&doc_type={{ doc_type or '' }}&status={{ status or '' }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+        {% if page < total_pages - 2 %}
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+        <li class="page-item"><a class="page-link" href="?page={{ total_pages }}&per_page={{ per_page }}&search={{ search or '' }}&doc_type={{ doc_type or '' }}&status={{ status or '' }}">{{ total_pages }}</a></li>
+        {% endif %}
+        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ page+1 }}&per_page={{ per_page }}&search={{ search or '' }}&doc_type={{ doc_type or '' }}&status={{ status or '' }}">»</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+</div>
+
+
+<!-- Rename Modal -->
+<div class="modal fade" id="renameModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit me-2"></i>{% if product == "lite" %}Renomear Documento{% else %}Rename Document{% endif %}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="renameDocId">
+                <div class="mb-3">
+                    <label class="form-label">{% if product == "lite" %}Novo nome:{% else %}New name:{% endif %}</label>
+                    <input type="text" class="form-control glass-input" id="renameInput" placeholder="{% if product == 'lite' %}Nome do documento{% else %}Document name{% endif %}">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary glass-btn glass-btn--ghost" data-bs-dismiss="modal">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</button>
+                <button type="button" class="btn btn-primary glass-btn glass-btn--primary" onclick="docExplorer.doRename()">
+                    <i class="fas fa-save me-1"></i>{% if product == "lite" %}Salvar{% else %}Save{% endif %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+class DocumentExplorer {
+    constructor() {
+        this.selectedIds = new Set();
+        this.loadedClients = new Set();
+        this.prefix = '{{ PREFIX }}';
+        this.initViewToggle();
+        this.initCheckboxes();
+        this.initLazyLoading();
+        this.initRenameButtons();
+    }
+
+    initViewToggle() {
+        const views = ['list', 'grid', 'tree'];
+        document.querySelectorAll('[data-view]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                document.querySelectorAll('[data-view]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                views.forEach(v => {
+                    const el = document.getElementById(v + 'View');
+                    if (el) el.classList.toggle('d-none', v !== view);
+                });
+
+                // Toggle headers
+                document.getElementById('listGridHeader').classList.toggle('d-none', view === 'tree');
+                document.getElementById('treeHeader').classList.toggle('d-none', view !== 'tree');
+
+                // Hide págination in tree view
+                document.getElementById('páginationWrapper').classList.toggle('d-none', view === 'tree');
+
+                localStorage.setItem('docView', view);
+            });
+        });
+        const saved = localStorage.getItem('docView');
+        if (saved) {
+            const btn = document.querySelector('[data-view="' + saved + '"]');
+            if (btn) btn.click();
+        }
+    }
+
+    initCheckboxes() {
+        document.querySelectorAll('.doc-checkbox').forEach(cb => {
+            cb.addEventListener('change', () => this.updateSelection());
+        });
+        document.getElementById('selectAll')?.addEventListener('change', (e) => {
+            document.querySelectorAll('.doc-checkbox').forEach(cb => cb.checked = e.target.checked);
+            this.updateSelection();
+        });
+    }
+
+    updateSelection() {
+        this.selectedIds.clear();
+        document.querySelectorAll('.doc-checkbox:checked').forEach(cb => this.selectedIds.add(parseInt(cb.value)));
+        document.getElementById('selectedCount').textContent = this.selectedIds.size;
+        document.getElementById('bulkActions').classList.toggle('d-none', this.selectedIds.size === 0);
+    }
+
+    clearSelection() {
+        document.querySelectorAll('.doc-checkbox, #selectAll').forEach(cb => cb.checked = false);
+        this.updateSelection();
+    }
+
+    async bulkDelete() {
+        if (!confirm('{% if product == "lite" %}Deletar {% else %}Delete {% endif %}' + this.selectedIds.size + '{% if product == "lite" %} documentos? Esta ação não pode ser desfeita.{% else %} documents? This action cannot be undone.{% endif %}')) return;
+        const resp = await fetch('/casehub/documents/bulk/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: [...this.selectedIds]})
+        });
+        if (resp.ok) location.reload();
+        else alert('{% if product == "lite" %}Erro ao deletar documentos{% else %}Error deleting documents{% endif %}');
+    }
+
+    // ========== LAZY LOADING FOR TREE VIEW ==========
+    initLazyLoading() {
+        const self = this;
+        document.querySelectorAll('#clientAccordion .accordion-button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const clientId = this.dataset.clientId;
+                if (!self.loadedClients.has(clientId)) {
+                    self.loadClientDocuments(clientId);
+                }
+            });
+        });
+    }
+
+    async loadClientDocuments(clientId) {
+        const collapseEl = document.querySelector(`#collapse${clientId}, #collapseUnlinked`);
+        if (!collapseEl) return;
+
+        const loading = collapseEl.querySelector('.doc-loading');
+        const docList = collapseEl.querySelector('.doc-list');
+        const tbody = docList.querySelector('tbody');
+
+        try {
+            const response = await fetch(`${this.prefix}/documents/api/by-client/${clientId}`);
+            if (!response.ok) throw new Error('{% if product == "lite" %}Falha ao carregar{% else %}Failed to load{% endif %}');
+
+            const docs = await response.json();
+
+            // Build rows via DOM API instead of innerHTML/string concat to keep
+            // user-controlled fields (doc.name, doc.doc_type, doc.mime_type)
+            // safe against HTML injection. Vigil 2026-05-08 finding on PR #295.
+            tbody.replaceChildren();
+            const docPrefix = this.prefix;
+            docs.forEach(doc => {
+                const isPreviewable = doc.mime_type && (doc.mime_type === 'application/pdf' || doc.mime_type.startsWith('image/'));
+                const nameDisplay = doc.name && doc.name.length > 50 ? doc.name.substring(0, 50) + '...' : (doc.name || '');
+
+                let iconClass = 'fas fa-file';
+                let iconColor = '#94a3b8';
+                if (doc.mime_type === 'application/pdf') { iconClass = 'fas fa-file-pdf'; iconColor = '#ef4444'; }
+                else if (doc.mime_type && doc.mime_type.startsWith('image/')) { iconClass = 'fas fa-file-image'; iconColor = '#22c55e'; }
+                else if (doc.mime_type && doc.mime_type.includes('word')) { iconClass = 'fas fa-file-word'; iconColor = '#3b82f6'; }
+
+                const tr = document.createElement('tr');
+
+                const tdCheck = document.createElement('td');
+                tdCheck.style.width = '40px';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'form-check-input doc-checkbox';
+                cb.value = String(doc.id);
+                tdCheck.appendChild(cb);
+                tr.appendChild(tdCheck);
+
+                const tdIcon = document.createElement('td');
+                tdIcon.style.width = '40px';
+                tdIcon.className = 'text-center';
+                const iconEl = document.createElement('i');
+                iconEl.className = iconClass;
+                iconEl.style.color = iconColor;
+                iconEl.setAttribute('aria-hidden', 'true');
+                tdIcon.appendChild(iconEl);
+                tr.appendChild(tdIcon);
+
+                const tdName = document.createElement('td');
+                const nameLink = document.createElement('a');
+                nameLink.className = 'text-decoration-none';
+                nameLink.textContent = nameDisplay;
+                if (isPreviewable) {
+                    nameLink.href = 'javascript:void(0)';
+                    nameLink.addEventListener('click', () => window.openPreview(
+                        doc.name, `${docPrefix}/documents/${doc.id}/preview`, doc.mime_type, `${docPrefix}/documents/${doc.id}/download`
+                    ));
+                } else {
+                    nameLink.href = `${docPrefix}/documents/${doc.id}`;
+                }
+                tdName.appendChild(nameLink);
+                tr.appendChild(tdName);
+
+                const tdType = document.createElement('td');
+                tdType.style.width = '100px';
+                const typeBadge = document.createElement('span');
+                typeBadge.className = 'badge bg-secondary';
+                typeBadge.textContent = doc.doc_type || '';
+                tdType.appendChild(typeBadge);
+                tr.appendChild(tdType);
+
+                const tdDate = document.createElement('td');
+                tdDate.style.width = '90px';
+                tdDate.className = 'small';
+                tdDate.textContent = doc.created_at || '';
+                tr.appendChild(tdDate);
+
+                const tdActions = document.createElement('td');
+                tdActions.style.width = '80px';
+                if (isPreviewable) {
+                    const previewBtn = document.createElement('button');
+                    previewBtn.className = 'btn btn-outline-info glass-btn glass-btn--ghost btn-sm py-0 me-1';
+                    previewBtn.title = '{% if product == "lite" %}Visualizar{% else %}Preview{% endif %}';
+                    const eye = document.createElement('i');
+                    eye.className = 'fas fa-eye';
+                    eye.setAttribute('aria-hidden', 'true');
+                    previewBtn.appendChild(eye);
+                    previewBtn.addEventListener('click', () => window.openPreview(
+                        doc.name, `${docPrefix}/documents/${doc.id}/preview`, doc.mime_type, `${docPrefix}/documents/${doc.id}/download`
+                    ));
+                    tdActions.appendChild(previewBtn);
+                }
+                const dlLink = document.createElement('a');
+                dlLink.href = `${docPrefix}/documents/${doc.id}/download`;
+                dlLink.className = 'btn btn-outline-success btn-sm py-0';
+                const dlIcon = document.createElement('i');
+                dlIcon.className = 'fas fa-download';
+                dlIcon.setAttribute('aria-hidden', 'true');
+                dlLink.appendChild(dlIcon);
+                tdActions.appendChild(dlLink);
+                tr.appendChild(tdActions);
+
+                tbody.appendChild(tr);
+            });
+
+            // Bind checkboxes
+            tbody.querySelectorAll('.doc-checkbox').forEach(cb => {
+                cb.addEventListener('change', () => this.updateSelection());
+            });
+
+            loading.classList.add('d-none');
+            docList.classList.remove('d-none');
+            this.loadedClients.add(clientId);
+
+        } catch (error) {
+            loading.innerHTML = '<p class="text-danger py-3"><i class="fas fa-exclamation-circle me-2"></i>{% if product == "lite" %}Erro ao carregar documentos{% else %}Error loading documents{% endif %}</p>';
+        }
+    }
+
+
+    // ========== RENAME FUNCTIONALITY ==========
+    // Initialize rename buttons with event delegation
+    initRenameButtons() {
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-rename-id]');
+            if (btn) {
+                const docId = btn.dataset.renameId;
+                const docName = btn.dataset.renameName;
+                this.openRename(docId, docName);
+            }
+        });
+    }
+
+    openRename(docId, currentName) {
+        document.getElementById('renameDocId').value = docId;
+        document.getElementById('renameInput').value = currentName;
+        // Guard against missing element / bundle — see #207.
+        const renameEl = document.getElementById('renameModal');
+        if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !renameEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(renameEl);
+        modal.show();
+        setTimeout(() => document.getElementById('renameInput').focus(), 300);
+    }
+
+    async doRename() {
+        const docId = document.getElementById('renameDocId').value;
+        const newName = document.getElementById('renameInput').value.trim();
+
+        if (!newName) {
+            alert('{% if product == "lite" %}Nome não pode ser vazio{% else %}Name cannot be empty{% endif %}');
+            return;
+        }
+
+        try {
+            const resp = await fetch(this.prefix + '/documents/' + docId + '/rename', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({new_name: newName})
+            });
+
+            if (resp.ok) {
+                const renameEl = document.getElementById('renameModal');
+                const renameInst = (typeof bootstrap !== 'undefined' && bootstrap.Modal && renameEl) ? bootstrap.Modal.getInstance(renameEl) : null;
+                if (renameInst) renameInst.hide();
+                location.reload();
+            } else {
+                const data = await resp.json();
+                alert('{% if product == "lite" %}Erro: {% else %}Error: {% endif %}' + (data.detail || '{% if product == "lite" %}Falha ao renomear{% else %}Failed to rename{% endif %}'));
+            }
+        } catch (e) {
+            alert('{% if product == "lite" %}Erro de conexão{% else %}Connection error{% endif %}');
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => window.docExplorer = new DocumentExplorer());
+
+// Upload Local Modal Handler
+async function uploadLocalFile() {
+    const form = document.getElementById('uploadLocalForm');
+    const formData = new FormData(form);
+    const progressBar = document.getElementById('uploadProgress');
+    const submitBtn = document.getElementById('uploadLocalBtn');
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> {% if product == "lite" %}Enviando...{% else %}Uploading...{% endif %}';
+    progressBar.style.width = '0%';
+    progressBar.parentElement.classList.remove('d-none');
+
+    try {
+        const response = await fetch('{{ PREFIX }}/api/documents/upload-local', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            progressBar.style.width = '100%';
+            progressBar.classList.remove('bg-primary');
+            progressBar.classList.add('bg-success');
+
+            setTimeout(() => {
+                const uploadEl = document.getElementById('uploadLocalModal');
+                const uploadInst = (typeof bootstrap !== 'undefined' && bootstrap.Modal && uploadEl) ? bootstrap.Modal.getInstance(uploadEl) : null;
+                if (uploadInst) uploadInst.hide();
+                location.reload();
+            }, 1000);
+        } else {
+            alert('{% if product == "lite" %}Erro: {% else %}Error: {% endif %}' + (data.error || '{% if product == "lite" %}Falha no envio{% else %}Upload failed{% endif %}'));
+        }
+    } catch (error) {
+        alert('{% if product == "lite" %}Erro de conexão: {% else %}Connection error: {% endif %}' + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-upload me-1"></i> {% if product == "lite" %}Enviar{% else %}Upload{% endif %}';
+    }
+}
+
+// Drag and drop
+document.addEventListener('DOMContentLoaded', () => {
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('localFile');
+
+    if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-primary', 'bg-light');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-primary', 'bg-light');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-primary', 'bg-light');
+
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                document.getElementById('fileName').textContent = e.dataTransfer.files[0].name;
+            }
+        });
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                document.getElementById('fileName').textContent = fileInput.files[0].name;
+            }
+        });
+    }
+});
+</script>
+
+<!-- Upload Local Modal -->
+<div class="modal fade" id="uploadLocalModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content glass-card">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-folder-plus me-2"></i>{% if product == "lite" %}Upload de Arquivo Local{% else %}Upload Local File{% endif %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="uploadLocalForm" onsubmit="uploadLocalFile(); return false;">
+          <div class="mb-3">
+            <label class="form-label">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</label>
+            <select name="client_id" class="form-select glass-input" required>
+              <option value="">{% if product == "lite" %}Selecione o cliente...{% else %}Select client...{% endif %}</option>
+              {% if clients %}
+                {% for client in clients %}
+                  <option value="{{ client.id }}">{{ client.first_name }} {{ client.last_name }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">{% if product == "lite" %}Tipo de Documento{% else %}Document Type{% endif %}</label>
+            <select name="doc_type" class="form-select glass-input">
+              <option value="">{% if product == "lite" %}Classificação automática (IA){% else %}Auto-classify (LLM){% endif %}</option>
+              {% if product == "lite" %}
+              <option value="Procuração">Procuração</option>
+              <option value="Contrato">Contrato</option>
+              <option value="Petição">Petição</option>
+              <option value="Certidão">Certidão</option>
+              <option value="Laudo">Laudo</option>
+              <option value="Comprovante">Comprovante</option>
+              <option value="Foto">Foto</option>
+              <option value="Outro">Outro</option>
+              {% else %}
+              <option value="Passaporte">Passaporte</option>
+              <option value="Visa">Visa</option>
+              <option value="I-94">I-94</option>
+              <option value="Diploma">Diploma</option>
+              <option value="Tax Return">Tax Return</option>
+              <option value="Employment Letter">Employment Letter</option>
+              <option value="Outro">Outro</option>
+              {% endif %}
+            </select>
+            <small class="text-muted">{% if product == "lite" %}Deixe vazio para classificação automática{% else %}Leave empty for automatic classification{% endif %}</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">{% if product == "lite" %}Arquivo{% else %}File{% endif %}</label>
+            <div id="dropZone" class="border border-2 border-dashed rounded p-4 text-center" style="cursor: pointer;">
+              <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-2"></i>
+              <p class="mb-0">{% if product == "lite" %}Arraste e solte o arquivo aqui ou clique para selecionar{% else %}Drag & drop file here or click to browse{% endif %}</p>
+              <small class="text-muted" id="fileName"></small>
+            </div>
+            <input type="file" id="localFile" name="file" class="d-none" required>
+          </div>
+
+          <div class="progress d-none" style="height: 25px;">
+            <div id="uploadProgress" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary glass-btn glass-btn--ghost" data-bs-dismiss="modal">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</button>
+        <button type="button" id="uploadLocalBtn" class="btn btn-primary glass-btn glass-btn--primary" onclick="uploadLocalFile()">
+          <i class="fas fa-upload me-1"></i> {% if product == "lite" %}Enviar{% else %}Upload{% endif %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal (issue #287) -->
+<link rel="stylesheet" href="/static/css/documents-preview.css">
+<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true" aria-labelledby="previewTitle">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}"></button>
+            </div>
+            <div class="modal-body">
+                <iframe id="previewFrame" title="Preview"></iframe>
+                <img id="previewImage" alt="" loading="lazy" style="display:none;">
+            </div>
+            <div class="modal-footer border-0 py-2">
+                <a id="previewDownload" href="#" class="btn btn-outline-success glass-btn glass-btn--ghost btn-sm">
+                    <i class="fas fa-download me-1"></i>{% if product == "lite" %}Baixar{% else %}Download{% endif %}
+                </a>
+                <a id="previewOpen" href="#" class="btn btn-primary glass-btn glass-btn--primary btn-sm" target="_blank">
+                    <i class="fas fa-external-link-alt me-1"></i>{% if product == "lite" %}Abrir{% else %}Open{% endif %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.doc-card { transition: all 0.2s ease; }
+.doc-card:hover { border-color: #3b82f6 !important; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(59,130,246,0.15); }
+.accordion-button:not(.collapsed) { background-color: rgba(59, 130, 246, 0.1); }
+#clientAccordion .accordion-item { border-left: 3px solid transparent; }
+#clientAccordion .accordion-item:has(.accordion-button:not(.collapsed)) { border-left-color: #3b82f6; }
+</style>
+
+<script src="/static/js/documents-preview.js"></script>
+
+{% if product == "lite" %}
+<script>document.addEventListener('DOMContentLoaded',function(){var s=document.getElementById('skeleton-loader');if(s)s.remove();});</script>
+{% endif %}
+{% endblock %}

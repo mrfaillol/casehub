@@ -1,0 +1,238 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Drive · Documentos · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ asset_url('css/app/documents-drive.css') }}" />
+{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Documentos · Google Drive</span>
+    <h1>Explorer de <em>arquivos</em>.</h1>
+    <p class="ch-page-head__sub">Navegação em colunas no estilo Finder, conectada ao Drive. Upload local continua como ação secundária.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/doc-templates">
+      <i data-lucide="file-text"></i> Modelos
+    </a>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/integrations">
+      <i data-lucide="plug"></i> Integrações
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/documents/upload">
+      <i data-lucide="upload"></i> Enviar
+    </a>
+  </div>
+</section>
+
+<section class="ch-drive" data-drive-root="{{ drive_root_id|default('root') }}">
+  <header class="ch-drive__toolbar">
+    <div class="ch-drive__path" data-drive-breadcrumb>Drive</div>
+    <div class="ch-drive__search">
+      <i data-lucide="search"></i>
+      <input type="search" data-drive-filter placeholder="Filtrar coluna atual..." aria-label="Filtrar coluna atual" />
+    </div>
+  </header>
+
+  <div class="ch-drive__status" data-drive-status role="status" aria-live="polite">Carregando Drive...</div>
+
+  <div class="ch-drive__columns" aria-label="Explorador de documentos Google Drive">
+    <section class="ch-drive__column" data-drive-column="0" aria-label="Pastas raiz"></section>
+    <section class="ch-drive__column" data-drive-column="1" aria-label="Subpastas"></section>
+    <section class="ch-drive__column" data-drive-column="2" aria-label="Arquivos"></section>
+    <aside class="ch-drive__preview" data-drive-preview aria-label="Prévia e metadados">
+      <div class="ch-empty">
+        <span class="ch-empty__icon" aria-hidden="true"><i data-lucide="file-search"></i></span>
+        <h3>Selecione um arquivo</h3>
+        <p>Metadados, tipo, tamanho e link do Drive aparecem aqui.</p>
+      </div>
+    </aside>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+
+  var root = document.querySelector('[data-drive-root]');
+  if (!root) return;
+
+  var PREFIX = window.CASEHUB_PREFIX || '';
+  var rootId = root.getAttribute('data-drive-root') || 'root';
+  var statusEl = root.querySelector('[data-drive-status]');
+  var filterEl = root.querySelector('[data-drive-filter]');
+  var breadcrumbEl = root.querySelector('[data-drive-breadcrumb]');
+  var previewEl = root.querySelector('[data-drive-preview]');
+  var itemsByDepth = {};
+
+  function normalizeDriveItem(item) {
+    item = item || {};
+    return {
+      id: item.id,
+      name: item.name,
+      mimeType: item.mimeType || item.mime_type || '',
+      modifiedTime: item.modifiedTime || item.modified_time || '',
+      createdTime: item.createdTime || item.created_time || '',
+      size: item.size,
+      webViewLink: item.webViewLink || item.web_view_link || '',
+      iconLink: item.iconLink || item.icon_link || '',
+      thumbnailLink: item.thumbnailLink || item.thumbnail_link || '',
+      parents: item.parents || [],
+      isFolder: Boolean(item.isFolder || item.is_folder || item.mimeType === 'application/vnd.google-apps.folder' || item.mime_type === 'application/vnd.google-apps.folder')
+    };
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function fileIcon(item) {
+    if (item.mimeType === 'application/vnd.google-apps.folder') return 'folder';
+    if ((item.mimeType || '').indexOf('spreadsheet') >= 0) return 'table';
+    if ((item.mimeType || '').indexOf('presentation') >= 0) return 'presentation';
+    if ((item.mimeType || '').indexOf('image') >= 0) return 'image';
+    if ((item.mimeType || '').indexOf('pdf') >= 0) return 'file-text';
+    return 'file';
+  }
+
+  function fmtBytes(n) {
+    if (!n) return '—';
+    var units = ['B', 'KB', 'MB', 'GB'];
+    var value = Number(n);
+    var idx = 0;
+    while (value >= 1024 && idx < units.length - 1) { value = value / 1024; idx++; }
+    return value.toFixed(idx ? 1 : 0) + ' ' + units[idx];
+  }
+
+  function setStatus(text, state) {
+    if (!statusEl) return;
+    statusEl.textContent = text || '';
+    statusEl.dataset.state = state || '';
+  }
+
+  function driveErrorMessage(err) {
+    if (err && err.status === 503) {
+      return 'Drive não configurado neste deploy. Faltam credenciais, token OAuth ou pasta raiz nas integrações.';
+    }
+    if (err && err.status === 401) {
+      return 'Sessão expirada. Entre novamente para acessar o Drive.';
+    }
+    return (err && err.message) || 'Falha ao carregar o Drive.';
+  }
+
+  function clearAfter(depth) {
+    root.querySelectorAll('[data-drive-column]').forEach(function (col) {
+      if (Number(col.getAttribute('data-drive-column')) > depth) col.innerHTML = '';
+    });
+    if (depth < 2) renderPreview(null);
+  }
+
+  function renderColumn(depth, items, folderId) {
+    var col = root.querySelector('[data-drive-column="' + depth + '"]');
+    if (!col) return;
+    col.dataset.folderId = folderId || '';
+    items = (items || []).map(normalizeDriveItem);
+    itemsByDepth[depth] = items;
+    if (!items.length) {
+      col.innerHTML = '<div class="ch-drive__empty">Nenhum item nesta pasta.</div>';
+      return;
+    }
+    col.innerHTML = items.map(function (item) {
+      var folder = item.isFolder || item.mimeType === 'application/vnd.google-apps.folder';
+      return '<button type="button" class="ch-drive__item" data-drive-id="' + escapeHtml(item.id) + '" data-drive-depth="' + depth + '" data-drive-folder="' + (folder ? 'true' : 'false') + '">' +
+        '<i data-lucide="' + fileIcon(item) + '"></i>' +
+        '<span class="ch-drive__item-name">' + escapeHtml(item.name || 'Sem nome') + '</span>' +
+        (folder ? '<i data-lucide="chevron-right" class="ch-drive__item-arrow"></i>' : '') +
+      '</button>';
+    }).join('');
+    if (window.CHLucide) window.CHLucide.mount();
+  }
+
+  function loadFolder(folderId, depth) {
+    setStatus('Carregando pasta...', 'loading');
+    clearAfter(depth - 1);
+    fetch(PREFIX + '/api/drive/list?folder_id=' + encodeURIComponent(folderId || rootId), { credentials: 'same-origin' })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (payload) {
+          if (!r.ok) {
+            var err = new Error(payload.detail || payload.error || ('HTTP ' + r.status));
+            err.status = r.status;
+            err.payload = payload;
+            throw err;
+          }
+          return payload;
+        });
+      })
+      .then(function (data) {
+        renderColumn(depth, data.items || [], folderId || rootId);
+        if (breadcrumbEl) breadcrumbEl.textContent = data.folder_name || 'Drive';
+        setStatus('Drive carregado', 'ok');
+      })
+      .catch(function (err) {
+        var col = root.querySelector('[data-drive-column="' + depth + '"]');
+        var message = driveErrorMessage(err);
+        if (col) {
+          col.innerHTML = '<div class="ch-drive__empty">' +
+            '<strong>Google Drive não conectado.</strong><br>' +
+            '<span>' + escapeHtml(message) + '</span><br>' +
+            '<a class="ch-btn ch-btn--ghost" href="' + PREFIX + '/integrations"><i data-lucide="plug"></i> Abrir integrações</a>' +
+            '</div>';
+        }
+        setStatus(message, 'error');
+        if (window.CHLucide) window.CHLucide.mount();
+      });
+  }
+
+  function renderPreview(item) {
+    if (!previewEl) return;
+    if (!item) {
+      previewEl.innerHTML = '<div class="ch-empty"><span class="ch-empty__icon" aria-hidden="true"><i data-lucide="file-search"></i></span><h3>Selecione um arquivo</h3><p>Metadados, tipo, tamanho e link do Drive aparecem aqui.</p></div>';
+      if (window.CHLucide) window.CHLucide.mount();
+      return;
+    }
+    previewEl.innerHTML = '<div class="ch-drive-preview__icon"><i data-lucide="' + fileIcon(item) + '"></i></div>' +
+      '<h2>' + escapeHtml(item.name || 'Sem nome') + '</h2>' +
+      '<dl class="ch-drive-preview__meta">' +
+      '<div><dt>Tipo</dt><dd>' + escapeHtml(item.mimeType || '—') + '</dd></div>' +
+      '<div><dt>Tamanho</dt><dd>' + fmtBytes(item.size) + '</dd></div>' +
+      '<div><dt>Atualizado</dt><dd>' + escapeHtml(item.modifiedTime || '—') + '</dd></div>' +
+      '</dl>' +
+      (item.webViewLink ? '<a class="ch-btn ch-btn--ghost" href="' + escapeHtml(item.webViewLink) + '" target="_blank" rel="noopener"><i data-lucide="external-link"></i> Abrir no Drive</a>' : '');
+    if (window.CHLucide) window.CHLucide.mount();
+  }
+
+  root.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-drive-id]');
+    if (!button) return;
+    var id = button.getAttribute('data-drive-id');
+    var depth = Number(button.getAttribute('data-drive-depth') || '0');
+    var isFolder = button.getAttribute('data-drive-folder') === 'true';
+    root.querySelectorAll('[data-drive-depth="' + depth + '"]').forEach(function (el) { el.classList.remove('is-active'); });
+    button.classList.add('is-active');
+    var item = (itemsByDepth[depth] || []).find(function (candidate) { return candidate.id === id; });
+    if (isFolder) {
+      loadFolder(id, Math.min(depth + 1, 2));
+    } else {
+      renderPreview(item || { id: id, name: button.textContent.trim() });
+      clearAfter(depth);
+    }
+  });
+
+  if (filterEl) {
+    filterEl.addEventListener('input', function () {
+      var q = filterEl.value.trim().toLowerCase();
+      root.querySelectorAll('.ch-drive__item').forEach(function (item) {
+        item.hidden = q && item.textContent.toLowerCase().indexOf(q) === -1;
+      });
+    });
+  }
+
+  loadFolder(rootId, 0);
+})();
+</script>
+{% endblock %}

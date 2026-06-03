@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}{{ org.name }} - Super Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .org-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .org-header h2 { font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 0.25rem; }
+    .org-header .org-slug { color: #888; font-size: 0.9rem; }
+    .org-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .info-card {
+        background: var(--bg-card, #1a1a1a);
+        border: 1px solid #2a2a2a;
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+    .info-card .label {
+        font-size: 0.75rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.4rem;
+    }
+    .info-card .value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #fff;
+    }
+    .info-card .sub { font-size: 0.8rem; color: #666; margin-top: 0.2rem; }
+    .detail-row {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid #1e1e1e;
+        font-size: 0.9rem;
+    }
+    .detail-row .dt { color: #888; min-width: 140px; }
+    .detail-row .dd { color: #fff; }
+    .status-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    .status-badge.active { background: rgba(68,187,68,0.15); color: #88cc88; }
+    .status-badge.inactive { background: rgba(255,68,68,0.15); color: #ff8888; }
+    .plan-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: capitalize;
+    }
+    .plan-badge.starter { background: rgba(255,255,255,0.08); color: #ccc; }
+    .plan-badge.professional { background: rgba(66,133,244,0.15); color: #88bbff; }
+    .plan-badge.enterprise { background: rgba(255,193,7,0.15); color: #ffcc44; }
+    .user-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .user-table th {
+        color: #888; font-size: 0.75rem; text-transform: uppercase;
+        letter-spacing: 0.5px; padding: 0.6rem 1rem;
+        border-bottom: 1px solid #2a2a2a; font-weight: 500;
+    }
+    .user-table td {
+        padding: 0.6rem 1rem;
+        border-bottom: 1px solid #1e1e1e;
+        font-size: 0.9rem;
+    }
+    .user-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .alert { border-radius: 10px; font-size: 0.9rem; }
+    .alert-success { background: rgba(68,187,68,0.15); border-color: rgba(68,187,68,0.3); color: #88cc88; }
+    .alert-danger { background: rgba(220,53,69,0.15); border-color: rgba(220,53,69,0.3); color: #ff8888; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ PREFIX }}/superadmin">Super Admin</a></li>
+            <li class="breadcrumb-item"><a href="{{ PREFIX }}/superadmin/orgs">Organizations</a></li>
+            <li class="breadcrumb-item active">{{ org.name }}</li>
+        </ol>
+    </nav>
+
+    {% if success %}
+    <div class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i>{{ success }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i>{{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="org-header">
+        <div>
+            <h2>
+                {% if org.logo_url %}
+                <img src="{{ org.logo_url }}" alt="" style="height: 28px; margin-right: 8px; border-radius: 4px;" loading="lazy">
+                {% endif %}
+                {{ org.name }}
+            </h2>
+            <div class="org-slug">{{ org.slug }} &middot;
+                <span class="status-badge {% if org.is_active %}active{% else %}inactive{% endif %}">
+                    {{ 'Active' if org.is_active else 'Inactive' }}
+                </span>
+                &middot;
+                <span class="plan-badge {{ org.plan or 'starter' }}">{{ org.plan or 'starter' }}</span>
+            </div>
+        </div>
+        <div class="org-actions">
+            <form method="POST" action="{{ PREFIX }}/superadmin/orgs/{{ org.id }}/toggle"
+                  onsubmit="return confirm('{% if org.is_active %}Deactivate{% else %}Activate{% endif %} this organization?')">
+                <button type="submit" class="btn btn-sm {% if org.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+                    <i class="fas fa-{% if org.is_active %}ban{% else %}check{% endif %} me-1"></i>
+                    {% if org.is_active %}Deactivate{% else %}Activate{% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="info-grid">
+        <div class="info-card">
+            <div class="label">Users</div>
+            <div class="value">{{ org_users|length }}</div>
+            <div class="sub">of {{ org.max_users }} allowed</div>
+        </div>
+        <div class="info-card">
+            <div class="label">Clients</div>
+            <div class="value">{{ client_count }}</div>
+            <div class="sub">of {{ org.max_clients }} allowed</div>
+        </div>
+        <div class="info-card">
+            <div class="label">Cases</div>
+            <div class="value">{{ case_count }}</div>
+        </div>
+        <div class="info-card">
+            <div class="label">Documents</div>
+            <div class="value">{{ doc_count }}</div>
+            <div class="sub">{{ org.max_storage_gb }}GB storage limit</div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Organization Details -->
+        <div class="col-lg-6 mb-4">
+            <div class="card glass-card">
+                <div class="card-header"><i class="fas fa-info-circle me-2"></i>Organization Details</div>
+                <div class="card-body">
+                    <div class="detail-row">
+                        <span class="dt">UUID</span>
+                        <span class="dd"><code>{{ org.uuid }}</code></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="dt">Email</span>
+                        <span class="dd">{{ org.email or '-' }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="dt">Domain</span>
+                        <span class="dd">{{ org.domain or '-' }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="dt">Website</span>
+                        <span class="dd">{{ org.website or '-' }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="dt">Timezone</span>
+                        <span class="dd">{{ org.timezone or 'America/New_York' }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="dt">Case Prefix</span>
+                        <span class="dd">{{ org.case_prefix or 'CH' }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="dt">Created</span>
+                        <span class="dd">{{ org.created_at.strftime('%b %d, %Y %H:%M') if org.created_at else 'N/A' }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="dt">Subscription</span>
+                        <span class="dd">{{ org.subscription_status or 'active' }}</span>
+                    </div>
+                    {% if org.stripe_customer_id %}
+                    <div class="detail-row">
+                        <span class="dt">Stripe Customer</span>
+                        <span class="dd"><code>{{ org.stripe_customer_id }}</code></span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Plan Management -->
+        <div class="col-lg-6 mb-4">
+            <div class="card glass-card">
+                <div class="card-header"><i class="fas fa-crown me-2"></i>Plan Management</div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">
+                        Current plan: <strong class="text-white" style="text-transform:capitalize">{{ org.plan or 'starter' }}</strong>
+                        (${{ plan_prices.get(org.plan or 'starter', 0) }}/mo)
+                    </p>
+                    <form method="POST" action="{{ PREFIX }}/superadmin/orgs/{{ org.id }}/update-plan"
+                          class="d-flex gap-2 align-items-end flex-wrap">
+                        <div>
+                            <label class="form-label" style="font-size:0.8rem">Change Plan</label>
+                            <select name="plan" class="form-select form-select-sm" style="background:#2a2a2a; border-color:#444; color:#fff;">
+                                {% for key, price in plan_prices.items() %}
+                                <option value="{{ key }}" {% if (org.plan or 'starter') == key %}selected{% endif %}>
+                                    {{ key|capitalize }} (${{ price }}/mo)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-outline-light"
+                                onclick="return confirm('Change this organization plan?')">
+                            <i class="fas fa-save me-1"></i>Update Plan
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Branding Preview -->
+            <div class="card mt-3">
+                <div class="card-header"><i class="fas fa-palette me-2"></i>Branding</div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div style="width:32px; height:32px; border-radius:6px; border:1px solid #444; background:{{ org.primary_color or '#ffffff' }};" title="Primary"></div>
+                        <div style="width:32px; height:32px; border-radius:6px; border:1px solid #444; background:{{ org.secondary_color or '#1a1a1a' }};" title="Secondary"></div>
+                        <span class="text-muted" style="font-size:0.85rem">
+                            {{ org.primary_color or '#ffffff' }} / {{ org.secondary_color or '#1a1a1a' }}
+                        </span>
+                    </div>
+                    {% if org.logo_url %}
+                    <div class="mt-2">
+                        <img src="{{ org.logo_url }}" alt="Logo" style="max-height:40px; border-radius:4px;" loading="lazy">
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="card glass-card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-users me-2"></i>Users ({{ org_users|length }})</span>
+        </div>
+        <div class="card-body p-0">
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in org_users %}
+                    <tr>
+                        <td style="color:#fff">{{ u.name }}</td>
+                        <td class="text-muted">{{ u.email }}</td>
+                        <td><span class="plan-badge" style="text-transform:capitalize">{{ u.user_type or 'user' }}</span></td>
+                        <td>
+                            <span class="status-badge {% if u.enabled %}active{% else %}inactive{% endif %}">
+                                {{ 'Active' if u.enabled else 'Disabled' }}
+                            </span>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ PREFIX }}/superadmin/impersonate/{{ u.id }}" style="display:inline">
+                                <button type="submit" class="btn btn-outline-light btn-sm" title="Login as this user"
+                                        onclick="return confirm('Impersonate {{ u.name }}?')">
+                                    <i class="fas fa-sign-in-alt"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not org_users %}
+                    <tr><td colspan="5" class="text-center text-muted py-3">No users found for this organization</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

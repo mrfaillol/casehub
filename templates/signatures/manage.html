@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}My Signatures - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/signatures-manage.css">
+{% endblock %}
+
+{% block content %}
+<section class="signatures-manage-main" aria-labelledby="signatures-manage-title">
+    <header class="signatures-manage-header">
+        <div class="signatures-manage-header-leading">
+            <h1 id="signatures-manage-title" class="signatures-manage-title">
+                <i class="fas fa-signature" aria-hidden="true"></i>
+                <span>My Signatures</span>
+            </h1>
+            <p class="signatures-manage-subtitle">Manage your electronic signatures used to sign documents.</p>
+        </div>
+
+        <div class="signatures-manage-actions">
+            <a href="{{ PREFIX }}/signatures/capture" class="signatures-manage-action signatures-manage-action--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>Add Signature</span>
+            </a>
+        </div>
+    </header>
+
+    {% if request.query_params.get('saved') %}
+    <div class="signatures-manage-flash signatures-manage-flash--success" role="status">
+        <i class="fas fa-check signatures-manage-flash-icon" aria-hidden="true"></i>
+        <span class="signatures-manage-flash-text">Signature saved successfully!</span>
+    </div>
+    {% endif %}
+
+    {% if request.query_params.get('deleted') %}
+    <div class="signatures-manage-flash signatures-manage-flash--info" role="status">
+        <i class="fas fa-trash signatures-manage-flash-icon" aria-hidden="true"></i>
+        <span class="signatures-manage-flash-text">Signature deleted.</span>
+    </div>
+    {% endif %}
+
+    {% if signatures %}
+    <ul class="signatures-manage-grid" aria-label="Saved signatures">
+        {% for sig in signatures %}
+        <li class="signatures-manage-card{% if sig.is_default %} signatures-manage-card--default{% endif %}">
+            <div class="signatures-manage-card-header">
+                <span class="signatures-manage-card-name">
+                    {% if sig.type == 'drawn' %}
+                    <i class="fas fa-pen-fancy" aria-hidden="true"></i>
+                    {% elif sig.type == 'uploaded' %}
+                    <i class="fas fa-upload" aria-hidden="true"></i>
+                    {% else %}
+                    <i class="fas fa-keyboard" aria-hidden="true"></i>
+                    {% endif %}
+                    <span class="signatures-manage-card-name-text">{{ sig.name or 'Signature' }}</span>
+                </span>
+                {% if sig.is_default %}
+                <span class="signatures-manage-badge" aria-label="Default signature">Default</span>
+                {% endif %}
+            </div>
+
+            <div class="signatures-manage-card-body">
+                <img src="{{ PREFIX }}/signatures/view/{{ sig.id }}"
+                     alt="Preview of signature {{ sig.name or '' }}"
+                     loading="lazy"
+                     class="signatures-manage-preview">
+
+                <p class="signatures-manage-meta">
+                    <span>Type: <span class="signatures-manage-meta-value">{{ sig.type|capitalize }}</span></span><br>
+                    <span>Created: <span class="signatures-manage-meta-value">{{ sig.created_at.strftime('%Y-%m-%d') if sig.created_at else 'N/A' }}</span></span>
+                </p>
+            </div>
+
+            <div class="signatures-manage-card-footer">
+                {% if not sig.is_default %}
+                <form method="POST" action="{{ PREFIX }}/signatures/set-default/{{ sig.id }}">
+                    <button type="submit"
+                            class="signatures-manage-icon-btn signatures-manage-icon-btn--accent"
+                            title="Set as default signature"
+                            aria-label="Set as default signature">
+                        <i class="fas fa-star" aria-hidden="true"></i>
+                    </button>
+                </form>
+                {% endif %}
+                <form method="POST" action="{{ PREFIX }}/signatures/delete/{{ sig.id }}"
+                      onsubmit="return confirm('Are you sure you want to delete this signature?');">
+                    <button type="submit"
+                            class="signatures-manage-icon-btn signatures-manage-icon-btn--danger"
+                            title="Delete signature"
+                            aria-label="Delete signature">
+                        <i class="fas fa-trash" aria-hidden="true"></i>
+                    </button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div class="signatures-manage-empty">
+        <i class="fas fa-signature signatures-manage-empty-icon" aria-hidden="true"></i>
+        <h2 class="signatures-manage-empty-title">No Signatures Yet</h2>
+        <p class="signatures-manage-empty-text">You don't have any signatures yet. Create your first signature to start signing documents.</p>
+        <div class="signatures-manage-empty-actions">
+            <a href="{{ PREFIX }}/signatures/capture" class="signatures-manage-action signatures-manage-action--primary">
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>Create signature</span>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <section class="signatures-manage-info" aria-labelledby="signatures-manage-info-title">
+        <h2 id="signatures-manage-info-title" class="signatures-manage-info-header">
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
+            <span>About Electronic Signatures</span>
+        </h2>
+        <div class="signatures-manage-info-body">
+            <div class="signatures-manage-info-grid">
+                <article class="signatures-manage-info-item">
+                    <h3 class="signatures-manage-info-item-title">
+                        <i class="fas fa-pen-fancy signatures-manage-info-item-icon--accent" aria-hidden="true"></i>
+                        <span>Draw</span>
+                    </h3>
+                    <p class="signatures-manage-info-item-text">Use your mouse or touchscreen to draw your signature naturally.</p>
+                </article>
+                <article class="signatures-manage-info-item">
+                    <h3 class="signatures-manage-info-item-title">
+                        <i class="fas fa-upload signatures-manage-info-item-icon--success" aria-hidden="true"></i>
+                        <span>Upload</span>
+                    </h3>
+                    <p class="signatures-manage-info-item-text">Upload an image of your handwritten signature (PNG, JPG, GIF).</p>
+                </article>
+                <article class="signatures-manage-info-item">
+                    <h3 class="signatures-manage-info-item-title">
+                        <i class="fas fa-keyboard signatures-manage-info-item-icon--info" aria-hidden="true"></i>
+                        <span>Type</span>
+                    </h3>
+                    <p class="signatures-manage-info-item-text">Type your name and we'll convert it to a signature-style font.</p>
+                </article>
+            </div>
+            <hr class="signatures-manage-info-divider">
+            <p class="signatures-manage-info-note">
+                <i class="fas fa-shield-alt signatures-manage-info-note-icon" aria-hidden="true"></i>
+                <span>All signatures are securely stored with checksums for verification. An audit trail is maintained for each signature application.</span>
+            </p>
+        </div>
+    </section>
+</section>
+{% endblock %}

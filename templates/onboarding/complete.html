@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="{% if product == 'lite' %}pt-BR{% else %}en{% endif %}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if product == "lite" %}Configuração Concluida - CaseHub{% else %}Setup Complete - CaseHub{% endif %}</title>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Design system canonical -->
+    <link rel="stylesheet" href="/static/css/tokens.css?v=1">
+    <link rel="stylesheet" href="/static/css/reset.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/buttons.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/forms.css?v=1">
+    <link rel="stylesheet" href="/static/css/components/cards.css?v=1">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: rgba(26, 26, 26, 0.7);
+            --border: rgba(255,255,255,0.08);
+            --text-primary: #e0e0e0;
+            --text-muted: #888;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--bg-primary);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .wizard-wrapper { width: 100%; max-width: 560px; }
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 3rem 2.5rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            text-align: center;
+        }
+        .success-icon {
+            width: 80px; height: 80px; margin: 0 auto 1.5rem;
+            background: rgba(68,187,68,0.15);
+            border: 2px solid rgba(68,187,68,0.3);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; color: var(--color-success, #44bb44);
+            animation: scaleIn 0.5s ease-out;
+        }
+        @keyframes scaleIn {
+            0% { transform: scale(0); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        h1 {
+            font-size: 1.8rem; font-weight: 700; color: var(--accent, #fff);
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: var(--text-muted); font-size: 1rem;
+            margin-bottom: 2rem; line-height: 1.5;
+        }
+        .summary-box {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 2rem;
+            text-align: left;
+        }
+        .summary-box .row-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            font-size: 0.9rem;
+        }
+        .summary-box .row-item .label { color: var(--text-muted); }
+        .summary-box .row-item .value { color: var(--accent, #fff); font-weight: 500; }
+        .btn-dashboard {
+            background: var(--accent, #fff); color: var(--bg-primary); border: none; border-radius: 10px;
+            padding: 0.75rem 2.5rem; font-weight: 600; font-size: 1rem;
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            transition: all 0.2s; text-decoration: none;
+        }
+        .btn-dashboard:hover {
+            background: var(--text-primary); color: var(--bg-primary);
+            transform: translateY(-1px);
+        }
+        .confetti {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 1000; overflow: hidden;
+        }
+        .confetti-piece {
+            position: absolute; width: 8px; height: 8px;
+            border-radius: 2px; top: -10px;
+            animation: confettiFall 3s ease-in forwards;
+        }
+        @keyframes confettiFall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="confetti" id="confetti"></div>
+
+    <div class="wizard-wrapper">
+        <div class="glass-card">
+            <div class="success-icon">
+                <i class="fas fa-check"></i>
+            </div>
+
+            {% if product == "lite" %}
+            <h1 data-editable-block="complete-h1">Configuração Concluida!</h1>
+            <p class="subtitle" data-editable-block="complete-subtitle">
+                <strong>{{ org.name }}</strong> esta pronto. Seu escritório esta configurado e você pode comecar a adicionar clientes e processos agora mesmo.
+            </p>
+
+            <div class="summary-box">
+                <div class="row-item">
+                    <span class="label">Escritório</span>
+                    <span class="value">{{ org.name }}</span>
+                </div>
+                <div class="row-item">
+                    <span class="label">Plano</span>
+                    <span class="value" style="text-transform: capitalize;">{{ org.plan or 'Starter' }}</span>
+                </div>
+                <div class="row-item">
+                    <span class="label">URL do Workspace</span>
+                    <span class="value">{{ org.slug }}.example.com</span>
+                </div>
+            </div>
+
+            <a href="{{ PREFIX }}/dashboard" class="btn-dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                Ir para o Painel
+            </a>
+            {% else %}
+            <h1 data-editable-block="complete-h1-en">You're all set!</h1>
+            <p class="subtitle" data-editable-block="complete-subtitle-en">
+                <strong>{{ org.name }}</strong> is ready to go. Your workspace is configured and you can start adding clients and cases right away.
+            </p>
+
+            <div class="summary-box">
+                <div class="row-item">
+                    <span class="label">Organization</span>
+                    <span class="value">{{ org.name }}</span>
+                </div>
+                <div class="row-item">
+                    <span class="label">Plan</span>
+                    <span class="value" style="text-transform: capitalize;">{{ org.plan or 'Starter' }}</span>
+                </div>
+                <div class="row-item">
+                    <span class="label">Workspace URL</span>
+                    <span class="value">{{ org.slug }}.example.com</span>
+                </div>
+            </div>
+
+            <a href="{{ PREFIX }}/dashboard" class="btn-dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                Go to Dashboard
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+    // Simple confetti effect
+    (function() {
+        const container = document.getElementById('confetti');
+        const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff8cc8', '#c084fc'];
+        for (let i = 0; i < 50; i++) {
+            const piece = document.createElement('div');
+            piece.className = 'confetti-piece';
+            piece.style.left = Math.random() * 100 + '%';
+            piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+            piece.style.animationDelay = Math.random() * 2 + 's';
+            piece.style.animationDuration = (2 + Math.random() * 2) + 's';
+            container.appendChild(piece);
+        }
+        setTimeout(() => container.remove(), 5000);
+    })();
+    </script>
+</body>
+</html>

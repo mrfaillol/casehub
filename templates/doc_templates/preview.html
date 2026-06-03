@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Document Preview - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/doc-templates-preview.css">
+{% endblock %}
+
+{% block content %}
+<section class="doc-templates-preview-main" aria-labelledby="doc-templates-preview-title">
+    <header class="doc-templates-preview-header">
+        <h1 id="doc-templates-preview-title" class="doc-templates-preview-title">
+            <i class="fas fa-file-alt" aria-hidden="true"></i>
+            <span>Generated Document</span>
+        </h1>
+
+        <div class="doc-templates-preview-toolbar doc-templates-preview-no-print" role="toolbar" aria-label="Document actions">
+            <button type="button" onclick="window.print()" class="doc-templates-preview-btn">
+                <i class="fas fa-print" aria-hidden="true"></i>
+                <span>Print</span>
+            </button>
+            <button type="button" onclick="docTemplatesPreviewCopy()" class="doc-templates-preview-btn doc-templates-preview-btn--accent">
+                <i class="fas fa-copy" aria-hidden="true"></i>
+                <span>Copy</span>
+            </button>
+            <a href="{{ PREFIX }}/templates/generate" class="doc-templates-preview-btn doc-templates-preview-btn--primary">
+                <i class="fas fa-magic" aria-hidden="true"></i>
+                <span>Generate Another</span>
+            </a>
+        </div>
+    </header>
+
+    <section class="doc-templates-preview-card" aria-labelledby="doc-templates-preview-title">
+        <pre id="documentContent" class="doc-templates-preview-document">{{ rendered_content }}</pre>
+    </section>
+
+    <section class="doc-templates-preview-actions doc-templates-preview-no-print" aria-labelledby="doc-templates-preview-actions-title">
+        <h2 id="doc-templates-preview-actions-title" class="doc-templates-preview-actions-header">
+            <i class="fas fa-cog" aria-hidden="true"></i>
+            <span>Actions</span>
+        </h2>
+
+        <div class="doc-templates-preview-actions-body">
+            <div class="doc-templates-preview-action">
+                <h3 class="doc-templates-preview-action-title">Save as Document</h3>
+                <button type="button" onclick="docTemplatesPreviewDownload()" class="doc-templates-preview-btn doc-templates-preview-btn--sm">
+                    <i class="fas fa-file-alt" aria-hidden="true"></i>
+                    <span>Download as TXT</span>
+                </button>
+            </div>
+
+            <div class="doc-templates-preview-action">
+                <h3 class="doc-templates-preview-action-title">Email to Client</h3>
+                <button type="button" class="doc-templates-preview-btn doc-templates-preview-btn--sm" disabled aria-disabled="true" aria-describedby="doc-templates-preview-email-hint">
+                    <i class="fas fa-envelope" aria-hidden="true"></i>
+                    <span>Send via Email</span>
+                </button>
+                <span id="doc-templates-preview-email-hint" class="doc-templates-preview-action-hint">Coming soon</span>
+            </div>
+
+            <div class="doc-templates-preview-action">
+                <h3 class="doc-templates-preview-action-title">Save to Case</h3>
+                <button type="button" class="doc-templates-preview-btn doc-templates-preview-btn--sm" disabled aria-disabled="true" aria-describedby="doc-templates-preview-attach-hint">
+                    <i class="fas fa-folder-plus" aria-hidden="true"></i>
+                    <span>Attach to Case</span>
+                </button>
+                <span id="doc-templates-preview-attach-hint" class="doc-templates-preview-action-hint">Coming soon</span>
+            </div>
+        </div>
+    </section>
+
+    <div id="doc-templates-preview-toast" class="doc-templates-preview-toast doc-templates-preview-no-print" role="status" aria-live="polite" aria-atomic="true"></div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const toastEl = document.getElementById('doc-templates-preview-toast');
+    let toastTimer = null;
+
+    function showToast(message, variant) {
+        if (!toastEl) return;
+        toastEl.textContent = message;
+        toastEl.classList.remove('doc-templates-preview-toast--success');
+        if (variant === 'success') {
+            toastEl.classList.add('doc-templates-preview-toast--success');
+        }
+        toastEl.setAttribute('data-visible', 'true');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+            toastEl.setAttribute('data-visible', 'false');
+        }, 2400);
+    }
+
+    function getContent() {
+        const node = document.getElementById('documentContent');
+        return node ? node.innerText : '';
+    }
+
+    window.docTemplatesPreviewCopy = function () {
+        const content = getContent();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(content).then(
+                function () { showToast('Document copied to clipboard', 'success'); },
+                function () { showToast('Unable to copy document'); }
+            );
+        } else {
+            showToast('Clipboard not available');
+        }
+    };
+
+    window.docTemplatesPreviewDownload = function () {
+        const content = getContent();
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'document_' + stamp + '.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+})();
+</script>
+{% endblock %}

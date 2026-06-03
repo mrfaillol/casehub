@@ -1,0 +1,259 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}{% if product == "lite" %}Assinatura{% else %}Subscription{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Configurações · Plano</span>
+    <h1>{% if product == "lite" %}Sua <em>assinatura</em>.{% else %}Your <em>subscription</em>.{% endif %}</h1>
+    <p class="ch-page-head__sub">
+      {% if product == "lite" %}Plano atual, próxima cobrança, uso e histórico.{% else %}Current plan, next billing, usage and history.{% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/settings">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+    {% if stripe_configured and org.get('stripe_customer_id') %}
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/subscription/portal">
+      <span data-icon="bolt"></span>
+      {% if product == "lite" %}Gerenciar no Stripe{% else %}Manage in Stripe{% endif %}
+    </a>
+    {% endif %}
+  </div>
+</section>
+
+{# ─── KPI tiles ─── #}
+<section class="ch-grid ch-grid--3" style="margin-bottom: var(--space-5);">
+  <article class="ch-kpi ch-kpi--hero">
+    <span class="ch-kpi__label">{% if product == "lite" %}Plano atual{% else %}Current plan{% endif %}</span>
+    <span class="ch-kpi__value" style="font-size: var(--fs-2xl);">{{ plan_info.display_name }}</span>
+    <span class="ch-kpi__hint">{{ plan_name|upper }}</span>
+  </article>
+  <article class="ch-kpi">
+    <span class="ch-kpi__label">{% if product == "lite" %}Preço mensal{% else %}Monthly price{% endif %}</span>
+    {% if plan_info.price_monthly %}
+    <span class="ch-kpi__value">{{ (plan_info.price_monthly / 100)|format_currency(org_currency|default('USD')) }}</span>
+    <span class="ch-kpi__hint">/{% if product == "lite" %}mês{% else %}mo{% endif %}</span>
+    {% else %}
+    <span class="ch-kpi__value" style="font-size: var(--fs-xl);">{{ plan_info.price_label|default('Sob consulta') }}</span>
+    <span class="ch-kpi__hint">{% if product == "lite" %}Fale com o comercial{% else %}Contact sales{% endif %}</span>
+    {% endif %}
+  </article>
+  <article class="ch-kpi {% if subscription_status == 'canceling' %}ch-kpi--warn{% elif subscription_status != 'active' %}ch-kpi--danger{% endif %}">
+    <span class="ch-kpi__label">Status</span>
+    <span class="ch-kpi__value" style="font-size: var(--fs-xl);">{{ subscription_status|capitalize }}</span>
+    {% if next_billing %}
+    <span class="ch-kpi__hint">
+      {% if product == "lite" %}Próx. cobrança {{ next_billing.strftime('%d/%m/%Y') }}{% else %}Next billing {{ next_billing.strftime('%b %d, %Y') }}{% endif %}
+    </span>
+    {% endif %}
+  </article>
+</section>
+
+{# ─── Usage ─── #}
+<article class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow">Uso</span>
+      <h2 class="ch-card__title">{% if product == "lite" %}Uso atual{% else %}Current usage{% endif %}</h2>
+    </div>
+    <span data-icon="chart" data-icon-size="20" style="color: var(--c-info);"></span>
+  </header>
+
+  <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+    {# Users #}
+    <div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-1); align-items: baseline;">
+        <span style="font-weight: 600;">{% if product == "lite" %}Usuários{% else %}Users{% endif %}</span>
+        <span class="ch-mono" style="font-size: var(--fs-sm);">
+          {{ user_count }}{% if max_users > 0 %} / {{ max_users }}{% else %} ({% if product == "lite" %}ilimitado{% else %}unlimited{% endif %}){% endif %}
+        </span>
+      </div>
+      {% if max_users > 0 %}
+      {% set user_pct = (user_count / max_users * 100)|int if max_users > 0 else 0 %}
+      <div style="height: 8px; background: var(--surface-card-2); border-radius: var(--radius-pill); overflow: hidden;">
+        <div role="progressbar" aria-valuenow="{{ user_pct }}" aria-valuemin="0" aria-valuemax="100"
+             style="height: 100%; width: {{ user_pct }}%; background: {% if user_pct > 90 %}var(--c-danger){% elif user_pct > 70 %}var(--c-warn){% else %}var(--c-green-d){% endif %}; transition: width var(--motion-base) var(--ease-out);"></div>
+      </div>
+      {% else %}
+      <div style="height: 8px; background: var(--surface-card-2); border-radius: var(--radius-pill); overflow: hidden;">
+        <div style="height: 100%; width: 15%; background: var(--c-green-d);"></div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# Cases #}
+    <div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-1); align-items: baseline;">
+        <span style="font-weight: 600;">{% if product == "lite" %}Processos{% else %}Cases{% endif %}</span>
+        <span class="ch-mono" style="font-size: var(--fs-sm);">
+          {{ case_count }}{% if max_cases > 0 %} / {{ max_cases }}{% else %} ({% if product == "lite" %}ilimitado{% else %}unlimited{% endif %}){% endif %}
+        </span>
+      </div>
+      {% if max_cases > 0 %}
+      {% set case_pct = (case_count / max_cases * 100)|int if max_cases > 0 else 0 %}
+      <div style="height: 8px; background: var(--surface-card-2); border-radius: var(--radius-pill); overflow: hidden;">
+        <div role="progressbar" aria-valuenow="{{ case_pct }}" aria-valuemin="0" aria-valuemax="100"
+             style="height: 100%; width: {{ case_pct }}%; background: {% if case_pct > 90 %}var(--c-danger){% elif case_pct > 70 %}var(--c-warn){% else %}var(--c-green-d){% endif %}; transition: width var(--motion-base) var(--ease-out);"></div>
+      </div>
+      {% else %}
+      <div style="height: 8px; background: var(--surface-card-2); border-radius: var(--radius-pill); overflow: hidden;">
+        <div style="height: 100%; width: 15%; background: var(--c-green-d);"></div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# Documents #}
+    <div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-1); align-items: baseline;">
+        <span style="font-weight: 600;">{% if product == "lite" %}Documentos{% else %}Documents{% endif %}</span>
+        <span class="ch-mono" style="font-size: var(--fs-sm);">{{ doc_count }} ({% if product == "lite" %}ilimitado{% else %}unlimited{% endif %})</span>
+      </div>
+      <div style="height: 8px; background: var(--surface-card-2); border-radius: var(--radius-pill); overflow: hidden;">
+        <div style="height: 100%; width: 15%; background: var(--c-info);"></div>
+      </div>
+    </div>
+  </div>
+</article>
+
+{# ─── Plan comparison ─── #}
+<article class="ch-card ch-card--bleed" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header" style="padding: var(--space-5) var(--space-5) 0;">
+    <div>
+      <span class="ch-card__eyebrow">Planos</span>
+      <h2 class="ch-card__title">{% if product == "lite" %}Planos disponíveis{% else %}Available plans{% endif %}</h2>
+    </div>
+    <span data-icon="cube" data-icon-size="20" style="color: var(--c-pollen);"></span>
+  </header>
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive">
+      <thead>
+        <tr>
+          <th>{% if product == "lite" %}Plano{% else %}Plan{% endif %}</th>
+          <th>{% if product == "lite" %}Preço{% else %}Price{% endif %}</th>
+          <th>{% if product == "lite" %}Usuários{% else %}Users{% endif %}</th>
+          <th>{% if product == "lite" %}Processos{% else %}Cases{% endif %}</th>
+          <th>{% if product == "lite" %}Recursos{% else %}Key features{% endif %}</th>
+          <th style="text-align: right;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pname, pinfo in all_plans.items() %}
+        <tr {% if pname == plan_name %}style="background: var(--surface-card-2);"{% endif %}>
+          <td data-label="Plano"><strong>{{ pinfo.display_name }}</strong></td>
+          <td data-label="Preço" class="ch-mono" style="font-size: var(--fs-sm);">
+            {% if pinfo.price_monthly %}
+            {{ (pinfo.price_monthly / 100)|format_currency(org_currency|default('USD')) }}/{% if product == "lite" %}mês{% else %}mo{% endif %}
+            {% else %}
+            {{ pinfo.price_label|default('Sob consulta') }}
+            {% endif %}
+          </td>
+          <td data-label="Usuários">
+            {% if pinfo.max_users > 0 %}{{ pinfo.max_users }}{% else %}{% if product == "lite" %}Ilimitado{% else %}Unlimited{% endif %}{% endif %}
+          </td>
+          <td data-label="Processos">
+            {% if pinfo.max_cases > 0 %}{{ pinfo.max_cases }}{% else %}{% if product == "lite" %}Ilimitado{% else %}Unlimited{% endif %}{% endif %}
+          </td>
+          <td data-label="Recursos">
+            <div style="display: flex; flex-wrap: wrap; gap: var(--space-1);">
+              {% for f in pinfo.features[:6] %}
+              <span class="ch-pill"><span class="dot"></span>{{ f }}</span>
+              {% endfor %}
+              {% if pinfo.features|length > 6 %}
+              <span class="ch-pill ch-pill--info"><span class="dot"></span>+{{ pinfo.features|length - 6 }} {% if product == "lite" %}mais{% else %}more{% endif %}</span>
+              {% endif %}
+            </div>
+          </td>
+          <td data-label="" style="text-align: right;">
+            {% if pname == plan_name %}
+            <span class="ch-pill ch-pill--ok"><span class="dot"></span>{% if product == "lite" %}Atual{% else %}Current{% endif %}</span>
+            {% elif pinfo.contact_only %}
+            <a class="ch-btn ch-btn--sm ch-btn--ghost" href="mailto:comercial@casehub.legal?subject={% if product == 'lite' %}Plano%20Enterprise%20-%20Sob%20consulta{% else %}Enterprise%20plan%20inquiry{% endif %}">
+              <span data-icon="mail" data-icon-size="14"></span>
+              {% if product == "lite" %}Falar com comercial{% else %}Contact sales{% endif %}
+            </a>
+            {% elif stripe_configured %}
+            <button class="ch-btn ch-btn--sm ch-btn--primary btn-upgrade" data-plan="{{ pname }}" type="button">
+              Upgrade
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</article>
+
+{# ─── Cancel ─── #}
+{% if subscription_status == 'active' and stripe_configured and org.get('stripe_subscription_id') %}
+<article class="ch-card" style="border-color: var(--c-danger);">
+  <header class="ch-card__header">
+    <div>
+      <span class="ch-card__eyebrow" style="color: var(--c-danger);">Risco</span>
+      <h2 class="ch-card__title" style="color: var(--c-danger);">{% if product == "lite" %}Cancelar assinatura{% else %}Cancel subscription{% endif %}</h2>
+    </div>
+    <span data-icon="x" data-icon-size="20" style="color: var(--c-danger);"></span>
+  </header>
+  <p style="margin: 0 0 var(--space-3);">
+    {% if product == "lite" %}O cancelamento manterá sua conta ativa até o fim do período de cobrança atual, depois fará downgrade para o plano Starter.{% else %}Canceling will keep your account active until the end of the current billing period, then downgrade to the Starter plan.{% endif %}
+  </p>
+  <button class="ch-btn" id="btn-cancel-sub" type="button" style="color: var(--c-danger); border-color: var(--c-danger);">
+    <span data-icon="x"></span>
+    {% if product == "lite" %}Cancelar assinatura{% else %}Cancel subscription{% endif %}
+  </button>
+</article>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  document.querySelectorAll('.btn-upgrade').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+      btn.disabled = true;
+      var originalText = btn.innerHTML;
+      btn.innerHTML = '...';
+      try {
+        var resp = await fetch('{{ PREFIX }}/subscription/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: btn.dataset.plan })
+        });
+        var data = await resp.json();
+        if (data.checkout_url) {
+          window.location.href = data.checkout_url;
+        } else {
+          alert(data.detail || '{% if product == "lite" %}Falha ao iniciar checkout{% else %}Failed to start checkout{% endif %}');
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
+      } catch (err) {
+        alert('{% if product == "lite" %}Erro{% else %}Error{% endif %}: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    });
+  });
+
+  var cancelBtn = document.getElementById('btn-cancel-sub');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', async function () {
+      if (!confirm('{% if product == "lite" %}Tem certeza que deseja cancelar sua assinatura?{% else %}Are you sure you want to cancel your subscription?{% endif %}')) return;
+      cancelBtn.disabled = true;
+      try {
+        var resp = await fetch('{{ PREFIX }}/subscription/cancel', { method: 'POST' });
+        var data = await resp.json();
+        alert(data.message || '{% if product == "lite" %}Assinatura cancelada{% else %}Subscription canceled{% endif %}');
+        location.reload();
+      } catch (err) {
+        alert('{% if product == "lite" %}Erro{% else %}Error{% endif %}: ' + err.message);
+        cancelBtn.disabled = false;
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

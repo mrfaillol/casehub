@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Calculadora de Prazos{% else %}Deadline Calculator{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/deadlines-calculator.css">
+{% endblock %}
+
+{% block content %}
+{% if product == "lite" %}
+{# Lite product redirects to /prazos which has full CPC calculator. #}
+<section class="deadlines-calc-main deadlines-calc-main--lite" aria-labelledby="deadlines-calc-lite-title">
+    <div class="deadlines-calc-lite">
+        <i class="fas fa-calculator deadlines-calc-lite-icon" aria-hidden="true"></i>
+        <h1 id="deadlines-calc-lite-title" class="deadlines-calc-lite-title">Calculadora de Prazos</h1>
+        <p class="deadlines-calc-lite-desc">Use a calculadora de prazos processuais do CPC.</p>
+        <a href="{{ PREFIX }}/prazos" class="deadlines-calc-cta deadlines-calc-cta--lg">
+            <i class="fas fa-calculator" aria-hidden="true"></i>
+            <span>Abrir Calculadora de Prazos</span>
+        </a>
+    </div>
+</section>
+{% else %}
+<section class="deadlines-calc-main" aria-labelledby="deadlines-calc-title">
+    <header class="deadlines-calc-header">
+        <h1 id="deadlines-calc-title" class="deadlines-calc-title">
+            <i class="fas fa-calculator" aria-hidden="true"></i>
+            <span>Deadline Calculator</span>
+        </h1>
+        <a href="{{ PREFIX }}/deadlines" class="deadlines-calc-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Deadlines</span>
+        </a>
+    </header>
+
+    <div class="deadlines-calc-grid">
+        <section class="deadlines-calc-card" aria-labelledby="deadlines-calc-form-title">
+            <header class="deadlines-calc-card-header">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                <h2 id="deadlines-calc-form-title" class="deadlines-calc-card-title">Processing Time Estimator</h2>
+            </header>
+            <div class="deadlines-calc-card-body">
+                <form id="calculatorForm" class="deadlines-calc-form" data-api-prefix="{{ PREFIX }}">
+                    <div class="deadlines-calc-field">
+                        <label class="deadlines-calc-label" for="visaType">Visa Type</label>
+                        <select class="deadlines-calc-select" id="visaType" name="visa_type" required>
+                            <option value="">Select visa type...</option>
+                            {% for v in visa_types %}
+                            <option value="{{ v.code }}" data-premium="{{ v.premium }}">{{ v.code }} - {{ v.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="deadlines-calc-field">
+                        <label class="deadlines-calc-label" for="filingDate">Filing Date (or planned filing date)</label>
+                        <input type="date" class="deadlines-calc-input" id="filingDate" name="filing_date" required>
+                    </div>
+
+                    <div class="deadlines-calc-check" id="premiumCheck" hidden>
+                        <input type="checkbox" class="deadlines-calc-checkbox" id="premiumProcessing" name="premium">
+                        <label class="deadlines-calc-check-label" for="premiumProcessing">
+                            Premium Processing (15-45 days)
+                        </label>
+                    </div>
+
+                    <button type="submit" class="deadlines-calc-cta" id="calculateBtn">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span class="deadlines-calc-cta-label">Calculate</span>
+                        <span class="deadlines-calc-spinner" hidden aria-hidden="true"></span>
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <div class="deadlines-calc-results">
+            <section class="deadlines-calc-card" id="resultsCard" hidden aria-labelledby="deadlines-calc-result-title">
+                <header class="deadlines-calc-card-header deadlines-calc-card-header--result">
+                    <i class="fas fa-chart-line" aria-hidden="true"></i>
+                    <h2 id="deadlines-calc-result-title" class="deadlines-calc-card-title">Estimated Timeline</h2>
+                </header>
+                <div class="deadlines-calc-card-body">
+                    <div id="estimateResults" class="deadlines-calc-estimate" aria-live="polite" aria-atomic="true"></div>
+                </div>
+            </section>
+
+            <section class="deadlines-calc-card" id="stagesCard" hidden aria-labelledby="deadlines-calc-stages-title">
+                <header class="deadlines-calc-card-header">
+                    <i class="fas fa-tasks" aria-hidden="true"></i>
+                    <h2 id="deadlines-calc-stages-title" class="deadlines-calc-card-title">Processing Stages</h2>
+                </header>
+                <div class="deadlines-calc-table-wrap">
+                    <table class="deadlines-calc-table">
+                        <caption class="deadlines-calc-sr-only">Breakdown of minimum and maximum days per processing stage</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Stage</th>
+                                <th scope="col">Min Days</th>
+                                <th scope="col">Max Days</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stagesBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+</section>
+
+<script type="module">
+(function () {
+    'use strict';
+
+    var form = document.getElementById('calculatorForm');
+    if (!form) return;
+
+    var prefix = form.dataset.apiPrefix || '';
+    var visaSelect = document.getElementById('visaType');
+    var premiumCheck = document.getElementById('premiumCheck');
+    var premiumBox = document.getElementById('premiumProcessing');
+    var stagesCard = document.getElementById('stagesCard');
+    var stagesBody = document.getElementById('stagesBody');
+    var resultsCard = document.getElementById('resultsCard');
+    var estimateEl = document.getElementById('estimateResults');
+    var calcBtn = document.getElementById('calculateBtn');
+    var spinner = calcBtn.querySelector('.deadlines-calc-spinner');
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function setBusy(busy) {
+        calcBtn.setAttribute('aria-busy', busy ? 'true' : 'false');
+        calcBtn.disabled = busy;
+        if (spinner) spinner.hidden = !busy;
+    }
+
+    function renderStages(stages) {
+        var html = '';
+        stages.forEach(function (s) {
+            html += '<tr><td>' + escapeHtml(s.name) + '</td>'
+                  + '<td>' + escapeHtml(s.min_days) + '</td>'
+                  + '<td>' + escapeHtml(s.max_days) + '</td></tr>';
+        });
+        stagesBody.innerHTML = html;
+        stagesCard.hidden = false;
+    }
+
+    function row(label, value) {
+        return '<div class="deadlines-calc-estimate-row">'
+             + '<span>' + escapeHtml(label) + '</span>'
+             + '<span class="deadlines-calc-estimate-value">' + escapeHtml(value) + '</span>'
+             + '</div>';
+    }
+
+    function renderEstimate(data) {
+        var html = '';
+        if (data.processing_type === 'premium') {
+            html += '<div class="deadlines-calc-alert deadlines-calc-alert--info" role="status">'
+                  + '<i class="fas fa-bolt" aria-hidden="true"></i>'
+                  + '<strong>Premium Processing</strong></div>';
+            html += row('Estimated Approval', data.estimated_date);
+            html += row('Processing Time', '~' + data.estimated_days + ' days');
+        } else {
+            html += '<div class="deadlines-calc-alert deadlines-calc-alert--warning" role="status">'
+                  + '<i class="fas fa-clock" aria-hidden="true"></i>'
+                  + '<strong>Regular Processing</strong></div>';
+            html += row('Earliest Approval', data.estimated_date_min);
+            html += row('Latest Approval', data.estimated_date_max);
+            html += row('Processing Time', data.estimated_days_min + ' - ' + data.estimated_days_max + ' days');
+        }
+        estimateEl.innerHTML = html;
+        resultsCard.hidden = false;
+    }
+
+    function renderError(message) {
+        estimateEl.innerHTML = '<div class="deadlines-calc-alert deadlines-calc-alert--danger" role="alert">'
+            + '<i class="fas fa-exclamation-triangle" aria-hidden="true"></i>'
+            + '<span>' + escapeHtml(message) + '</span></div>';
+        resultsCard.hidden = false;
+    }
+
+    visaSelect.addEventListener('change', function () {
+        var opt = this.selectedOptions[0];
+        var isPremium = opt && opt.dataset.premium === 'True';
+        premiumCheck.hidden = !isPremium;
+        if (!isPremium) premiumBox.checked = false;
+
+        if (!this.value) return;
+
+        fetch(prefix + '/deadlines/api/stages/' + encodeURIComponent(this.value))
+            .then(function (r) {
+                if (!r.ok) throw new Error('Failed to load stages');
+                return r.json();
+            })
+            .then(renderStages)
+            .catch(function (err) { console.warn('Stages load error:', err.message); });
+    });
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var visaType = visaSelect.value;
+        var premium = premiumBox.checked;
+        var filingDateInput = form.elements.filingDate;
+        var filingDate = filingDateInput ? filingDateInput.value : '';
+        var params = new URLSearchParams({
+            visa_type: visaType,
+            premium: String(premium)
+        });
+        if (filingDate) {
+            params.append('filing_date', filingDate);
+        }
+
+        setBusy(true);
+        fetch(prefix + '/deadlines/api/estimate?' + params.toString())
+            .then(function (r) {
+                if (!r.ok) throw new Error('Failed to get estimate');
+                return r.json();
+            })
+            .then(renderEstimate)
+            .catch(function () { renderError('Error calculating estimate. Please try again.'); })
+            .finally(function () { setBusy(false); });
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,966 @@
+/* ==========================================================================
+   CaseHub View System — Fundação (Fase 1 do plano-os-universal)
+   Define tokens por viewport e estabelece o contrato view-os / view-web.
+   Nada visual muda nesta fase — apenas plumbing.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   TOKENS RESPONSIVOS
+   -------------------------------------------------------------------------- */
+:root {
+  /* Safe areas (iOS notch + gesture bar) */
+  --safe-top:    env(safe-area-inset-top, 0);
+  --safe-bottom: env(safe-area-inset-bottom, 0);
+  --safe-left:   env(safe-area-inset-left, 0);
+  --safe-right:  env(safe-area-inset-right, 0);
+
+  /* Motion — orgânico mas snappy (feedback_animations.md) */
+  --motion-fast: 160ms;
+  --motion-mid:  200ms;
+  --motion-slow: 240ms;
+  --ease-os: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-snap: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Touch target (override por viewport abaixo) */
+  --touch-target: 44px;
+}
+
+/* Viewport-specific overrides — touch target menor em desktop (mouse precision) */
+body.viewport-desktop { --touch-target: 32px; }
+body.viewport-tablet  { --touch-target: 44px; }
+body.viewport-mobile  { --touch-target: 44px; }
+
+/* Window radius por viewport — mobile sheet-like, desktop floating */
+body.viewport-mobile  { --win-radius: 20px; }
+body.viewport-tablet  { --win-radius: 16px; }
+body.viewport-desktop { --win-radius: 12px; }
+
+/* Dock altura por viewport */
+body.viewport-mobile  { --dock-h: 56px; }
+body.viewport-tablet  { --dock-h: 60px; }
+body.viewport-desktop { --dock-h: 64px; }
+
+/* --------------------------------------------------------------------------
+   VIEW CONTRACT — body.view-os vs body.view-web
+   Nesta fase, só reservamos os seletores. Regras visuais ficam nos arquivos
+   específicos (glass-override.css pra os, responsive.css → view-web.css na F7).
+   -------------------------------------------------------------------------- */
+
+/* view-os é o default — sem estilos especiais aqui, herda visual atual */
+
+/* view-web herda o atual hack responsive (temporário até F7 prefixar tudo) */
+
+/* --------------------------------------------------------------------------
+   REDUCED MOTION
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 80ms;
+    --motion-mid:  100ms;
+    --motion-slow: 120ms;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   DEBUG OVERLAY — ativado via ?debug=1 ou localStorage.casehub_debug=1
+   (CSS só; JS que aplica body.debug-overlay vem num script separado futuro)
+   -------------------------------------------------------------------------- */
+body.debug-overlay::before {
+  content: attr(data-debug);
+  position: fixed;
+  top: 4px;
+  left: 4px;
+  z-index: 999999;
+  background: rgba(255, 0, 0, 0.85);
+  color: white;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-family: ui-monospace, Menlo, monospace;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   FASE 2 — Dock adaptativo OS-like (mobile + tablet)
+   Preserva identidade Liquid Glass flutuante em todos viewports.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   DOCK WRAPPER — adaptativo (sem mudar transforma/position default)
+   Desktop (≥1280): inalterado (regras em glass-override.css)
+   Tablet/Mobile: cápsulas menores, margem segura, sem scroll horizontal
+   -------------------------------------------------------------------------- */
+body.view-os.viewport-tablet .ui-os-dock-wrapper {
+  max-width: 98vw;
+  bottom: calc(var(--sp-3) + var(--safe-bottom));
+}
+
+body.view-os.viewport-mobile .ui-os-dock-wrapper {
+  left: 8px;
+  right: 8px;
+  transform: none;
+  width: auto;
+  max-width: calc(100vw - 16px);
+  bottom: calc(8px + var(--safe-bottom));
+  gap: 6px;
+}
+
+/* Cápsulas: altura adaptada (token --dock-h já por viewport em view-system.css tokens) */
+body.view-os.viewport-mobile .os-dock-bubble,
+body.view-os.viewport-mobile .os-dock-apps.sidebar,
+body.view-os.viewport-mobile .os-dock-apps.sidebar.glass {
+  height: var(--dock-h) !important;
+  min-height: var(--dock-h) !important;
+}
+
+body.view-os.viewport-tablet .os-dock-bubble,
+body.view-os.viewport-tablet .os-dock-apps.sidebar,
+body.view-os.viewport-tablet .os-dock-apps.sidebar.glass {
+  height: var(--dock-h) !important;
+  min-height: var(--dock-h) !important;
+}
+
+/* Logo cápsula — círculo 1:1 com --dock-h */
+body.view-os.viewport-mobile .os-dock-bubble.os-dock-logo,
+body.view-os.viewport-tablet .os-dock-bubble.os-dock-logo {
+  width: var(--dock-h) !important;
+  height: var(--dock-h) !important;
+  min-width: var(--dock-h) !important;
+  flex: 0 0 var(--dock-h) !important;
+}
+
+body.view-os.viewport-mobile .os-dock-logo .logo-squircle {
+  width: 32px;
+  height: 32px;
+}
+
+/* User cápsula — adaptada */
+body.view-os.viewport-mobile .os-dock-bubble.os-dock-user {
+  flex: 0 0 auto;
+  padding: 0 10px !important;
+}
+
+body.view-os.viewport-mobile .user-dock-avatar {
+  width: 36px;
+  height: 36px;
+}
+
+/* Apps cápsula — flex grow, scroll interno */
+body.view-os.viewport-mobile .os-dock-bubble.os-dock-apps,
+body.view-os.viewport-tablet .os-dock-bubble.os-dock-apps {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+body.view-os.viewport-mobile .os-dock-apps::-webkit-scrollbar,
+body.view-os.viewport-tablet .os-dock-apps::-webkit-scrollbar { display: none; }
+
+/* Nav links dentro do apps cápsula em touch: tap target 44px */
+body.view-os.viewport-mobile .os-dock-apps .nav-link,
+body.view-os.viewport-tablet .os-dock-apps .nav-link {
+  min-width: 44px;
+  min-height: 40px;
+  padding: 6px 10px;
+  flex-direction: row;
+}
+
+body.view-os.viewport-mobile .os-dock-apps .nav.flex-column,
+body.view-os.viewport-tablet .os-dock-apps .nav.flex-column {
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  width: max-content !important;
+  gap: 4px;
+  padding: 0 8px;
+  margin: 0;
+  align-items: center;
+  height: 100%;
+  list-style: none;
+}
+
+body.view-os.viewport-mobile .os-dock-apps .nav.flex-column {
+  gap: 2px;
+  padding: 0 6px;
+}
+
+body.view-os.viewport-mobile .os-dock-apps .nav-item,
+body.view-os.viewport-tablet .os-dock-apps .nav-item { flex: 0 0 auto; }
+
+/* Nav-link: ícone visível sempre, texto visível em viewport razoável */
+body.view-os.viewport-mobile .os-dock-apps .nav-link i,
+body.view-os.viewport-tablet .os-dock-apps .nav-link i {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+body.view-os.viewport-mobile .os-dock-apps .nav-link {
+  font-size: 11px;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+body.view-os.viewport-tablet .os-dock-apps .nav-link {
+  font-size: 13px;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   MAIN APP WINDOW — adaptativa preservando identidade macOS
+   -------------------------------------------------------------------------- */
+body.view-os.viewport-mobile #mainAppWindow,
+body.view-os.viewport-mobile .macos-window.macos-app-window {
+  position: fixed !important;
+  top: calc(8px + var(--safe-top)) !important;
+  left: 8px !important;
+  right: 8px !important;
+  bottom: calc(var(--dock-h) + 16px + var(--safe-bottom)) !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: calc(100vw - 16px) !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border-radius: var(--win-radius) !important;
+  overflow: hidden;
+}
+
+body.view-os.viewport-tablet #mainAppWindow,
+body.view-os.viewport-tablet .macos-window.macos-app-window {
+  position: fixed !important;
+  top: calc(12px + var(--safe-top)) !important;
+  left: 12px !important;
+  right: 12px !important;
+  bottom: calc(var(--dock-h) + 20px + var(--safe-bottom)) !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border-radius: var(--win-radius) !important;
+}
+
+/* Window content scroll interno */
+body.view-os.viewport-mobile .macos-window-content,
+body.view-os.viewport-mobile .app-content-scroll,
+body.view-os.viewport-tablet .macos-window-content,
+body.view-os.viewport-tablet .app-content-scroll {
+  height: 100% !important;
+  max-height: none !important;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px !important;
+}
+
+/* Titlebar mais compacta em mobile/tablet */
+body.view-os.viewport-mobile .macos-titlebar {
+  height: 32px;
+}
+body.view-os.viewport-tablet .macos-titlebar {
+  height: 36px;
+}
+
+/* Traffic lights menores em mobile (tap target via ::before expansion) */
+body.view-os.viewport-mobile .traffic-dot {
+  width: 12px;
+  height: 12px;
+  position: relative;
+}
+body.view-os.viewport-mobile .traffic-dot::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  /* tap area invisível 40×40 */
+}
+
+/* Tab-bar em mobile: compactada */
+body.view-os.viewport-mobile .tab-bar {
+  height: 32px;
+}
+
+/* Inputs: font-size 16px pra evitar zoom iOS */
+body.view-os.viewport-mobile input[type="text"],
+body.view-os.viewport-mobile input[type="email"],
+body.view-os.viewport-mobile input[type="password"],
+body.view-os.viewport-mobile input[type="search"],
+body.view-os.viewport-mobile input[type="number"],
+body.view-os.viewport-mobile textarea,
+body.view-os.viewport-mobile select {
+  font-size: 16px !important;
+}
+
+/* ORM pill — em mobile some do canto (será acessível via menu user na F6) */
+body.view-os.viewport-mobile #osGlobalChrome,
+body.view-os.viewport-mobile #osResourceMonitor {
+  display: none !important;
+}
+
+/* Main content: sem padding extra (janela já é fullscreen-safe) */
+body.view-os.viewport-mobile .main-content,
+body.view-os.viewport-tablet .main-content {
+  padding: 0 !important;
+}
+
+/* --------------------------------------------------------------------------
+   FIX: hub_tabs ativa cria .tab-content-area que precisa de altura explícita
+   (flex:1 não funciona porque .main-content não é flex container)
+   -------------------------------------------------------------------------- */
+body.view-os .tab-content-area,
+body.view-os .tab-pane {
+  height: 100%;
+  min-height: 100%;
+}
+
+body.view-os .main-content:has(.tab-content-area) {
+  display: flex;
+  flex-direction: column;
+}
+
+body.view-os #tab-home {
+  height: 100%;
+  min-height: 100%;
+  position: relative;
+}
+
+/* --------------------------------------------------------------------------
+   FASE 3 — Window Manager JS flags + chrome visual
+   Resize handles invisíveis em mobile/tablet (flags JS já bloqueiam mousedown)
+   -------------------------------------------------------------------------- */
+body.view-os.viewport-mobile .resize-handle,
+body.view-os.viewport-tablet .resize-handle {
+  display: none !important;
+}
+
+/* Titlebar drag cursor: default em não-desktop (sem drag visual hint) */
+body.view-os.viewport-mobile .macos-titlebar,
+body.view-os.viewport-tablet .macos-titlebar {
+  cursor: default !important;
+}
+
+body.view-os.viewport-mobile .macos-titlebar:active,
+body.view-os.viewport-tablet .macos-titlebar:active {
+  cursor: default !important;
+}
+
+/* ==========================================================================
+   FASE 4 — Titlebar + Traffic Lights adaptativos
+   Mobile: handle-pill superior (swipe-down to close) + botão X grande
+   Tablet: traffic lights ligeiramente maiores para tap
+   Desktop: inalterado
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   MOBILE — Handle-pill + X button; traffic-lights escondidas
+   -------------------------------------------------------------------------- */
+body.view-os.viewport-mobile .macos-titlebar {
+  height: 36px !important;
+  padding: 0 12px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+html[data-theme="dark"] body.view-os.viewport-mobile .macos-titlebar {
+  background: rgba(30, 30, 36, 0.95);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Handle pill no topo da titlebar — afordância pra swipe-down */
+body.view-os.viewport-mobile .macos-titlebar::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+html[data-theme="dark"] body.view-os.viewport-mobile .macos-titlebar::before {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Esconder traffic lights nativas — substituídas por X à direita */
+body.view-os.viewport-mobile .traffic-lights {
+  display: none !important;
+}
+
+/* Título central menor */
+body.view-os.viewport-mobile .macos-titlebar .os-window-title,
+body.view-os.viewport-mobile .macos-titlebar .macos-window-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  padding: 0;
+}
+
+/* Botão X mobile — fullsize tap target no canto direito */
+body.view-os.viewport-mobile .macos-titlebar .window-close-mobile {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: rgba(0, 0, 0, 0.55);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.12s linear, transform 0.15s var(--ease-snap);
+}
+
+body.view-os.viewport-mobile .macos-titlebar .window-close-mobile:hover,
+body.view-os.viewport-mobile .macos-titlebar .window-close-mobile:active {
+  background: rgba(0, 0, 0, 0.06);
+  transform: translateY(-50%) scale(0.92);
+}
+
+html[data-theme="dark"] body.view-os.viewport-mobile .macos-titlebar .window-close-mobile {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* --------------------------------------------------------------------------
+   TABLET — Traffic lights ligeiramente maiores (tap-friendly)
+   -------------------------------------------------------------------------- */
+body.view-os.viewport-tablet .traffic-dot {
+  width: 14px;
+  height: 14px;
+}
+
+body.view-os.viewport-tablet .macos-titlebar {
+  padding: 0 12px;
+}
+
+/* ==========================================================================
+   FASE 5 — Cards/forms/tabelas Liquid Glass com orçamento de performance
+   Regra: backdrop-filter APENAS em surfaces principais (dock, janela ativa, modal).
+   Cards/buttons/inputs/tables usam tint sólido + border + reflection.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Tokens liquid glass reutilizáveis (valores derivados do codepen-references)
+   -------------------------------------------------------------------------- */
+:root {
+  --glass-1: rgba(255, 255, 255, 0.55);  /* cards, inputs (tint claro) */
+  --glass-2: rgba(255, 255, 255, 0.75);  /* hover state mais opaco */
+  --glass-3: rgba(255, 255, 255, 0.90);  /* forte, para bg sólido */
+  --glass-border-1: rgba(255, 255, 255, 0.35);
+  --glass-border-2: rgba(0, 0, 0, 0.06);
+  --reflection-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.10);
+}
+
+html[data-theme="dark"] {
+  --glass-1: rgba(28, 28, 34, 0.65);
+  --glass-2: rgba(36, 36, 42, 0.82);
+  --glass-3: rgba(28, 28, 34, 0.95);
+  --glass-border-1: rgba(255, 255, 255, 0.10);
+  --glass-border-2: rgba(255, 255, 255, 0.08);
+  --reflection-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   CARDS — tint sólido (NO backdrop-filter) + border + reflection
+   GPU-only hover (transform + shadow)
+   -------------------------------------------------------------------------- */
+body.view-os .glass-card,
+body.view-os .card,
+body.view-os .widget,
+body.view-os .stat-card {
+  background: var(--glass-1);
+  /* IMPORTANTE: sem backdrop-filter pra economizar GPU */
+  border: 1px solid var(--glass-border-1);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card), var(--reflection-subtle);
+  transition:
+    transform var(--motion-fast) var(--ease-snap),
+    box-shadow var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out;
+  will-change: auto;
+}
+
+/* Hover só em mouse (touch não tem hover sticky) */
+@media (hover: hover) {
+  body.view-os .glass-card:hover,
+  body.view-os .card:hover,
+  body.view-os .widget:hover {
+    transform: translate3d(0, -2px, 0);
+    box-shadow: var(--shadow-card-hover), var(--reflection-subtle);
+    border-color: var(--glass-border-1);
+  }
+}
+
+/* Active feedback pra touch */
+body.view-os.touch .glass-card:active,
+body.view-os.touch .card:active {
+  transform: scale(0.98);
+  transition-duration: 100ms;
+}
+
+/* --------------------------------------------------------------------------
+   INPUTS — liquid glass, tap-friendly em mobile
+   -------------------------------------------------------------------------- */
+body.view-os .glass-input,
+body.view-os input[type="text"],
+body.view-os input[type="email"],
+body.view-os input[type="password"],
+body.view-os input[type="search"],
+body.view-os input[type="number"],
+body.view-os input[type="tel"],
+body.view-os textarea,
+body.view-os select {
+  background: var(--glass-1);
+  border: 1px solid var(--glass-border-1);
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: border-color var(--motion-fast) ease-out, box-shadow var(--motion-fast) ease-out;
+}
+
+body.view-os .glass-input:focus,
+body.view-os input:focus,
+body.view-os textarea:focus,
+body.view-os select:focus {
+  outline: none;
+  border-color: rgba(0, 122, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+
+/* Mobile: tap target ≥44px + font 16px (já garantido em F2) */
+body.view-os.viewport-mobile input,
+body.view-os.viewport-mobile textarea,
+body.view-os.viewport-mobile select {
+  min-height: 44px;
+}
+
+/* --------------------------------------------------------------------------
+   BUTTONS — liquid glass, snappy feedback
+   -------------------------------------------------------------------------- */
+body.view-os .glass-btn,
+body.view-os .btn {
+  background: var(--glass-1);
+  border: 1px solid var(--glass-border-1);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-snap),
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out;
+  will-change: auto;
+}
+
+@media (hover: hover) {
+  body.view-os .glass-btn:hover,
+  body.view-os .btn:hover {
+    background: var(--glass-2);
+    transform: translate3d(0, -1px, 0);
+  }
+}
+
+body.view-os .glass-btn:active,
+body.view-os .btn:active {
+  transform: translate3d(0, 0, 0) scale(0.96);
+}
+
+body.view-os.viewport-mobile .glass-btn,
+body.view-os.viewport-mobile .btn {
+  min-height: 44px;
+  padding: 10px 16px;
+}
+
+/* Primary button */
+body.view-os .glass-btn--primary,
+body.view-os .btn-primary {
+  background: rgba(0, 0, 0, 0.88);
+  color: rgba(255, 255, 255, 0.96);
+  border-color: rgba(0, 0, 0, 0.92);
+}
+
+@media (hover: hover) {
+  body.view-os .glass-btn--primary:hover,
+  body.view-os .btn-primary:hover {
+    background: rgba(0, 0, 0, 0.95);
+  }
+}
+
+html[data-theme="dark"] body.view-os .glass-btn--primary,
+html[data-theme="dark"] body.view-os .btn-primary {
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(0, 0, 0, 0.92);
+  border-color: rgba(255, 255, 255, 0.96);
+}
+
+/* --------------------------------------------------------------------------
+   TABLES — liquid glass com scroll horizontal touch-friendly em mobile
+   -------------------------------------------------------------------------- */
+body.view-os .table-responsive,
+body.view-os .glass-table-wrapper {
+  background: var(--glass-1);
+  border: 1px solid var(--glass-border-1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+body.view-os.viewport-mobile .table-responsive,
+body.view-os.viewport-mobile table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+  max-width: 100%;
+}
+
+body.view-os table th,
+body.view-os table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--glass-border-2);
+}
+
+/* --------------------------------------------------------------------------
+   PERFORMANCE MODE — desliga backdrop-filter das surfaces principais tbm
+   (dock, janelas) quando user ativa "Modo Economia" no ORM
+   -------------------------------------------------------------------------- */
+body.view-os.performance-mode .macos-window,
+body.view-os.performance-mode .ui-os-dock-wrapper,
+body.view-os.performance-mode .os-dock-bubble {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.view-os.performance-mode * {
+  animation-duration: 80ms !important;
+  transition-duration: 80ms !important;
+}
+
+/* ==========================================================================
+   FASE 7 — User Dropdown toggles com feedback visual
+   Estado ativo (verde) no Modo Economia, label dinâmica no Visualização
+   ========================================================================== */
+body.view-os .user-dropdown-toggle,
+body.view-web .user-dropdown-toggle {
+  position: relative;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between !important;
+  gap: 10px;
+}
+
+body.view-os .user-dropdown-toggle .user-dropdown-badge,
+body.view-web .user-dropdown-toggle .user-dropdown-badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background-color 120ms linear, box-shadow 120ms ease-out;
+  flex-shrink: 0;
+}
+
+body.view-os .user-dropdown-toggle.active .user-dropdown-badge,
+body.view-web .user-dropdown-toggle.active .user-dropdown-badge {
+  background: #34c759;
+  box-shadow: 0 0 8px rgba(52, 199, 89, 0.5);
+}
+
+body.view-os .user-dropdown-view-label,
+body.view-web .user-dropdown-view-label {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+html[data-theme="light"] body.view-os .user-dropdown-view-label,
+html[data-theme="light"] body.view-web .user-dropdown-view-label {
+  color: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ==========================================================================
+   A11Y FIX — Color contrast WCAG 2.1 AA (≥4.5:1 sobre card glass bg)
+   Inline styles usando #888 ou var(--text-secondary) ficam com contraste baixo.
+   Override via !important (cirúrgico, aplica só em view-os).
+   ========================================================================== */
+body.view-os .widget-body p,
+body.view-os .widget-body small,
+body.view-os .widget-body div[style*="color:#888"],
+body.view-os .widget-body div[style*="color: #888"],
+body.view-os .dashboard-toolbar p,
+body.view-os .dashboard-toolbar div[style*="color:var(--text-secondary)"],
+body.view-os .dashboard-toolbar p[style*="color:var(--text-secondary)"] {
+  color: rgba(30, 30, 34, 0.75) !important;
+}
+
+html[data-theme="dark"] body.view-os .widget-body p,
+html[data-theme="dark"] body.view-os .widget-body small,
+html[data-theme="dark"] body.view-os .widget-body div[style*="color:#888"],
+html[data-theme="dark"] body.view-os .widget-body div[style*="color: #888"],
+html[data-theme="dark"] body.view-os .dashboard-toolbar p {
+  color: rgba(230, 230, 235, 0.85) !important;
+}
+
+/* Texto "Total/Ativos/Encerrados" nos stat cards */
+body.view-os .widget-body [style*="color:#888;"],
+body.view-os .widget-body [style*="color: #888"],
+body.view-os .widget-body [style*="font-size:11px"] {
+  color: rgba(30, 30, 34, 0.68) !important;
+}
+
+html[data-theme="dark"] body.view-os .widget-body [style*="color:#888;"],
+html[data-theme="dark"] body.view-os .widget-body [style*="color: #888"] {
+  color: rgba(230, 230, 235, 0.78) !important;
+}
+
+/* --------------------------------------------------------------------------
+   A11Y FIX — sort icons + th.sortable (WCAG 2.1 AA contrast ≥4.5:1)
+   -------------------------------------------------------------------------- */
+/* Specificity reforçada: 3 classes + tipo + id scope, ganha sobre casehub-theme.css */
+html body.view-os table.table th,
+html body.view-os table th.sortable,
+html body.view-os .table-responsive th,
+html body.view-os table th {
+  color: #3a3a3c !important;
+}
+
+html body.view-os table th.sortable .sort-icon {
+  color: #555 !important;
+  opacity: 1;
+}
+
+body.view-os th.sortable.sort-asc .sort-icon,
+body.view-os th.sortable.sort-desc .sort-icon {
+  color: rgba(0, 122, 255, 0.9) !important;
+}
+
+html[data-theme="dark"] body.view-os th.sortable {
+  color: rgba(230, 230, 235, 0.92) !important;
+}
+
+html[data-theme="dark"] body.view-os th.sortable .sort-icon {
+  color: rgba(230, 230, 235, 0.65) !important;
+}
+
+/* --------------------------------------------------------------------------
+   A11Y FIX — Bootstrap badges (bg-success/warning/info/danger) contrast AA
+   -------------------------------------------------------------------------- */
+html body.view-os .badge.bg-success {
+  background-color: #0e7c36 !important;
+  color: #ffffff !important;
+}
+html body.view-os .badge.bg-warning {
+  background-color: #8a5400 !important;
+  color: #ffffff !important;
+}
+html body.view-os .badge.bg-info {
+  background-color: #0d5b75 !important;
+  color: #ffffff !important;
+}
+html body.view-os .badge.bg-danger {
+  background-color: #a52020 !important;
+  color: #ffffff !important;
+}
+html body.view-os .badge.bg-secondary {
+  background-color: #4a5258 !important;
+  color: #ffffff !important;
+}
+html body.view-os .badge.bg-primary {
+  background-color: #1b4a7d !important;
+  color: #ffffff !important;
+}
+
+/* --------------------------------------------------------------------------
+   A11Y FIX — ORM labels + widget gray texts contrast AA
+   -------------------------------------------------------------------------- */
+html body.view-os #osResourceMonitor .orm-label {
+  color: #ffffff !important;
+  opacity: 0.92 !important;
+}
+
+/* Widgets com texto cinza inline */
+html body.view-os .widget-body [style*="color:#999"],
+html body.view-os .widget-body [style*="color: #999"],
+html body.view-os .widget-body div[style*="#999"] {
+  color: #595959 !important;
+}
+html[data-theme="dark"] body.view-os .widget-body [style*="color:#999"],
+html[data-theme="dark"] body.view-os .widget-body [style*="color: #999"] {
+  color: #c6c6c8 !important;
+}
+
+/* ORM pill bg mais opaco em tablet pra garantir contrast AA */
+html body.view-os.viewport-tablet #osResourceMonitor {
+  background: rgba(15, 15, 20, 0.92) !important;
+  backdrop-filter: blur(20px) saturate(150%);
+}
+html body.view-os #osResourceMonitor .orm-label,
+html body.view-os #osResourceMonitor .orm-value {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* --------------------------------------------------------------------------
+   Desktop window — sistema CSS vars (--win-x/y/w/h) que JS sobrescreve via
+   inline custom properties durante drag/resize/maximize.
+   GPU-only: position fixed + width/height + top/left (no layout reflow durante drag).
+   -------------------------------------------------------------------------- */
+body.view-os.viewport-desktop .macos-window.macos-app-window {
+  --win-x: 4vw;
+  --win-y: 24px;
+  --win-w: 92vw;
+  --win-h: calc(100vh - 96px);
+  position: fixed;
+  left: var(--win-x);
+  top: var(--win-y);
+  width: var(--win-w);
+  height: var(--win-h);
+  max-width: none;
+  max-height: none;
+  transition:
+    left 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    top 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Durante drag/resize: zero transition pra 1:1 com cursor */
+body.view-os.viewport-desktop .macos-window.macos-app-window.dragging,
+body.view-os.viewport-desktop .macos-window.macos-app-window.resizing {
+  transition: none !important;
+}
+
+/* Maximize via classe — CSS-only, JS apenas adiciona/remove */
+body.view-os.viewport-desktop .macos-window.macos-app-window.is-maximized {
+  --win-x: 0;
+  --win-y: 0;
+  --win-w: 100vw;
+  --win-h: 100vh;
+  border-radius: 0 !important;
+}
+
+/* Snap left half */
+body.view-os.viewport-desktop .macos-window.macos-app-window.is-snapped-left {
+  --win-x: 0;
+  --win-y: 0;
+  --win-w: 50vw;
+  --win-h: calc(100vh - 80px);
+}
+
+/* Snap right half */
+body.view-os.viewport-desktop .macos-window.macos-app-window.is-snapped-right {
+  --win-x: 50vw;
+  --win-y: 0;
+  --win-w: 50vw;
+  --win-h: calc(100vh - 80px);
+}
+
+/* ==========================================================================
+   FRENTE 2 — Nav-bar self-aware (container queries + density)
+   Dock apps cápsula expande conforme espaço disponível, ícone-only quando aperta.
+   ========================================================================== */
+body.view-os.viewport-desktop .os-dock-bubble.os-dock-apps {
+  /* container-type removido — inline-size faz width:auto colapsar a 0.
+     Nova arquitetura em dock-apps-nav.css usa flex natural, sem container queries. */
+  min-width: max-content !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+}
+
+/* Restaurar nav.flex-column como flex container REAL em desktop view-os.
+   display:contents em glass-override.css quebra max-content do parent. */
+html body.view-os.viewport-desktop .os-dock-apps .nav.flex-column,
+html body.view-os.viewport-desktop .sidebar .nav.flex-column {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: var(--dock-gap-inner, 4px) !important;
+  width: max-content !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 var(--sp-2, 8px) !important;
+  list-style: none !important;
+}
+
+/* Wrapper PRECISA expandir pra caber children — força width auto */
+html body.view-os.viewport-desktop .ui-os-dock-wrapper {
+  width: auto !important;
+  min-width: max-content !important;
+  max-width: 95vw !important;
+}
+
+body.view-os.viewport-desktop .os-dock-apps .nav-item {
+  flex: 0 0 auto;
+  list-style: none;
+}
+
+/* Density data attribute do ResizeObserver controla densidade visual */
+body.view-os .ui-os-dock-wrapper[data-density="compact"] .os-dock-apps .nav-link span,
+body.view-os .ui-os-dock-wrapper[data-density="compact"] .os-dock-apps .nav-link {
+  /* compact: ícones-only, padding reduzido */
+}
+body.view-os .ui-os-dock-wrapper[data-density="compact"] .nav-link {
+  padding: 6px 8px !important;
+}
+body.view-os .ui-os-dock-wrapper[data-density="compact"] .nav-link span {
+  display: none !important;
+}
+
+body.view-os .ui-os-dock-wrapper[data-density="comfortable"] .nav-link {
+  padding: 6px 12px !important;
+}
+
+/* ==========================================================================
+   F3 — Performance: backdrop-filter budget enforcement
+   Regra (Surma "Compositing on the Web"): ≤3 surfaces simultâneas com blur.
+   Surfaces permitidas: dock, janela ativa, modal/overlay.
+   Cards/widgets/buttons internos = tint sólido (zero blur cost).
+   ========================================================================== */
+
+/* .glass dentro de containers não-chrome: desliga blur */
+body.view-os .widget-container .glass,
+body.view-os .card .glass,
+body.view-os .stat-card .glass,
+body.view-os .widget-body .glass,
+body.view-os .glass-card:not(.modal):not(.macos-window):not(.os-dock-bubble),
+body.view-os .widget-container.glass,
+body.view-os .stat-card.glass,
+body.view-os table .glass {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Botões e inputs .glass dentro de forms: tint sólido */
+body.view-os .glass-btn,
+body.view-os .glass-input,
+body.view-os .btn.glass,
+body.view-os input.glass,
+body.view-os textarea.glass,
+body.view-os select.glass {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

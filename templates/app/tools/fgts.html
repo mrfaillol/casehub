@@ -1,0 +1,209 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Fgts · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/tools-fgts.css">
+{% endblock %}
+{% block content %}
+<main class="tools-fgts-main" aria-labelledby="tools-fgts-title">
+    <header class="tools-fgts-header tools-fgts-no-print">
+        <div class="tools-fgts-heading">
+            <h1 id="tools-fgts-title" class="tools-fgts-title">
+                <i class="fas fa-piggy-bank" aria-hidden="true"></i>
+                <span>FGTS + Multa Rescisoria</span>
+            </h1>
+            <p class="tools-fgts-subtitle">Lei 8.036/90, CLT Art. 484-A</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-fgts-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    <div class="tools-fgts-grid{% if resultado %} tools-fgts-grid--with-result{% endif %}">
+        <form method="POST" action="{{ PREFIX }}/tools/fgts/calcular" class="tools-fgts-form">
+            <div class="tools-fgts-card">
+                <div class="tools-fgts-card-body">
+                    <div class="tools-fgts-section-title">Dados do Cálculo</div>
+
+                    <div class="tools-fgts-field">
+                        <label for="tools-fgts-salario" class="tools-fgts-label">
+                            Salário Base (R$)
+                            <span class="tools-fgts-required" aria-hidden="true">*</span>
+                        </label>
+                        <div class="tools-fgts-input-group">
+                            <span class="tools-fgts-input-prefix" aria-hidden="true">R$</span>
+                            <input type="number" id="tools-fgts-salario" name="salario"
+                                   class="tools-fgts-input tools-fgts-input--currency"
+                                   step="0.01" min="0" inputmode="decimal"
+                                   value="{{ form.salario if form else '' }}"
+                                   required aria-required="true">
+                        </div>
+                    </div>
+
+                    <div class="tools-fgts-row">
+                        <div class="tools-fgts-field">
+                            <label for="tools-fgts-meses" class="tools-fgts-label">
+                                Meses Trabalhados
+                                <span class="tools-fgts-required" aria-hidden="true">*</span>
+                            </label>
+                            <input type="number" id="tools-fgts-meses" name="meses_trabalhados"
+                                   class="tools-fgts-input tools-fgts-input--number"
+                                   min="1" inputmode="numeric"
+                                   value="{{ form.meses_trabalhados if form else '' }}"
+                                   required aria-required="true">
+                        </div>
+                        <div class="tools-fgts-field">
+                            <label for="tools-fgts-saldo-anterior" class="tools-fgts-label">
+                                Saldo FGTS Anterior (R$)
+                            </label>
+                            <div class="tools-fgts-input-group">
+                                <span class="tools-fgts-input-prefix" aria-hidden="true">R$</span>
+                                <input type="number" id="tools-fgts-saldo-anterior" name="saldo_anterior"
+                                       class="tools-fgts-input tools-fgts-input--currency"
+                                       step="0.01" min="0" inputmode="decimal"
+                                       value="{{ form.saldo_anterior if form else '0' }}"
+                                       aria-describedby="tools-fgts-saldo-anterior-help">
+                            </div>
+                            <small id="tools-fgts-saldo-anterior-help" class="tools-fgts-help">
+                                Saldo de empregos anteriores, se conhecido
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="tools-fgts-section-title">Tipo de Rescisão</div>
+
+                    <div class="tools-fgts-field">
+                        <label for="tools-fgts-tipo" class="tools-fgts-label">
+                            Modalidade
+                            <span class="tools-fgts-required" aria-hidden="true">*</span>
+                        </label>
+                        <select id="tools-fgts-tipo" name="tipo_rescisao" class="tools-fgts-select"
+                                required aria-required="true">
+                            <option value="sem_justa_causa" {% if form and form.tipo_rescisao == 'sem_justa_causa' %}selected{% endif %}>
+                                Sem justa causa - Multa 40%
+                            </option>
+                            <option value="acordo" {% if form and form.tipo_rescisao == 'acordo' %}selected{% endif %}>
+                                Acordo (Art. 484-A) - Multa 20%
+                            </option>
+                            <option value="pedido_demissao" {% if form and form.tipo_rescisao == 'pedido_demissao' %}selected{% endif %}>
+                                Pedido de demissao - Sem multa
+                            </option>
+                            <option value="justa_causa" {% if form and form.tipo_rescisao == 'justa_causa' %}selected{% endif %}>
+                                Justa causa - Sem multa
+                            </option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tools-fgts-actions tools-fgts-no-print">
+                <button type="submit" class="tools-fgts-btn tools-fgts-btn--primary">
+                    <i class="fas fa-calculator" aria-hidden="true"></i>
+                    <span>Calcular</span>
+                </button>
+                <a href="{{ PREFIX }}/tools/fgts" class="tools-fgts-btn">
+                    <i class="fas fa-eraser" aria-hidden="true"></i>
+                    <span>Limpar</span>
+                </a>
+            </div>
+        </form>
+
+        {% if resultado %}
+        <section id="resultado" class="tools-fgts-card" aria-labelledby="tools-fgts-result-title">
+            <header class="tools-fgts-result-header">
+                <h2 id="tools-fgts-result-title" class="tools-fgts-result-title">
+                    <i class="fas fa-piggy-bank" aria-hidden="true"></i>
+                    <span>Resultado - FGTS</span>
+                </h2>
+                <button type="button" class="tools-fgts-print-btn tools-fgts-no-print" onclick="window.print()">
+                    <i class="fas fa-print" aria-hidden="true"></i>
+                    <span>Imprimir</span>
+                </button>
+            </header>
+
+            <div class="tools-fgts-result-banner">
+                <strong>Tipo de Rescisão:</strong> {{ resultado.tipo_label }}
+            </div>
+
+            <div class="tools-fgts-table-wrap">
+                <table class="tools-fgts-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Verba</th>
+                            <th scope="col" class="tools-fgts-cell-end">Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Deposito Mensal (8%)</td>
+                            <td class="tools-fgts-cell-end">R$ {{ "%.2f"|format(resultado.deposito_mensal) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Saldo Depositado ({{ resultado.meses_trabalhados }} meses)</td>
+                            <td class="tools-fgts-cell-end">R$ {{ "%.2f"|format(resultado.saldo_depositado) }}</td>
+                        </tr>
+                        {% if resultado.saldo_anterior > 0 %}
+                        <tr>
+                            <td>Saldo Anterior</td>
+                            <td class="tools-fgts-cell-end">R$ {{ "%.2f"|format(resultado.saldo_anterior) }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr class="tools-fgts-row-subtotal">
+                            <td>Saldo Total FGTS</td>
+                            <td class="tools-fgts-cell-end">R$ {{ "%.2f"|format(resultado.saldo_total) }}</td>
+                        </tr>
+                        {% if resultado.multa > 0 %}
+                        <tr>
+                            <td>Multa Rescisoria ({{ resultado.percentual_multa }}%)</td>
+                            <td class="tools-fgts-cell-end">R$ {{ "%.2f"|format(resultado.multa) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td class="tools-fgts-cell-muted">Multa Rescisoria</td>
+                            <td class="tools-fgts-cell-end tools-fgts-cell-muted">Não aplicavel</td>
+                        </tr>
+                        {% endif %}
+                        <tr class="tools-fgts-row-total">
+                            <td>TOTAL (SALDO + MULTA)</td>
+                            <td class="tools-fgts-cell-end">R$ {{ "%.2f"|format(resultado.total) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="tools-fgts-card-footer">
+                <div class="tools-fgts-legal">
+                    <span class="tools-fgts-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </span>
+                    <ul class="tools-fgts-legal-list">
+                        <li><strong>Lei 8.036/90, Art. 15</strong> - Deposito mensal de 8% da remuneracao</li>
+                        <li><strong>Lei 8.036/90, Art. 18</strong> - Multa de 40% na despedida sem justa causa</li>
+                        <li><strong>CLT Art. 484-A</strong> - Acordo mutuo: multa de 20% + saque de 80% do saldo</li>
+                        <li><strong>CF Art. 7o, III</strong> - Direito ao FGTS</li>
+                    </ul>
+                </div>
+                <p class="tools-fgts-note">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span>Cálculo estimativo. O saldo real pode incluir rendimentos (TR + 3% a.a.) e depositos sobre adicionais.</span>
+                </p>
+            </footer>
+        </section>
+        {% endif %}
+    </div>
+</main>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 960) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+</script>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

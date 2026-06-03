@@ -1,0 +1,137 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Integrações · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Configurações · Integrações</span>
+    <h1>Estado das <em>integrações</em>.</h1>
+    <p class="ch-page-head__sub">Estado real dos serviços externos que alimentam Agenda, Controladoria, documentos e comunicação.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/settings">
+      <span data-icon="settings"></span> Configurações
+    </a>
+  </div>
+</section>
+
+{% if request.query_params.get('drive_connected') %}
+<section class="ch-card ch-card--compact" style="border-color: var(--c-green-d); margin-bottom: var(--space-5);" role="status">
+  <strong>Google Drive conectado.</strong>
+  <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+    O CaseHub.md agora pode salvar no Drive conectado e exportar uma cópia editável para Google Docs.
+  </p>
+</section>
+{% elif drive_disconnected %}
+<section class="ch-card ch-card--compact" style="border-color: var(--c-green-d); margin-bottom: var(--space-5);" role="status">
+  <strong>Google Drive desconectado.</strong>
+  <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+    Token revogado e arquivos do escritório no Drive não são mais acessados pelo CaseHub. Você pode reconectar a qualquer momento pelo card abaixo.
+  </p>
+</section>
+{% elif drive_error_friendly %}
+<section class="ch-card ch-card--compact" style="border-color: var(--c-warn); margin-bottom: var(--space-5);" role="status">
+  <strong>Google Drive: ajuste necessário.</strong>
+  <p style="margin: var(--space-1) 0 0; color: var(--fg-default); font-size: var(--fs-sm);">
+    {{ drive_error_friendly }}
+  </p>
+</section>
+{% endif %}
+
+<section class="ch-grid ch-grid--2" style="gap: var(--space-5);" aria-label="Serviços integrados">
+  {% for item in integrations %}
+  <article class="ch-card">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">
+          {% if item.state == 'ok' %}
+            <span style="color: var(--c-green-d);">{{ item.state_label }}</span>
+          {% elif item.state == 'warn' %}
+            <span style="color: var(--c-warn);">{{ item.state_label }}</span>
+          {% else %}
+            <span style="color: var(--c-danger);">{{ item.state_label }}</span>
+          {% endif %}
+        </span>
+        <h2 class="ch-card__title">{{ item.name }}</h2>
+      </div>
+      <span data-icon="{% if 'calendar' in item.icon %}calendar{% elif 'balance' in item.icon or 'landmark' in item.icon %}target{% elif 'folder' in item.icon %}folder{% elif 'comment' in item.icon %}bell{% elif 'envelope' in item.icon %}inbox{% elif 'chart' in item.icon or 'magnifying' in item.icon %}chart{% elif 'newspaper' in item.icon %}docs{% else %}processes{% endif %}" data-icon-size="20"
+            style="color: {% if item.state == 'ok' %}var(--c-green-d){% elif item.state == 'warn' %}var(--c-warn){% else %}var(--c-danger){% endif %};"></span>
+    </header>
+
+    <div style="margin-bottom: var(--space-3);">
+      {% if item.state == 'ok' %}
+        <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ item.state_label }}</span>
+      {% elif item.state == 'warn' %}
+        <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ item.state_label }}</span>
+      {% else %}
+        <span class="ch-pill ch-pill--danger"><span class="dot"></span>{{ item.state_label }}</span>
+      {% endif %}
+    </div>
+
+    <strong style="display: block; margin-bottom: var(--space-2);">{{ item.summary }}</strong>
+    <p style="margin: 0 0 var(--space-3); color: var(--fg-default); font-size: var(--fs-sm);">{{ item.detail }}</p>
+
+    {% if item.diagnostic %}
+    <small style="display: block; margin-bottom: var(--space-3); font-family: var(--mono); font-size: var(--fs-xs); color: var(--fg-muted); word-break: break-word;">
+      {{ item.diagnostic }}
+    </small>
+    {% endif %}
+
+    <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-2);">
+      <a class="ch-btn ch-btn--sm ch-btn--primary" href="{{ item.action_url }}">{{ item.action_label }}</a>
+      {% if item.setup_url and item.setup_url != "#" %}
+      <a class="ch-btn ch-btn--sm ch-btn--ghost" href="{{ item.setup_url }}"
+         {% if item.setup_url.startswith('http') %}target="_blank" rel="noopener"{% endif %}>
+        {{ item.setup_label }} <span data-icon="chevron_right" data-icon-size="12"></span>
+      </a>
+      {% endif %}
+      {% if item.disconnect_url and item.state == 'ok' %}
+      <form method="POST" action="{{ item.disconnect_url }}" style="display: inline; margin: 0;"
+            onsubmit="return confirm('Desconectar {{ item.name }} deste escritório? Você poderá reconectar a qualquer momento.');">
+        <button type="submit" class="ch-btn ch-btn--sm ch-btn--ghost" style="color: var(--c-danger); border-color: var(--c-danger);">
+          <span data-icon="x" data-icon-size="12"></span> Desconectar {{ item.name }}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if item.lgpd_notice %}
+    <details style="margin-top: var(--space-2);">
+      <summary style="cursor: pointer; font-size: var(--fs-xs); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+        <span data-icon="shield" data-icon-size="11"></span> Privacidade & LGPD
+      </summary>
+      <p style="margin: var(--space-2) 0 0; padding: var(--space-3); background: var(--surface-card-2); border-left: 2px solid var(--c-info); border-radius: var(--radius-xs); font-size: var(--fs-sm); color: var(--fg-default); line-height: var(--lh-snug);">
+        {{ item.lgpd_notice }}
+      </p>
+    </details>
+    {% endif %}
+
+    {% if item.steps %}
+    <details style="margin-top: var(--space-2);">
+      <summary style="cursor: pointer; font-size: var(--fs-sm); color: var(--fg-muted); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase;">
+        Como deixar funcionando <span data-icon="chevron_down" data-icon-size="12"></span>
+      </summary>
+      <ol style="margin: var(--space-3) 0 0; padding-left: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--fs-sm);">
+        {% for step in item.steps %}
+        <li>{{ step }}</li>
+        {% endfor %}
+      </ol>
+    </details>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+
+<section class="ch-card ch-card--compact" style="border-color: var(--c-danger); margin-top: var(--space-5);" aria-label="Resumo operacional">
+  <div style="display: flex; gap: var(--space-3); align-items: flex-start;">
+    <span class="ch-pill ch-pill--danger" style="flex: 0 0 auto;"><span class="dot"></span></span>
+    <div>
+      <strong>Controladoria depende de autorização oficial PDPJ/CNJ.</strong>
+      <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+        Fontes subsidiárias ajudam na conferência, mas a importação oficial automática de prazos por OAB só deve ser considerada concluída quando o PDPJ estiver autenticado e validado.
+      </p>
+    </div>
+  </div>
+</section>
+{% endblock %}

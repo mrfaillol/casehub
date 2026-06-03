@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Shipment Tracking - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/shipments-list.css">
+{% endblock %}
+
+{% block content %}
+<main class="shipments-list-main" role="main" aria-labelledby="shipments-list-title">
+    <header class="shipments-list-header">
+        <div>
+            <h1 id="shipments-list-title" class="shipments-list-title">
+                <i class="fas fa-shipping-fast" aria-hidden="true"></i>
+                <span>Shipment Tracking</span>
+            </h1>
+            <p class="shipments-list-subtitle">Track USPS, FedEx, UPS shipments</p>
+        </div>
+        <a href="{{ PREFIX }}/shipments/new{% if selected_case %}?case_id={{ selected_case.id }}{% endif %}" class="shipments-list-cta">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Add Shipment</span>
+        </a>
+    </header>
+
+    <nav class="shipments-list-stats" aria-label="Filter shipments by status">
+        <a href="{{ PREFIX }}/shipments"
+           class="shipments-list-stat"
+           {% if not selected_status %}aria-current="true"{% endif %}>
+            <span class="shipments-list-stat-value">{{ shipments|length }}</span>
+            <span class="shipments-list-stat-label">All</span>
+        </a>
+        <a href="{{ PREFIX }}/shipments?status=in_transit"
+           class="shipments-list-stat shipments-list-stat--warning"
+           {% if selected_status == 'in_transit' %}aria-current="true"{% endif %}>
+            <span class="shipments-list-stat-value">{{ status_counts.get('in_transit', 0) }}</span>
+            <span class="shipments-list-stat-label">In Transit</span>
+        </a>
+        <a href="{{ PREFIX }}/shipments?status=out_for_delivery"
+           class="shipments-list-stat shipments-list-stat--info"
+           {% if selected_status == 'out_for_delivery' %}aria-current="true"{% endif %}>
+            <span class="shipments-list-stat-value">{{ status_counts.get('out_for_delivery', 0) }}</span>
+            <span class="shipments-list-stat-label">Out for Delivery</span>
+        </a>
+        <a href="{{ PREFIX }}/shipments?status=delivered"
+           class="shipments-list-stat shipments-list-stat--success"
+           {% if selected_status == 'delivered' %}aria-current="true"{% endif %}>
+            <span class="shipments-list-stat-value">{{ status_counts.get('delivered', 0) }}</span>
+            <span class="shipments-list-stat-label">Delivered</span>
+        </a>
+        <a href="{{ PREFIX }}/shipments?status=exception"
+           class="shipments-list-stat shipments-list-stat--danger"
+           {% if selected_status == 'exception' %}aria-current="true"{% endif %}>
+            <span class="shipments-list-stat-value">{{ status_counts.get('exception', 0) }}</span>
+            <span class="shipments-list-stat-label">Exception</span>
+        </a>
+    </nav>
+
+    {% if shipments %}
+    <section class="shipments-list-card" aria-label="Shipments table">
+        <div class="shipments-list-tablewrap">
+            <table class="shipments-list-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Tracking #</th>
+                        <th scope="col">Carrier</th>
+                        <th scope="col">Direction</th>
+                        <th scope="col">Case</th>
+                        <th scope="col">Recipient</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Date</th>
+                        <th scope="col" class="shipments-list-cell-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in shipments %}
+                    <tr>
+                        <td>
+                            <a href="{{ s.tracking_url }}" target="_blank" rel="noopener noreferrer" class="shipments-list-tracking">
+                                <span>{{ s.tracking_number }}</span>
+                                <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                                <span class="shipments-list-sr-only">(opens in new tab)</span>
+                            </a>
+                        </td>
+                        <td>
+                            <span class="shipments-list-badge shipments-list-badge--carrier">{{ s.carrier|upper }}</span>
+                        </td>
+                        <td>
+                            {% if s.direction == 'outbound' %}
+                            <span class="shipments-list-direction shipments-list-direction--outbound">
+                                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                                <span>Outbound</span>
+                            </span>
+                            {% else %}
+                            <span class="shipments-list-direction shipments-list-direction--inbound">
+                                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                                <span>Inbound</span>
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.case_number %}
+                            <a href="{{ PREFIX }}/cases/{{ s.case_id }}" class="shipments-list-case-link">{{ s.case_number }}</a>
+                            {% else %}
+                            <span class="shipments-list-placeholder" aria-hidden="true">—</span>
+                            <span class="shipments-list-sr-only">No case</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.recipient %}
+                                {{ s.recipient }}
+                            {% else %}
+                                <span class="shipments-list-placeholder" aria-hidden="true">—</span>
+                                <span class="shipments-list-sr-only">No recipient</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.status == 'label_created' %}
+                            <span class="shipments-list-badge shipments-list-badge--neutral">Label Created</span>
+                            {% elif s.status == 'in_transit' %}
+                            <span class="shipments-list-badge shipments-list-badge--in-transit">In Transit</span>
+                            {% elif s.status == 'out_for_delivery' %}
+                            <span class="shipments-list-badge shipments-list-badge--out-for-delivery">Out for Delivery</span>
+                            {% elif s.status == 'delivered' %}
+                            <span class="shipments-list-badge shipments-list-badge--delivered">Delivered</span>
+                            {% elif s.status == 'exception' %}
+                            <span class="shipments-list-badge shipments-list-badge--exception">Exception</span>
+                            {% else %}
+                            <span class="shipments-list-badge shipments-list-badge--neutral">{{ s.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.created_at %}
+                                <span class="shipments-list-date">{{ s.created_at.strftime('%Y-%m-%d') }}</span>
+                            {% else %}
+                                <span class="shipments-list-placeholder" aria-hidden="true">—</span>
+                                <span class="shipments-list-sr-only">No date</span>
+                            {% endif %}
+                        </td>
+                        <td class="shipments-list-cell-actions">
+                            <div class="shipments-list-actions-cell">
+                                <a href="{{ s.tracking_url }}" target="_blank" rel="noopener noreferrer" class="shipments-list-action-btn" aria-label="Track shipment {{ s.tracking_number }}">
+                                    <i class="fas fa-search" aria-hidden="true"></i>
+                                </a>
+                                <button type="button" class="shipments-list-action-btn" data-action="update-status" data-shipment-id="{{ s.shipment_id }}" aria-label="Update status for shipment {{ s.tracking_number }}">
+                                    <i class="fas fa-sync" aria-hidden="true"></i>
+                                </button>
+                                <button type="button" class="shipments-list-action-btn shipments-list-action-btn--danger" data-action="delete" data-shipment-id="{{ s.shipment_id }}" aria-label="Delete shipment {{ s.tracking_number }}">
+                                    <i class="fas fa-trash" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% else %}
+    <section class="shipments-list-empty" aria-label="No shipments">
+        <i class="fas fa-shipping-fast shipments-list-empty-icon" aria-hidden="true"></i>
+        <h2 class="shipments-list-empty-title">No Shipments</h2>
+        <p class="shipments-list-empty-text">Start tracking shipments for your cases.</p>
+        <a href="{{ PREFIX }}/shipments/new" class="shipments-list-cta">
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Add First Shipment</span>
+        </a>
+    </section>
+    {% endif %}
+</main>
+
+<div id="shipments-list-modal-backdrop" class="shipments-list-modal-backdrop" data-open="false"></div>
+
+<div id="shipments-list-status-modal"
+     class="shipments-list-modal"
+     data-open="false"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="shipments-list-status-modal-title"
+     hidden>
+    <div class="shipments-list-modal-dialog">
+        <header class="shipments-list-modal-header">
+            <h2 id="shipments-list-status-modal-title" class="shipments-list-modal-title">Update Status</h2>
+            <button type="button" class="shipments-list-modal-close" data-action="close-modal" aria-label="Close">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+        </header>
+        <form id="shipments-list-status-form" method="POST">
+            <div class="shipments-list-modal-body">
+                <div class="shipments-list-field">
+                    <label for="shipments-list-status-select" class="shipments-list-field-label">Status</label>
+                    <select id="shipments-list-status-select" name="status" class="shipments-list-select">
+                        <option value="label_created">Label Created</option>
+                        <option value="in_transit">In Transit</option>
+                        <option value="out_for_delivery">Out for Delivery</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="exception">Exception</option>
+                        <option value="returned">Returned</option>
+                    </select>
+                </div>
+                <div class="shipments-list-field">
+                    <label for="shipments-list-location-input" class="shipments-list-field-label">Location (Optional)</label>
+                    <input id="shipments-list-location-input" type="text" name="location" class="shipments-list-input" placeholder="e.g., Miami, FL">
+                </div>
+            </div>
+            <footer class="shipments-list-modal-footer">
+                <button type="button" class="shipments-list-btn-secondary" data-action="close-modal">Cancel</button>
+                <button type="submit" class="shipments-list-cta">Update</button>
+            </footer>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    const PREFIX = '{{ PREFIX }}';
+    const modal = document.getElementById('shipments-list-status-modal');
+    const backdrop = document.getElementById('shipments-list-modal-backdrop');
+    const form = document.getElementById('shipments-list-status-form');
+
+    function openModal(shipmentId) {
+        form.action = `${PREFIX}/shipments/${shipmentId}/update-status`;
+        modal.dataset.open = 'true';
+        modal.removeAttribute('hidden');
+        backdrop.dataset.open = 'true';
+        const firstField = modal.querySelector('select, input, button');
+        if (firstField) firstField.focus();
+    }
+
+    function closeModal() {
+        modal.dataset.open = 'false';
+        modal.setAttribute('hidden', '');
+        backdrop.dataset.open = 'false';
+    }
+
+    function deleteShipment(shipmentId) {
+        if (!confirm('Delete this shipment?')) return;
+        fetch(`${PREFIX}/shipments/${shipmentId}/delete`, { method: 'POST' })
+            .then(() => location.reload());
+    }
+
+    document.addEventListener('click', function (event) {
+        const trigger = event.target.closest('[data-action]');
+        if (!trigger) return;
+        const action = trigger.dataset.action;
+        if (action === 'update-status') {
+            openModal(trigger.dataset.shipmentId);
+        } else if (action === 'delete') {
+            deleteShipment(trigger.dataset.shipmentId);
+        } else if (action === 'close-modal') {
+            closeModal();
+        }
+    });
+
+    backdrop.addEventListener('click', closeModal);
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && modal.dataset.open === 'true') {
+            closeModal();
+        }
+    });
+})();
+</script>
+{% endblock %}

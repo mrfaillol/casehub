@@ -1,0 +1,98 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Privacidade & LGPD · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Termos · Privacidade</span>
+    <h1>Privacidade & <em>LGPD</em>.</h1>
+    <p class="ch-page-head__sub">Como o CaseHub trata dados de escritórios, clientes e integrações. Versão alpha — 27/05/2026.</p>
+  </div>
+</section>
+
+<section class="ch-card ch-card--compact" style="border-color: var(--c-info); margin-bottom: var(--space-5);">
+  <strong>Aviso de transparência alpha.</strong>
+  <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+    Esta é uma página em construção. O CaseHub alpha (jul/2026 → beta) opera com termos preliminares.
+    Em produção (out/2026+), publicaremos política LGPD completa revisada por advogado especialista.
+    Dúvidas urgentes: <a href="mailto:victor@example.com">victor@example.com</a>.
+  </p>
+</section>
+
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <h2 class="ch-card__title">1. Dados que armazenamos</h2>
+  </header>
+  <div class="ch-card__body">
+    <ul style="line-height: 1.7; padding-left: var(--space-5);">
+      <li><strong>Dados do escritório</strong> (org): nome, CNPJ, e-mail, telefone, subdomain. Necessários pra prestação do serviço.</li>
+      <li><strong>Dados de clientes/processos/prazos/tarefas</strong> cadastrados pelo escritório. Pertencem ao escritório, não ao CaseHub.</li>
+      <li><strong>Tokens OAuth</strong> (Google Calendar/Drive): armazenados criptografados em <code>credentials/org_&lt;id&gt;/</code> no servidor, isolados por escritório.</li>
+      <li><strong>Sessão WhatsApp</strong> (whatsapp-web.js): cookies/credenciais do navegador WhatsApp Web, em <code>.wwebjs_auth/session-org-&lt;id&gt;/</code>.</li>
+      <li><strong>Senhas SMTP/IMAP</strong>: variáveis de ambiente do servidor, nunca em DB.</li>
+      <li><strong>Backups DB</strong> criptografados, retenção 14 dias.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <h2 class="ch-card__title">2. Isolamento multi-tenant</h2>
+  </header>
+  <div class="ch-card__body">
+    <p style="line-height: 1.7;">
+      Cada escritório opera num <strong>tenant separado</strong>: subdomain próprio (ex.: <code>cliente.example.com</code>), DB filtrado por <code>org_id</code>, tokens OAuth/WhatsApp armazenados em diretórios isolados, queries SQL forçam tenant. Mesmo num servidor compartilhado, dados de escritórios diferentes nunca se cruzam.
+    </p>
+    <p style="line-height: 1.7; margin-top: var(--space-3);">
+      Auditoria interna Sentinela (27/05/2026) validou 12 vetores anti-vazamento: T1 (X-Org-Id spoof), T2 (SQL injection), T6 (path traversal), T11 (/uploads público) — todos bloqueados.
+    </p>
+  </div>
+</section>
+
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <h2 class="ch-card__title">3. Direitos do titular (LGPD)</h2>
+  </header>
+  <div class="ch-card__body">
+    <ul style="line-height: 1.7; padding-left: var(--space-5);">
+      <li><strong>Confirmação e acesso</strong> aos dados (Art. 18 LGPD): exportação JSON disponível no painel.</li>
+      <li><strong>Correção</strong> de dados incorretos: edição direta no app pelo administrador da org.</li>
+      <li><strong>Eliminação</strong> de dados: revogação OAuth (Drive/Calendar disconnect), exclusão WhatsApp session, encerramento de org via Suporte.</li>
+      <li><strong>Portabilidade</strong>: backup completo SQL fornecido sob demanda.</li>
+      <li><strong>Revogação de consentimento</strong> de integrações: botão "Desconectar" em cada integração (Drive, Calendar, WhatsApp).</li>
+    </ul>
+  </div>
+</section>
+
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <h2 class="ch-card__title">4. Compartilhamento com terceiros</h2>
+  </header>
+  <div class="ch-card__body">
+    <p style="line-height: 1.7;">
+      O CaseHub <strong>não compartilha</strong> dados de escritórios com terceiros, exceto quando o próprio escritório conecta integrações (Google, Ollama local para Maestro IA). Modelos de IA processam mensagens localmente quando possível; quando a infra usar provedor externo (futuras versões), isso será comunicado e ativado por opt-in.
+    </p>
+  </div>
+</section>
+
+<section class="ch-card" style="margin-bottom: var(--space-5);">
+  <header class="ch-card__header">
+    <h2 class="ch-card__title">5. Encarregado de dados (DPO)</h2>
+  </header>
+  <div class="ch-card__body">
+    <p style="line-height: 1.7;">
+      <strong>Victor Vingren</strong> — <a href="mailto:victor@example.com">victor@example.com</a>
+    </p>
+    <p style="line-height: 1.7; color: var(--fg-muted); font-size: var(--fs-sm); margin-top: var(--space-2);">
+      Responsável por receber comunicações sobre tratamento de dados, da ANPD e dos titulares conforme LGPD Art. 41.
+    </p>
+  </div>
+</section>
+
+<section class="ch-card ch-card--compact" style="border-color: var(--c-warn); margin-top: var(--space-5);">
+  <strong>Última atualização:</strong> 2026-05-27 (alpha pré-[parceiro]).
+  <strong>Próxima revisão:</strong> antes de beta 01/08/2026 (com revisão jurídica externa).
+</section>
+
+{% endblock %}

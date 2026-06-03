@@ -1,0 +1,101 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Tools · Itbi · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/tools-shared.css">
+{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <h2><i class="fas fa-building me-2"></i>ITBI - Imposto Transmissao Bens Imoveis</h2>
+            <p class="text-muted mb-0">CTN Art. 35-42, CF Art. 156, II</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Voltar
+        </a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-{% if resultado %}5{% else %}8 mx-auto{% endif %} mb-4">
+            <form method="POST" action="{{ PREFIX }}/tools/itbi/calcular">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="form-section-title">Dados do Imovel</div>
+
+                        <div class="mb-3">
+                            <label for="valor_venal" class="form-label">Valor Venal do Imovel (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" class="form-control glass-input" id="valor_venal" name="valor_venal"
+                                       step="0.01" min="0" value="{{ form.valor_venal if form else '' }}" required>
+                            </div>
+                            <small class="text-muted">Valor venal conforme prefeitura ou valor de transacao (o maior)</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="aliquota" class="form-label">Aliquota Municipal (%)</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control glass-input" id="aliquota" name="aliquota"
+                                       step="0.01" min="0.5" max="5" value="{{ form.aliquota if form else '2.0' }}" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <small class="text-muted">Geralmente 2-3% conforme lei municipal</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary w-100">
+                            <i class="fas fa-calculator me-1"></i>Calcular ITBI
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <div class="col-lg-7 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent">
+                    <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Resultado do Cálculo</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered result-table">
+                        <tbody>
+                            <tr>
+                                <th>Valor Venal do Imovel</th>
+                                <td class="text-end">R$ {{ resultado.valor_venal_fmt }}</td>
+                            </tr>
+                            <tr>
+                                <th>Aliquota</th>
+                                <td class="text-end">{{ resultado.aliquota }}%</td>
+                            </tr>
+                            <tr class="result-total table-success">
+                                <td>ITBI a Pagar</td>
+                                <td class="text-end">R$ {{ resultado.itbi_fmt }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="mt-3">
+                        <h6><i class="fas fa-balance-scale me-2"></i>Fundamentação Legal</h6>
+                        <ul class="legal-ref">
+                            {% for ref in resultado.fundamentacao %}
+                            <li>{{ ref }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <div class="mt-3 no-print">
+                        <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-print me-1"></i>Imprimir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

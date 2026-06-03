@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Pensão por Morte - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-pensao-morte.css">
+{% endblock %}
+
+{% block content %}
+<div class="tools-pensao-morte">
+    <header class="tools-pensao-morte-header tools-pensao-morte-no-print">
+        <div>
+            <h1 class="tools-pensao-morte-title">
+                <i class="fas fa-heart-broken tools-pensao-morte-title-icon" aria-hidden="true"></i>
+                Pensão por Morte
+            </h1>
+            <p class="tools-pensao-morte-subtitle">EC 103/2019, Art. 23 | Lei 8.213/91, Art. 77</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="tools-pensao-morte-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="tools-pensao-morte-alert tools-pensao-morte-no-print" role="alert">
+        <i class="fas fa-exclamation-triangle tools-pensao-morte-alert-icon" aria-hidden="true"></i>
+        <span class="tools-pensao-morte-alert-message">{{ error }}</span>
+        <button type="button" class="tools-pensao-morte-alert-close" aria-label="Fechar alerta" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+
+    <div class="tools-pensao-morte-layout {% if resultado %}tools-pensao-morte-layout--split{% endif %}">
+        <div class="tools-pensao-morte-form-column {% if not resultado %}tools-pensao-morte-form-column--narrow{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/pensao-morte/calcular" novalidate>
+                <section class="tools-pensao-morte-card" aria-labelledby="tools-pensao-morte-form-title">
+                    <div class="tools-pensao-morte-card-body">
+                        <h2 id="tools-pensao-morte-form-title" class="tools-pensao-morte-section-title">Dados do Falecido</h2>
+
+                        <div class="tools-pensao-morte-field">
+                            <label for="valor_beneficio" class="tools-pensao-morte-label">
+                                Valor do Benefício / Salário do Falecido (R$)
+                                <span class="tools-pensao-morte-required" aria-hidden="true">*</span>
+                            </label>
+                            <div class="tools-pensao-morte-input-group">
+                                <span class="tools-pensao-morte-input-prefix" aria-hidden="true">R$</span>
+                                <input type="number" class="tools-pensao-morte-input" id="valor_beneficio" name="valor_beneficio"
+                                       step="0.01" min="0" value="{{ form.valor_beneficio if form else '' }}"
+                                       aria-required="true" aria-describedby="valor_beneficio_hint" required>
+                            </div>
+                            <small id="valor_beneficio_hint" class="tools-pensao-morte-hint">Se não era aposentado, informe o salário de contribuição</small>
+                        </div>
+
+                        <h2 class="tools-pensao-morte-section-title">Dependentes</h2>
+
+                        <div class="tools-pensao-morte-field-row">
+                            <div class="tools-pensao-morte-field">
+                                <label for="num_dependentes" class="tools-pensao-morte-label">
+                                    Número de Dependentes
+                                    <span class="tools-pensao-morte-required" aria-hidden="true">*</span>
+                                </label>
+                                <input type="number" class="tools-pensao-morte-input" id="num_dependentes" name="num_dependentes"
+                                       min="1" max="10" value="{{ form.num_dependentes if form else '' }}"
+                                       aria-required="true" aria-describedby="num_dependentes_hint" required>
+                                <small id="num_dependentes_hint" class="tools-pensao-morte-hint">Cônjuge, filhos menores/inválidos, etc.</small>
+                            </div>
+                            <div class="tools-pensao-morte-field">
+                                <label for="idade_conjuge" class="tools-pensao-morte-label">Idade do Cônjuge (se houver)</label>
+                                <input type="number" class="tools-pensao-morte-input" id="idade_conjuge" name="idade_conjuge"
+                                       min="0" max="120" value="{{ form.idade_conjuge if form else '0' }}"
+                                       aria-describedby="idade_conjuge_hint">
+                                <small id="idade_conjuge_hint" class="tools-pensao-morte-hint">Para calcular duração da pensão</small>
+                            </div>
+                        </div>
+
+                        <div class="tools-pensao-morte-field">
+                            <label for="tem_menor_21" class="tools-pensao-morte-label">Possui Dependente Menor de 21 Anos?</label>
+                            <select class="tools-pensao-morte-select" id="tem_menor_21" name="tem_menor_21">
+                                <option value="nao" {% if form and form.tem_menor_21 == 'nao' %}selected{% endif %}>Não</option>
+                                <option value="sim" {% if form and form.tem_menor_21 == 'sim' %}selected{% endif %}>Sim</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="tools-pensao-morte-actions tools-pensao-morte-no-print">
+                    <button type="submit" class="tools-pensao-morte-btn tools-pensao-morte-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Calcular</span>
+                    </button>
+                    <a href="{{ PREFIX }}/tools/pensao-morte" class="tools-pensao-morte-btn tools-pensao-morte-btn--ghost">
+                        <i class="fas fa-eraser" aria-hidden="true"></i>
+                        <span>Limpar</span>
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <div class="tools-pensao-morte-result-column" id="resultado">
+            <section class="tools-pensao-morte-card" aria-labelledby="tools-pensao-morte-result-title">
+                <header class="tools-pensao-morte-card-header">
+                    <h2 id="tools-pensao-morte-result-title" class="tools-pensao-morte-card-header-title">
+                        <i class="fas fa-heart-broken" aria-hidden="true"></i>
+                        Resultado — Pensão por Morte
+                    </h2>
+                    <button type="button" class="tools-pensao-morte-btn tools-pensao-morte-btn--inline tools-pensao-morte-no-print" onclick="window.print()">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </header>
+                <div class="tools-pensao-morte-card-body tools-pensao-morte-card-body--flush">
+                    <table class="tools-pensao-morte-result-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Item</th>
+                                <th scope="col">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Benefício/Salário do Falecido</td>
+                                <td>R$ {{ "%.2f"|format(resultado.valor_beneficio_original) }}</td>
+                            </tr>
+                            <tr>
+                                <td>Número de Dependentes</td>
+                                <td>{{ resultado.num_dependentes }}</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    Cota Familiar
+                                    <span class="tools-pensao-morte-result-hint">(50% + {{ resultado.num_dependentes }} × 10%)</span>
+                                </td>
+                                <td>{{ resultado.cota_percentual }}%</td>
+                            </tr>
+                            {% if resultado.piso_aplicado %}
+                            <tr class="tools-pensao-morte-result-row--warning">
+                                <td>
+                                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                                    Piso SM Aplicado
+                                </td>
+                                <td>R$ {{ "%.2f"|format(resultado.salario_minimo) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr class="tools-pensao-morte-result-row--total">
+                                <td>VALOR DA PENSÃO</td>
+                                <td><strong>R$ {{ "%.2f"|format(resultado.valor_pensao) }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td>Cota Individual (por dependente)</td>
+                                <td>R$ {{ "%.2f"|format(resultado.cota_individual) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            {% if resultado.duracao_label %}
+            <section class="tools-pensao-morte-card" aria-labelledby="tools-pensao-morte-duracao-title">
+                <header class="tools-pensao-morte-card-header tools-pensao-morte-card-header--info">
+                    <h2 id="tools-pensao-morte-duracao-title" class="tools-pensao-morte-card-header-title">
+                        <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                        Duração da Pensão (Cônjuge)
+                    </h2>
+                </header>
+                <div class="tools-pensao-morte-card-body">
+                    <p class="tools-pensao-morte-duracao-label">{{ resultado.duracao_label }}</p>
+                    <table class="tools-pensao-morte-duracao-table">
+                        <caption class="tools-pensao-morte-sr-only">Duração da pensão por morte conforme idade do cônjuge na data do óbito</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Idade do Cônjuge</th>
+                                <th scope="col">Duração</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr {% if resultado.idade_conjuge < 21 %}aria-current="true"{% endif %}>
+                                <td>Menos de 21 anos</td><td>3 anos</td>
+                            </tr>
+                            <tr {% if resultado.idade_conjuge >= 21 and resultado.idade_conjuge <= 26 %}aria-current="true"{% endif %}>
+                                <td>21 a 26 anos</td><td>6 anos</td>
+                            </tr>
+                            <tr {% if resultado.idade_conjuge >= 27 and resultado.idade_conjuge <= 29 %}aria-current="true"{% endif %}>
+                                <td>27 a 29 anos</td><td>10 anos</td>
+                            </tr>
+                            <tr {% if resultado.idade_conjuge >= 30 and resultado.idade_conjuge <= 40 %}aria-current="true"{% endif %}>
+                                <td>30 a 40 anos</td><td>15 anos</td>
+                            </tr>
+                            <tr {% if resultado.idade_conjuge >= 41 and resultado.idade_conjuge <= 43 %}aria-current="true"{% endif %}>
+                                <td>41 a 43 anos</td><td>20 anos</td>
+                            </tr>
+                            <tr {% if resultado.idade_conjuge >= 44 %}aria-current="true"{% endif %}>
+                                <td>44 anos ou mais</td><td>Vitalícia</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            {% endif %}
+
+            <section class="tools-pensao-morte-card" aria-labelledby="tools-pensao-morte-legal-title">
+                <div class="tools-pensao-morte-card-footer">
+                    <h2 id="tools-pensao-morte-legal-title" class="tools-pensao-morte-legal-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        Fundamentação Legal
+                    </h2>
+                    <ul class="tools-pensao-morte-legal-list">
+                        <li><strong>EC 103/2019, Art. 23</strong> — Cota familiar: 50% + 10% por dependente (máx 100%)</li>
+                        <li><strong>Lei 8.213/91, Art. 74</strong> — Direito a pensão por morte</li>
+                        <li><strong>Lei 8.213/91, Art. 77, §2º</strong> — Duração conforme idade do cônjuge</li>
+                        <li><strong>Lei 8.213/91, Art. 16</strong> — Ordem de dependentes</li>
+                        <li><strong>Piso:</strong> O valor da pensão não pode ser inferior a 1 SM (R$ {{ "%.2f"|format(resultado.salario_minimo) }})</li>
+                    </ul>
+                    <p class="tools-pensao-morte-disclaimer">
+                        <i class="fas fa-info-circle tools-pensao-morte-disclaimer-icon" aria-hidden="true"></i>
+                        <span>Cálculo estimativo. Se o falecido não era aposentado, o INSS calcula como se fosse aposentadoria por incapacidade permanente antes de aplicar a cota familiar.</span>
+                    </p>
+                </div>
+            </section>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var el = document.getElementById('resultado');
+        if (el && window.innerWidth < 960) {
+            var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

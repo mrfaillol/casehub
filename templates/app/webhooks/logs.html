@@ -1,0 +1,63 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Webhooks · Logs · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <a href="{{ PREFIX }}/webhooks" class="text-muted text-decoration-none">
+        <i class="fas fa-arrow-left me-1"></i> Back to Webhooks
+    </a>
+    <h2 class="mt-2"><i class="fas fa-history me-2"></i>Webhook Logs</h2>
+    <p class="text-muted">{{ webhook.event_type }} - {{ webhook.webhook_url[:50] }}</p>
+</div>
+
+{% if logs %}
+<div class="table-responsive">
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Event</th>
+                <th>Status</th>
+                <th>Response</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr class="{% if log.error_message %}table-danger{% elif log.response_code >= 400 %}table-warning{% endif %}">
+                <td>{{ log.triggered_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>{{ log.event_type }}</td>
+                <td>
+                    {% if log.response_code == 0 %}
+                    <span class="badge bg-danger">Failed</span>
+                    {% elif log.response_code >= 400 %}
+                    <span class="badge bg-warning">{{ log.response_code }}</span>
+                    {% else %}
+                    <span class="badge bg-success">{{ log.response_code }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if log.error_message %}
+                    <small class="text-danger">{{ log.error_message[:100] }}</small>
+                    {% elif log.response_body %}
+                    <small>{{ log.response_body[:100] }}{% if log.response_body|length > 100 %}...{% endif %}</small>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="fas fa-history fa-3x text-muted mb-3"></i>
+    <h5>No logs yet</h5>
+    <p class="text-muted">This webhook hasn't been triggered yet</p>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

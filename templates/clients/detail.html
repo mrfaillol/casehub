@@ -1,0 +1,779 @@
+{% extends "base.html" %}
+
+{% block title %}{{ client.first_name }} {{ client.last_name }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ asset_url('css/templates/clients-detail.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="clients-detail" aria-labelledby="clients-detail-title">
+
+<header class="clients-detail-header">
+    <div>
+        <a href="{{ PREFIX }}/clients" class="clients-detail-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar aos Clientes{% else %}Back to Clients{% endif %}</span>
+        </a>
+        <h1 id="clients-detail-title" class="clients-detail-title">
+            <i class="fas fa-user" aria-hidden="true"></i>
+            <span>{{ client.first_name }} {{ client.last_name }}</span>
+        </h1>
+    </div>
+    <div class="clients-detail-actions">
+        <form method="POST" action="{{ PREFIX }}/portal/grant-access/{{ client.id }}" class="d-inline">
+            <input type="hidden" name="send_email_flag" value="true">
+            <button type="submit" class="btn btn-outline-success glass-btn glass-btn--ghost" onclick="return confirm({% if product == 'lite' %}'Conceder acesso ao portal e enviar email para {{ client.first_name }}?'{% else %}'Grant portal access and send email to {{ client.first_name }}?'{% endif %});">
+                <i class="fas fa-user-shield me-1" aria-hidden="true"></i> {% if product == "lite" %}Acesso Portal{% else %}Portal Access{% endif %}
+            </button>
+        </form>
+        {% if product != "lite" %}
+        <button type="button" id="openDriveFolderBtn" class="btn btn-outline-info glass-btn glass-btn--ghost" onclick="openDriveFolder()">
+            <i class="fab fa-google-drive me-1" aria-hidden="true"></i> Open Drive Folder
+        </button>
+        {% endif %}
+        <a href="{{ PREFIX }}/clients/{{ client.id }}/edit" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+            <i class="fas fa-edit me-1" aria-hidden="true"></i> {% if product == "lite" %}Editar{% else %}Edit{% endif %}
+        </a>
+        <form method="post" action="{{ PREFIX }}/clients/{{ client.id }}/delete" class="d-inline" onsubmit="return confirm({% if product == 'lite' %}'Tem certeza?'{% else %}'Are you sure?'{% endif %});">
+            <button type="submit" class="btn btn-outline-danger glass-btn glass-btn--ghost">
+                <i class="fas fa-trash me-1" aria-hidden="true"></i> {% if product == "lite" %}Deletar{% else %}Delete{% endif %}
+            </button>
+        </form>
+    </div>
+</header>
+
+{# ── Quick Actions Bar (Lite only) ── #}
+{% if product == "lite" %}
+<nav class="clients-detail-quick-actions" aria-label="Ações rápidas">
+    <a href="{{ PREFIX }}/cases/new?client_id={{ client.id }}" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+        <i class="fas fa-folder-plus me-1" aria-hidden="true"></i> Novo Processo
+    </a>
+    <a href="{{ PREFIX }}/documents/upload?client_id={{ client.id }}" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+        <i class="fas fa-file-upload me-1" aria-hidden="true"></i> Enviar Documento
+    </a>
+    <a href="{{ PREFIX }}/whatsapp?client_id={{ client.id }}" class="btn btn-outline-success glass-btn glass-btn--ghost">
+        <i class="fab fa-whatsapp me-1" aria-hidden="true"></i> Enviar WhatsApp
+    </a>
+    <a href="{{ PREFIX }}/controladoria?client_id={{ client.id }}" class="btn btn-outline-warning glass-btn glass-btn--ghost">
+        <i class="fas fa-calendar-alt me-1" aria-hidden="true"></i> Novo Prazo
+    </a>
+</nav>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <section class="card {% if product == 'lite' %}glass-card{% endif %} h-100" aria-labelledby="clients-detail-personal-title">
+            <header class="card-header" id="clients-detail-personal-title">
+                <i class="fas fa-info-circle me-1" aria-hidden="true"></i> {% if product == "lite" %}Dados Pessoais{% else %}Personal Information{% endif %}
+            </header>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tbody>
+                        <tr>
+                            <th scope="row" class="text-muted fw-normal" style="width:40%">Status</th>
+                            <td><span class="badge bg-{{ 'success' if client.status == 'active' else 'secondary' }}">{{ client.status }}</span></td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="text-muted fw-normal">{% if product == "lite" %}Nome Completo{% else %}Full Name{% endif %}</th>
+                            <td><strong>{{ client.first_name }} {{ client.last_name }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="text-muted fw-normal">Email</th>
+                            <td>{{ client.email or "-" }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="text-muted fw-normal">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</th>
+                            <td>{{ client.phone or "-" }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="text-muted fw-normal">WhatsApp</th>
+                            <td>{{ client.whatsapp or "-" }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="text-muted fw-normal">WhatsApp Bot</th>
+                            <td class="clients-detail-bot-cell">
+                                <button type="button" id="botToggleBtn" class="btn btn-sm clients-detail-bot-toggle" onclick="toggleWhatsAppBot()" aria-live="polite">
+                                    <i class="fas fa-robot me-1" aria-hidden="true"></i> <span id="botToggleLabel">{% if product == "lite" %}Carregando...{% else %}Loading...{% endif %}</span>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="text-muted fw-normal">{% if product == "lite" %}Data de Nascimento{% else %}Date of Birth{% endif %}</th>
+                            <td>{{ client.date_of_birth.strftime("%d/%m/%Y") if client.date_of_birth and product == "lite" else (client.date_of_birth.strftime("%Y-%m-%d") if client.date_of_birth else "-") }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="text-muted fw-normal">{% if product == "lite" %}Cidade{% else %}Country{% endif %}</th>
+                            <td>{{ client.country_of_origin or "-" }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+    <div class="col-md-6 mb-4">
+        <section class="card {% if product == 'lite' %}glass-card{% endif %} h-100" aria-labelledby="clients-detail-extra-title">
+            {% if product == "lite" %}
+            <header class="card-header" id="clients-detail-extra-title">
+                <i class="fas fa-id-card me-1" aria-hidden="true"></i> Informações Adicionais
+            </header>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tbody>
+                        <tr><th scope="row" class="text-muted fw-normal" style="width:40%">Endereço</th><td>{{ client.address or "-" }}</td></tr>
+                        {% if client.cpf %}<tr><th scope="row" class="text-muted fw-normal">CPF</th><td>{{ client.cpf }}</td></tr>{% endif %}
+                        {% if client.rg %}<tr><th scope="row" class="text-muted fw-normal">RG</th><td>{{ client.rg }}</td></tr>{% endif %}
+                        {% if client.cnpj %}<tr><th scope="row" class="text-muted fw-normal">CNPJ</th><td>{{ client.cnpj }}</td></tr>{% endif %}
+                        {% if client.oab_number %}<tr><th scope="row" class="text-muted fw-normal">OAB</th><td>{{ client.oab_number }}</td></tr>{% endif %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <header class="card-header" id="clients-detail-extra-title">
+                <i class="fas fa-passport me-1" aria-hidden="true"></i> Immigration Information
+            </header>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tbody>
+                        <tr><th scope="row" class="text-muted fw-normal" style="width:40%">Alien Number</th><td><strong>{{ client.alien_number or "-" }}</strong></td></tr>
+                        <tr><th scope="row" class="text-muted fw-normal">Passport</th><td>{{ client.passport_number or "-" }}</td></tr>
+                        <tr><th scope="row" class="text-muted fw-normal">SSN</th><td>{{ client.ssn or "-" }}</td></tr>
+                        <tr><th scope="row" class="text-muted fw-normal">Address</th><td>{{ client.address or "-" }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</div>
+
+{# ── Financial Summary Card (Lite only) ── #}
+{% if product == "lite" and financial_summary %}
+<section class="card glass-card mb-4" aria-labelledby="clients-detail-financial-title">
+    <header class="card-header" id="clients-detail-financial-title">
+        <i class="fas fa-dollar-sign me-1" aria-hidden="true"></i> Resumo Financeiro
+    </header>
+    <div class="card-body">
+        <div class="clients-detail-financial-grid">
+            <div class="clients-detail-financial-item">
+                <div class="clients-detail-financial-item__label">Total Honorários Contratados</div>
+                <div class="clients-detail-financial-item__value">R$ {{ "%.2f"|format(financial_summary.total_honorarios)|replace(".", ",") }}</div>
+            </div>
+            <div class="clients-detail-financial-item">
+                <div class="clients-detail-financial-item__label">Total Pago</div>
+                <div class="clients-detail-financial-item__value clients-detail-financial-item__value--success">R$ {{ "%.2f"|format(financial_summary.total_pago)|replace(".", ",") }}</div>
+            </div>
+            <div class="clients-detail-financial-item">
+                <div class="clients-detail-financial-item__label">Saldo Devedor</div>
+                <div class="clients-detail-financial-item__value {% if financial_summary.saldo_devedor > 0 %}clients-detail-financial-item__value--danger{% else %}clients-detail-financial-item__value--success{% endif %}">R$ {{ "%.2f"|format(financial_summary.saldo_devedor)|replace(".", ",") }}</div>
+            </div>
+            <div class="clients-detail-financial-item">
+                <div class="clients-detail-financial-item__label">Próximo Vencimento</div>
+                <div class="clients-detail-financial-item__value">{% if financial_summary.proximo_vencimento %}{{ financial_summary.proximo_vencimento.strftime("%d/%m/%Y") }}{% else %}<span class="clients-detail-financial-item__empty">Nenhum</span>{% endif %}</div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if custom_fields %}
+<section class="card {% if product == 'lite' %}glass-card{% endif %} mb-4" aria-labelledby="clients-detail-custom-title">
+    <header class="card-header" id="clients-detail-custom-title">
+        <i class="fas fa-plus-circle me-1" aria-hidden="true"></i> {% if product == "lite" %}Campos Personalizados{% else %}Custom Fields{% endif %}
+    </header>
+    <div class="card-body">
+        <div class="row">
+            {% for field in custom_fields %}
+            {% if field.value %}
+            <div class="col-md-4 mb-3">
+                <strong class="text-muted d-block">{{ field.field_label }}</strong>
+                {% if field.field_type == 'checkbox' %}
+                <span class="badge bg-{{ 'success' if field.value == 'true' or field.value == true else 'secondary' }}">
+                    {% if product == "lite" %}{{ 'Sim' if field.value == 'true' or field.value == true else 'Não' }}{% else %}{{ 'Yes' if field.value == 'true' or field.value == true else 'No' }}{% endif %}
+                </span>
+                {% else %}
+                {{ field.value }}
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% if client.notes %}
+<section class="card {% if product == 'lite' %}glass-card{% endif %} mb-4" aria-labelledby="clients-detail-notes-title">
+    <header class="card-header" id="clients-detail-notes-title">
+        <i class="fas fa-sticky-note me-1" aria-hidden="true"></i> {% if product == "lite" %}Observações{% else %}Notes{% endif %}
+    </header>
+    <div class="card-body"><pre class="clients-detail-notes">{{ client.notes }}</pre></div>
+</section>
+{% endif %}
+
+{# ── Members/Relationships Section ── #}
+<section class="card {% if product == 'lite' %}glass-card{% endif %} mb-4" id="members" aria-labelledby="clients-detail-members-title">
+    <header class="card-header d-flex justify-content-between align-items-center" id="clients-detail-members-title">
+        <span><i class="fas fa-users me-1" aria-hidden="true"></i> {% if product == "lite" %}Membros e Relacionamentos{% else %}Members &amp; Relationships{% endif %}</span>
+        <a href="{{ PREFIX }}/client-relationships/client/{{ client.id }}" class="btn btn-sm btn-primary glass-btn">
+            <i class="fas fa-external-link-alt me-1" aria-hidden="true"></i> {% if product == "lite" %}Gerenciar{% else %}Manage{% endif %}
+        </a>
+    </header>
+    <div class="card-body">
+        <p class="text-muted mb-3">{% if product == "lite" %}Vincule este cliente a outros clientes (cônjuge, empregador, familiares, etc.){% else %}Link this client to other clients (spouse, employer, family members, etc.){% endif %}</p>
+        <a href="{{ PREFIX }}/client-relationships/client/{{ client.id }}" class="btn btn-outline-primary glass-btn glass-btn--ghost">
+            <i class="fas fa-plus me-1" aria-hidden="true"></i> {% if product == "lite" %}Ver/Adicionar Relacionamentos{% else %}View/Add Relationships{% endif %}
+        </a>
+    </div>
+</section>
+
+{# ── Google Drive Files ── #}
+{% if product != "lite" %}
+<section class="card mb-4" aria-labelledby="clients-detail-drive-title">
+    <header class="card-header d-flex justify-content-between align-items-center" id="clients-detail-drive-title">
+        <span><i class="fab fa-google-drive me-2" aria-hidden="true"></i> Google Drive Files</span>
+        <button type="button" class="btn btn-sm btn-outline-info" onclick="loadDriveFiles()">
+            <i class="fas fa-sync me-1" aria-hidden="true"></i> Refresh
+        </button>
+    </header>
+    <div class="card-body">
+        <div id="driveFilesLoader" class="clients-detail-drive-loader" role="status" aria-live="polite">
+            <i class="fas fa-spinner fa-spin fa-2x" aria-hidden="true"></i>
+            <p class="mb-0">Loading files from Google Drive...</p>
+        </div>
+        <div id="driveFilesGrid" class="row g-3 d-none"></div>
+        <div id="driveFilesEmpty" class="clients-detail-drive-empty d-none">
+            <i class="far fa-folder-open fa-3x opacity-50" aria-hidden="true"></i>
+            <p class="mb-0">No files found in Google Drive</p>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{# ── Cases Section ── #}
+<section class="card {% if product == 'lite' %}glass-card{% endif %} mb-4" aria-labelledby="clients-detail-cases-title">
+    <header class="card-header d-flex justify-content-between align-items-center" id="clients-detail-cases-title">
+        <span><i class="fas fa-folder me-1" aria-hidden="true"></i> {% if product == "lite" %}Processos{% else %}Cases{% endif %} ({{ cases|length }})</span>
+        <a href="{{ PREFIX }}/cases/new?client_id={{ client.id }}" class="btn btn-sm btn-primary glass-btn">
+            <i class="fas fa-plus me-1" aria-hidden="true"></i> {% if product == "lite" %}Novo Processo{% else %}New Case{% endif %}
+        </a>
+    </header>
+    {% if cases %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">{% if product == "lite" %}Nº Processo{% else %}Case Number{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Nome{% else %}Name{% endif %}</th>
+                    {% if product != "lite" %}<th scope="col">Type</th>{% endif %}
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for case in cases %}
+                <tr class="clients-detail-row--clickable">
+                    <td class="position-relative">
+                        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="stretched-link text-decoration-none text-reset">
+                            <strong>{{ case.case_number or "-" }}</strong>
+                        </a>
+                    </td>
+                    <td>{{ case.case_name or "-" }}</td>
+                    {% if product != "lite" %}<td>{{ case.visa_type or "-" }}</td>{% endif %}
+                    <td><span class="badge bg-primary">{{ case.status }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center text-muted py-4">{% if product == "lite" %}Nenhum processo ainda{% else %}No cases yet{% endif %}</div>
+    {% endif %}
+</section>
+
+{# ── Checklists Section ── #}
+<section class="card {% if product == 'lite' %}glass-card{% endif %} mb-4" aria-labelledby="clients-detail-checklists-title">
+    <header class="card-header d-flex justify-content-between align-items-center" id="clients-detail-checklists-title">
+        <span><i class="fas fa-clipboard-check me-1" aria-hidden="true"></i> {% if product == "lite" %}Checklists de Documentos{% else %}Document Checklists{% endif %} ({{ client_checklists|length }})</span>
+        {% if product != "lite" %}
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#quickChecklistModal">
+            <i class="fas fa-plus me-1" aria-hidden="true"></i> Quick Checklist
+        </button>
+        {% endif %}
+    </header>
+    {% if client_checklists %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">{% if product == "lite" %}Processo{% else %}Case{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Tipo{% else %}Visa Type{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Progresso{% else %}Progress{% endif %}</th>
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in client_checklists %}
+                {% set bar_level = 'high' if item.progress_percent >= 80 else ('mid' if item.progress_percent >= 50 else 'low') %}
+                <tr class="clients-detail-row--clickable">
+                    <td class="position-relative">
+                        <a href="{{ PREFIX }}/cases/{{ item.case.id }}/checklist" class="stretched-link text-decoration-none text-reset">
+                            <strong>{{ item.case.case_number or item.case.case_name or "-" }}</strong>
+                        </a>
+                    </td>
+                    <td>{{ item.visa_label }}</td>
+                    <td>
+                        <div class="clients-detail-progress">
+                            <div class="clients-detail-progress__track"
+                                 role="progressbar"
+                                 aria-label="{% if product == 'lite' %}Progresso da checklist{% else %}Checklist progress{% endif %}"
+                                 aria-valuenow="{{ item.progress_percent }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                                <div class="clients-detail-progress__bar clients-detail-progress__bar--{{ bar_level }}" style="width: {{ item.progress_percent }}%;"></div>
+                            </div>
+                            <small class="clients-detail-progress__count">{{ item.total_present }}/{{ item.total_required }}</small>
+                        </div>
+                    </td>
+                    <td>
+                        {% if item.status == "complete" %}<span class="badge bg-success">{% if product == "lite" %}Completo{% else %}Complete{% endif %}</span>
+                        {% elif item.status == "in_progress" %}<span class="badge bg-warning text-dark">{% if product == "lite" %}Em Andamento{% else %}In Progress{% endif %}</span>
+                        {% else %}<span class="badge bg-secondary">{% if product == "lite" %}Não Iniciado{% else %}Not Started{% endif %}</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body text-center text-muted py-4">
+        <i class="fas fa-clipboard-check fa-2x mb-2 opacity-50" aria-hidden="true"></i>
+        <p class="mb-1">{% if product == "lite" %}Nenhum checklist ainda{% else %}No checklists yet{% endif %}</p>
+        {% if product != "lite" %}<small>Click "Quick Checklist" to create one by selecting a visa type</small>{% endif %}
+    </div>
+    {% endif %}
+</section>
+
+{# ── Quick Checklist Modal ── #}
+{% if product != "lite" %}
+<div class="modal fade" id="quickChecklistModal" tabindex="-1" aria-labelledby="quickChecklistModalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="quickChecklistModalTitle"><i class="fas fa-clipboard-check me-2" aria-hidden="true"></i>Create Quick Checklist</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Select a visa type. A case will be automatically created for this client.</p>
+                <div class="d-grid gap-2" id="quickChecklistButtons">
+                    <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-lg text-start" onclick="createQuickChecklist('EB-1A')">
+                        <i class="fas fa-star me-2" aria-hidden="true"></i> <strong>EB-1A</strong> <small class="text-muted ms-2">Extraordinary Ability</small>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-lg text-start" onclick="createQuickChecklist('EB-2 NIW')">
+                        <i class="fas fa-award me-2" aria-hidden="true"></i> <strong>EB-2 NIW</strong> <small class="text-muted ms-2">National Interest Waiver</small>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary glass-btn glass-btn--ghost btn-lg text-start" onclick="createQuickChecklist('O-1A')">
+                        <i class="fas fa-globe me-2" aria-hidden="true"></i> <strong>O-1A</strong> <small class="text-muted ms-2">Extraordinary Ability (Non-Immigrant)</small>
+                    </button>
+                </div>
+                {% if cases %}
+                <hr>
+                <p class="text-muted small mb-1">Or use an existing case:</p>
+                {% for case in cases %}
+                    {% if case.visa_type %}
+                    <a href="{{ PREFIX }}/cases/{{ case.id }}/checklist" class="d-block small mb-1">
+                        <i class="fas fa-folder-open me-1" aria-hidden="true"></i> {{ case.case_number or case.case_name }} ({{ case.visa_type }})
+                    </a>
+                    {% endif %}
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ── Emails Section ── #}
+<section class="card glass-card mb-4" aria-labelledby="clients-detail-emails-title">
+    <header class="card-header d-flex justify-content-between align-items-center" id="clients-detail-emails-title">
+        <span><i class="fas fa-envelope me-1" aria-hidden="true"></i> {% if product == "lite" %}E-mails{% else %}Emails{% endif %} ({{ emails|length if emails else 0 }})</span>
+        <a href="{{ PREFIX }}/emails/compose?to_email={{ client.email|urlencode if client.email else '' }}&client_id={{ client.id }}" class="btn btn-sm btn-primary glass-btn">
+            <i class="fas fa-paper-plane me-1" aria-hidden="true"></i> {% if product == "lite" %}Enviar Email{% else %}Compose Email{% endif %}
+        </a>
+    </header>
+    {% if emails and emails|length > 0 %}
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th scope="col" style="width:15%">{% if product == "lite" %}Data{% else %}Date{% endif %}</th>
+                    <th scope="col">{% if product == "lite" %}Assunto{% else %}Subject{% endif %}</th>
+                    <th scope="col" style="width:30%">{% if product == "lite" %}De/Para{% else %}From/To{% endif %}</th>
+                    <th scope="col" style="width:10%">{% if product == "lite" %}Direção{% else %}Direction{% endif %}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for email in emails %}
+                <tr class="clients-detail-row--clickable">
+                    <td class="position-relative small">
+                        <a href="{{ PREFIX }}/emails/{{ email.id }}" class="stretched-link text-decoration-none text-reset">
+                            {{ email.received_at.strftime('%d/%m/%Y %H:%M') if email.received_at and product == "lite" else (email.received_at.strftime('%Y-%m-%d %H:%M') if email.received_at else '-') }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if not email.is_read %}<i class="fas fa-circle clients-detail-unread-dot" aria-hidden="true"></i><span class="visually-hidden">{% if product == "lite" %}Não lido{% else %}Unread{% endif %} </span>{% endif %}
+                        {{ email.subject or ('(Sem assunto)' if product == "lite" else '(No subject)') }}
+                    </td>
+                    <td class="small text-truncate clients-detail-email-sender">{{ email.sender[:50] if email.sender else '-' }}</td>
+                    <td>
+                        {% if email.direction == 'outbound' %}
+                        <span class="badge bg-success"><i class="fas fa-paper-plane me-1" aria-hidden="true"></i>{% if product == "lite" %}Enviado{% else %}Sent{% endif %}</span>
+                        {% else %}
+                        <span class="badge bg-info"><i class="fas fa-inbox me-1" aria-hidden="true"></i>{% if product == "lite" %}Recebido{% else %}Received{% endif %}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if emails|length >= 50 %}
+    <div class="card-footer text-center">
+        <a href="{{ PREFIX }}/emails?client_id={{ client.id }}" class="text-primary">
+            <i class="fas fa-list me-1" aria-hidden="true"></i> {% if product == "lite" %}Ver todos os e-mails deste cliente{% else %}View all emails for this client{% endif %}
+        </a>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="card-body text-center text-muted py-4">
+        <i class="fas fa-inbox fa-2x mb-2 opacity-50" aria-hidden="true"></i>
+        {% if product == "lite" %}
+        <p class="mb-2">Nenhum e-mail vinculado a este cliente ainda</p>
+        <small>E-mails podem ser vinculados na página de <a href="{{ PREFIX }}/emails">E-mails</a> ou usando Auto-Link</small>
+        {% else %}
+        <p class="mb-2">No emails linked to this client yet</p>
+        <small>Emails can be linked from the <a href="{{ PREFIX }}/emails">Emails</a> page or use Auto-Link</small>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+
+{# ── Activity Timeline (Lite only) ── #}
+{% if product == "lite" %}
+<section class="card glass-card mb-4" aria-labelledby="clients-detail-activity-title">
+    <header class="card-header" id="clients-detail-activity-title">
+        <i class="fas fa-stream me-1" aria-hidden="true"></i> Atividade Recente
+    </header>
+    <div class="card-body">
+        {% if activity_timeline and activity_timeline|length > 0 %}
+        <ul class="clients-detail-timeline">
+            {% for event in activity_timeline %}
+            <li class="clients-detail-timeline__item">
+                <span class="clients-detail-timeline__dot clients-detail-timeline__dot--{{ event.action }}" aria-hidden="true"></span>
+                <div class="clients-detail-timeline__desc">
+                    {% if event.action == 'create' and event.entity_type == 'case' %}
+                        <i class="fas fa-folder-plus me-1 text-success" aria-hidden="true"></i> Processo criado
+                    {% elif event.action == 'create' and event.entity_type == 'document' %}
+                        <i class="fas fa-file-upload me-1 text-primary" aria-hidden="true"></i> Documento enviado
+                    {% elif event.action == 'create' and event.entity_type == 'task' %}
+                        <i class="fas fa-calendar-alt me-1 text-warning" aria-hidden="true"></i> Prazo cadastrado
+                    {% elif event.action == 'create' and event.entity_type == 'invoice' %}
+                        <i class="fas fa-receipt me-1 text-info" aria-hidden="true"></i> Pagamento registrado
+                    {% elif event.action == 'email' %}
+                        <i class="fab fa-whatsapp me-1 text-success" aria-hidden="true"></i> Mensagem enviada
+                    {% elif event.action == 'update' %}
+                        <i class="fas fa-pen me-1 text-warning" aria-hidden="true"></i> {{ event.entity_type|capitalize }} atualizado
+                    {% elif event.action == 'delete' %}
+                        <i class="fas fa-trash me-1 text-danger" aria-hidden="true"></i> {{ event.entity_type|capitalize }} removido
+                    {% elif event.action == 'status_change' %}
+                        <i class="fas fa-exchange-alt me-1 text-info" aria-hidden="true"></i> Status alterado
+                    {% else %}
+                        <i class="fas fa-circle me-1" aria-hidden="true"></i> {{ event.description or (event.action ~ ' ' ~ event.entity_type) }}
+                    {% endif %}
+                    {% if event.description %}<span class="text-muted ms-1">- {{ event.description }}</span>{% endif %}
+                </div>
+                <div class="clients-detail-timeline__time">
+                    {% if event.created_at %}
+                    <time datetime="{{ event.created_at.isoformat() }}">{{ event.created_at.strftime('%d/%m/%Y %H:%M') }}</time>
+                    {% endif %}
+                    {% if event.user_email %}<span class="ms-2">por {{ event.user_email.split('@')[0] }}</span>{% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="clients-detail-timeline__empty">
+            <i class="fas fa-stream fa-2x opacity-50" aria-hidden="true"></i>
+            <p class="mb-0">Nenhuma atividade registrada ainda</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
+</section>
+
+<script>
+(function() {
+    var phoneRaw = {{ (client.phone or client.whatsapp or '') | tojson }};
+    var phone = (phoneRaw || '').replace(/\D/g, '');
+    var btn = document.getElementById('botToggleBtn');
+    var label = document.getElementById('botToggleLabel');
+    if (!btn || !label) return;
+    if (!phone) { btn.style.display = 'none'; return; }
+    window._botPhone = phone;
+    window._botEnabled = false;
+    window._botI18n = {
+        on: {{ ('Bot ON' if product == 'lite' else 'Bot ON') | tojson }},
+        off: {{ ('Bot OFF' if product == 'lite' else 'Bot OFF') | tojson }},
+        error: {{ ('Erro' if product == 'lite' else 'Error') | tojson }}
+    };
+    label.textContent = window._botI18n.off;
+    btn.className = 'btn btn-sm clients-detail-bot-toggle';
+})();
+
+async function toggleWhatsAppBot() {
+    var phone = window._botPhone;
+    if (!phone) return;
+    var newState = !window._botEnabled;
+    var btn = document.getElementById('botToggleBtn');
+    var label = document.getElementById('botToggleLabel');
+    var i18n = window._botI18n || {on: 'Bot ON', off: 'Bot OFF', error: 'Error'};
+    try {
+        var resp = await fetch('/casehub/api/bot-control', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({phone: phone, botEnabled: newState})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            window._botEnabled = newState;
+            if (newState) {
+                btn.className = 'btn btn-sm btn-success clients-detail-bot-toggle';
+                label.textContent = i18n.on;
+            } else {
+                btn.className = 'btn btn-sm clients-detail-bot-toggle';
+                label.textContent = i18n.off;
+            }
+        }
+    } catch (e) {
+        alert(i18n.error + ': ' + e.message);
+    }
+}
+
+{% if product != "lite" %}
+async function openDriveFolder() {
+    const btn = document.getElementById('openDriveFolderBtn');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i> Loading...';
+    btn.disabled = true;
+    try {
+        const response = await fetch('{{ PREFIX }}/clients/{{ client.id }}/drive-folder');
+        const data = await response.json();
+        if (data.success && data.web_link) {
+            const newWindow = window.open(data.web_link, '_blank', 'noopener');
+            if (newWindow) {
+                newWindow.opener = null;
+            }
+        } else {
+            alert('Error: ' + (data.error || 'Could not access Drive folder'));
+        }
+    } catch (error) {
+        alert('Error connecting to Drive: ' + error.message);
+    } finally {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    }
+}
+
+async function loadDriveFiles() {
+    const loader = document.getElementById('driveFilesLoader');
+    const grid = document.getElementById('driveFilesGrid');
+    const empty = document.getElementById('driveFilesEmpty');
+
+    loader.classList.remove('d-none');
+    grid.classList.add('d-none');
+    empty.classList.add('d-none');
+
+    try {
+        const response = await fetch('{{ PREFIX }}/clients/{{ client.id }}/drive-files');
+        const data = await response.json();
+
+        loader.classList.add('d-none');
+
+        if (data.success && data.files && data.files.length > 0) {
+            grid.classList.remove('d-none');
+            grid.textContent = '';
+            data.files.forEach(file => {
+                const sizeStr = file.size ? (file.size / 1024 / 1024).toFixed(2) + ' MB' : '\u2014';
+                const icon = getFileIcon(file.mimeType);
+                const date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString() : '\u2014';
+                const name = String(file.name || '');
+
+                const col = document.createElement('div');
+                col.className = 'col-md-4';
+
+                const card = document.createElement('div');
+                card.className = 'card h-100 border';
+                col.appendChild(card);
+
+                const body = document.createElement('div');
+                body.className = 'card-body';
+                card.appendChild(body);
+
+                const flex = document.createElement('div');
+                flex.className = 'd-flex align-items-start';
+                body.appendChild(flex);
+
+                const iconEl = document.createElement('i');
+                iconEl.className = icon + ' fa-2x me-3 clients-detail-drive-file-icon';
+                iconEl.setAttribute('aria-hidden', 'true');
+                flex.appendChild(iconEl);
+
+                const inner = document.createElement('div');
+                inner.className = 'flex-grow-1 text-truncate';
+                flex.appendChild(inner);
+
+                const title = document.createElement('h3');
+                title.className = 'card-title h6 text-truncate mb-1';
+                title.setAttribute('title', name);
+                title.textContent = name;
+                inner.appendChild(title);
+
+                const meta = document.createElement('p');
+                meta.className = 'card-text small text-muted mb-2';
+                meta.innerHTML = '<i class="far fa-clock me-1" aria-hidden="true"></i>';
+                meta.appendChild(document.createTextNode(date));
+                meta.appendChild(document.createElement('br'));
+                const hddIcon = document.createElement('i');
+                hddIcon.className = 'fas fa-hdd me-1';
+                hddIcon.setAttribute('aria-hidden', 'true');
+                meta.appendChild(hddIcon);
+                meta.appendChild(document.createTextNode(sizeStr));
+                inner.appendChild(meta);
+
+                const actions = document.createElement('div');
+                actions.className = 'd-flex gap-1 flex-wrap';
+                inner.appendChild(actions);
+
+                if (file.webViewLink) {
+                    const openLink = document.createElement('a');
+                    openLink.href = file.webViewLink;
+                    openLink.target = '_blank';
+                    openLink.rel = 'noopener noreferrer';
+                    openLink.className = 'btn btn-sm btn-outline-primary';
+                    openLink.innerHTML = '<i class="fas fa-external-link-alt me-1" aria-hidden="true"></i>Open';
+                    actions.appendChild(openLink);
+                }
+
+                const shareBtn = document.createElement('button');
+                shareBtn.type = 'button';
+                shareBtn.className = 'btn btn-sm btn-outline-success clients-detail-share-btn';
+                shareBtn.title = 'Make visible in client portal';
+                shareBtn.id = 'share-btn-' + file.id;
+                shareBtn.dataset.fileId = file.id;
+                shareBtn.dataset.fileName = name;
+                shareBtn.dataset.mimeType = file.mimeType || '';
+                shareBtn.dataset.fileSize = String(file.size || 0);
+                shareBtn.innerHTML = '<i class="fas fa-share-alt me-1" aria-hidden="true"></i>Share';
+                shareBtn.addEventListener('click', function() {
+                    shareWithClient(
+                        this.dataset.fileId,
+                        this.dataset.fileName,
+                        this.dataset.mimeType,
+                        parseInt(this.dataset.fileSize, 10) || 0
+                    );
+                });
+                actions.appendChild(shareBtn);
+
+                grid.appendChild(col);
+            });
+        } else {
+            empty.classList.remove('d-none');
+        }
+    } catch (error) {
+        loader.classList.add('d-none');
+        empty.classList.remove('d-none');
+        console.error('Error loading Drive files:', error);
+    }
+}
+
+function getFileIcon(mimeType) {
+    if (!mimeType) return 'far fa-file';
+    if (mimeType.includes('pdf')) return 'far fa-file-pdf';
+    if (mimeType.includes('word') || mimeType.includes('document')) return 'far fa-file-word';
+    if (mimeType.includes('sheet')) return 'far fa-file-excel';
+    if (mimeType.includes('presentation')) return 'far fa-file-powerpoint';
+    if (mimeType.includes('image')) return 'far fa-file-image';
+    if (mimeType.includes('folder')) return 'far fa-folder';
+    return 'far fa-file';
+}
+
+async function shareWithClient(driveFileId, fileName, mimeType, fileSize) {
+    const btn = document.getElementById('share-btn-' + driveFileId);
+    if (!btn) return;
+
+    const origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1" aria-hidden="true"></i>Sharing...';
+
+    try {
+        const res = await fetch('{{ PREFIX }}/api/documents/share-from-drive', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                client_id: {{ client.id }},
+                drive_file_id: driveFileId,
+                file_name: fileName,
+                doc_type: 'Other Document',
+                mime_type: mimeType,
+                file_size: fileSize
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-success');
+            if (data.action === 'already_shared') {
+                btn.innerHTML = '<i class="fas fa-check me-1" aria-hidden="true"></i>Already Shared';
+            } else {
+                btn.innerHTML = '<i class="fas fa-check me-1" aria-hidden="true"></i>Shared!';
+            }
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+            alert('Error: ' + (data.detail || 'Unknown error'));
+        }
+    } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+        console.error('Share error:', err);
+        alert('Failed to share file. Check console.');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadDriveFiles);
+
+async function createQuickChecklist(visaType) {
+    var btns = document.querySelectorAll('#quickChecklistButtons button');
+    btns.forEach(function(b) { b.disabled = true; });
+    try {
+        var res = await fetch('{{ PREFIX }}/api/clients/{{ client.id }}/quick-checklist', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({visa_type: visaType})
+        });
+        var data = await res.json();
+        if (data.case_id) {
+            window.location.href = '{{ PREFIX }}/cases/' + data.case_id + '/checklist';
+        } else {
+            alert(data.error || 'Error creating checklist');
+            btns.forEach(function(b) { b.disabled = false; });
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+        btns.forEach(function(b) { b.disabled = false; });
+    }
+}
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% block title %}Branding Settings - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/admin-branding.css">
+{% endblock %}
+
+{% block content %}
+<section class="admin-branding-main" aria-labelledby="admin-branding-title">
+    <nav class="admin-branding-breadcrumb" aria-label="Breadcrumb">
+        <ol class="admin-branding-breadcrumb-list">
+            <li><a href="{{ PREFIX }}/admin">Admin</a></li>
+            <li aria-current="page">Branding</li>
+        </ol>
+    </nav>
+
+    <header class="admin-branding-header">
+        <h1 id="admin-branding-title" class="admin-branding-title">
+            <i class="fas fa-palette admin-branding-title-icon" aria-hidden="true"></i>
+            <span>Branding Settings</span>
+        </h1>
+    </header>
+
+    {% if success %}
+    <div class="admin-branding-alert admin-branding-alert--success" role="status">
+        <i class="fas fa-check-circle admin-branding-alert-icon" aria-hidden="true"></i>
+        <span>{{ success }}</span>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="admin-branding-alert admin-branding-alert--danger" role="alert">
+        <i class="fas fa-exclamation-circle admin-branding-alert-icon" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <div class="admin-branding-grid">
+        <div class="admin-branding-col-form">
+            <form method="POST" action="{{ PREFIX }}/admin/branding" id="brandingForm" class="admin-branding-form" novalidate>
+                <section class="admin-branding-card" aria-labelledby="admin-branding-identity-title">
+                    <header class="admin-branding-card-header" id="admin-branding-identity-title">
+                        <i class="fas fa-building" aria-hidden="true"></i>
+                        <span>Organization Identity</span>
+                    </header>
+                    <div class="admin-branding-card-body">
+                        <div class="admin-branding-field">
+                            <label for="inputOrgName" class="admin-branding-label">Organization Name</label>
+                            <input type="text"
+                                   id="inputOrgName"
+                                   name="org_name"
+                                   class="admin-branding-input"
+                                   value="{{ org.name if org else org_name }}"
+                                   placeholder="My Law Firm"
+                                   autocomplete="organization">
+                            <small class="admin-branding-help">Displayed in sidebar, emails, and page titles.</small>
+                        </div>
+                        <div class="admin-branding-field">
+                            <label for="inputCasePrefix" class="admin-branding-label">Case Number Prefix</label>
+                            <input type="text"
+                                   id="inputCasePrefix"
+                                   name="case_prefix"
+                                   class="admin-branding-input admin-branding-input--mono admin-branding-input--narrow"
+                                   maxlength="10"
+                                   value="{{ org.case_prefix if org else 'CH' }}"
+                                   placeholder="CH">
+                            <small class="admin-branding-help">Prefix for case numbers, e.g. CH-2026-001.</small>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="admin-branding-card" aria-labelledby="admin-branding-colors-title">
+                    <header class="admin-branding-card-header" id="admin-branding-colors-title">
+                        <i class="fas fa-swatchbook" aria-hidden="true"></i>
+                        <span>Theme Colors</span>
+                    </header>
+                    <div class="admin-branding-card-body">
+                        <div class="admin-branding-color-grid">
+                            <div class="admin-branding-color-field">
+                                <label for="inputPrimary" class="admin-branding-label">Primary Color</label>
+                                <div class="admin-branding-color-row">
+                                    <input type="color"
+                                           id="inputPrimary"
+                                           name="primary_color"
+                                           class="admin-branding-color-picker"
+                                           value="{{ org.primary_color if org and org.primary_color else '' }}"
+                                           data-default-token="--accent"
+                                           data-hex-mirror="inputPrimaryHex"
+                                           data-preview-var="--brand-primary"
+                                           aria-describedby="primaryHelp">
+                                    <input type="text"
+                                           id="inputPrimaryHex"
+                                           class="admin-branding-input admin-branding-input--mono admin-branding-input--hex"
+                                           value="{{ org.primary_color if org and org.primary_color else '' }}"
+                                           data-color-mirror="inputPrimary"
+                                           inputmode="text"
+                                           autocomplete="off"
+                                           spellcheck="false"
+                                           aria-label="Primary color hex value">
+                                </div>
+                                <small id="primaryHelp" class="admin-branding-help">Sidebar logo, accents</small>
+                            </div>
+                            <div class="admin-branding-color-field">
+                                <label for="inputSecondary" class="admin-branding-label">Secondary Color</label>
+                                <div class="admin-branding-color-row">
+                                    <input type="color"
+                                           id="inputSecondary"
+                                           name="secondary_color"
+                                           class="admin-branding-color-picker"
+                                           value="{{ org.secondary_color if org and org.secondary_color else '' }}"
+                                           data-default-token="--surface-inverse"
+                                           data-hex-mirror="inputSecondaryHex"
+                                           data-preview-var="--brand-secondary"
+                                           aria-describedby="secondaryHelp">
+                                    <input type="text"
+                                           id="inputSecondaryHex"
+                                           class="admin-branding-input admin-branding-input--mono admin-branding-input--hex"
+                                           value="{{ org.secondary_color if org and org.secondary_color else '' }}"
+                                           data-color-mirror="inputSecondary"
+                                           inputmode="text"
+                                           autocomplete="off"
+                                           spellcheck="false"
+                                           aria-label="Secondary color hex value">
+                                </div>
+                                <small id="secondaryHelp" class="admin-branding-help">Sidebar background, cards</small>
+                            </div>
+                            <div class="admin-branding-color-field">
+                                <label for="inputBg" class="admin-branding-label">Background Color</label>
+                                <div class="admin-branding-color-row">
+                                    <input type="color"
+                                           id="inputBg"
+                                           name="bg_color"
+                                           class="admin-branding-color-picker"
+                                           value="{{ org_theme_bg if org_theme_bg else '' }}"
+                                           data-default-token="--surface-base"
+                                           data-hex-mirror="inputBgHex"
+                                           data-preview-var="--brand-bg"
+                                           aria-describedby="bgHelp">
+                                    <input type="text"
+                                           id="inputBgHex"
+                                           class="admin-branding-input admin-branding-input--mono admin-branding-input--hex"
+                                           value="{{ org_theme_bg if org_theme_bg else '' }}"
+                                           data-color-mirror="inputBg"
+                                           inputmode="text"
+                                           autocomplete="off"
+                                           spellcheck="false"
+                                           aria-label="Background color hex value">
+                                </div>
+                                <small id="bgHelp" class="admin-branding-help">Page background</small>
+                            </div>
+                        </div>
+                        <div class="admin-branding-actions admin-branding-actions--inline">
+                            <button type="button"
+                                    id="resetColorsBtn"
+                                    class="admin-branding-btn admin-branding-btn--ghost admin-branding-btn--small">
+                                <i class="fas fa-undo" aria-hidden="true"></i>
+                                <span>Reset to Defaults</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="admin-branding-actions">
+                    <button type="submit" class="admin-branding-btn admin-branding-btn--primary">
+                        <i class="fas fa-save" aria-hidden="true"></i>
+                        <span>Save Branding Settings</span>
+                    </button>
+                    <a href="{{ PREFIX }}/admin" class="admin-branding-btn admin-branding-btn--ghost">
+                        <span>Cancel</span>
+                    </a>
+                </div>
+            </form>
+
+            <section class="admin-branding-card" aria-labelledby="admin-branding-logo-title">
+                <header class="admin-branding-card-header" id="admin-branding-logo-title">
+                    <i class="fas fa-image" aria-hidden="true"></i>
+                    <span>Logo</span>
+                </header>
+                <div class="admin-branding-card-body">
+                    {% if org and org.logo_url %}
+                    <div class="admin-branding-current-logo">
+                        <img src="{{ org.logo_url }}" alt="Current organization logo" class="admin-branding-current-logo-img" loading="lazy">
+                        <span class="admin-branding-current-logo-label">Current logo</span>
+                    </div>
+                    {% endif %}
+                    <form method="POST" action="{{ PREFIX }}/admin/branding/logo" enctype="multipart/form-data" class="admin-branding-form">
+                        <label for="logoFile" class="admin-branding-drop-zone" id="logoDropZone">
+                            <i class="fas fa-cloud-upload-alt admin-branding-drop-zone-icon" aria-hidden="true"></i>
+                            <span class="admin-branding-drop-zone-title">Click or drag to upload logo</span>
+                            <small class="admin-branding-help">PNG, SVG, or JPG. Max 2MB. Recommended: 200x60px</small>
+                            <input type="file"
+                                   name="logo"
+                                   id="logoFile"
+                                   class="admin-branding-file-input"
+                                   accept="image/png,image/jpeg,image/svg+xml">
+                            <span id="logoFileName" class="admin-branding-file-name" aria-live="polite"></span>
+                        </label>
+                        <div class="admin-branding-actions">
+                            <button type="submit" class="admin-branding-btn admin-branding-btn--secondary">
+                                <i class="fas fa-upload" aria-hidden="true"></i>
+                                <span>Upload Logo</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+
+        <aside class="admin-branding-col-preview" aria-labelledby="admin-branding-preview-title">
+            <section class="admin-branding-card admin-branding-card--sticky">
+                <header class="admin-branding-card-header" id="admin-branding-preview-title">
+                    <i class="fas fa-eye" aria-hidden="true"></i>
+                    <span>Live Preview</span>
+                </header>
+                <div class="admin-branding-card-body">
+                    <div class="admin-branding-preview" id="brandPreview">
+                        <div class="admin-branding-preview-layout">
+                            <div class="admin-branding-preview-sidebar">
+                                <div class="admin-branding-preview-logo" id="previewLogoText">
+                                    {{ org.name if org else org_name|default('CaseHub') }}
+                                </div>
+                                <ul class="admin-branding-preview-nav">
+                                    <li>Dashboard</li>
+                                    <li>Clients</li>
+                                    <li>Cases</li>
+                                    <li>Documents</li>
+                                    <li>Tasks</li>
+                                </ul>
+                            </div>
+                            <div class="admin-branding-preview-content">
+                                <div class="admin-branding-preview-header">
+                                    <span id="previewOrgName">{{ org.name if org else org_name|default('CaseHub') }}</span>
+                                </div>
+                                <dl class="admin-branding-preview-stats">
+                                    <div class="admin-branding-preview-stat"><dt>Active Cases</dt><dd>12</dd></div>
+                                    <div class="admin-branding-preview-stat"><dt>Pending Tasks</dt><dd>5</dd></div>
+                                    <div class="admin-branding-preview-stat"><dt>Documents</dt><dd>48</dd></div>
+                                </dl>
+                            </div>
+                        </div>
+                        <p class="admin-branding-preview-footer">CaseHub v{{ version|default('2.0.0') }}</p>
+                    </div>
+                </div>
+            </section>
+        </aside>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    "use strict";
+
+    var BLANK_HEX_SENTINEL = ['#', '000000'].join('');
+    var HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+    var preview = document.getElementById('brandPreview');
+    var orgName = document.getElementById('inputOrgName');
+    var previewLogoText = document.getElementById('previewLogoText');
+    var previewOrgName = document.getElementById('previewOrgName');
+
+    function readToken(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function isBlankColor(value) {
+        return !value || value === BLANK_HEX_SENTINEL;
+    }
+
+    function syncMirror(srcId, dstId) {
+        var src = document.getElementById(srcId);
+        var dst = document.getElementById(dstId);
+        if (src && dst) dst.value = src.value;
+    }
+
+    function applyDefaultsFromTokens() {
+        var pickers = document.querySelectorAll('input[type="color"][data-default-token]');
+        pickers.forEach(function (input) {
+            if (isBlankColor(input.value)) {
+                var v = readToken(input.dataset.defaultToken);
+                if (v && HEX_RE.test(v)) input.value = v;
+            }
+            if (input.dataset.hexMirror) syncMirror(input.id, input.dataset.hexMirror);
+        });
+    }
+
+    function updatePreview() {
+        if (!preview) return;
+        document.querySelectorAll('input[type="color"][data-preview-var]').forEach(function (input) {
+            preview.style.setProperty(input.dataset.previewVar, input.value);
+        });
+        var name = (orgName && orgName.value) ? orgName.value : 'CaseHub';
+        if (previewLogoText) previewLogoText.textContent = name;
+        if (previewOrgName) previewOrgName.textContent = name;
+    }
+
+    function resetColors() {
+        document.querySelectorAll('input[type="color"][data-default-token]').forEach(function (input) {
+            var v = readToken(input.dataset.defaultToken);
+            if (v && HEX_RE.test(v)) input.value = v;
+            if (input.dataset.hexMirror) syncMirror(input.id, input.dataset.hexMirror);
+        });
+        updatePreview();
+    }
+
+    document.querySelectorAll('input[type="color"][data-hex-mirror]').forEach(function (input) {
+        var handler = function () {
+            syncMirror(input.id, input.dataset.hexMirror);
+            updatePreview();
+        };
+        input.addEventListener('input', handler);
+        input.addEventListener('change', handler);
+    });
+
+    document.querySelectorAll('input[type="text"][data-color-mirror]').forEach(function (input) {
+        input.addEventListener('change', function () {
+            if (HEX_RE.test(input.value)) {
+                var dst = document.getElementById(input.dataset.colorMirror);
+                if (dst) dst.value = input.value;
+                updatePreview();
+            }
+        });
+    });
+
+    if (orgName) orgName.addEventListener('input', updatePreview);
+
+    var resetBtn = document.getElementById('resetColorsBtn');
+    if (resetBtn) resetBtn.addEventListener('click', resetColors);
+
+    var fileInput = document.getElementById('logoFile');
+    var fileName = document.getElementById('logoFileName');
+    if (fileInput && fileName) {
+        fileInput.addEventListener('change', function () {
+            fileName.textContent = (fileInput.files && fileInput.files[0]) ? fileInput.files[0].name : '';
+        });
+    }
+
+    applyDefaultsFromTokens();
+    updatePreview();
+})();
+</script>
+{% endblock %}

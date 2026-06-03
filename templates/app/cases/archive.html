@@ -1,0 +1,142 @@
+{% extends "app/base.html" %}
+{% set active_module = 'processes' %}
+{% block title %}Cases · Archive · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/cases-archive.css">
+{% endblock %}
+{% block content %}
+<main class="cases-archive-main" role="main" aria-labelledby="cases-archive-title">
+    <header class="cases-archive-header">
+        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-archive-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Case</span>
+        </a>
+        <h1 id="cases-archive-title" class="cases-archive-title">
+            <i class="fas fa-archive cases-archive-title-icon" aria-hidden="true"></i>
+            <span>Archive Case</span>
+        </h1>
+        <p class="cases-archive-subtitle">
+            {{ case.case_number }} &mdash; {{ case.case_name }}
+        </p>
+    </header>
+
+    <div class="cases-archive-grid">
+        <section class="cases-archive-card" aria-labelledby="cases-archive-form-title">
+            <div class="cases-archive-card-header cases-archive-card-header--intent">
+                <i class="fas fa-archive cases-archive-card-icon" aria-hidden="true"></i>
+                <h2 id="cases-archive-form-title" class="cases-archive-card-title">
+                    Archive This Case
+                </h2>
+            </div>
+            <div class="cases-archive-card-body">
+                <div class="cases-archive-alert" role="note" id="cases-archive-alert">
+                    <i class="fas fa-info-circle cases-archive-alert-icon" aria-hidden="true"></i>
+                    <p class="cases-archive-alert-text">
+                        Archiving a case hides it from the main case list but preserves all data.
+                        Archived cases can be viewed in the Archive section and restored at any time.
+                    </p>
+                </div>
+
+                <form method="POST"
+                      action="{{ PREFIX }}/case-archive/archive/{{ case.id }}"
+                      class="cases-archive-form"
+                      aria-describedby="cases-archive-alert">
+                    <fieldset class="cases-archive-fieldset">
+                        <legend class="cases-archive-legend">
+                            <span>Select Archive Reason</span>
+                            <span class="cases-archive-required" aria-hidden="true">*</span>
+                            <span class="visually-hidden">(required)</span>
+                        </legend>
+                        <div class="cases-archive-reasons">
+                            {% for reason in reasons %}
+                            <label class="cases-archive-reason" for="reason_{{ reason.id }}">
+                                <input class="cases-archive-reason-input"
+                                       type="radio"
+                                       name="reason"
+                                       id="reason_{{ reason.id }}"
+                                       value="{{ reason.id }}"
+                                       {% if loop.first %}checked{% endif %}>
+                                <span class="cases-archive-reason-label">
+                                    <i class="fas {{ reason.icon }} cases-archive-reason-icon" aria-hidden="true"></i>
+                                    <span>{{ reason.label }}</span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </fieldset>
+
+                    <div class="cases-archive-field">
+                        <label for="cases-archive-notes" class="cases-archive-label">
+                            Additional Notes
+                        </label>
+                        <textarea id="cases-archive-notes"
+                                  name="notes"
+                                  class="cases-archive-textarea"
+                                  rows="3"
+                                  placeholder="Any additional notes about archiving this case..."></textarea>
+                    </div>
+
+                    <div class="cases-archive-actions">
+                        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-archive-btn cases-archive-btn--ghost">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                            <span>Cancel</span>
+                        </a>
+                        <button type="submit" class="cases-archive-btn cases-archive-btn--secondary">
+                            <i class="fas fa-archive" aria-hidden="true"></i>
+                            <span>Archive Case</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <aside class="cases-archive-sidebar" aria-label="Case context">
+            <section class="cases-archive-card" aria-labelledby="cases-archive-summary-title">
+                <div class="cases-archive-card-header">
+                    <i class="fas fa-info-circle cases-archive-card-icon" aria-hidden="true"></i>
+                    <h2 id="cases-archive-summary-title" class="cases-archive-card-title">
+                        Case Summary
+                    </h2>
+                </div>
+                <div class="cases-archive-card-body cases-archive-card-body--compact">
+                    <dl class="cases-archive-summary">
+                        <dt class="cases-archive-summary-term">Case Number</dt>
+                        <dd class="cases-archive-summary-value">{{ case.case_number or '-' }}</dd>
+
+                        <dt class="cases-archive-summary-term">Visa Type</dt>
+                        <dd class="cases-archive-summary-value">{{ case.visa_type or '-' }}</dd>
+
+                        <dt class="cases-archive-summary-term">Current Status</dt>
+                        <dd class="cases-archive-summary-value">
+                            <span class="cases-archive-status">{{ case.status }}</span>
+                        </dd>
+
+                        <dt class="cases-archive-summary-term">Created</dt>
+                        <dd class="cases-archive-summary-value">
+                            {{ case.created_at.strftime('%Y-%m-%d') if case.created_at else '-' }}
+                        </dd>
+                    </dl>
+                </div>
+            </section>
+
+            <section class="cases-archive-card" aria-labelledby="cases-archive-help-title">
+                <div class="cases-archive-card-header">
+                    <i class="fas fa-question-circle cases-archive-card-icon" aria-hidden="true"></i>
+                    <h2 id="cases-archive-help-title" class="cases-archive-card-title">
+                        Archive vs Close
+                    </h2>
+                </div>
+                <div class="cases-archive-card-body cases-archive-card-body--compact">
+                    <div class="cases-archive-help">
+                        <p><strong>Archive:</strong> Hides the case from active lists but keeps it accessible in the archive section.</p>
+                        <p><strong>Close:</strong> Marks the case as completed/terminated with a specific outcome reason.</p>
+                    </div>
+                </div>
+            </section>
+        </aside>
+    </div>
+</main>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

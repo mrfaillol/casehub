@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refactor Review — CaseHub</title>
+    <link rel="stylesheet" href="/static/css/themes/_tokens.css">
+    <link rel="stylesheet" href="/static/css/templates/refactor-review-index.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="rr-page">
+    <a href="#rr-main" class="rr-skip">Pular para o conteúdo</a>
+
+    <header class="rr-header">
+        <h1 class="rr-title">Refactor Review</h1>
+        <p class="rr-subtitle">Painel de revisão dos templates refeitos. Compare versão antiga × atual, deixe feedback escrito, leia o que mudou.</p>
+    </header>
+
+    <main id="rr-main">
+        {% if items %}
+        <ul class="rr-grid" role="list" aria-label="Templates refatorados">
+            {% for item in items %}
+            <li>
+                <a href="{{ PREFIX }}/refactor-review/{{ item.key }}" class="rr-card" aria-labelledby="rr-card-{{ loop.index }}-name">
+                    <h2 id="rr-card-{{ loop.index }}-name" class="rr-name">
+                        <i class="fas fa-window-maximize rr-name-icon" aria-hidden="true"></i>
+                        <span>{{ item.key }}</span>
+                    </h2>
+                    <p class="rr-meta">
+                        <span class="rr-meta-item">
+                            <i class="fas fa-history rr-meta-icon" aria-hidden="true"></i>
+                            <span>{{ item.versions|length }} versão{{ 'es' if item.versions|length != 1 else '' }} arquivada{{ 's' if item.versions|length != 1 else '' }}</span>
+                        </span>
+                        {% if item.live_route %}
+                        <span class="rr-meta-item">
+                            <i class="fas fa-link rr-meta-icon" aria-hidden="true"></i>
+                            <span>rota: <code class="rr-meta-route">{{ item.live_route }}</code></span>
+                        </span>
+                        {% endif %}
+                    </p>
+                    <span class="rr-badge {% if not item.has_brief %}rr-badge--no{% endif %}">
+                        {% if item.has_brief %}
+                        <i class="fas fa-file-alt" aria-hidden="true"></i>
+                        <span>brief</span>
+                        {% else %}
+                        <span>sem brief</span>
+                        {% endif %}
+                    </span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <section class="rr-empty" aria-labelledby="rr-empty-text">
+            <p id="rr-empty-text" class="rr-empty-text">Nenhum template refatorado ainda.</p>
+        </section>
+        {% endif %}
+    </main>
+</body>
+</html>

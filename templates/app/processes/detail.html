@@ -1,0 +1,207 @@
+{% extends "app/base.html" %}
+{% set active_module = 'processes' %}
+{% block title %}Processo · Detalhes · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/processes-detail.css">
+{% endblock %}
+{% block content %}
+<section class="processes-detail-main" aria-labelledby="processes-detail-title">
+    <div class="processes-detail-container">
+        <header class="processes-detail-header">
+            <div class="processes-detail-header-text">
+                <a href="{{ PREFIX }}/processes" class="processes-detail-back">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    <span>Voltar aos processos</span>
+                </a>
+                <h1 id="processes-detail-title" class="processes-detail-title">
+                    <i class="fas fa-project-diagram processes-detail-title-icon" aria-hidden="true"></i>
+                    <span>{{ process.name }}</span>
+                </h1>
+                {% if process.description %}
+                <p class="processes-detail-description">{{ process.description }}</p>
+                {% endif %}
+            </div>
+            <div class="processes-detail-header-actions">
+                <a href="{{ PREFIX }}/processes/{{ process.id }}/edit" class="processes-detail-btn processes-detail-btn--ghost">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
+                    <span>Editar processo</span>
+                </a>
+            </div>
+        </header>
+
+        <div class="processes-detail-grid">
+            <div class="processes-detail-col">
+                <section class="processes-detail-card" aria-labelledby="processes-detail-steps-heading">
+                    <header class="processes-detail-card-header">
+                        <h2 id="processes-detail-steps-heading" class="processes-detail-card-header-title">
+                            <i class="fas fa-list-ol processes-detail-card-header-icon" aria-hidden="true"></i>
+                            <span>Etapas do processo</span>
+                        </h2>
+                        <span class="processes-detail-card-header-count" aria-label="{{ steps|length }} etapas no total">{{ steps|length }}</span>
+                    </header>
+                    <div class="processes-detail-card-body processes-detail-card-body--flush">
+                        {% if steps %}
+                        <ol class="processes-detail-steps">
+                            {% for step in steps %}
+                            <li class="processes-detail-step">
+                                <div class="processes-detail-step-main">
+                                    <div class="processes-detail-step-headline">
+                                        <span class="processes-detail-step-number" aria-label="Etapa {{ step.step_number }}">{{ step.step_number }}</span>
+                                        <span class="processes-detail-step-name">{{ step.name }}</span>
+                                        {% if step.is_milestone %}
+                                        <span class="processes-detail-badge processes-detail-badge--milestone">
+                                            <i class="fas fa-flag" aria-hidden="true"></i>
+                                            <span>Marco</span>
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    {% if step.description %}
+                                    <p class="processes-detail-step-description">{{ step.description }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="processes-detail-step-meta">
+                                    {% if step.estimated_days %}
+                                    <span class="processes-detail-step-days" aria-label="{{ step.estimated_days }} dias estimados">{{ step.estimated_days }} dias</span>
+                                    {% endif %}
+                                    <form action="{{ PREFIX }}/processes/{{ process.id }}/steps/{{ step.id }}/delete" method="POST">
+                                        <button type="submit" class="processes-detail-btn processes-detail-btn--icon processes-detail-btn--icon-danger" onclick="return confirm('Excluir esta etapa?')" aria-label="Excluir etapa {{ step.name }}">
+                                            <i class="fas fa-trash" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ol>
+                        {% else %}
+                        <p class="processes-detail-empty">Nenhuma etapa definida ainda. Adicione etapas abaixo.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <section class="processes-detail-card" aria-labelledby="processes-detail-add-step-heading">
+                    <header class="processes-detail-card-header">
+                        <h2 id="processes-detail-add-step-heading" class="processes-detail-card-header-title">
+                            <i class="fas fa-plus processes-detail-card-header-icon" aria-hidden="true"></i>
+                            <span>Adicionar nova etapa</span>
+                        </h2>
+                    </header>
+                    <div class="processes-detail-card-body">
+                        <form action="{{ PREFIX }}/processes/{{ process.id }}/steps/add" method="POST">
+                            <div class="processes-detail-form-row">
+                                <div class="processes-detail-field">
+                                    <label for="processes-detail-step-name" class="processes-detail-label">
+                                        Nome da etapa
+                                        <span class="processes-detail-required" aria-hidden="true">*</span>
+                                    </label>
+                                    <input id="processes-detail-step-name" type="text" name="name" class="processes-detail-input" required aria-required="true">
+                                </div>
+                                <div class="processes-detail-field">
+                                    <label for="processes-detail-step-days" class="processes-detail-label">Dias estimados</label>
+                                    <input id="processes-detail-step-days" type="number" name="estimated_days" class="processes-detail-input" min="0">
+                                </div>
+                                <div class="processes-detail-field">
+                                    <span class="processes-detail-label" id="processes-detail-milestone-label">Marco</span>
+                                    <label class="processes-detail-check" for="processes-detail-step-milestone">
+                                        <input id="processes-detail-step-milestone" type="checkbox" name="is_milestone" value="true" class="processes-detail-check-input">
+                                        <span>É marco</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="processes-detail-field">
+                                <label for="processes-detail-step-description" class="processes-detail-label">Descrição</label>
+                                <textarea id="processes-detail-step-description" name="description" class="processes-detail-textarea" rows="2"></textarea>
+                            </div>
+                            <div class="processes-detail-form-actions">
+                                <button type="submit" class="processes-detail-btn processes-detail-btn--primary">
+                                    <i class="fas fa-plus" aria-hidden="true"></i>
+                                    <span>Adicionar etapa</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+            </div>
+
+            <aside class="processes-detail-col">
+                <section class="processes-detail-card" aria-labelledby="processes-detail-info-heading">
+                    <header class="processes-detail-card-header">
+                        <h2 id="processes-detail-info-heading" class="processes-detail-card-header-title">
+                            <i class="fas fa-info-circle processes-detail-card-header-icon" aria-hidden="true"></i>
+                            <span>Dados do processo</span>
+                        </h2>
+                    </header>
+                    <div class="processes-detail-card-body">
+                        <dl class="processes-detail-info">
+                            <div class="processes-detail-info-row">
+                                <dt class="processes-detail-info-term">Área de atuação</dt>
+                                <dd class="processes-detail-info-value">{{ process.area_of_practice or 'Não informado' }}</dd>
+                            </div>
+
+                            <div class="processes-detail-info-row">
+                                <dt class="processes-detail-info-term">Tipos de visto aplicáveis</dt>
+                                <dd class="processes-detail-info-value">
+                                    {% if process.visa_types %}
+                                    <span class="processes-detail-info-tags">
+                                        {% for vt in process.visa_types|tojson|safe %}
+                                        <span class="processes-detail-badge processes-detail-badge--neutral">{{ vt }}</span>
+                                        {% endfor %}
+                                    </span>
+                                    {% else %}
+                                    Todos
+                                    {% endif %}
+                                </dd>
+                            </div>
+
+                            <div class="processes-detail-info-row">
+                                <dt class="processes-detail-info-term">Duração estimada</dt>
+                                <dd class="processes-detail-info-value processes-detail-info-value--mono">{{ process.estimated_days or 'Não informado' }} dias</dd>
+                            </div>
+
+                            <div class="processes-detail-info-row">
+                                <dt class="processes-detail-info-term">Status</dt>
+                                <dd class="processes-detail-info-value">
+                                    {% if process.enabled %}
+                                    <span class="processes-detail-badge processes-detail-badge--success">Ativo</span>
+                                    {% else %}
+                                    <span class="processes-detail-badge processes-detail-badge--neutral">Desativado</span>
+                                    {% endif %}
+                                </dd>
+                            </div>
+
+                            <div class="processes-detail-info-row">
+                                <dt class="processes-detail-info-term">Criado em</dt>
+                                <dd class="processes-detail-info-value processes-detail-info-value--mono">
+                                    <time datetime="{{ process.created_at.strftime('%Y-%m-%d') if process.created_at else '' }}">
+                                        {{ process.created_at.strftime('%Y-%m-%d') if process.created_at else '-' }}
+                                    </time>
+                                </dd>
+                            </div>
+                        </dl>
+                    </div>
+                </section>
+
+                <section class="processes-detail-card processes-detail-card--danger" aria-labelledby="processes-detail-danger-heading">
+                    <header class="processes-detail-card-header processes-detail-card-header--danger">
+                        <h2 id="processes-detail-danger-heading" class="processes-detail-card-header-title">
+                            <i class="fas fa-exclamation-triangle processes-detail-card-header-icon" aria-hidden="true"></i>
+                            <span>Zona de risco</span>
+                        </h2>
+                    </header>
+                    <div class="processes-detail-card-body">
+                        <p class="processes-detail-danger-text">Excluir este processo removerá todas as etapas associadas. Processos que usam este modelo manterão o progresso atual.</p>
+                        <form action="{{ PREFIX }}/processes/{{ process.id }}/delete" method="POST">
+                            <button type="submit" class="processes-detail-btn processes-detail-btn--danger" onclick="return confirm('Tem certeza que deseja excluir este modelo de processo?')">
+                                <i class="fas fa-trash" aria-hidden="true"></i>
+                                <span>Excluir processo</span>
+                            </button>
+                        </form>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </div>
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

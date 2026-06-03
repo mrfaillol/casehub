@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}IR Ganho de Capital - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-ganho-capital.css">
+{% endblock %}
+
+{% block content %}
+<section class="tools-ganho-capital-main" aria-labelledby="tools-ganho-capital-title">
+    <div class="tools-ganho-capital-container">
+        <header class="tools-ganho-capital-header tools-ganho-capital-no-print">
+            <div>
+                <h1 id="tools-ganho-capital-title" class="tools-ganho-capital-title">
+                    <i class="fas fa-chart-line tools-ganho-capital-title-icon" aria-hidden="true"></i>
+                    <span>IR sobre Ganho de Capital</span>
+                </h1>
+                <p class="tools-ganho-capital-subtitle">Lei 7.713/88, Lei 13.259/16, IN RFB 599/05</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="tools-ganho-capital-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        <div class="tools-ganho-capital-layout{% if resultado %} tools-ganho-capital-layout--with-result{% endif %}">
+            <form method="POST" action="{{ PREFIX }}/tools/ganho-capital/calcular" class="tools-ganho-capital-card" aria-labelledby="tools-ganho-capital-form-title">
+                <h2 id="tools-ganho-capital-form-title" class="tools-ganho-capital-section-title">Dados da Alienação</h2>
+
+                <div class="tools-ganho-capital-grid-2">
+                    <div class="tools-ganho-capital-field">
+                        <label for="valor_venda" class="tools-ganho-capital-label">Valor de Venda (R$)</label>
+                        <div class="tools-ganho-capital-input-group">
+                            <span class="tools-ganho-capital-input-prefix" aria-hidden="true">R$</span>
+                            <input type="number" class="tools-ganho-capital-input" id="valor_venda" name="valor_venda"
+                                   step="0.01" min="0" value="{{ form.valor_venda if form else '' }}" required aria-required="true">
+                        </div>
+                    </div>
+                    <div class="tools-ganho-capital-field">
+                        <label for="valor_aquisicao" class="tools-ganho-capital-label">Valor de Aquisição (R$)</label>
+                        <div class="tools-ganho-capital-input-group">
+                            <span class="tools-ganho-capital-input-prefix" aria-hidden="true">R$</span>
+                            <input type="number" class="tools-ganho-capital-input" id="valor_aquisicao" name="valor_aquisicao"
+                                   step="0.01" min="0" value="{{ form.valor_aquisicao if form else '' }}" required aria-required="true">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tools-ganho-capital-grid-2">
+                    <div class="tools-ganho-capital-field">
+                        <label for="data_aquisicao" class="tools-ganho-capital-label">Data de Aquisição</label>
+                        <input type="date" class="tools-ganho-capital-input" id="data_aquisicao" name="data_aquisicao"
+                               value="{{ form.data_aquisicao if form else '' }}" required aria-required="true">
+                    </div>
+                    <div class="tools-ganho-capital-field">
+                        <label for="tipo_bem" class="tools-ganho-capital-label">Tipo de Bem</label>
+                        <select class="tools-ganho-capital-select" id="tipo_bem" name="tipo_bem" required aria-required="true">
+                            <option value="imovel" {% if form and form.tipo_bem == 'imovel' %}selected{% endif %}>Imóvel</option>
+                            <option value="movel" {% if form and form.tipo_bem == 'movel' %}selected{% endif %}>Bem Móvel</option>
+                            <option value="acoes" {% if form and form.tipo_bem == 'acoes' %}selected{% endif %}>Ações / Participações</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="tools-ganho-capital-btn tools-ganho-capital-btn--primary">
+                    <i class="fas fa-calculator" aria-hidden="true"></i>
+                    <span>Calcular IR Ganho de Capital</span>
+                </button>
+            </form>
+
+            {% if resultado %}
+            <article class="tools-ganho-capital-card" aria-labelledby="tools-ganho-capital-result-title">
+                <h2 id="tools-ganho-capital-result-title" class="tools-ganho-capital-result-header">
+                    <i class="fas fa-receipt tools-ganho-capital-result-header-icon" aria-hidden="true"></i>
+                    <span>Resultado do Cálculo</span>
+                </h2>
+
+                <table class="tools-ganho-capital-table">
+                    <caption>Resumo do ganho de capital</caption>
+                    <tbody>
+                        <tr>
+                            <th scope="row">Valor de Venda</th>
+                            <td class="tools-ganho-capital-num">R$ {{ resultado.valor_venda_fmt }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Valor de Aquisição</th>
+                            <td class="tools-ganho-capital-num">R$ {{ resultado.valor_aquisicao_fmt }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Ganho Bruto</th>
+                            <td class="tools-ganho-capital-num">R$ {{ resultado.ganho_bruto_fmt }}</td>
+                        </tr>
+                        {% if resultado.reducao_percentual > 0 %}
+                        <tr>
+                            <th scope="row">Redução por Tempo</th>
+                            <td class="tools-ganho-capital-num">{{ resultado.reducao_percentual }}%</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th scope="row">Ganho Tributável</th>
+                            <td class="tools-ganho-capital-num">R$ {{ resultado.ganho_tributavel_fmt }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {% if resultado.detalhamento_faixas %}
+                <table class="tools-ganho-capital-table">
+                    <caption>Detalhamento por Faixas</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Faixa</th>
+                            <th scope="col">Alíquota</th>
+                            <th scope="col" class="tools-ganho-capital-num">Base</th>
+                            <th scope="col" class="tools-ganho-capital-num">IR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for faixa in resultado.detalhamento_faixas %}
+                        <tr>
+                            <td>{{ faixa.faixa }}</td>
+                            <td>{{ faixa.aliquota }}</td>
+                            <td class="tools-ganho-capital-num">R$ {{ faixa.base }}</td>
+                            <td class="tools-ganho-capital-num">R$ {{ faixa.ir }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+
+                <table class="tools-ganho-capital-table">
+                    <caption>Total devido</caption>
+                    <tbody>
+                        <tr class="tools-ganho-capital-total-row">
+                            <th scope="row">IR sobre Ganho de Capital</th>
+                            <td class="tools-ganho-capital-num">R$ {{ resultado.ir_total_fmt }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Alíquota Efetiva</th>
+                            <td class="tools-ganho-capital-num">{{ resultado.aliquota_efetiva }}%</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {% if resultado.nota_reducao %}
+                <div class="tools-ganho-capital-alert" role="note">
+                    <i class="fas fa-info-circle tools-ganho-capital-alert-icon" aria-hidden="true"></i>
+                    <span>{{ resultado.nota_reducao }}</span>
+                </div>
+                {% endif %}
+
+                <section class="tools-ganho-capital-legal" aria-labelledby="tools-ganho-capital-legal-title">
+                    <h3 id="tools-ganho-capital-legal-title" class="tools-ganho-capital-legal-title">
+                        <i class="fas fa-balance-scale tools-ganho-capital-legal-title-icon" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-ganho-capital-legal-list">
+                        {% for ref in resultado.fundamentacao %}
+                        <li>{{ ref }}</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <div class="tools-ganho-capital-print-actions tools-ganho-capital-no-print">
+                    <button type="button" onclick="window.print()" class="tools-ganho-capital-btn tools-ganho-capital-btn--ghost tools-ganho-capital-btn--sm">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </div>
+            </article>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

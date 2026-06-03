@@ -1,0 +1,364 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+
+{% block title %}{{ contact.name }} - {% if product == "lite" %}Contato{% else %}Contact{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/templates/contacts-view.css">
+{% endblock %}
+
+{% block content %}
+<main class="contacts-view-main" aria-labelledby="contacts-view-title">
+    <header class="contacts-view-header">
+        <div class="contacts-view-header-leading">
+            <a href="{{ PREFIX }}/contacts" class="contacts-view-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Voltar aos Contatos{% else %}Back to Contacts{% endif %}</span>
+            </a>
+            <h1 id="contacts-view-title" class="contacts-view-title">
+                <i class="fas fa-user" aria-hidden="true"></i>
+                <span>{{ contact.name }}</span>
+            </h1>
+            <p class="contacts-view-subtitle">
+                {% if contact.contact_type == 'employer' %}
+                <span class="contacts-view-type-badge contacts-view-type-badge--employer">{% if product == "lite" %}Empregador{% else %}Employer{% endif %}</span>
+                {% elif contact.contact_type == 'attorney' %}
+                <span class="contacts-view-type-badge contacts-view-type-badge--attorney">{% if product == "lite" %}Advogado{% else %}Attorney{% endif %}</span>
+                {% elif contact.contact_type == 'reference' %}
+                <span class="contacts-view-type-badge contacts-view-type-badge--reference">{% if product == "lite" %}Referência{% else %}Reference{% endif %}</span>
+                {% elif contact.contact_type == 'expert_witness' %}
+                <span class="contacts-view-type-badge contacts-view-type-badge--expert">{% if product == "lite" %}Perito{% else %}Expert Witness{% endif %}</span>
+                {% else %}
+                <span class="contacts-view-type-badge">{{ contact.contact_type }}</span>
+                {% endif %}
+                {% if contact.title %}<span class="contacts-view-subtitle-detail">— {{ contact.title }}</span>{% endif %}
+            </p>
+        </div>
+        <div class="contacts-view-header-actions">
+            <a href="{{ PREFIX }}/contacts/{{ contact.id }}/edit" class="contacts-view-edit">
+                <i class="fas fa-edit" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Editar{% else %}Edit{% endif %}</span>
+            </a>
+            <form method="POST" action="{{ PREFIX }}/contacts/{{ contact.id }}/delete"
+                  class="contacts-view-delete-form"
+                  onsubmit="return confirm('{% if product == \'lite\' %}Excluir este contato?{% else %}Delete this contact?{% endif %}');">
+                <button type="submit" class="contacts-view-delete">
+                    <i class="fas fa-trash" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</span>
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <div class="contacts-view-grid">
+        <aside class="contacts-view-aside" aria-label="{% if product == 'lite' %}Detalhes do contato{% else %}Contact details{% endif %}">
+            <section class="contacts-view-card" aria-labelledby="contacts-view-info-title">
+                <header class="contacts-view-card-header">
+                    <h2 id="contacts-view-info-title" class="contacts-view-card-title">
+                        <i class="fas fa-id-card" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Informações do Contato{% else %}Contact Info{% endif %}</span>
+                    </h2>
+                </header>
+                <div class="contacts-view-card-body">
+                    <dl class="contacts-view-info-list">
+                        {% if contact.company %}
+                        <dt class="contacts-view-info-term">{% if product == "lite" %}Empresa{% else %}Company{% endif %}</dt>
+                        <dd class="contacts-view-info-detail">{{ contact.company }}</dd>
+                        {% endif %}
+
+                        {% if contact.email %}
+                        <dt class="contacts-view-info-term">Email</dt>
+                        <dd class="contacts-view-info-detail">
+                            <a class="contacts-view-link" href="mailto:{{ contact.email }}">{{ contact.email }}</a>
+                        </dd>
+                        {% endif %}
+
+                        {% if contact.phone %}
+                        <dt class="contacts-view-info-term">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</dt>
+                        <dd class="contacts-view-info-detail">{{ contact.phone }}</dd>
+                        {% endif %}
+
+                        {% if contact.website %}
+                        <dt class="contacts-view-info-term">Website</dt>
+                        <dd class="contacts-view-info-detail">
+                            <a class="contacts-view-link" href="{{ contact.website }}" target="_blank" rel="noopener noreferrer">{{ contact.website }}</a>
+                        </dd>
+                        {% endif %}
+
+                        {% if contact.address or contact.city %}
+                        <dt class="contacts-view-info-term">{% if product == "lite" %}Endereço{% else %}Address{% endif %}</dt>
+                        <dd class="contacts-view-info-detail">
+                            {{ contact.address or '' }}
+                            {% if contact.city %}
+                            <br>{{ contact.city }}{% if contact.state %}, {{ contact.state }}{% endif %} {{ contact.zip_code or '' }}
+                            {% endif %}
+                            {% if contact.country and contact.country != 'USA' and contact.country != 'Brasil' %}
+                            <br>{{ contact.country }}
+                            {% endif %}
+                        </dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </section>
+
+            {% if contact.notes %}
+            <section class="contacts-view-card" aria-labelledby="contacts-view-notes-title">
+                <header class="contacts-view-card-header">
+                    <h2 id="contacts-view-notes-title" class="contacts-view-card-title">
+                        <i class="fas fa-sticky-note" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Observações{% else %}Notes{% endif %}</span>
+                    </h2>
+                </header>
+                <div class="contacts-view-card-body">
+                    <p class="contacts-view-notes">{{ contact.notes }}</p>
+                </div>
+            </section>
+            {% endif %}
+        </aside>
+
+        <section class="contacts-view-body" aria-labelledby="contacts-view-rel-title">
+            <article class="contacts-view-card">
+                <header class="contacts-view-card-header">
+                    <h2 id="contacts-view-rel-title" class="contacts-view-card-title">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Relacionamentos{% else %}Relationships{% endif %}</span>
+                    </h2>
+                    <button type="button" class="contacts-view-add-link" data-bs-toggle="modal" data-bs-target="#linkModal">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Adicionar Vínculo{% else %}Add Link{% endif %}</span>
+                    </button>
+                </header>
+                {% if relationships_from or relationships_to %}
+                <div class="contacts-view-card-body contacts-view-card-body--flush">
+                    <div class="contacts-view-tablewrap">
+                        <table class="contacts-view-table">
+                            <caption>{% if product == "lite" %}Relacionamentos do contato com clientes, processos e outros contatos.{% else %}Contact relationships with clients, cases, and other contacts.{% endif %}</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">{% if product == "lite" %}Relacionamento{% else %}Relationship{% endif %}</th>
+                                    <th scope="col">{% if product == "lite" %}Entidade{% else %}Entity{% endif %}</th>
+                                    <th scope="col">{% if product == "lite" %}Datas{% else %}Dates{% endif %}</th>
+                                    <th scope="col" class="contacts-view-cell-end">
+                                        <span class="contacts-view-visually-hidden">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rel in relationships_from %}
+                                <tr>
+                                    <td>
+                                        <span class="contacts-view-rel-badge contacts-view-rel-badge--from">{{ rel.relationship }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="contacts-view-rel-entity">
+                                            {% if rel.to_entity_type == 'client' %}
+                                            <a class="contacts-view-link" href="{{ PREFIX }}/clients/{{ rel.to_entity_id }}">{{ rel.to_name }}</a>
+                                            <span class="contacts-view-rel-entity-meta">({% if product == "lite" %}Cliente{% else %}Client{% endif %})</span>
+                                            {% elif rel.to_entity_type == 'case' %}
+                                            <a class="contacts-view-link" href="{{ PREFIX }}/cases/{{ rel.to_entity_id }}">{{ rel.to_name }}</a>
+                                            <span class="contacts-view-rel-entity-meta">({% if product == "lite" %}Processo{% else %}Case{% endif %})</span>
+                                            {% elif rel.to_entity_type == 'contact' %}
+                                            <a class="contacts-view-link" href="{{ PREFIX }}/contacts/{{ rel.to_entity_id }}">{{ rel.to_name }}</a>
+                                            <span class="contacts-view-rel-entity-meta">({% if product == "lite" %}Contato{% else %}Contact{% endif %})</span>
+                                            {% else %}
+                                            <span>{{ rel.to_name }}</span>
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="contacts-view-rel-dates">
+                                            {% if rel.start_date %}{% if product == "lite" %}{{ rel.start_date.strftime('%d/%m/%Y') }}{% else %}{{ rel.start_date.strftime('%Y-%m-%d') }}{% endif %}{% else %}<span class="contacts-view-rel-dates-placeholder" aria-label="{% if product == 'lite' %}Sem data inicial{% else %}No start date{% endif %}">—</span>{% endif %}
+                                            {% if rel.end_date %} – {% if product == "lite" %}{{ rel.end_date.strftime('%d/%m/%Y') }}{% else %}{{ rel.end_date.strftime('%Y-%m-%d') }}{% endif %}{% endif %}
+                                        </span>
+                                    </td>
+                                    <td class="contacts-view-cell-end">
+                                        <div class="contacts-view-row-actions">
+                                            <form method="POST" action="{{ PREFIX }}/contacts/relationship/{{ rel.id }}/delete">
+                                                <input type="hidden" name="redirect_to" value="{{ PREFIX }}/contacts/{{ contact.id }}">
+                                                <button type="submit" class="contacts-view-icon-btn contacts-view-icon-btn--danger" title="{% if product == 'lite' %}Remover{% else %}Remove{% endif %}" aria-label="{% if product == 'lite' %}Remover vínculo com {{ rel.to_name }}{% else %}Remove link with {{ rel.to_name }}{% endif %}">
+                                                    <i class="fas fa-unlink" aria-hidden="true"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+
+                                {% for rel in relationships_to %}
+                                <tr>
+                                    <td>
+                                        <span class="contacts-view-rel-badge contacts-view-rel-badge--to">{{ rel.inverse_relationship or rel.relationship }} {% if product == "lite" %}de{% else %}of{% endif %}</span>
+                                    </td>
+                                    <td>
+                                        <span class="contacts-view-rel-entity">
+                                            {% if rel.from_entity_type == 'client' %}
+                                            <a class="contacts-view-link" href="{{ PREFIX }}/clients/{{ rel.from_entity_id }}">{{ rel.from_name }}</a>
+                                            <span class="contacts-view-rel-entity-meta">({% if product == "lite" %}Cliente{% else %}Client{% endif %})</span>
+                                            {% elif rel.from_entity_type == 'case' %}
+                                            <a class="contacts-view-link" href="{{ PREFIX }}/cases/{{ rel.from_entity_id }}">{{ rel.from_name }}</a>
+                                            <span class="contacts-view-rel-entity-meta">({% if product == "lite" %}Processo{% else %}Case{% endif %})</span>
+                                            {% elif rel.from_entity_type == 'contact' %}
+                                            <a class="contacts-view-link" href="{{ PREFIX }}/contacts/{{ rel.from_entity_id }}">{{ rel.from_name }}</a>
+                                            <span class="contacts-view-rel-entity-meta">({% if product == "lite" %}Contato{% else %}Contact{% endif %})</span>
+                                            {% else %}
+                                            <span>{{ rel.from_name }}</span>
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="contacts-view-rel-dates">
+                                            {% if rel.start_date %}{% if product == "lite" %}{{ rel.start_date.strftime('%d/%m/%Y') }}{% else %}{{ rel.start_date.strftime('%Y-%m-%d') }}{% endif %}{% else %}<span class="contacts-view-rel-dates-placeholder" aria-label="{% if product == 'lite' %}Sem data inicial{% else %}No start date{% endif %}">—</span>{% endif %}
+                                            {% if rel.end_date %} – {% if product == "lite" %}{{ rel.end_date.strftime('%d/%m/%Y') }}{% else %}{{ rel.end_date.strftime('%Y-%m-%d') }}{% endif %}{% endif %}
+                                        </span>
+                                    </td>
+                                    <td class="contacts-view-cell-end">
+                                        <div class="contacts-view-row-actions">
+                                            <form method="POST" action="{{ PREFIX }}/contacts/relationship/{{ rel.id }}/delete">
+                                                <input type="hidden" name="redirect_to" value="{{ PREFIX }}/contacts/{{ contact.id }}">
+                                                <button type="submit" class="contacts-view-icon-btn contacts-view-icon-btn--danger" title="{% if product == 'lite' %}Remover{% else %}Remove{% endif %}" aria-label="{% if product == 'lite' %}Remover vínculo com {{ rel.from_name }}{% else %}Remove link with {{ rel.from_name }}{% endif %}">
+                                                    <i class="fas fa-unlink" aria-hidden="true"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% else %}
+                <div class="contacts-view-card-body">
+                    <div class="contacts-view-empty">
+                        <i class="fas fa-link contacts-view-empty-icon" aria-hidden="true"></i>
+                        <p class="contacts-view-empty-text">{% if product == "lite" %}Nenhum relacionamento ainda. Clique em "Adicionar Vínculo" para conectar este contato.{% else %}No relationships yet. Click "Add Link" to connect this contact.{% endif %}</p>
+                    </div>
+                </div>
+                {% endif %}
+            </article>
+        </section>
+    </div>
+</main>
+
+<!-- Link Modal -->
+<div class="modal fade contacts-view-modal" id="linkModal" tabindex="-1" aria-labelledby="contacts-view-modal-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ PREFIX }}/contacts/{{ contact.id }}/link">
+                <header class="contacts-view-modal-header">
+                    <h2 id="contacts-view-modal-title" class="contacts-view-modal-title">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Adicionar Relacionamento{% else %}Add Relationship{% endif %}</span>
+                    </h2>
+                    <button type="button" class="contacts-view-modal-close" data-bs-dismiss="modal" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                    </button>
+                </header>
+                <div class="contacts-view-modal-body">
+                    <div class="contacts-view-form-group">
+                        <label for="contacts-view-entity-type" class="contacts-view-label">{% if product == "lite" %}Vincular A{% else %}Link To{% endif %}</label>
+                        <select id="contacts-view-entity-type" name="to_entity_type" class="contacts-view-select" onchange="updateEntitySelect()">
+                            <option value="client">{% if product == "lite" %}Cliente{% else %}Client{% endif %}</option>
+                            <option value="case">{% if product == "lite" %}Processo{% else %}Case{% endif %}</option>
+                            <option value="contact">{% if product == "lite" %}Outro Contato{% else %}Another Contact{% endif %}</option>
+                        </select>
+                    </div>
+
+                    <div class="contacts-view-form-group" id="clientSelectDiv">
+                        <label for="contacts-view-client-select" class="contacts-view-label">{% if product == "lite" %}Selecionar Cliente{% else %}Select Client{% endif %}</label>
+                        <select id="contacts-view-client-select" name="to_entity_id" class="contacts-view-select">
+                            {% for client in clients %}
+                            <option value="{{ client.id }}">{{ client.first_name }} {{ client.last_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="contacts-view-form-group contacts-view-form-group--hidden" id="caseSelectDiv">
+                        <label for="contacts-view-case-select" class="contacts-view-label">{% if product == "lite" %}Selecionar Processo{% else %}Select Case{% endif %}</label>
+                        <select id="contacts-view-case-select" name="to_entity_id" class="contacts-view-select" disabled>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}">{{ case.case_number }} - {{ case.case_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="contacts-view-form-group contacts-view-form-group--hidden" id="contactSelectDiv">
+                        <label for="contacts-view-contact-select" class="contacts-view-label">{% if product == "lite" %}Selecionar Contato{% else %}Select Contact{% endif %}</label>
+                        <select id="contacts-view-contact-select" name="to_entity_id" class="contacts-view-select" disabled>
+                            {% for c in contacts %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="contacts-view-form-group">
+                        <label for="contacts-view-relationship" class="contacts-view-label">{% if product == "lite" %}Relacionamento{% else %}Relationship{% endif %}</label>
+                        <select id="contacts-view-relationship" name="relationship" class="contacts-view-select">
+                            {% for rt in relationship_types %}
+                            <option value="{{ rt.value }}">{{ rt.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="contacts-view-form-row">
+                        <div class="contacts-view-form-group">
+                            <label for="contacts-view-start-date" class="contacts-view-label">{% if product == "lite" %}Data de Início{% else %}Start Date{% endif %}</label>
+                            <input type="date" id="contacts-view-start-date" name="start_date" class="contacts-view-input">
+                        </div>
+                        <div class="contacts-view-form-group">
+                            <label for="contacts-view-end-date" class="contacts-view-label">{% if product == "lite" %}Data de Término{% else %}End Date{% endif %}</label>
+                            <input type="date" id="contacts-view-end-date" name="end_date" class="contacts-view-input">
+                        </div>
+                    </div>
+
+                    <div class="contacts-view-form-group">
+                        <label for="contacts-view-notes" class="contacts-view-label">{% if product == "lite" %}Observações{% else %}Notes{% endif %}</label>
+                        <textarea id="contacts-view-notes" name="notes" class="contacts-view-textarea" rows="2"></textarea>
+                    </div>
+                </div>
+                <footer class="contacts-view-modal-footer">
+                    <button type="button" class="contacts-view-btn contacts-view-btn--secondary" data-bs-dismiss="modal">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</button>
+                    <button type="submit" class="contacts-view-btn contacts-view-btn--primary">
+                        <i class="fas fa-link" aria-hidden="true"></i>
+                        <span>{% if product == "lite" %}Criar Vínculo{% else %}Create Link{% endif %}</span>
+                    </button>
+                </footer>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateEntitySelect() {
+    var type = document.getElementById('contacts-view-entity-type').value;
+    var hiddenClass = 'contacts-view-form-group--hidden';
+
+    var groups = {
+        client: document.getElementById('clientSelectDiv'),
+        case: document.getElementById('caseSelectDiv'),
+        contact: document.getElementById('contactSelectDiv')
+    };
+    var selects = {
+        client: document.getElementById('contacts-view-client-select'),
+        case: document.getElementById('contacts-view-case-select'),
+        contact: document.getElementById('contacts-view-contact-select')
+    };
+
+    // All three selects carry name="to_entity_id"; only the active one stays
+    // enabled. Disabled controls are not submitted, so the POST always receives
+    // exactly one to_entity_id matching the chosen to_entity_type — even if this
+    // function never fires (defensive: also invoked on load).
+    Object.keys(groups).forEach(function (key) {
+        if (key === type) {
+            groups[key].classList.remove(hiddenClass);
+            selects[key].disabled = false;
+        } else {
+            groups[key].classList.add(hiddenClass);
+            selects[key].disabled = true;
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', updateEntitySelect);
+</script>
+{% endblock %}

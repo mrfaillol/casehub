@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Case Wizard - Step 2: Case Type{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/wizard-step2-case-type.css">
+{% endblock %}
+
+{% block content %}
+<main class="wizard-step2" aria-labelledby="wizard-step2-title">
+    <section class="wizard-step2-progress" aria-labelledby="wizard-step2-title">
+        <div class="wizard-step2-progress-head">
+            <h1 id="wizard-step2-title" class="wizard-step2-progress-title">Case Creation Wizard</h1>
+            <span class="wizard-step2-progress-count">Step {{ step }} of {{ total_steps }}</span>
+        </div>
+        <div class="wizard-step2-progress-bar"
+             role="progressbar"
+             aria-valuenow="{{ step }}"
+             aria-valuemin="0"
+             aria-valuemax="{{ total_steps }}"
+             aria-label="Wizard progress">
+            <div class="wizard-step2-progress-fill"
+                 style="--wizard-step2-progress: {{ (step / total_steps * 100)|int }}%; width: var(--wizard-step2-progress);"></div>
+        </div>
+        <ol class="wizard-step2-progress-steps">
+            <li class="wizard-step2-progress-step{% if step >= 1 %} wizard-step2-progress-step--active{% endif %}">1. Client</li>
+            <li class="wizard-step2-progress-step{% if step >= 2 %} wizard-step2-progress-step--active{% endif %}">2. Case Type</li>
+            <li class="wizard-step2-progress-step{% if step >= 3 %} wizard-step2-progress-step--active{% endif %}">3. Parties</li>
+            <li class="wizard-step2-progress-step{% if step >= 4 %} wizard-step2-progress-step--active{% endif %}">4. Review</li>
+        </ol>
+    </section>
+
+    <aside class="wizard-step2-client" aria-label="Selected client">
+        <span class="wizard-step2-client-icon" aria-hidden="true">
+            <i class="fas fa-user"></i>
+        </span>
+        <div class="wizard-step2-client-info">
+            <span class="wizard-step2-client-name">
+                <strong>Client:</strong> {{ session_data.client_name }}
+                {% if session_data.is_new_client %}<span class="wizard-step2-client-badge">New</span>{% endif %}
+            </span>
+            <span class="wizard-step2-client-email">{{ session_data.client_email or 'No email' }}</span>
+        </div>
+    </aside>
+
+    <form method="POST" action="{{ PREFIX }}/wizard/step2" class="wizard-step2-form" novalidate>
+        <div class="wizard-step2-grid">
+            <section class="wizard-step2-card" aria-labelledby="wizard-step2-visa-title">
+                <header id="wizard-step2-visa-title" class="wizard-step2-card-header">
+                    <i class="fas fa-passport wizard-step2-card-header-icon" aria-hidden="true"></i>
+                    <span>Select Visa/Case Type</span>
+                </header>
+                <div class="wizard-step2-card-body">
+                    {% for category, visas in visa_categories.items() %}
+                    <div class="wizard-step2-category" role="group" aria-label="{{ category }}">
+                        <h2 class="wizard-step2-category-title">{{ category }}</h2>
+                        <div class="wizard-step2-options">
+                            {% for visa in visas %}
+                            {% set visa_id = 'visa_' ~ visa.code|replace('-', '_')|replace(' ', '_') %}
+                            <label class="wizard-step2-option" for="{{ visa_id }}">
+                                <input type="radio"
+                                       class="wizard-step2-option-input"
+                                       name="visa_type"
+                                       id="{{ visa_id }}"
+                                       value="{{ visa.code }}"
+                                       data-days="{{ visa.estimated_days }}"
+                                       data-premium="{{ visa.premium_available }}"
+                                       {% if session_data.visa_type == visa.code %}checked{% endif %}
+                                       required>
+                                <span class="wizard-step2-option-indicator" aria-hidden="true"></span>
+                                <span class="wizard-step2-option-content">
+                                    <span class="wizard-step2-option-code">{{ visa.code }}</span>
+                                    <span class="wizard-step2-option-name">{{ visa.name }}</span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="wizard-step2-card" aria-labelledby="wizard-step2-details-title">
+                <header id="wizard-step2-details-title" class="wizard-step2-card-header">
+                    <i class="fas fa-info-circle wizard-step2-card-header-icon" aria-hidden="true"></i>
+                    <span>Case Details</span>
+                </header>
+                <div class="wizard-step2-card-body">
+                    <div class="wizard-step2-field">
+                        <label for="wizard-step2-case-name" class="wizard-step2-label">Case Name</label>
+                        <input type="text"
+                               id="wizard-step2-case-name"
+                               name="case_name"
+                               class="wizard-step2-input"
+                               placeholder="Auto-generated if empty"
+                               value="{{ session_data.case_name or '' }}"
+                               aria-describedby="wizard-step2-case-name-hint">
+                        <small id="wizard-step2-case-name-hint" class="wizard-step2-hint">Leave blank to auto-generate</small>
+                    </div>
+
+                    <div class="wizard-step2-field">
+                        <label for="wizard-step2-priority" class="wizard-step2-label">Priority</label>
+                        <select id="wizard-step2-priority" name="priority" class="wizard-step2-select">
+                            <option value="low" {% if session_data.priority == 'low' %}selected{% endif %}>Low</option>
+                            <option value="medium" {% if session_data.priority == 'medium' or not session_data.priority %}selected{% endif %}>Medium</option>
+                            <option value="high" {% if session_data.priority == 'high' %}selected{% endif %}>High</option>
+                            <option value="urgent" {% if session_data.priority == 'urgent' %}selected{% endif %}>Urgent</option>
+                        </select>
+                    </div>
+
+                    <div class="wizard-step2-field wizard-step2-is-hidden" id="premiumProcessingDiv">
+                        <label class="wizard-step2-checkbox" for="premiumProcessing">
+                            <input type="checkbox"
+                                   class="wizard-step2-checkbox-input"
+                                   id="premiumProcessing"
+                                   name="premium_processing"
+                                   value="true"
+                                   {% if session_data.premium_processing %}checked{% endif %}>
+                            <span class="wizard-step2-checkbox-box" aria-hidden="true"></span>
+                            <span class="wizard-step2-checkbox-content">
+                                <span class="wizard-step2-checkbox-title">Premium Processing</span>
+                                <small class="wizard-step2-hint">+$2,805 USCIS Fee</small>
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="wizard-step2-field">
+                        <label for="wizard-step2-notes" class="wizard-step2-label">Notes</label>
+                        <textarea id="wizard-step2-notes"
+                                  name="notes"
+                                  class="wizard-step2-textarea"
+                                  rows="3"
+                                  placeholder="Optional notes...">{{ session_data.notes or '' }}</textarea>
+                    </div>
+
+                    <div class="wizard-step2-info wizard-step2-is-hidden" id="processingInfo" aria-live="polite">
+                        <span class="wizard-step2-info-title">Estimated Processing</span>
+                        <span class="wizard-step2-info-value"><span id="processingDays">-</span> days (regular)</span>
+                        <span class="wizard-step2-info-value wizard-step2-is-hidden" id="premiumDays">15 days (premium)</span>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="wizard-step2-actions">
+            <a href="{{ PREFIX }}/wizard/step1" class="wizard-step2-btn wizard-step2-btn--ghost">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Step 1</span>
+            </a>
+            <button type="submit" class="wizard-step2-btn wizard-step2-btn--primary">
+                <span>Continue to Step 3</span>
+                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+            </button>
+        </div>
+    </form>
+</main>
+
+<script>
+(function () {
+    const HIDDEN = 'wizard-step2-is-hidden';
+    const radios = document.querySelectorAll('input[name="visa_type"]');
+    const processingInfo = document.getElementById('processingInfo');
+    const processingDays = document.getElementById('processingDays');
+    const premiumDiv = document.getElementById('premiumProcessingDiv');
+    const premiumDays = document.getElementById('premiumDays');
+    const premiumCheckbox = document.getElementById('premiumProcessing');
+
+    function applyVisa(radio) {
+        const days = radio.dataset.days;
+        const premium = radio.dataset.premium === 'True' || radio.dataset.premium === 'true';
+
+        processingInfo.classList.remove(HIDDEN);
+        processingDays.textContent = days;
+
+        if (premium) {
+            premiumDiv.classList.remove(HIDDEN);
+            premiumDays.classList.remove(HIDDEN);
+        } else {
+            premiumDiv.classList.add(HIDDEN);
+            premiumDays.classList.add(HIDDEN);
+            if (premiumCheckbox) premiumCheckbox.checked = false;
+        }
+    }
+
+    radios.forEach(function (radio) {
+        radio.addEventListener('change', function () { applyVisa(this); });
+    });
+
+    const selectedVisa = document.querySelector('input[name="visa_type"]:checked');
+    if (selectedVisa) applyVisa(selectedVisa);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "app/base.html" %}
+{% set active_module = 'controladoria' %}
+{% block title %}Deadlines · Overview · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/deadlines-overview.css">
+{% endblock %}
+{% block content %}
+<section class="deadlines-overview-main" aria-labelledby="deadlines-overview-title">
+    <header class="deadlines-overview-header">
+        <h1 id="deadlines-overview-title" class="deadlines-overview-title">
+            <i class="fas fa-calendar-check" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Prazos{% else %}Upcoming Deadlines{% endif %}</span>
+        </h1>
+
+        <div class="deadlines-overview-actions">
+            {% if product == "lite" %}
+            <a href="{{ PREFIX }}/prazos" class="deadlines-overview-cta">
+                <i class="fas fa-calculator" aria-hidden="true"></i>
+                <span>Calculadora CPC</span>
+            </a>
+            {% else %}
+            <a href="{{ PREFIX }}/deadlines/calculator" class="deadlines-overview-cta">
+                <i class="fas fa-calculator" aria-hidden="true"></i>
+                <span>Calculator</span>
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="deadlines-overview-filter">
+        <form method="GET" class="deadlines-overview-filter-form">
+            <label for="deadlines-overview-days" class="deadlines-overview-filter-label">
+                {% if product == "lite" %}Janela{% else %}Window{% endif %}
+            </label>
+            <select id="deadlines-overview-days"
+                    name="days"
+                    class="deadlines-overview-filter-select"
+                    onchange="this.form.submit()"
+                    aria-label="{% if product == 'lite' %}Selecionar janela de dias{% else %}Select days window{% endif %}">
+                <option value="7"  {% if days == 7  %}selected{% endif %}>{% if product == "lite" %}Próximos 7 dias{% else %}Next 7 days{% endif %}</option>
+                <option value="14" {% if days == 14 %}selected{% endif %}>{% if product == "lite" %}Próximos 14 dias{% else %}Next 14 days{% endif %}</option>
+                <option value="30" {% if days == 30 %}selected{% endif %}>{% if product == "lite" %}Próximos 30 dias{% else %}Next 30 days{% endif %}</option>
+                <option value="60" {% if days == 60 %}selected{% endif %}>{% if product == "lite" %}Próximos 60 dias{% else %}Next 60 days{% endif %}</option>
+                <option value="90" {% if days == 90 %}selected{% endif %}>{% if product == "lite" %}Próximos 90 dias{% else %}Next 90 days{% endif %}</option>
+            </select>
+        </form>
+        <p class="deadlines-overview-filter-total" aria-live="polite">
+            <span class="deadlines-overview-filter-total-count">{{ total }}</span>
+            {% if product == "lite" %}prazo(s) encontrado(s){% else %}deadline(s) found{% endif %}
+        </p>
+    </div>
+
+    {% if critical %}
+    <section class="deadlines-overview-bucket deadlines-overview-bucket--critical"
+             aria-labelledby="deadlines-overview-bucket-critical">
+        <h2 id="deadlines-overview-bucket-critical" class="deadlines-overview-bucket-header">
+            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Crítico{% else %}Critical{% endif %}</span>
+            <span class="deadlines-overview-bucket-count" aria-label="{{ critical|length }} {% if product == 'lite' %}itens{% else %}items{% endif %}">({{ critical|length }})</span>
+        </h2>
+        <ul class="deadlines-overview-list">
+            {% for d in critical %}
+            <li class="deadlines-overview-item">
+                <div class="deadlines-overview-item-body">
+                    <span class="deadlines-overview-item-title">{{ d.title or d.type | replace('_', ' ') | title }}</span>
+                    {% if d.case_name %}
+                    <small class="deadlines-overview-item-meta">
+                        <a href="{{ PREFIX }}/cases/{{ d.case_id }}" class="deadlines-overview-item-case-link">{{ d.case_name }}</a>
+                        {% if d.client_name %}<span class="deadlines-overview-item-client"> — {{ d.client_name }}</span>{% endif %}
+                    </small>
+                    {% endif %}
+                </div>
+                <div class="deadlines-overview-item-right">
+                    <span class="deadlines-overview-badge deadlines-overview-badge--critical"
+                          aria-label="{{ d.days_remaining }} {% if product == 'lite' %}dias restantes{% else %}days remaining{% endif %}">
+                        {{ d.days_remaining }} {% if product == "lite" %}dias{% else %}days{% endif %}
+                    </span>
+                    <time class="deadlines-overview-item-date">{{ d.deadline }}</time>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if urgent %}
+    <section class="deadlines-overview-bucket deadlines-overview-bucket--urgent"
+             aria-labelledby="deadlines-overview-bucket-urgent">
+        <h2 id="deadlines-overview-bucket-urgent" class="deadlines-overview-bucket-header">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Urgente{% else %}Urgent{% endif %}</span>
+            <span class="deadlines-overview-bucket-count" aria-label="{{ urgent|length }} {% if product == 'lite' %}itens{% else %}items{% endif %}">({{ urgent|length }})</span>
+        </h2>
+        <ul class="deadlines-overview-list">
+            {% for d in urgent %}
+            <li class="deadlines-overview-item">
+                <div class="deadlines-overview-item-body">
+                    <span class="deadlines-overview-item-title">{{ d.title or d.type | replace('_', ' ') | title }}</span>
+                    {% if d.case_name %}
+                    <small class="deadlines-overview-item-meta">
+                        <a href="{{ PREFIX }}/cases/{{ d.case_id }}" class="deadlines-overview-item-case-link">{{ d.case_name }}</a>
+                        {% if d.client_name %}<span class="deadlines-overview-item-client"> — {{ d.client_name }}</span>{% endif %}
+                    </small>
+                    {% endif %}
+                </div>
+                <div class="deadlines-overview-item-right">
+                    <span class="deadlines-overview-badge deadlines-overview-badge--urgent"
+                          aria-label="{{ d.days_remaining }} {% if product == 'lite' %}dias restantes{% else %}days remaining{% endif %}">
+                        {{ d.days_remaining }} {% if product == "lite" %}dias{% else %}days{% endif %}
+                    </span>
+                    <time class="deadlines-overview-item-date">{{ d.deadline }}</time>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if normal %}
+    <section class="deadlines-overview-bucket deadlines-overview-bucket--normal"
+             aria-labelledby="deadlines-overview-bucket-normal">
+        <h2 id="deadlines-overview-bucket-normal" class="deadlines-overview-bucket-header">
+            <i class="fas fa-clock" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Próximos{% else %}Upcoming{% endif %}</span>
+            <span class="deadlines-overview-bucket-count" aria-label="{{ normal|length }} {% if product == 'lite' %}itens{% else %}items{% endif %}">({{ normal|length }})</span>
+        </h2>
+        <ul class="deadlines-overview-list">
+            {% for d in normal %}
+            <li class="deadlines-overview-item">
+                <div class="deadlines-overview-item-body">
+                    <span class="deadlines-overview-item-title">{{ d.title or d.type | replace('_', ' ') | title }}</span>
+                    {% if d.case_name %}
+                    <small class="deadlines-overview-item-meta">
+                        <a href="{{ PREFIX }}/cases/{{ d.case_id }}" class="deadlines-overview-item-case-link">{{ d.case_name }}</a>
+                        {% if d.client_name %}<span class="deadlines-overview-item-client"> — {{ d.client_name }}</span>{% endif %}
+                    </small>
+                    {% endif %}
+                </div>
+                <div class="deadlines-overview-item-right">
+                    <span class="deadlines-overview-badge deadlines-overview-badge--normal"
+                          aria-label="{{ d.days_remaining }} {% if product == 'lite' %}dias restantes{% else %}days remaining{% endif %}">
+                        {{ d.days_remaining }} {% if product == "lite" %}dias{% else %}days{% endif %}
+                    </span>
+                    <time class="deadlines-overview-item-date">{{ d.deadline }}</time>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    {% if not critical and not urgent and not normal %}
+    <div class="deadlines-overview-empty" role="status">
+        <span class="deadlines-overview-empty-icon" aria-hidden="true">
+            <i class="fas fa-check-circle"></i>
+        </span>
+        <p class="deadlines-overview-empty-text">
+            {% if product == "lite" %}Nenhum prazo nos próximos {{ days }} dias!{% else %}No upcoming deadlines in the next {{ days }} days!{% endif %}
+        </p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

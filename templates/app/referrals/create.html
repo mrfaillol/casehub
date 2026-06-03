@@ -1,0 +1,146 @@
+{% extends "app/base.html" %}
+{% set active_module = 'clients' %}
+{% block title %}Referrals · Create · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/referrals-create.css">
+{% endblock %}
+{% block content %}
+<section class="referrals-create" aria-labelledby="referrals-create-title">
+    <header class="referrals-create__header">
+        <a href="{{ PREFIX }}/referrals" class="referrals-create__back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar para Indicações{% else %}Back to Referrals{% endif %}</span>
+        </a>
+        <h1 id="referrals-create-title" class="referrals-create__title">
+            <i class="fas fa-user-plus referrals-create__title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Nova Indicacao{% else %}New Referral{% endif %}</span>
+        </h1>
+    </header>
+
+    <form class="referrals-create__form" method="POST" action="{{ PREFIX }}/referrals/create">
+        <section class="referrals-create__card" aria-labelledby="referrals-create-details-title">
+            <header class="referrals-create__card-header">
+                <h2 id="referrals-create-details-title" class="referrals-create__card-title">
+                    <i class="fas fa-info-circle referrals-create__card-title-icon" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Detalhes da Indicacao{% else %}Referral Details{% endif %}</span>
+                </h2>
+            </header>
+            <div class="referrals-create__card-body">
+                <div class="referrals-create__row">
+                    <div class="referrals-create__field">
+                        <label for="referrals-create-source" class="referrals-create__label">
+                            {% if product == "lite" %}Origem da Indicacao{% else %}Referral Source{% endif %}
+                            <span class="referrals-create__required" aria-hidden="true">*</span>
+                        </label>
+                        <select id="referrals-create-source"
+                                name="source_id"
+                                class="referrals-create__select"
+                                required
+                                aria-required="true"
+                                aria-describedby="referrals-create-source-help">
+                            <option value="">-- {% if product == "lite" %}Selecionar Origem{% else %}Select Source{% endif %} --</option>
+                            {% for s in sources %}
+                            <option value="{{ s.id }}">{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small id="referrals-create-source-help" class="referrals-create__help">
+                            <a class="referrals-create__help-link" href="{{ PREFIX }}/referrals/sources/new">
+                                + {% if product == "lite" %}Adicionar nova origem{% else %}Add new source{% endif %}
+                            </a>
+                        </small>
+                    </div>
+                    <div class="referrals-create__field">
+                        <label for="referrals-create-date" class="referrals-create__label">
+                            {% if product == "lite" %}Data da Indicacao{% else %}Referral Date{% endif %}
+                        </label>
+                        <input type="date"
+                               id="referrals-create-date"
+                               name="referral_date"
+                               class="referrals-create__input referrals-create__input--numeric"
+                               value="{{ now()|string if now else '' }}">
+                    </div>
+                </div>
+
+                <div class="referrals-create__row">
+                    <div class="referrals-create__field">
+                        <label for="referrals-create-client" class="referrals-create__label">
+                            {% if product == "lite" %}Cliente{% else %}Client{% endif %}
+                            <span class="referrals-create__required" aria-hidden="true">*</span>
+                        </label>
+                        <select id="referrals-create-client"
+                                name="client_id"
+                                class="referrals-create__select"
+                                required
+                                aria-required="true">
+                            <option value="">-- {% if product == "lite" %}Selecionar Cliente{% else %}Select Client{% endif %} --</option>
+                            {% for c in clients %}
+                            <option value="{{ c.id }}" {% if selected_client and selected_client.id == c.id %}selected{% endif %}>
+                                {{ c.first_name }} {{ c.last_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="referrals-create__field">
+                        <label for="referrals-create-case" class="referrals-create__label">
+                            {% if product == "lite" %}Processo (Opcional){% else %}Case (Optional){% endif %}
+                        </label>
+                        <select id="referrals-create-case"
+                                name="case_id"
+                                class="referrals-create__select">
+                            <option value="">-- {% if product == "lite" %}Sem Processo{% else %}No Case Yet{% endif %} --</option>
+                            {% for case in cases %}
+                            <option value="{{ case.id }}">{{ case.case_number }} - {{ case.case_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="referrals-create__row">
+                    <div class="referrals-create__field">
+                        <label for="referrals-create-case-value" class="referrals-create__label">
+                            {% if product == "lite" %}Valor do Processo (R$){% else %}Case Value ($){% endif %}
+                        </label>
+                        <input type="number"
+                               id="referrals-create-case-value"
+                               name="case_value"
+                               class="referrals-create__input referrals-create__input--numeric"
+                               step="0.01"
+                               min="0"
+                               inputmode="decimal"
+                               placeholder="0.00"
+                               aria-describedby="referrals-create-case-value-help">
+                        <small id="referrals-create-case-value-help" class="referrals-create__help">
+                            {% if product == "lite" %}Usado para calcular a comissao{% else %}Used to calculate commission{% endif %}
+                        </small>
+                    </div>
+                    <div class="referrals-create__field" aria-hidden="true"></div>
+                </div>
+
+                <div class="referrals-create__field">
+                    <label for="referrals-create-notes" class="referrals-create__label">
+                        {% if product == "lite" %}Observações{% else %}Notes{% endif %}
+                    </label>
+                    <textarea id="referrals-create-notes"
+                              name="notes"
+                              class="referrals-create__textarea"
+                              rows="3"
+                              placeholder="{% if product == 'lite' %}Observações adicionais sobre esta indicação...{% else %}Any additional notes about this referral...{% endif %}"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <div class="referrals-create__actions">
+            <a href="{{ PREFIX }}/referrals" class="referrals-create__btn referrals-create__btn--ghost">
+                {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+            </a>
+            <button type="submit" class="referrals-create__btn referrals-create__btn--primary">
+                <i class="fas fa-save" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Criar Indicacao{% else %}Create Referral{% endif %}</span>
+            </button>
+        </div>
+    </form>
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

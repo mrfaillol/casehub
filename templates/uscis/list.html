@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}USCIS Case Status - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/uscis-list.css">
+{% endblock %}
+
+{% block content %}
+<main class="uscis-list-main" aria-labelledby="uscis-list-title">
+    <header class="uscis-list-header">
+        <h1 id="uscis-list-title" class="uscis-list-title">
+            <i class="fas fa-flag-usa" aria-hidden="true"></i>
+            <span>USCIS Case Status Tracker</span>
+        </h1>
+    </header>
+
+    {% if request.query_params.get('success') == 'checked' %}
+    <div class="uscis-list-alert uscis-list-alert--success" role="status">
+        <i class="fas fa-check-circle uscis-list-alert-icon" aria-hidden="true"></i>
+        <span class="uscis-list-alert-message">Case status checked successfully!</span>
+        <button type="button" class="uscis-list-alert-close" data-bs-dismiss="alert" aria-label="Dismiss">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    {% if request.query_params.get('error') == 'invalid_receipt' %}
+    <div class="uscis-list-alert uscis-list-alert--danger" role="alert">
+        <i class="fas fa-exclamation-circle uscis-list-alert-icon" aria-hidden="true"></i>
+        <span class="uscis-list-alert-message">Invalid receipt number format. Use format: ABC1234567890</span>
+        <button type="button" class="uscis-list-alert-close" data-bs-dismiss="alert" aria-label="Dismiss">
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="uscis-list-grid">
+        <div class="uscis-list-column">
+            <section class="uscis-list-card" aria-labelledby="uscis-list-check-title">
+                <header class="uscis-list-card-header">
+                    <h2 id="uscis-list-check-title" class="uscis-list-card-title">
+                        <i class="fas fa-search" aria-hidden="true"></i>
+                        <span>Quick Status Check</span>
+                    </h2>
+                </header>
+                <div class="uscis-list-card-body">
+                    <form class="uscis-list-form" method="POST" action="{{ PREFIX }}/uscis/check-receipt">
+                        <div class="uscis-list-field">
+                            <label class="uscis-list-label" for="uscis-list-receipt">Receipt Number</label>
+                            <input type="text" id="uscis-list-receipt" name="receipt_number"
+                                   class="uscis-list-input"
+                                   placeholder="e.g., WAC2190123456" required
+                                   pattern="[A-Za-z]{3}[0-9]{10}"
+                                   aria-describedby="uscis-list-receipt-help"
+                                   title="Format: 3 letters + 10 digits">
+                            <small id="uscis-list-receipt-help" class="uscis-list-help">Format: ABC1234567890</small>
+                        </div>
+                        <button type="submit" class="uscis-list-btn uscis-list-btn--primary uscis-list-btn--block">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <span>Check Status</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <section class="uscis-list-card" aria-labelledby="uscis-list-info-title">
+                <header class="uscis-list-card-header">
+                    <h2 id="uscis-list-info-title" class="uscis-list-card-title">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>About USCIS Tracking</span>
+                    </h2>
+                </header>
+                <div class="uscis-list-card-body">
+                    <p class="uscis-list-info-text">This tool checks case status directly from USCIS.gov. Status is retrieved in real-time.</p>
+                    <ul class="uscis-list-info-list">
+                        <li>Enter a valid USCIS receipt number</li>
+                        <li>Link cases to auto-track their status</li>
+                        <li>Status history is logged automatically</li>
+                    </ul>
+                </div>
+            </section>
+        </div>
+
+        <div class="uscis-list-column">
+            <section class="uscis-list-card" aria-labelledby="uscis-list-tracked-title">
+                <header class="uscis-list-card-header">
+                    <h2 id="uscis-list-tracked-title" class="uscis-list-card-title">
+                        <i class="fas fa-list" aria-hidden="true"></i>
+                        <span>Tracked Cases</span>
+                    </h2>
+                    <span class="uscis-list-badge" aria-label="{{ tracked_cases|length }} cases tracked">
+                        {{ tracked_cases|length }} cases
+                    </span>
+                </header>
+                <div class="uscis-list-card-body {% if tracked_cases %}uscis-list-card-body--flush{% endif %}">
+                    {% if tracked_cases %}
+                    <div class="uscis-list-table-wrap">
+                        <table class="uscis-list-table">
+                            <caption class="uscis-list-sr-only">Cases currently tracked against USCIS.gov</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Receipt Number</th>
+                                    <th scope="col">Case</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Last Checked</th>
+                                    <th scope="col"><span class="uscis-list-sr-only">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for track in tracked_cases %}
+                                <tr>
+                                    <td data-label="Receipt Number">
+                                        <span class="uscis-list-receipt">{{ track.receipt_number }}</span>
+                                    </td>
+                                    <td data-label="Case">
+                                        {% if track.case_id %}
+                                        <a class="uscis-list-link" href="{{ PREFIX }}/cases/{{ track.case_id }}">
+                                            {{ track.case_name or 'Case #' + track.case_id|string }}
+                                        </a>
+                                        {% if track.visa_type %}
+                                        <span class="uscis-list-muted uscis-list-muted--inline">{{ track.visa_type }}</span>
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="uscis-list-muted">Not linked</span>
+                                        {% endif %}
+                                    </td>
+                                    <td data-label="Status">
+                                        <span class="uscis-list-status-title">{{ track.status_title }}</span>
+                                        {% if track.status_description %}
+                                        <span class="uscis-list-muted uscis-list-muted--inline">{{ track.status_description[:50] }}...</span>
+                                        {% endif %}
+                                    </td>
+                                    <td data-label="Last Checked">
+                                        <span class="uscis-list-meta">
+                                            {{ track.last_checked.strftime('%m/%d/%Y %H:%M') if track.last_checked else '-' }}
+                                        </span>
+                                        <span class="uscis-list-muted uscis-list-muted--inline">{{ track.check_count }} checks</span>
+                                    </td>
+                                    <td data-label="Actions">
+                                        <span class="uscis-list-actions">
+                                            {% if track.case_id %}
+                                            <a class="uscis-list-btn uscis-list-btn--icon"
+                                               href="{{ PREFIX }}/uscis/check/{{ track.case_id }}"
+                                               aria-label="Refresh status for {{ track.receipt_number }}">
+                                                <i class="fas fa-sync" aria-hidden="true"></i>
+                                            </a>
+                                            {% endif %}
+                                            <button type="button" class="uscis-list-btn uscis-list-btn--icon"
+                                                    data-uscis-history="{{ track.id }}"
+                                                    aria-label="Show history for {{ track.receipt_number }}">
+                                                <i class="fas fa-history" aria-hidden="true"></i>
+                                            </button>
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="uscis-list-empty" role="status">
+                        <i class="fas fa-flag-usa uscis-list-empty-icon" aria-hidden="true"></i>
+                        <p class="uscis-list-empty-title">No cases are being tracked yet.</p>
+                        <p class="uscis-list-empty-text">Add a receipt number to a case or use Quick Check above.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+    </div>
+</main>
+
+<div class="modal fade uscis-list-modal" id="historyModal" tabindex="-1"
+     aria-labelledby="uscis-list-history-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <header class="uscis-list-modal-header">
+                <h2 id="uscis-list-history-title" class="uscis-list-modal-title">
+                    <i class="fas fa-history" aria-hidden="true"></i>
+                    <span>Status History</span>
+                </h2>
+                <button type="button" class="uscis-list-modal-close" data-bs-dismiss="modal" aria-label="Close">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </header>
+            <div class="uscis-list-modal-body" id="historyContent" aria-live="polite">
+                <p class="uscis-list-history-loading">Loading...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    var prefix = {{ PREFIX|tojson }};
+    var modalEl = document.getElementById('historyModal');
+    var contentEl = document.getElementById('historyContent');
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+        });
+    }
+
+    function renderHistory(data) {
+        if (data && data.history && data.history.length > 0) {
+            var parts = data.history.map(function (h) {
+                return '<div class="uscis-list-history-item">' +
+                    '<span class="uscis-list-history-title">' + escapeHtml(h.status_title) + '</span>' +
+                    '<span class="uscis-list-history-meta">' + escapeHtml(h.checked_at) + '</span>' +
+                    '</div>';
+            });
+            contentEl.innerHTML = parts.join('');
+        } else {
+            contentEl.innerHTML = '<p class="uscis-list-history-empty">No status changes recorded.</p>';
+        }
+    }
+
+    function renderError() {
+        contentEl.innerHTML = '<p class="uscis-list-history-error">Error loading history.</p>';
+    }
+
+    function showHistory(checkId) {
+        if (!modalEl || !contentEl) return;
+        contentEl.innerHTML = '<p class="uscis-list-history-loading">Loading...</p>';
+        // Guard against missing bundle — see #207.
+        if (typeof bootstrap === 'undefined' || !bootstrap.Modal) return;
+        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+
+        fetch(prefix + '/uscis/history/' + encodeURIComponent(checkId))
+            .then(function (r) { return r.json(); })
+            .then(renderHistory)
+            .catch(renderError);
+    }
+
+    document.addEventListener('click', function (event) {
+        var trigger = event.target.closest('[data-uscis-history]');
+        if (!trigger) return;
+        event.preventDefault();
+        showHistory(trigger.getAttribute('data-uscis-history'));
+    });
+})();
+</script>
+{% endblock %}

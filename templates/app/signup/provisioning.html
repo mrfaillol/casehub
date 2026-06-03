@@ -1,0 +1,84 @@
+{% set PREFIX = PREFIX|default('/casehub') %}
+<!DOCTYPE html>
+<html lang="pt-br" data-theme="light" data-theme-pref="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Provisionando · CaseHub</title>
+  <script>(function(){try{var t=localStorage.getItem('casehub.theme');var r=document.documentElement;var v=(t==='light'||t==='dark')?t:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.setAttribute('data-theme',v);}catch(e){}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Maven+Pro:wght@400;500;600;700&family=Instrument+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&family=Fraunces:ital,wght@1,500&display=swap" />
+  <link rel="stylesheet" href="{{ asset_url('css/app/index.css') }}" />
+  <style>
+    .prov-shell { min-height: 100vh; display: grid; place-items: center; padding: var(--space-6); background: var(--surface-app); }
+    .prov-card { background: var(--surface-app); border-radius: var(--radius-xl); padding: var(--space-10); box-shadow: var(--shadow-dark), var(--shadow-light); max-width: 480px; text-align: center; }
+    .prov-cube { width: 64px; height: 64px; margin: 0 auto var(--space-4); color: var(--c-green-d); animation: prov-rotate 3s linear infinite; }
+    @keyframes prov-rotate { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+    [data-eco="true"] .prov-cube { animation: none; }
+    .prov-steps { list-style: none; padding: 0; margin: var(--space-6) 0 0; display: flex; flex-direction: column; gap: var(--space-2); text-align: left; }
+    .prov-step { display: flex; align-items: center; gap: var(--space-3); font-size: var(--fs-sm); color: var(--fg-muted); }
+    .prov-step.is-done { color: var(--c-green-d); font-weight: 600; }
+    .prov-step.is-active { color: var(--fg-default); font-weight: 600; }
+    .prov-step__dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--fg-faint); flex: 0 0 16px; }
+    .prov-step.is-done .prov-step__dot { background: var(--c-green-d); border-color: var(--c-green-d); }
+    .prov-step.is-active .prov-step__dot { border-color: var(--c-green-d); animation: prov-pulse 1.2s ease infinite; }
+    @keyframes prov-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(0,140,77,0.4); } 50% { box-shadow: 0 0 0 6px rgba(0,140,77,0); } }
+  </style>
+</head>
+<body>
+  <main class="prov-shell">
+    <div class="prov-card">
+      <svg class="prov-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 0v20M3 7l9 5 9-5"/>
+      </svg>
+      <h1 class="ch-display" style="font-size: var(--fs-2xl); margin: 0;">
+        Preparando o <em style="font-family: var(--serif); font-style: italic; font-weight: 500; color: var(--c-green-d);">{{ org_name|default('seu escritório') }}</em>
+      </h1>
+      <p style="color: var(--fg-muted); margin: var(--space-2) 0 0; font-size: var(--fs-sm);">
+        ETA ~30–60 segundos. Não feche esta janela.
+      </p>
+
+      <ul class="prov-steps">
+        <li class="prov-step is-done"><span class="prov-step__dot"></span> Conta criada</li>
+        <li class="prov-step is-done"><span class="prov-step__dot"></span> Trial de 14 dias ativado</li>
+        <li class="prov-step is-active"><span class="prov-step__dot"></span> Criando subdomínio <strong>{{ slug }}.casehub.legal</strong></li>
+        <li class="prov-step"><span class="prov-step__dot"></span> Provisionando instância isolada</li>
+        <li class="prov-step"><span class="prov-step__dot"></span> Redirecionando para o login</li>
+      </ul>
+
+      <div style="margin-top: var(--space-8); display: flex; flex-direction: column; gap: var(--space-2);">
+        <p style="font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-faint); margin: 0;">
+          Job <span style="color: var(--c-green-d);">{{ job_id }}</span>
+        </p>
+        <p style="font-size: var(--fs-xs); color: var(--fg-muted); margin: 0;">
+          Se passar de 2 minutos, fale com a gente pelo
+          <a href="https://wa.me/5532998606341" style="color: var(--c-green-d); font-weight: 600;">WhatsApp</a>.
+        </p>
+      </div>
+    </div>
+  </main>
+  <script>
+    // Poll status endpoint; redirect when provisioned.
+    (function () {
+      var jobId = "{{ job_id }}";
+      var slug = "{{ slug }}";
+      var tries = 0;
+      function poll() {
+        tries++;
+        fetch("{{ PREFIX }}/v2/signup/status/" + jobId, { credentials: 'same-origin' })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+          .then(function (d) {
+            if (d.provisioned) {
+              window.location.href = "https://" + slug + ".casehub.legal/casehub/login";
+              return;
+            }
+            if (tries < 30) setTimeout(poll, 4000);
+          })
+          .catch(function () { if (tries < 30) setTimeout(poll, 4000); });
+      }
+      setTimeout(poll, 3000);
+    })();
+  </script>
+</body>
+</html>

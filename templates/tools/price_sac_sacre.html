@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Price vs SAC vs SACRE - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-price-sac-sacre.css">
+{% endblock %}
+
+{% block content %}
+<section class="price-sac-main" aria-labelledby="price-sac-title">
+    <header class="price-sac-header price-sac-no-print">
+        <div>
+            <h1 id="price-sac-title" class="price-sac-title">
+                <i class="fas fa-chart-area" aria-hidden="true"></i>
+                <span>Price vs SAC vs SACRE</span>
+            </h1>
+            <p class="price-sac-subtitle">Comparativo entre sistemas de amortização</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="price-sac-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Voltar</span>
+        </a>
+    </header>
+
+    {% if error %}
+    <div class="price-sac-alert" role="alert">
+        <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+        <span>{{ error }}</span>
+        <button type="button" class="price-sac-alert-close" aria-label="Fechar alerta" data-dismiss-alert>
+            <i class="fas fa-times" aria-hidden="true"></i>
+        </button>
+    </div>
+    {% endif %}
+
+    <div class="price-sac-grid{% if not resultado %} price-sac-grid--solo{% endif %}">
+        <section class="price-sac-card price-sac-no-print" aria-labelledby="price-sac-form-title">
+            <div class="price-sac-card-body">
+                <h2 id="price-sac-form-title" class="price-sac-section-title">Dados do Financiamento</h2>
+                <form method="POST" action="{{ PREFIX }}/tools/price-sac-sacre/calcular" class="price-sac-form">
+                    <div class="price-sac-field">
+                        <label class="price-sac-label" for="valor_financiado">Valor Financiado (R$)</label>
+                        <input type="number" class="price-sac-input" id="valor_financiado" name="valor_financiado"
+                               value="{{ form.valor_financiado if form else '' }}" step="0.01" min="0" required
+                               placeholder="Ex: 100000.00">
+                    </div>
+                    <div class="price-sac-field-row">
+                        <div class="price-sac-field">
+                            <label class="price-sac-label" for="taxa_mensal">Taxa Mensal (%)</label>
+                            <input type="number" class="price-sac-input" id="taxa_mensal" name="taxa_mensal"
+                                   value="{{ form.taxa_mensal if form else '' }}" step="0.01" min="0" required
+                                   placeholder="Ex: 1.00">
+                        </div>
+                        <div class="price-sac-field">
+                            <label class="price-sac-label" for="prazo_meses">Prazo (meses)</label>
+                            <input type="number" class="price-sac-input" id="prazo_meses" name="prazo_meses"
+                                   value="{{ form.prazo_meses if form else '' }}" min="1" max="600" required
+                                   placeholder="Ex: 120">
+                        </div>
+                    </div>
+                    <button type="submit" class="price-sac-cta">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Comparar Sistemas</span>
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        {% if resultado %}
+        <div class="price-sac-col">
+            <section class="price-sac-systems" aria-label="Resumo dos sistemas de amortização">
+                <article class="price-sac-system price-sac-system--price">
+                    <h3 class="price-sac-system-name">Price</h3>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">Parcela fixa</span>
+                        <span class="price-sac-system-stat-value price-sac-system-stat-value--lead">R$ {{ "%.2f"|format(resultado.price.parcela_inicial) }}</span>
+                    </div>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">Total pago</span>
+                        <span class="price-sac-system-stat-value">R$ {{ "%.2f"|format(resultado.price.total_pago) }}</span>
+                    </div>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">Total juros</span>
+                        <span class="price-sac-system-stat-value price-sac-system-stat-value--danger">R$ {{ "%.2f"|format(resultado.price.total_juros) }}</span>
+                    </div>
+                </article>
+
+                <article class="price-sac-system price-sac-system--sac">
+                    <h3 class="price-sac-system-name">SAC</h3>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">1ª / Última parcela</span>
+                        <span class="price-sac-system-stat-value price-sac-system-stat-value--lead">R$ {{ "%.2f"|format(resultado.sac.parcela_inicial) }}</span>
+                        <span class="price-sac-system-stat-sub">até R$ {{ "%.2f"|format(resultado.sac.parcela_final) }}</span>
+                    </div>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">Total pago</span>
+                        <span class="price-sac-system-stat-value">R$ {{ "%.2f"|format(resultado.sac.total_pago) }}</span>
+                    </div>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">Total juros</span>
+                        <span class="price-sac-system-stat-value price-sac-system-stat-value--danger">R$ {{ "%.2f"|format(resultado.sac.total_juros) }}</span>
+                    </div>
+                    <span class="price-sac-badge price-sac-badge--success">Economia: R$ {{ "%.2f"|format(resultado.economia_sac_vs_price) }}</span>
+                </article>
+
+                <article class="price-sac-system price-sac-system--sacre">
+                    <h3 class="price-sac-system-name">SACRE</h3>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">1ª / Última parcela</span>
+                        <span class="price-sac-system-stat-value price-sac-system-stat-value--lead">R$ {{ "%.2f"|format(resultado.sacre.parcela_inicial) }}</span>
+                        <span class="price-sac-system-stat-sub">até R$ {{ "%.2f"|format(resultado.sacre.parcela_final) }}</span>
+                    </div>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">Total pago</span>
+                        <span class="price-sac-system-stat-value">R$ {{ "%.2f"|format(resultado.sacre.total_pago) }}</span>
+                    </div>
+                    <div class="price-sac-system-stat">
+                        <span class="price-sac-system-stat-label">Total juros</span>
+                        <span class="price-sac-system-stat-value price-sac-system-stat-value--danger">R$ {{ "%.2f"|format(resultado.sacre.total_juros) }}</span>
+                    </div>
+                    <span class="price-sac-badge price-sac-badge--warning">Economia: R$ {{ "%.2f"|format(resultado.economia_sacre_vs_price) }}</span>
+                </article>
+            </section>
+
+            <section class="price-sac-card" aria-labelledby="price-sac-tables-title">
+                <div class="price-sac-card-body">
+                    <h2 id="price-sac-tables-title" class="price-sac-card-title">
+                        <i class="fas fa-table" aria-hidden="true"></i>
+                        <span>Tabelas de Amortização</span>
+                    </h2>
+                    <div class="price-sac-tabs" role="tablist" aria-label="Sistemas de amortização">
+                        {% for sys_name, sys_key in [('Price', 'price'), ('SAC', 'sac'), ('SACRE', 'sacre')] %}
+                        <button type="button"
+                                class="price-sac-tab{% if loop.first %} active{% endif %}"
+                                role="tab"
+                                id="price-sac-tab-{{ sys_key }}"
+                                aria-controls="price-sac-panel-{{ sys_key }}"
+                                aria-selected="{{ 'true' if loop.first else 'false' }}"
+                                tabindex="{{ '0' if loop.first else '-1' }}">{{ sys_name }}</button>
+                        {% endfor %}
+                    </div>
+                    <div class="price-sac-tab-panels">
+                        {% for sys_name, sys_key in [('Price', 'price'), ('SAC', 'sac'), ('SACRE', 'sacre')] %}
+                        <div class="price-sac-tab-panel{% if loop.first %} active show{% endif %}"
+                             id="price-sac-panel-{{ sys_key }}"
+                             role="tabpanel"
+                             aria-labelledby="price-sac-tab-{{ sys_key }}"
+                             {% if not loop.first %}hidden{% endif %}>
+                            <div class="price-sac-table-wrap" tabindex="0" aria-label="Tabela de amortização {{ sys_name }}">
+                                <table class="price-sac-table">
+                                    <caption class="price-sac-sr-only">Amortização {{ sys_name }} — primeiro ano, marcos anuais e última parcela</caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Mês</th>
+                                            <th scope="col">Parcela</th>
+                                            <th scope="col">Juros</th>
+                                            <th scope="col">Amortização</th>
+                                            <th scope="col">Saldo Devedor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in resultado[sys_key].tabela %}
+                                        {% if loop.index <= 12 or loop.index == resultado.prazo_meses or loop.index % 12 == 0 %}
+                                        <tr>
+                                            <td>{{ row.mes }}</td>
+                                            <td>R$ {{ "%.2f"|format(row.parcela) }}</td>
+                                            <td>R$ {{ "%.2f"|format(row.juros) }}</td>
+                                            <td>R$ {{ "%.2f"|format(row.amortizacao) }}</td>
+                                            <td>R$ {{ "%.2f"|format(row.saldo) }}</td>
+                                        </tr>
+                                        {% endif %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="price-sac-table-note">Exibindo primeiro ano + marcos anuais. Total: {{ resultado.prazo_meses }} meses.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <section class="price-sac-card" aria-labelledby="price-sac-legal-title">
+                <div class="price-sac-card-body">
+                    <h2 id="price-sac-legal-title" class="price-sac-card-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h2>
+                    <ul class="price-sac-legal-list">
+                        {% for ref in resultado.fundamentacao %}
+                        <li class="price-sac-legal-item">
+                            <i class="fas fa-paragraph price-sac-legal-icon" aria-hidden="true"></i>
+                            <span>{{ ref }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </section>
+
+            <div class="price-sac-actions price-sac-no-print">
+                <button type="button" class="price-sac-secondary" data-print-action>
+                    <i class="fas fa-print" aria-hidden="true"></i>
+                    <span>Imprimir</span>
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<script>
+(function () {
+    'use strict';
+
+    document.querySelectorAll('[data-dismiss-alert]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var alert = btn.closest('[role="alert"]');
+            if (alert) alert.remove();
+        });
+    });
+
+    document.querySelectorAll('[data-print-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () { window.print(); });
+    });
+
+    var tablists = document.querySelectorAll('.price-sac-tabs[role="tablist"]');
+    tablists.forEach(function (tablist) {
+        var tabs = Array.prototype.slice.call(tablist.querySelectorAll('[role="tab"]'));
+
+        function activate(tab) {
+            tabs.forEach(function (t) {
+                var selected = t === tab;
+                t.setAttribute('aria-selected', selected ? 'true' : 'false');
+                t.setAttribute('tabindex', selected ? '0' : '-1');
+                t.classList.toggle('active', selected);
+                var panel = document.getElementById(t.getAttribute('aria-controls'));
+                if (panel) {
+                    panel.classList.toggle('active', selected);
+                    panel.classList.toggle('show', selected);
+                    if (selected) panel.removeAttribute('hidden');
+                    else panel.setAttribute('hidden', '');
+                }
+            });
+        }
+
+        tabs.forEach(function (tab, idx) {
+            tab.addEventListener('click', function () {
+                activate(tab);
+                tab.focus();
+            });
+            tab.addEventListener('keydown', function (e) {
+                var next = null;
+                if (e.key === 'ArrowRight') next = tabs[(idx + 1) % tabs.length];
+                else if (e.key === 'ArrowLeft') next = tabs[(idx - 1 + tabs.length) % tabs.length];
+                else if (e.key === 'Home') next = tabs[0];
+                else if (e.key === 'End') next = tabs[tabs.length - 1];
+                if (next) {
+                    e.preventDefault();
+                    activate(next);
+                    next.focus();
+                }
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

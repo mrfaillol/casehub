@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Juros de Mora - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/tools-shared.css">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <h2><i class="fas fa-percentage me-2"></i>Juros de Mora</h2>
+            <p class="text-muted mb-0">CC Art. 406, CPC Art. 523</p>
+        </div>
+        <a href="{{ PREFIX }}/tools" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Voltar
+        </a>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-lg-{% if resultado %}5{% else %}8 mx-auto{% endif %} mb-4">
+            <form method="POST" action="{{ PREFIX }}/tools/juros-mora/calcular">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="form-section-title">Dados do Debito</div>
+
+                        <div class="mb-3">
+                            <label for="principal" class="form-label">Valor Principal (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" class="form-control glass-input" id="principal" name="principal"
+                                       step="0.01" min="0" value="{{ form.principal if form else '' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="data_vencimento" class="form-label">Data do Vencimento</label>
+                                <input type="date" class="form-control glass-input" id="data_vencimento" name="data_vencimento"
+                                       value="{{ form.data_vencimento if form else '' }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="data_pagamento" class="form-label">Data do Pagamento</label>
+                                <input type="date" class="form-control glass-input" id="data_pagamento" name="data_pagamento"
+                                       value="{{ form.data_pagamento if form else '' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title mt-3">Tipo de Juros</div>
+
+                        <div class="mb-3">
+                            <label for="tipo" class="form-label">Taxa Aplicavel</label>
+                            <select class="form-select glass-input" id="tipo" name="tipo">
+                                <option value="cc_406" {% if form and form.tipo == 'cc_406' %}selected{% endif %}>1% ao mes (Art. 406 CC)</option>
+                                <option value="selic" {% if form and form.tipo == 'selic' %}selected{% endif %}>Taxa Selic (Art. 406 + Lei 14.905/2024)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-section-title mt-3">Multa Art. 523 CPC</div>
+
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="incluir_multa_523" name="incluir_multa_523"
+                                   value="true" {% if form and form.incluir_multa_523 %}checked{% endif %}>
+                            <label class="form-check-label" for="incluir_multa_523">
+                                Incluir multa 10% + honorarios 10% (Art. 523 &sect;1o CPC - não pagou em 15 dias)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 no-print">
+                    <button type="submit" class="btn btn-primary glass-btn glass-btn--primary btn-lg flex-grow-1">
+                        <i class="fas fa-calculator me-2"></i>Calcular
+                    </button>
+                    <button type="reset" class="btn btn-outline-secondary btn-lg" onclick="window.location.href='{{ PREFIX }}/tools/juros-mora'">
+                        <i class="fas fa-eraser me-1"></i>Limpar
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        {% if resultado %}
+        <div class="col-lg-7 mb-4" id="resultado">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-file-invoice-dollar me-2"></i>Resultado - Juros de Mora</h5>
+                    <button class="btn btn-sm btn-outline-light no-print" onclick="window.print()">
+                        <i class="fas fa-print me-1"></i>Imprimir
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead><tr><th class="ps-3">Item</th><th class="text-end pe-3">Valor</th></tr></thead>
+                            <tbody>
+                                <tr><td class="ps-3">Valor Principal</td><td class="text-end pe-3">R$ {{ "%.2f"|format(resultado.principal) }}</td></tr>
+                                <tr><td class="ps-3">Vencimento</td><td class="text-end pe-3">{{ resultado.data_vencimento }}</td></tr>
+                                <tr><td class="ps-3">Pagamento</td><td class="text-end pe-3">{{ resultado.data_pagamento }}</td></tr>
+                                <tr><td class="ps-3">Dias de Atraso</td><td class="text-end pe-3">{{ resultado.dias_atraso }} dias ({{ resultado.meses_atraso }} meses)</td></tr>
+                                <tr><td class="ps-3">Taxa Aplicada</td><td class="text-end pe-3">{{ resultado.taxa_label }}</td></tr>
+                                <tr><td class="ps-3">Juros de Mora</td><td class="text-end pe-3">R$ {{ "%.2f"|format(resultado.juros) }}</td></tr>
+                                <tr class="table-secondary"><td class="ps-3"><strong>Subtotal (Principal + Juros)</strong></td><td class="text-end pe-3"><strong>R$ {{ "%.2f"|format(resultado.subtotal) }}</strong></td></tr>
+                                {% if resultado.incluir_multa_523 %}
+                                <tr><td class="ps-3">Multa 10% (Art. 523 &sect;1o CPC)</td><td class="text-end pe-3">R$ {{ "%.2f"|format(resultado.multa_523) }}</td></tr>
+                                <tr><td class="ps-3">Honorarios 10% (Art. 523 &sect;1o CPC)</td><td class="text-end pe-3">R$ {{ "%.2f"|format(resultado.honorarios_523) }}</td></tr>
+                                {% endif %}
+                                <tr class="result-total table-primary">
+                                    <td class="ps-3">TOTAL</td>
+                                    <td class="text-end pe-3">R$ {{ "%.2f"|format(resultado.total) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="legal-ref">
+                        <strong><i class="fas fa-balance-scale me-1"></i>Fundamentação Legal:</strong>
+                        <ul class="mt-2 mb-0">
+                            <li><strong>CC Art. 406</strong> - Juros moratorios na taxa legal (1% ao mes ou Selic)</li>
+                            <li><strong>Lei 14.905/2024</strong> - Altera Art. 406: taxa Selic como juros legais</li>
+                            <li><strong>CPC Art. 523 &sect;1o</strong> - Não pagamento em 15 dias: multa 10% + honorarios 10%</li>
+                            <li><strong>CC Art. 397</strong> - Mora do devedor: interpelacao ou termo</li>
+                        </ul>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Cálculo estimativo. Juros pro rata die, considerando mes de 30 dias.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if resultado %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const el = document.getElementById('resultado');
+        if (el && window.innerWidth < 992) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,374 @@
+/* ==========================================================================
+   DESKTOP MODE: LOGIN OS-STYLE (refactored 2026-04-14 — curator)
+   Janela macOS-like com Liquid Glass, agora tokenizada.
+   Depende: tokens.css, reset.css, components/buttons.css, components/forms.css
+   Lei UX: Fitts (tap targets), Doherty (motion <220ms), Miller (brand list ≤5).
+   Codepen inspiração (tier B, scan SAFE 2026-04-13):
+     liquid-glass-elements — highlight inset + gradient border na titlebar.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. GLOBAL ALIGNMENT
+   -------------------------------------------------------------------------- */
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: var(--surface-inverse); /* fallback noite */
+  color: var(--text);
+}
+
+[data-theme="light"] body {
+  background-color: var(--surface-2);
+}
+
+#organic-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  z-index: var(--z-base);
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   2. MACOS WINDOW CONTAINER
+   -------------------------------------------------------------------------- */
+.macos-window-login {
+  position: relative;
+  z-index: var(--z-raised);
+  width: 900px;
+  max-width: 95vw;
+  height: 600px;
+  max-height: 90dvh;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  /* Liquid Glass OS core (tier B composition) */
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow:
+    0 30px 80px rgba(17, 21, 32, 0.25),
+    var(--shadow-glass-inset);
+
+  opacity: 0;
+  transform: scale(0.96) translateY(20px);
+  animation: window-open var(--dur-slow) var(--ease-organic) forwards;
+}
+
+[data-theme="dark"] .macos-window-login {
+  background: rgba(30, 30, 32, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+}
+
+@keyframes window-open {
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   3. MACOS TITLE BAR + TRAFFIC LIGHTS (liquid-glass tier B)
+   -------------------------------------------------------------------------- */
+.macos-titlebar {
+  position: relative;
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.15) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  user-select: none;
+  isolation: isolate;
+}
+
+/* liquid-glass highlight inset (codepen-references/liquid-glass-elements) */
+.macos-titlebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgba(255, 255, 255, 0.35) 0%, transparent 60%);
+  mix-blend-mode: overlay;
+  z-index: -1;
+}
+
+[data-theme="dark"] .macos-titlebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.15) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.traffic-lights {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.traffic-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  transition: filter var(--dur-snappy) var(--ease-organic);
+}
+
+.macos-titlebar:hover .traffic-dot {
+  filter: brightness(1.1);
+}
+
+.traffic-dot.close    { background-color: #FF5F56; }
+.traffic-dot.minimize { background-color: #FFBD2E; }
+.traffic-dot.maximize { background-color: #27C93F; }
+
+/* --------------------------------------------------------------------------
+   4. WINDOW CONTENT SPLIT (BRAND vs FORM)
+   -------------------------------------------------------------------------- */
+.macos-window-content {
+  display: flex;
+  flex: 1;
+  height: calc(100% - 48px);
+}
+
+.login-brand-panel {
+  flex: 1.1;
+  padding: var(--space-7);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  color: var(--text);
+  position: relative;
+}
+
+[data-theme="dark"] .login-brand-panel {
+  color: var(--text-inverse);
+}
+
+.login-brand-panel h1 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-3xl);
+  margin-bottom: var(--space-2);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--tracking-tight);
+}
+
+.login-brand-panel .tagline {
+  font-size: var(--fs-md);
+  opacity: 0.8;
+  margin-bottom: var(--space-6);
+  line-height: var(--lh-snug);
+  text-wrap: balance;
+}
+
+.brand-features-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.brand-features-list li {
+  padding: var(--space-2) 0;
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  opacity: 0.85;
+}
+
+.brand-features-list li i {
+  color: var(--accent);
+  font-size: var(--fs-sm);
+}
+
+/* Right Panel: Form */
+.login-form-panel {
+  flex: 0.9;
+  padding: var(--space-7) var(--space-7);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.4);
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .login-form-panel {
+  background: rgba(0, 0, 0, 0.25);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.login-form-panel h2 {
+  font-size: var(--fs-xl);
+  margin-bottom: var(--space-1);
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+[data-theme="dark"] .login-form-panel h2 {
+  color: var(--text-inverse);
+}
+
+.login-form-panel .subtitle {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--space-6);
+}
+
+/* --------------------------------------------------------------------------
+   5. LOGIN FORM — inputs/buttons via design system
+   -------------------------------------------------------------------------- */
+.login-form {
+  gap: var(--space-4);
+}
+
+.login-form .input {
+  /* override: glass background para casar com window */
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .login-form .input {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-inverse);
+}
+
+.login-form .input:focus {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme="dark"] .login-form .input:focus {
+  background: rgba(30, 30, 30, 0.6);
+}
+
+.login-submit {
+  margin-top: var(--space-2);
+}
+
+/* --------------------------------------------------------------------------
+   6. LINKS + LANG SWITCH
+   -------------------------------------------------------------------------- */
+.login-links {
+  margin-top: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.login-links a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;        /* Fitts — clique confortável */
+  transition: color var(--dur-snappy) var(--ease-organic);
+}
+
+.login-links a:hover {
+  color: var(--accent);
+}
+
+.login-links i {
+  opacity: 0.7;
+}
+
+.lang-switch {
+  position: absolute;
+  bottom: var(--space-7);
+  left: var(--space-7);
+  display: flex;
+  gap: var(--space-3);
+}
+
+.lang-switch a {
+  opacity: 0.5;
+  text-decoration: none;
+  font-size: var(--fs-md);
+  transition:
+    opacity var(--dur-snappy) var(--ease-organic),
+    transform var(--dur-snappy) var(--ease-organic);
+}
+
+.lang-switch a:hover,
+.lang-switch a.active {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* --------------------------------------------------------------------------
+   7. RESPONSIVE
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  body {
+    overflow: auto;
+    align-items: flex-start;
+    min-height: 100dvh;
+    padding: 0;
+  }
+
+  .macos-window-login {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    min-height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
+    overflow: visible;
+    box-shadow: none;
+    border: none;
+  }
+
+  .macos-titlebar {
+    display: none;
+  }
+
+  .macos-window-content {
+    flex-direction: column;
+    overflow: visible;
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .login-brand-panel {
+    flex: none;
+    padding: var(--space-6);
+  }
+
+  .login-brand-panel h1 {
+    font-size: var(--fs-2xl);
+  }
+
+  .login-form-panel {
+    flex: none;
+    padding: var(--space-6);
+    padding-bottom: var(--space-7);
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+    min-height: auto;
+  }
+
+  .lang-switch {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    margin-top: var(--space-5);
+  }
+}

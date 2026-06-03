@@ -1,0 +1,162 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Audit · Log · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/audit-log.css">
+{% endblock %}
+{% block content %}
+<main class="audit-log-main" aria-labelledby="audit-log-title">
+    <header class="audit-log-header">
+        <h1 id="audit-log-title" class="audit-log-title">
+            <i class="fas fa-history audit-log-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Registro de Auditoria{% else %}Audit Log{% endif %}</span>
+        </h1>
+        <a href="{{ PREFIX }}/audit/export?days={{ filters.days }}" class="audit-log-btn audit-log-btn--ghost">
+            <i class="fas fa-download" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Exportar{% else %}Export{% endif %}</span>
+        </a>
+    </header>
+
+    <ul class="audit-log-stats" role="list" aria-label="{% if product == 'lite' %}Resumo de eventos{% else %}Events summary{% endif %}">
+        <li class="audit-log-stat audit-log-stat--total">
+            <p class="audit-log-stat-label">{% if product == "lite" %}Total de Eventos{% else %}Total Events{% endif %}</p>
+            <p class="audit-log-stat-value">{{ stats.total or 0 }}</p>
+        </li>
+        <li class="audit-log-stat audit-log-stat--logins">
+            <p class="audit-log-stat-label">Logins</p>
+            <p class="audit-log-stat-value">{{ stats.logins or 0 }}</p>
+        </li>
+        <li class="audit-log-stat audit-log-stat--creates">
+            <p class="audit-log-stat-label">{% if product == "lite" %}Criações{% else %}Creates{% endif %}</p>
+            <p class="audit-log-stat-value">{{ stats.creates or 0 }}</p>
+        </li>
+        <li class="audit-log-stat audit-log-stat--updates">
+            <p class="audit-log-stat-label">{% if product == "lite" %}Atualizações{% else %}Updates{% endif %}</p>
+            <p class="audit-log-stat-value">{{ stats.updates or 0 }}</p>
+        </li>
+    </ul>
+
+    <section class="audit-log-filters" aria-labelledby="audit-log-filters-title">
+        <h2 id="audit-log-filters-title" class="audit-log-visually-hidden">{% if product == "lite" %}Filtros{% else %}Filters{% endif %}</h2>
+        <form method="GET" class="audit-log-filters-form">
+            <div class="audit-log-field audit-log-field--action">
+                <label class="audit-log-label" for="audit-log-action">{% if product == "lite" %}Ação{% else %}Action{% endif %}</label>
+                <select class="audit-log-select" id="audit-log-action" name="action">
+                    <option value="">{% if product == "lite" %}Todas as Ações{% else %}All Actions{% endif %}</option>
+                    {% for a in actions %}
+                    <option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="audit-log-field audit-log-field--entity">
+                <label class="audit-log-label" for="audit-log-entity">{% if product == "lite" %}Entidade{% else %}Entity{% endif %}</label>
+                <select class="audit-log-select" id="audit-log-entity" name="entity">
+                    <option value="">{% if product == "lite" %}Todas as Entidades{% else %}All Entities{% endif %}</option>
+                    {% for e in entities %}
+                    <option value="{{ e }}" {% if filters.entity == e %}selected{% endif %}>{{ e }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="audit-log-field audit-log-field--user">
+                <label class="audit-log-label" for="audit-log-user">{% if product == "lite" %}Usuário{% else %}User{% endif %}</label>
+                <select class="audit-log-select" id="audit-log-user" name="user_id">
+                    <option value="">{% if product == "lite" %}Todos os Usuários{% else %}All Users{% endif %}</option>
+                    {% for u in users %}
+                    <option value="{{ u.id }}" {% if filters.user_id == u.id %}selected{% endif %}>{{ u.name or u.email }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="audit-log-field audit-log-field--days">
+                <label class="audit-log-label" for="audit-log-days">{% if product == "lite" %}Período{% else %}Period{% endif %}</label>
+                <select class="audit-log-select" id="audit-log-days" name="days">
+                    <option value="1" {% if filters.days == 1 %}selected{% endif %}>{% if product == "lite" %}Hoje{% else %}Today{% endif %}</option>
+                    <option value="7" {% if filters.days == 7 %}selected{% endif %}>{% if product == "lite" %}Últimos 7 dias{% else %}Last 7 days{% endif %}</option>
+                    <option value="30" {% if filters.days == 30 %}selected{% endif %}>{% if product == "lite" %}Últimos 30 dias{% else %}Last 30 days{% endif %}</option>
+                    <option value="90" {% if filters.days == 90 %}selected{% endif %}>{% if product == "lite" %}Últimos 90 dias{% else %}Last 90 days{% endif %}</option>
+                </select>
+            </div>
+            <div class="audit-log-field audit-log-field--actions">
+                <button type="submit" class="audit-log-btn audit-log-btn--primary audit-log-btn--sm">
+                    <i class="fas fa-filter" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Filtrar{% else %}Filter{% endif %}</span>
+                </button>
+                <a href="{{ PREFIX }}/audit" class="audit-log-btn audit-log-btn--ghost audit-log-btn--sm">
+                    <span>{% if product == "lite" %}Limpar{% else %}Clear{% endif %}</span>
+                </a>
+            </div>
+        </form>
+    </section>
+
+    <section class="audit-log-card" aria-labelledby="audit-log-table-title">
+        <h2 id="audit-log-table-title" class="audit-log-visually-hidden">{% if product == "lite" %}Eventos{% else %}Events{% endif %}</h2>
+        {% if logs %}
+        <div class="audit-log-table-wrap">
+            <table class="audit-log-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{% if product == "lite" %}Hora{% else %}Time{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Usuário{% else %}User{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Ação{% else %}Action{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Entidade{% else %}Entity{% endif %}</th>
+                        <th scope="col">{% if product == "lite" %}Descrição{% else %}Description{% endif %}</th>
+                        <th scope="col">IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td class="audit-log-time">
+                            {% if log.created_at %}
+                            <time datetime="{{ log.created_at.isoformat() }}">
+                                {% if product == "lite" %}{{ log.created_at.strftime('%d/%m %H:%M') }}{% else %}{{ log.created_at.strftime('%m/%d %H:%M') }}{% endif %}
+                            </time>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if log.user_id %}
+                            <a class="audit-log-link" href="{{ PREFIX }}/audit/user/{{ log.user_id }}">{{ log.user_name or log.user_email }}</a>
+                            {% else %}
+                            <span class="audit-log-system">{% if product == "lite" %}Sistema{% else %}System{% endif %}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.action == 'create' %}
+                            <span class="audit-log-badge audit-log-badge--create">{{ log.action }}</span>
+                            {% elif log.action == 'update' %}
+                            <span class="audit-log-badge audit-log-badge--update">{{ log.action }}</span>
+                            {% elif log.action == 'delete' %}
+                            <span class="audit-log-badge audit-log-badge--delete">{{ log.action }}</span>
+                            {% elif log.action == 'login' %}
+                            <span class="audit-log-badge audit-log-badge--login">{{ log.action }}</span>
+                            {% else %}
+                            <span class="audit-log-badge audit-log-badge--neutral">{{ log.action }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if log.entity_id %}
+                            <a class="audit-log-link" href="{{ PREFIX }}/audit/entity/{{ log.entity_type }}/{{ log.entity_id }}">
+                                {{ log.entity_type }} #{{ log.entity_id }}
+                            </a>
+                            {% else %}
+                            {{ log.entity_type }}
+                            {% endif %}
+                        </td>
+                        <td>{{ log.description or '—' }}</td>
+                        <td class="audit-log-ip">{{ log.ip_address or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="audit-log-empty">
+            <i class="fas fa-history audit-log-empty-icon" aria-hidden="true"></i>
+            <p class="audit-log-empty-text">{% if product == "lite" %}Nenhum evento de auditoria encontrado{% else %}No audit events found{% endif %}</p>
+        </div>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Closed Cases - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/cases-closed-list.css">
+{% endblock %}
+
+{% block content %}
+<section class="cases-closed-list-main" aria-labelledby="cases-closed-list-title">
+    <header class="cases-closed-list-header">
+        <a href="{{ PREFIX }}/cases" class="cases-closed-list-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Cases</span>
+        </a>
+        <h1 id="cases-closed-list-title" class="cases-closed-list-title">
+            <i class="fas fa-times-circle cases-closed-list-title-icon" aria-hidden="true"></i>
+            <span>Closed Cases</span>
+        </h1>
+    </header>
+
+    <section class="cases-closed-list-card" aria-label="Closed cases list">
+        <header class="cases-closed-list-card-header">
+            <h2 class="cases-closed-list-count">
+                {{ cases|length }} Closed Case{% if cases|length != 1 %}s{% endif %}
+            </h2>
+            <a href="{{ PREFIX }}/case-archive/archived" class="cases-closed-list-cross-link">
+                <i class="fas fa-archive" aria-hidden="true"></i>
+                <span>View Archived Cases</span>
+            </a>
+        </header>
+
+        {% if cases %}
+        <div class="cases-closed-list-table-wrapper">
+            <table class="cases-closed-list-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Case Number</th>
+                        <th scope="col">Case Name</th>
+                        <th scope="col">Client</th>
+                        <th scope="col">Close Reason</th>
+                        <th scope="col">Closed Date</th>
+                        <th scope="col">
+                            <span class="cases-closed-list-visually-hidden">Actions</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for case in cases %}
+                    <tr class="cases-closed-list-row">
+                        <td class="cases-closed-list-case-number">
+                            <a href="{{ PREFIX }}/cases/{{ case.id }}" class="cases-closed-list-case-link">
+                                {{ case.case_number or '-' }}
+                            </a>
+                        </td>
+                        <td>{{ case.case_name or '-' }}</td>
+                        <td>{{ case.first_name }} {{ case.last_name }}</td>
+                        <td>
+                            {% set reason_ns = namespace(matched=false) %}
+                            {% for r in close_reasons %}
+                                {% if r.id == case.closed_reason %}
+                                <span class="cases-closed-list-badge cases-closed-list-badge--{{ r.color }}">
+                                    <i class="fas {{ r.icon }}" aria-hidden="true"></i>
+                                    <span>{{ r.label }}</span>
+                                </span>
+                                {% set reason_ns.matched = true %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if not reason_ns.matched %}
+                            <span class="cases-closed-list-empty-cell" aria-label="No reason">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="cases-closed-list-date">
+                            {{ case.closed_at.strftime('%Y-%m-%d') if case.closed_at else '-' }}
+                        </td>
+                        <td>
+                            <div class="cases-closed-list-actions">
+                                <form method="POST"
+                                      action="{{ PREFIX }}/case-archive/reopen/{{ case.id }}"
+                                      class="cases-closed-list-action-form">
+                                    <button type="submit"
+                                            class="cases-closed-list-btn cases-closed-list-btn--reopen"
+                                            onclick="return confirm('Reopen this closed case?')"
+                                            aria-label="Reopen case {{ case.case_number or case.case_name or case.id }}">
+                                        <i class="fas fa-undo" aria-hidden="true"></i>
+                                        <span>Reopen</span>
+                                    </button>
+                                </form>
+                                <a href="{{ PREFIX }}/case-archive/history/{{ case.id }}"
+                                   class="cases-closed-list-btn cases-closed-list-btn--icon"
+                                   aria-label="View history for case {{ case.case_number or case.case_name or case.id }}">
+                                    <i class="fas fa-history" aria-hidden="true"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="cases-closed-list-empty">
+            <i class="fas fa-times-circle cases-closed-list-empty-icon" aria-hidden="true"></i>
+            <h3 class="cases-closed-list-empty-title">No Closed Cases</h3>
+            <p class="cases-closed-list-empty-msg">Cases that are closed will appear here.</p>
+        </div>
+        {% endif %}
+    </section>
+</section>
+{% endblock %}

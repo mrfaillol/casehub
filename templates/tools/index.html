@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Ferramentas - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-index.css">
+{% endblock %}
+
+{% set tool_sections = [
+    {
+        'id': 'trabalhistas',
+        'title': 'Calculadoras Trabalhistas',
+        'icon': 'fa-balance-scale',
+        'tools': [
+            {'slug': 'rescisao',           'title': 'Rescisão Trabalhista',     'icon': 'fa-calculator',        'variant': 'accent',  'cta': 'accent', 'desc': 'Cálculo completo de rescisão conforme CLT. Aviso prévio, 13º, férias, FGTS e multa.'},
+            {'slug': 'horas-extras',       'title': 'Horas Extras + DSR',       'icon': 'fa-clock',             'variant': 'success', 'cta': 'accent', 'desc': 'Horas extras, DSR e reflexos no 13º, férias e FGTS. Adicional de 50% ou 100%.'},
+            {'slug': 'adicional-noturno',  'title': 'Adicional Noturno',        'icon': 'fa-moon',              'variant': 'strong',  'cta': 'accent', 'desc': 'Adicional noturno (22h-5h), hora reduzida e reflexos. Mínimo 20% CLT.'},
+            {'slug': 'insalubridade',      'title': 'Insalubridade / Periculosidade', 'icon': 'fa-shield-alt',  'variant': 'danger',  'cta': 'accent', 'desc': 'Adicionais de insalubridade (10/20/40%) e periculosidade (30%). Não cumulativos.'},
+            {'slug': 'ferias',             'title': 'Férias + 1/3',             'icon': 'fa-umbrella-beach',    'variant': 'warning', 'cta': 'accent', 'desc': 'Férias proporcionais, terço constitucional, abono pecuniário e desconto por faltas.'},
+            {'slug': 'decimo-terceiro',    'title': '13º Salário',              'icon': 'fa-gift',              'variant': 'info',    'cta': 'accent', 'desc': '13º proporcional, 1ª e 2ª parcelas. Adicionais habituais integram a base.'},
+            {'slug': 'fgts',               'title': 'FGTS + Multa',             'icon': 'fa-piggy-bank',        'variant': 'neutral', 'cta': 'accent', 'desc': 'Saldo FGTS estimado e multa rescisória. 40% (sem justa causa) ou 20% (acordo).'},
+            {'slug': 'seguro-desemprego',  'title': 'Seguro-Desemprego',        'icon': 'fa-hand-holding-usd',  'variant': 'accent',  'cta': 'accent', 'desc': 'Cálculo de parcelas, faixas salariais e requisitos mínimos por solicitação.'}
+        ]
+    },
+    {
+        'id': 'criminais',
+        'title': 'Calculadoras Criminais',
+        'icon': 'fa-gavel',
+        'tools': [
+            {'slug': 'dosimetria',  'title': 'Dosimetria da Pena',   'icon': 'fa-gavel',           'variant': 'danger',  'cta': 'danger',  'desc': 'Cálculo trifásico (Art. 68 CP). Pena base, agravantes/atenuantes e causas de aumento/diminuição.'},
+            {'slug': 'progressao',  'title': 'Progressão de Regime', 'icon': 'fa-door-open',       'variant': 'warning', 'cta': 'warning', 'desc': 'Frações do Pacote Anticrime (Lei 13.964/2019). Remição por trabalho e estudo (LEP Art. 126).'},
+            {'slug': 'prescricao',  'title': 'Prescrição Punitiva',  'icon': 'fa-hourglass-half',  'variant': 'strong',  'cta': 'strong',  'desc': 'Tabela Art. 109 CP, redução pela metade (Art. 115) e marcos interruptivos (Art. 117 CP).'}
+        ]
+    },
+    {
+        'id': 'civeis',
+        'title': 'Calculadoras Cíveis',
+        'icon': 'fa-landmark',
+        'tools': [
+            {'slug': 'correcao-monetaria',  'title': 'Correção Monetária',        'icon': 'fa-chart-line',      'variant': 'success', 'cta': 'accent', 'desc': 'Atualização de valores por IPCA, INPC, IGP-M, Selic ou TR. Com juros moratórios opcionais.'},
+            {'slug': 'juros-mora',          'title': 'Juros de Mora',             'icon': 'fa-percentage',      'variant': 'danger',  'cta': 'accent', 'desc': 'Juros de mora Art. 406 CC (1%/mês ou Selic). Multa e honorários Art. 523 CPC.'},
+            {'slug': 'honorarios',          'title': 'Honorários Sucumbenciais',  'icon': 'fa-gavel',           'variant': 'warning', 'cta': 'accent', 'desc': 'Art. 85 CPC (10-20%). Faixas Fazenda, honorários recursais e sucumbência recíproca.'},
+            {'slug': 'pensao-alimenticia',  'title': 'Pensão Alimentícia',        'icon': 'fa-child',           'variant': 'info',    'cta': 'accent', 'desc': 'Cálculo por percentual da renda, por filho, em SM e com despesas especiais.'},
+            {'slug': 'debito-judicial',     'title': 'Débito Judicial (Art. 523)', 'icon': 'fa-file-contract',  'variant': 'strong',  'cta': 'accent', 'desc': 'Atualização completa: correção + juros + multa 10% + honorários 10% do Art. 523 CPC.'}
+        ]
+    },
+    {
+        'id': 'tributarias',
+        'title': 'Calculadoras Tributárias',
+        'icon': 'fa-file-invoice-dollar',
+        'tools': [
+            {'slug': 'itbi',                 'title': 'ITBI',                 'icon': 'fa-building',           'variant': 'success', 'cta': 'accent', 'desc': 'Imposto sobre transmissão de bens imóveis. Alíquota municipal de 2-3%. CTN Art. 35-42.'},
+            {'slug': 'itcmd',                'title': 'ITCMD',                'icon': 'fa-hand-holding-usd',   'variant': 'warning', 'cta': 'accent', 'desc': 'Herança e doação. Alíquota estadual de 4-8%. CF Art. 155, II. Progressivo em alguns estados.'},
+            {'slug': 'ganho-capital',        'title': 'IR Ganho de Capital',  'icon': 'fa-chart-line',         'variant': 'danger',  'cta': 'accent', 'desc': 'Faixas progressivas 15-22,5% sobre lucro imobiliário. Lei 7.713/88, Lei 13.259/16.'},
+            {'slug': 'simples-vs-presumido', 'title': 'Regimes Tributários',  'icon': 'fa-balance-scale-right','variant': 'accent',  'cta': 'accent', 'desc': 'Comparativo Simples vs Presumido vs Real. LC 123/2006. Qual regime paga menos?'},
+            {'slug': 'icms',                 'title': 'ICMS',                 'icon': 'fa-truck',              'variant': 'info',    'cta': 'accent', 'desc': 'Cálculo por dentro e substituição tributária (ST). LC 87/96 (Lei Kandir). MVA e base dupla.'},
+            {'slug': 'pis-cofins',           'title': 'PIS/COFINS',           'icon': 'fa-receipt',            'variant': 'neutral', 'cta': 'accent', 'desc': 'Cumulativo (3,65%) vs não-cumulativo (9,25% - créditos). Lei 10.637/02 e Lei 10.833/03.'},
+            {'slug': 'iss',                  'title': 'ISS',                  'icon': 'fa-concierge-bell',     'variant': 'strong',  'cta': 'accent', 'desc': 'Imposto sobre serviços. Alíquota de 2-5%. LC 116/2003. Município do prestador.'},
+            {'slug': 'cprb',                 'title': 'CPRB (Desoneração)',   'icon': 'fa-hard-hat',           'variant': 'accent',  'cta': 'accent', 'desc': 'Folha (20%) vs Receita (1-4,5%). Comparativo de desoneração. Lei 12.546/2011.'}
+        ]
+    },
+    {
+        'id': 'previdenciarias',
+        'title': 'Calculadoras Previdenciárias',
+        'icon': 'fa-id-card',
+        'tools': [
+            {'slug': 'tempo-contribuicao',    'title': 'Tempo de Contribuição',    'icon': 'fa-hourglass-start', 'variant': 'accent',  'cta': 'accent', 'desc': 'Simulação de tempo faltante para aposentadoria. Regra geral e pedágio 100% (EC 103/2019).'},
+            {'slug': 'bpc-loas',              'title': 'BPC/LOAS',                 'icon': 'fa-hand-holding-heart','variant': 'success', 'cta': 'accent', 'desc': 'Análise de elegibilidade ao BPC. Renda per capita, idade e deficiência (Lei 8.742/93).'},
+            {'slug': 'aposentadoria-idade',   'title': 'Aposentadoria por Idade',  'icon': 'fa-user-clock',      'variant': 'warning', 'cta': 'accent', 'desc': 'Regra geral + transição. Cálculo do coeficiente 60% + 2%/ano (EC 103/2019, Art. 15, 26).'},
+            {'slug': 'pensao-morte',          'title': 'Pensão por Morte',         'icon': 'fa-heart-broken',    'variant': 'danger',  'cta': 'accent', 'desc': 'Cota familiar 50% + 10%/dependente. Duração conforme idade do cônjuge (EC 103/2019, Art. 23).'}
+        ]
+    },
+    {
+        'id': 'bancarias',
+        'title': 'Calculadoras Bancárias',
+        'icon': 'fa-university',
+        'tools': [
+            {'slug': 'revisao-emprestimo',      'title': 'Revisão de Empréstimo',     'icon': 'fa-search-dollar',       'variant': 'accent',  'cta': 'accent',  'desc': 'Compara parcela contratada vs correta (taxa BCB). Cálculo PMT e valor a restituir. CDC Art. 6.'},
+            {'slug': 'superendividamento',      'title': 'Superendividamento',        'icon': 'fa-exclamation-triangle','variant': 'danger',  'cta': 'danger',  'desc': 'Análise de comprometimento da renda, mínimo existencial e plano de pagamento. Lei 14.181/2021.'},
+            {'slug': 'juros-simples-compostos', 'title': 'Juros Simples vs Compostos','icon': 'fa-percentage',          'variant': 'warning', 'cta': 'warning', 'desc': 'Comparativo e quantificação do anatocismo (juros sobre juros). Súmula 121 STF.'},
+            {'slug': 'price-sac-sacre',         'title': 'Price vs SAC vs SACRE',     'icon': 'fa-chart-area',          'variant': 'success', 'cta': 'success', 'desc': 'Tabela comparativa de amortização: parcela inicial/final, total pago e total de juros em cada sistema.'},
+            {'slug': 'cet',                     'title': 'CET — Custo Efetivo Total', 'icon': 'fa-receipt',             'variant': 'info',    'cta': 'info',    'desc': 'Taxa real incluindo TAC, IOF e seguro. Resolução BCB 3.517/2007.'}
+        ]
+    }
+] %}
+
+{% block content %}
+<div class="tools-main" aria-labelledby="tools-page-title">
+    <header class="tools-header">
+        <h1 class="tools-header__title" id="tools-page-title">
+            <i class="fas fa-toolbox" aria-hidden="true"></i>
+            <span>Ferramentas</span>
+        </h1>
+        <p class="tools-header__subtitle">Calculadoras e utilitários para o escritório</p>
+    </header>
+
+    {% for section in tool_sections %}
+    <section class="tools-section" aria-labelledby="tools-section-{{ section.id }}">
+        <h2 class="tools-section__title" id="tools-section-{{ section.id }}">
+            <i class="fas {{ section.icon }}" aria-hidden="true"></i>
+            <span>{{ section.title }}</span>
+        </h2>
+        <div class="tools-grid">
+            {% for tool in section.tools %}
+            <article class="tools-card">
+                <span class="tools-card__icon tools-card__icon--{{ tool.variant }}" aria-hidden="true">
+                    <i class="fas {{ tool.icon }}"></i>
+                </span>
+                <h3 class="tools-card__title">{{ tool.title }}</h3>
+                <p class="tools-card__desc">{{ tool.desc }}</p>
+                <a href="{{ PREFIX }}/tools/{{ tool.slug }}" class="tools-card__cta tools-card__cta--{{ tool.cta }}">
+                    <span>Acessar</span>
+                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                </a>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+
+    <section class="tools-section" aria-labelledby="tools-section-outras">
+        <h2 class="tools-section__title" id="tools-section-outras">
+            <i class="fas fa-tools" aria-hidden="true"></i>
+            <span>Outras Ferramentas</span>
+        </h2>
+        <div class="tools-grid">
+            <article class="tools-card">
+                <span class="tools-card__icon tools-card__icon--success" aria-hidden="true">
+                    <i class="fas fa-calendar-check"></i>
+                </span>
+                <h3 class="tools-card__title">Calculadora de Prazos</h3>
+                <p class="tools-card__desc">
+                    Prazos processuais do CPC com feriados nacionais e estaduais. Contagem automática em dias úteis.
+                </p>
+                <a href="{{ PREFIX }}/prazos" class="tools-card__cta tools-card__cta--success">
+                    <span>Acessar</span>
+                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                </a>
+            </article>
+
+            <article class="tools-card">
+                <span class="tools-card__icon tools-card__icon--warning" aria-hidden="true">
+                    <i class="fas fa-gavel"></i>
+                </span>
+                <h3 class="tools-card__title">Consulta Processual</h3>
+                <p class="tools-card__desc">
+                    Busca unificada nos tribunais via DataJud, Escavador e JusBrasil. Consulte andamentos e movimentações.
+                </p>
+                <a href="{{ PREFIX }}/tribunal/consulta" class="tools-card__cta tools-card__cta--warning">
+                    <span>Acessar</span>
+                    <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                </a>
+            </article>
+
+            <article class="tools-card">
+                <span class="tools-card__icon tools-card__icon--info" aria-hidden="true">
+                    <i class="fas fa-file-excel"></i>
+                </span>
+                <h3 class="tools-card__title">Exportar Dados</h3>
+                <p class="tools-card__desc">
+                    Exporte prazos, processos e clientes para planilha Excel ou CSV para análise e controle.
+                </p>
+                <div class="tools-dropdown dropdown">
+                    <button type="button"
+                            id="tools-export-toggle"
+                            class="tools-card__cta tools-card__cta--info dropdown-toggle"
+                            data-bs-toggle="dropdown"
+                            aria-haspopup="true"
+                            aria-expanded="false">
+                        <i class="fas fa-download" aria-hidden="true"></i>
+                        <span>Exportar</span>
+                    </button>
+                    <ul class="tools-dropdown__menu dropdown-menu" aria-labelledby="tools-export-toggle">
+                        <li>
+                            <a class="tools-dropdown__item dropdown-item" href="{{ PREFIX }}/tools/export/prazos">
+                                <i class="fas fa-clock" aria-hidden="true"></i>
+                                <span>Prazos Processuais</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="tools-dropdown__item dropdown-item" href="{{ PREFIX }}/tools/export/processos">
+                                <i class="fas fa-folder" aria-hidden="true"></i>
+                                <span>Processos</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="tools-dropdown__item dropdown-item" href="{{ PREFIX }}/tools/export/clientes">
+                                <i class="fas fa-users" aria-hidden="true"></i>
+                                <span>Clientes</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </article>
+        </div>
+    </section>
+</div>
+{% endblock %}

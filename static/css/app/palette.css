@@ -1,0 +1,170 @@
+/* CaseHub App · Command palette / global search overlay
+ *
+ * Mounted by static/js/app/palette.js. Listens for casehub:palette:open and
+ * renders a centered modal with live search results. WCAG 2.1 AA contrast,
+ * touch targets ≥ 44px on tablet/mobile.
+ */
+
+.ch-palette {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1000);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: clamp(48px, 12vh, 140px);
+  padding-inline: var(--space-4, 1rem);
+}
+.ch-palette.is-open { display: flex; }
+
+.ch-palette__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 22, 36, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.ch-palette__panel {
+  position: relative;
+  width: min(640px, 100%);
+  background: var(--c-paper, #fff);
+  border-radius: var(--radius-lg, 20px);
+  box-shadow: 0 20px 48px rgba(15, 22, 36, 0.28);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: min(60vh, 560px);
+}
+
+[data-theme="dark"] .ch-palette__panel {
+  background: var(--c-surface-dark, #1a2233);
+  color: var(--c-text-dark, #eaeef5);
+}
+
+.ch-palette__inputwrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 0.75rem);
+  padding: var(--space-4, 1rem);
+  border-bottom: 1px solid var(--c-border, #e4e7ec);
+}
+
+.ch-palette__icon { color: var(--c-text-muted, #6b7280); flex-shrink: 0; }
+
+.ch-palette__input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 1.05rem;
+  font-family: inherit;
+  color: inherit;
+  min-height: 32px;
+}
+
+.ch-palette__hint {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 0.75rem;
+  color: var(--c-text-muted, #6b7280);
+  background: var(--c-surface-sunken, #f3f4f6);
+  border-radius: var(--radius-xs, 6px);
+  padding: 2px 6px;
+}
+
+.ch-palette__results {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--space-2, 0.5rem) 0;
+}
+
+.ch-palette__empty {
+  padding: var(--space-4, 1rem) var(--space-5, 1.25rem);
+  color: var(--c-text-muted, #6b7280);
+  font-size: 0.95rem;
+}
+
+.ch-palette__empty a {
+  color: var(--c-link, var(--c-navy, #1a4480));
+  text-decoration: underline;
+}
+
+.ch-palette__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 0.75rem);
+  padding: var(--space-3, 0.75rem) var(--space-5, 1.25rem);
+  text-decoration: none;
+  color: inherit;
+  min-height: 48px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.ch-palette__row:hover,
+.ch-palette__row.is-active {
+  background: var(--c-surface-sunken, #f3f4f6);
+  border-left-color: var(--c-accent, var(--c-navy, #1a4480));
+}
+
+[data-theme="dark"] .ch-palette__row:hover,
+[data-theme="dark"] .ch-palette__row.is-active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ch-palette__row-kind {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-text-muted, #6b7280);
+  background: var(--c-surface-sunken, #f3f4f6);
+  border-radius: var(--radius-pill, 100px);
+  padding: 2px 10px;
+  min-width: 64px;
+  text-align: center;
+}
+
+[data-theme="dark"] .ch-palette__row-kind {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ch-palette__row-title {
+  font-weight: 500;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ch-palette__row-sub {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--c-text-muted, #6b7280);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40%;
+}
+
+.ch-palette__footer {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-3, 0.75rem) var(--space-5, 1.25rem);
+  border-top: 1px solid var(--c-border, #e4e7ec);
+  background: var(--c-surface-sunken, #f9fafb);
+  font-size: 0.78rem;
+  color: var(--c-text-muted, #6b7280);
+}
+
+body.ch-palette-open { overflow: hidden; }
+
+@media (max-width: 640px) {
+  .ch-palette { padding-top: 0; padding-inline: 0; align-items: flex-end; }
+  .ch-palette__panel {
+    width: 100%;
+    max-height: 90vh;
+    border-radius: var(--radius-lg, 20px) var(--radius-lg, 20px) 0 0;
+  }
+  .ch-palette__row-sub { display: none; }
+}

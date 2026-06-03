@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+
+{% block title %}Agenda — {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/calendar-agenda-lista.css?v=20260525-touch">
+{% endblock %}
+
+{% block content %}
+<main class="agenda-main" aria-labelledby="agenda-title">
+    <header class="agenda-header">
+        <div class="agenda-heading">
+            <h1 id="agenda-title" class="agenda-title">
+                <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+                <span>Agenda</span>
+            </h1>
+            <p class="agenda-subtitle">Compromissos da semana</p>
+        </div>
+
+        <div class="agenda-toolbar">
+            <div class="agenda-views" role="tablist" aria-label="Visualização">
+                <button type="button" class="agenda-view agenda-view--active"
+                        id="btnViewLista" data-agenda-view="lista"
+                        role="tab" aria-pressed="true">Lista</button>
+                <button type="button" class="agenda-view"
+                        id="btnViewCalendario" data-agenda-view="calendario"
+                        role="tab" aria-pressed="false">Calendário</button>
+            </div>
+
+            <nav class="agenda-nav" aria-label="Navegação semanal">
+                <a class="agenda-nav-btn"
+                   href="{{ PREFIX }}/calendar/agenda?week={{ week_offset - 1 }}"
+                   aria-label="Semana anterior">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                </a>
+                <span class="agenda-nav-label">
+                    {{ week_start.strftime('%d/%m') }} — {{ week_end.strftime('%d/%m/%Y') }}
+                </span>
+                <a class="agenda-nav-btn"
+                   href="{{ PREFIX }}/calendar/agenda?week={{ week_offset + 1 }}"
+                   aria-label="Próxima semana">
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </a>
+                {% if week_offset != 0 %}
+                <a href="{{ PREFIX }}/calendar/agenda" class="agenda-nav-btn agenda-nav-btn--today">Hoje</a>
+                {% endif %}
+            </nav>
+
+            <a href="{{ PREFIX }}/google-calendar/settings" class="agenda-action agenda-action--ghost">
+                <i class="fab fa-google" aria-hidden="true"></i>
+                <span>Google Calendar</span>
+            </a>
+
+            <button type="button" class="agenda-action agenda-action--primary" data-agenda-new>
+                <i class="fas fa-plus" aria-hidden="true"></i>
+                <span>Novo Compromisso</span>
+            </button>
+        </div>
+    </header>
+
+    <section class="agenda-stats" aria-label="Resumo da semana">
+        <article class="agenda-stat">
+            <div class="agenda-stat-content">
+                <div class="agenda-stat-value">{{ stats_hoje }}</div>
+                <div class="agenda-stat-label">Compromissos hoje</div>
+            </div>
+            <div class="agenda-stat-icon agenda-stat-icon--info" aria-hidden="true">
+                <i class="fas fa-calendar-day"></i>
+            </div>
+        </article>
+
+        <article class="agenda-stat">
+            <div class="agenda-stat-content">
+                <div class="agenda-stat-value">{{ stats_atend_semana }}</div>
+                <div class="agenda-stat-label">Atendimentos semana</div>
+            </div>
+            <div class="agenda-stat-icon agenda-stat-icon--success" aria-hidden="true">
+                <i class="fas fa-user-tie"></i>
+            </div>
+        </article>
+
+        <article class="agenda-stat">
+            <div class="agenda-stat-content">
+                <div class="agenda-stat-value">{{ stats_aud_semana }}</div>
+                <div class="agenda-stat-label">Audiências semana</div>
+            </div>
+            <div class="agenda-stat-icon agenda-stat-icon--warning" aria-hidden="true">
+                <i class="fas fa-gavel"></i>
+            </div>
+        </article>
+
+        <article class="agenda-stat">
+            <div class="agenda-stat-content">
+                <div class="agenda-stat-value">{{ stats_reun_semana }}</div>
+                <div class="agenda-stat-label">Reuniões semana</div>
+            </div>
+            <div class="agenda-stat-icon agenda-stat-icon--accent" aria-hidden="true">
+                <i class="fas fa-users"></i>
+            </div>
+        </article>
+    </section>
+
+    <section class="agenda-grid" aria-label="Compromissos da semana">
+        {% for day in days %}
+        <article class="agenda-day {% if day.is_today %}agenda-day--today{% endif %}">
+            <header class="agenda-day-header">
+                {{ day.weekday }} · {{ day.date.strftime('%d/%m') }}
+            </header>
+            <div class="agenda-day-body">
+                {% if day.appointments %}
+                    {% for appt in day.appointments %}
+                    <button type="button" class="agenda-appt"
+                            data-appt-id="{{ appt.id }}"
+                            data-appt-title="{{ appt.title|e }}"
+                            data-appt-type="{{ appt.type }}"
+                            data-appt-assigned="{{ appt.assigned_to or '' }}"
+                            data-appt-case="{{ appt.case_id or '' }}"
+                            data-appt-prazo="{{ appt.prazo_id or '' }}"
+                            data-appt-task="{{ appt.task_id or '' }}"
+                            data-appt-client="{{ appt.client_name|e if appt.client_name else '' }}"
+                            data-appt-date="{{ appt.date.isoformat() }}"
+                            data-appt-time-start="{{ appt.time_start.strftime('%H:%M') if appt.time_start else '' }}"
+                            data-appt-time-end="{{ appt.time_end.strftime('%H:%M') if appt.time_end else '' }}"
+                            data-appt-virtual="{{ '1' if appt.is_virtual else '0' }}"
+                            data-appt-notes="{{ appt.notes|e if appt.notes else '' }}"
+                            {% if appt.user_color %}style="--appt-color: {{ appt.user_color }};"{% endif %}>
+                        {% if appt.user_name %}
+                        <span class="agenda-appt-responsavel">
+                            {{ appt.user_name.replace('Dr. ', '').replace('Dra. ', '').split(' ')[0] }}
+                        </span>
+                        {% endif %}
+                        {% if appt.time_start %}
+                        <span class="agenda-appt-time">
+                            {{ appt.time_start.strftime('%H:%M') }}{% if appt.time_end %} — {{ appt.time_end.strftime('%H:%M') }}{% endif %}
+                        </span>
+                        {% endif %}
+                        <span class="agenda-appt-title">{{ appt.title }}</span>
+                        {% if appt.client_name %}
+                        <span class="agenda-appt-client">{{ appt.client_name }}</span>
+                        {% endif %}
+                        <span class="agenda-appt-meta">
+                            <span class="agenda-appt-badge agenda-appt-badge--{{ appt.type }}">{{ appt.type }}</span>
+                            {% if appt.is_virtual %}
+                            <span class="agenda-appt-badge agenda-appt-badge--virtual">Virtual</span>
+                            {% endif %}
+                        </span>
+                    </button>
+                    {% endfor %}
+                {% else %}
+                    <div class="agenda-empty">
+                        <i class="far fa-calendar-check" aria-hidden="true"></i>
+                        <span>Sem compromissos</span>
+                    </div>
+                {% endif %}
+                <button type="button" class="agenda-add"
+                        data-agenda-new-date="{{ day.date.isoformat() }}">
+                    <i class="fas fa-plus" aria-hidden="true"></i>
+                    <span>Adicionar</span>
+                </button>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+
+    <section id="calendarInlineView" class="agenda-calendar-view" hidden aria-label="Visualização de calendário">
+        <div id="inlineCalendar" class="agenda-month" data-server-month="1">
+            <header class="agenda-month-header">
+                <div>
+                    <span class="agenda-month-eyebrow">Calendario mensal</span>
+                    <h2>{{ month_label }}</h2>
+                </div>
+                <span class="agenda-month-note">Clique em "Adicionar" na lista semanal para criar novos compromissos.</span>
+            </header>
+            <div class="agenda-month-weekdays" aria-hidden="true">
+                <span>Seg</span>
+                <span>Ter</span>
+                <span>Qua</span>
+                <span>Qui</span>
+                <span>Sex</span>
+                <span>Sab</span>
+                <span>Dom</span>
+            </div>
+            <div class="agenda-month-grid">
+                {% for week in month_weeks %}
+                    {% for day in week %}
+                    <article class="agenda-month-day{% if not day.in_month %} is-muted{% endif %}{% if day.is_today %} is-today{% endif %}">
+                        <header>
+                            <span>{{ day.day }}</span>
+                            {% if day.appointments %}
+                            <strong>{{ day.appointments|length }}</strong>
+                            {% endif %}
+                        </header>
+                        <div class="agenda-month-events">
+                            {% if day.appointments %}
+                                {% for appt in day.appointments[:3] %}
+                                <button type="button" class="agenda-month-event"
+                                        data-appt-id="{{ appt.id }}"
+                                        data-appt-title="{{ appt.title|e }}"
+                                        data-appt-type="{{ appt.type }}"
+                                        data-appt-assigned="{{ appt.assigned_to or '' }}"
+                                        data-appt-case="{{ appt.case_id or '' }}"
+                                        data-appt-prazo="{{ appt.prazo_id or '' }}"
+                                        data-appt-task="{{ appt.task_id or '' }}"
+                                        data-appt-client="{{ appt.client_name|e if appt.client_name else '' }}"
+                                        data-appt-date="{{ appt.date.isoformat() }}"
+                                        data-appt-time-start="{{ appt.time_start.strftime('%H:%M') if appt.time_start else '' }}"
+                                        data-appt-time-end="{{ appt.time_end.strftime('%H:%M') if appt.time_end else '' }}"
+                                        data-appt-virtual="{{ '1' if appt.is_virtual else '0' }}"
+                                        data-appt-notes="{{ appt.notes|e if appt.notes else '' }}">
+                                    {% if appt.time_start %}<span>{{ appt.time_start.strftime('%H:%M') }}</span>{% endif %}
+                                    <strong>{{ appt.title }}</strong>
+                                </button>
+                                {% endfor %}
+                                {% if day.appointments|length > 3 %}
+                                <span class="agenda-month-more">+{{ day.appointments|length - 3 }} mais</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="agenda-month-empty">Livre</span>
+                            {% endif %}
+                        </div>
+                    </article>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- Modal Novo / Editar Compromisso -->
+<div class="modal fade" id="modalNovoAppt" tabindex="-1" aria-labelledby="modalNovoApptTitle" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content agenda-modal">
+            <div class="modal-header agenda-modal-header">
+                <h2 class="modal-title agenda-modal-title" id="modalNovoApptTitle">
+                    <i class="fas fa-calendar-plus" data-modal-icon aria-hidden="true"></i>
+                    <span data-modal-label>Novo Compromisso</span>
+                </h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="appt_title">Título</label>
+                        <input type="text" id="appt_title" class="form-control" placeholder="Ex: Audiência TRT - João Silva">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="appt_type">Tipo</label>
+                        <select id="appt_type" class="form-select">
+                            {% for t in appt_types %}
+                            <option value="{{ t.value }}">{{ t.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="appt_assigned">Responsável</label>
+                        <select id="appt_assigned" class="form-select">
+                            <option value="">— Selecionar —</option>
+                            {% for u in org_users %}
+                            <option value="{{ u.id }}">{{ u.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="appt_date">Data</label>
+                        <input type="date" id="appt_date" class="form-control" value="{{ today.isoformat() }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="appt_time_start">Início</label>
+                        <input type="time" id="appt_time_start" class="form-control" value="09:00">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="appt_time_end">Fim</label>
+                        <input type="time" id="appt_time_end" class="form-control" value="10:00">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="appt_client">Cliente</label>
+                        <input type="text" id="appt_client" class="form-control" placeholder="Nome do cliente">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="appt_case">Processo vinculado</label>
+                        <select id="appt_case" class="form-select">
+                            <option value="">— Sem processo —</option>
+                            {% for c in cases %}
+                            <option value="{{ c.id }}">{{ c.numero }} · {{ c.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="appt_prazo">Prazo vinculado</label>
+                        <select id="appt_prazo" class="form-select">
+                            <option value="">— Sem prazo —</option>
+                            {% for p in prazos %}
+                            <option value="{{ p.id }}">{{ p.tipo }}{% if p.data_vencimento %} · {{ p.data_vencimento.strftime('%d/%m') }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="appt_task">Item do Kanban</label>
+                        <select id="appt_task" class="form-select">
+                            <option value="">— Sem item do Kanban —</option>
+                            {% for task in kanban_tasks %}
+                            <option value="{{ task.id }}">{{ task.title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <div class="form-check">
+                            <input type="checkbox" id="appt_virtual" class="form-check-input">
+                            <label class="form-check-label" for="appt_virtual">Virtual / Online</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="appt_notes">Observações</label>
+                        <textarea id="appt_notes" class="form-control" rows="2" placeholder="Detalhes adicionais"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer agenda-modal-footer">
+                <button type="button" class="btn btn-outline-danger btn-sm" id="btnDeleteAppt" data-agenda-delete hidden>
+                    <i class="fas fa-trash me-1" aria-hidden="true"></i>Excluir
+                </button>
+                <div class="agenda-modal-actions">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="agenda-action agenda-action--primary" data-agenda-save>
+                        <i class="fas fa-check" aria-hidden="true"></i>
+                        <span>Salvar</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if product|default('') != 'lite' %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+{% endif %}
+<script>
+(function () {
+    const PREFIX = '{{ PREFIX }}';
+    let inlineCalendar = null;
+    let editingApptId = null;
+
+    const $ = (sel, root) => (root || document).querySelector(sel);
+    const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+    const modalEl = $('#modalNovoAppt');
+    const modalIcon = $('[data-modal-icon]', modalEl);
+    const modalLabel = $('[data-modal-label]', modalEl);
+    const btnDelete = $('#btnDeleteAppt');
+
+    function showView(view) {
+        const grid = $('.agenda-grid');
+        const cal = $('#calendarInlineView');
+        const nav = $('.agenda-nav');
+        const btnLista = $('#btnViewLista');
+        const btnCal = $('#btnViewCalendario');
+
+        if (view === 'calendario') {
+            if (grid) grid.hidden = true;
+            if (nav) nav.hidden = true;
+            if (cal) cal.hidden = false;
+            btnLista.classList.remove('agenda-view--active');
+            btnLista.setAttribute('aria-pressed', 'false');
+            btnCal.classList.add('agenda-view--active');
+            btnCal.setAttribute('aria-pressed', 'true');
+            const target = $('#inlineCalendar');
+            if (target && target.dataset.serverMonth === '1') {
+                return;
+            }
+            if (typeof FullCalendar === 'undefined') {
+                return;
+            }
+            if (!inlineCalendar) {
+                inlineCalendar = new FullCalendar.Calendar($('#inlineCalendar'), {
+                    initialView: 'dayGridMonth',
+                    locale: 'pt-br',
+                    headerToolbar: {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'dayGridMonth,timeGridWeek'
+                    },
+                    buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana' },
+                    events: function (info, success, failure) {
+                        fetch(PREFIX + '/calendar/events?start=' + info.startStr + '&end=' + info.endStr)
+                            .then(r => r.json())
+                            .then(success)
+                            .catch(failure);
+                    },
+                    height: 'auto'
+                });
+                inlineCalendar.render();
+            } else {
+                inlineCalendar.refetchEvents();
+            }
+        } else {
+            if (grid) grid.hidden = false;
+            if (nav) nav.hidden = false;
+            if (cal) cal.hidden = true;
+            btnLista.classList.add('agenda-view--active');
+            btnLista.setAttribute('aria-pressed', 'true');
+            btnCal.classList.remove('agenda-view--active');
+            btnCal.setAttribute('aria-pressed', 'false');
+        }
+    }
+
+    function setModalMode(mode) {
+        if (mode === 'edit') {
+            modalIcon.classList.remove('fa-calendar-plus');
+            modalIcon.classList.add('fa-calendar-edit');
+            modalLabel.textContent = 'Editar Compromisso';
+            btnDelete.hidden = false;
+        } else {
+            modalIcon.classList.remove('fa-calendar-edit');
+            modalIcon.classList.add('fa-calendar-plus');
+            modalLabel.textContent = 'Novo Compromisso';
+            btnDelete.hidden = true;
+        }
+    }
+
+    function openNewAppt(dateStr) {
+        editingApptId = null;
+        $('#appt_title').value = '';
+        $('#appt_type').value = 'atendimento';
+        $('#appt_assigned').value = '';
+        $('#appt_client').value = '';
+        if ($('#appt_case')) $('#appt_case').value = '';
+        if ($('#appt_prazo')) $('#appt_prazo').value = '';
+        if ($('#appt_task')) $('#appt_task').value = '';
+        $('#appt_time_start').value = '09:00';
+        $('#appt_time_end').value = '10:00';
+        $('#appt_virtual').checked = false;
+        $('#appt_notes').value = '';
+        if (dateStr) $('#appt_date').value = dateStr;
+        setModalMode('new');
+        // Guard against missing element / bundle — see #207.
+        if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !modalEl) return;
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    function openEditAppt(data) {
+        editingApptId = data.apptId;
+        $('#appt_title').value = data.apptTitle || '';
+        $('#appt_type').value = data.apptType || 'atendimento';
+        $('#appt_assigned').value = data.apptAssigned || '';
+        $('#appt_client').value = data.apptClient || '';
+        if ($('#appt_case')) $('#appt_case').value = data.apptCase || '';
+        if ($('#appt_prazo')) $('#appt_prazo').value = data.apptPrazo || '';
+        if ($('#appt_task')) $('#appt_task').value = data.apptTask || '';
+        $('#appt_date').value = data.apptDate || '';
+        $('#appt_time_start').value = data.apptTimeStart || '';
+        $('#appt_time_end').value = data.apptTimeEnd || '';
+        $('#appt_virtual').checked = data.apptVirtual === '1';
+        $('#appt_notes').value = data.apptNotes || '';
+        setModalMode('edit');
+        // Guard against missing element / bundle — see #207.
+        if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !modalEl) return;
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    function notifyGoogleSync(result) {
+        if (!result || result.synced || !result.message) return;
+        if (window.showToast) showToast(result.message, 'warning');
+        else alert(result.message);
+    }
+
+    function saveAppt() {
+        const body = {
+            title: $('#appt_title').value.trim(),
+            type: $('#appt_type').value,
+            assigned_to: $('#appt_assigned').value || null,
+            client_name: $('#appt_client').value.trim(),
+            case_id: $('#appt_case') ? ($('#appt_case').value || null) : null,
+            prazo_id: $('#appt_prazo') ? ($('#appt_prazo').value || null) : null,
+            task_id: $('#appt_task') ? ($('#appt_task').value || null) : null,
+            date: $('#appt_date').value,
+            time_start: $('#appt_time_start').value,
+            time_end: $('#appt_time_end').value,
+            is_virtual: $('#appt_virtual').checked,
+            notes: $('#appt_notes').value.trim()
+        };
+        if (!body.title || !body.date) { alert('Título e data são obrigatórios'); return; }
+
+        const url = editingApptId
+            ? PREFIX + '/calendar/appointments/' + editingApptId
+            : PREFIX + '/calendar/appointments';
+        const method = editingApptId ? 'PUT' : 'POST';
+
+        fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(r => r.json()).then(d => {
+            if (d.success) {
+                notifyGoogleSync(d.google_calendar);
+                location.reload();
+            }
+            else alert('Erro: ' + (d.error || 'falha'));
+        });
+    }
+
+    function deleteAppt() {
+        if (!editingApptId) return;
+        if (!confirm('Excluir este compromisso?')) return;
+        fetch(PREFIX + '/calendar/appointments/' + editingApptId, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(d => {
+                if (d.success) {
+                    notifyGoogleSync(d.google_calendar);
+                    location.reload();
+                }
+            });
+    }
+
+    // Event delegation
+    document.addEventListener('click', function (e) {
+        const viewBtn = e.target.closest('[data-agenda-view]');
+        if (viewBtn) { e.preventDefault(); showView(viewBtn.dataset.agendaView); return; }
+
+        const newBtn = e.target.closest('[data-agenda-new]');
+        if (newBtn) { e.preventDefault(); openNewAppt(); return; }
+
+        const newDateBtn = e.target.closest('[data-agenda-new-date]');
+        if (newDateBtn) { e.preventDefault(); openNewAppt(newDateBtn.dataset.agendaNewDate); return; }
+
+        const apptBtn = e.target.closest('.agenda-appt, .agenda-month-event');
+        if (apptBtn) { e.preventDefault(); openEditAppt(apptBtn.dataset); return; }
+
+        const saveBtn = e.target.closest('[data-agenda-save]');
+        if (saveBtn) { e.preventDefault(); saveAppt(); return; }
+
+        const delBtn = e.target.closest('[data-agenda-delete]');
+        if (delBtn) { e.preventDefault(); deleteAppt(); return; }
+    });
+})();
+</script>
+{% endblock %}

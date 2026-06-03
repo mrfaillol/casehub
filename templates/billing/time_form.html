@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} {% if product == "lite" %}Registro de Tempo{% else %}Time Entry{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/billing-time-form.css">
+{% endblock %}
+
+{% block content %}
+<section class="billing-time-form-main" aria-labelledby="billing-time-form-title">
+    <div class="billing-time-form-container">
+        <header class="billing-time-form-header">
+            <a href="{{ PREFIX }}/billing" class="billing-time-form-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Voltar ao Financeiro{% else %}Back to Billing{% endif %}</span>
+            </a>
+            <h1 id="billing-time-form-title" class="billing-time-form-title">
+                <i class="fas fa-clock billing-time-form-title-icon" aria-hidden="true"></i>
+                <span>{{ action }} {% if product == "lite" %}Registro de Tempo{% else %}Time Entry{% endif %}</span>
+            </h1>
+        </header>
+
+        <form method="post" action="{{ PREFIX }}/billing/time/new">
+            <div class="billing-time-form-card">
+                <div class="billing-time-form-field">
+                    <label for="billing-time-form-case" class="billing-time-form-label">
+                        {% if product == "lite" %}Processo{% else %}Case{% endif %}
+                        <span class="billing-time-form-required" aria-hidden="true">*</span>
+                    </label>
+                    <select id="billing-time-form-case" class="billing-time-form-select" name="case_id" required aria-required="true">
+                        <option value="">{% if product == "lite" %}Selecione o Processo{% else %}Select Case{% endif %}</option>
+                        {% for c in cases %}
+                        <option value="{{ c.id }}" {% if selected_case_id == c.id %}selected{% endif %}>
+                            {{ c.case_number or c.case_name or 'Case #' + c.id|string }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="billing-time-form-field">
+                    <label for="billing-time-form-description" class="billing-time-form-label">
+                        {% if product == "lite" %}Descrição{% else %}Description{% endif %}
+                        <span class="billing-time-form-required" aria-hidden="true">*</span>
+                    </label>
+                    <textarea id="billing-time-form-description" class="billing-time-form-textarea" name="description" rows="3" required aria-required="true" placeholder="{% if product == 'lite' %}O que foi feito?{% else %}What did you work on?{% endif %}"></textarea>
+                </div>
+
+                <div class="billing-time-form-grid">
+                    <div>
+                        <label for="billing-time-form-date" class="billing-time-form-label">
+                            {% if product == "lite" %}Data{% else %}Date{% endif %}
+                            <span class="billing-time-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input id="billing-time-form-date" type="date" class="billing-time-form-input" name="entry_date" value="{{ now()|string }}" required aria-required="true">
+                    </div>
+                    <div>
+                        <label for="billing-time-form-hours" class="billing-time-form-label">
+                            {% if product == "lite" %}Horas{% else %}Hours{% endif %}
+                            <span class="billing-time-form-required" aria-hidden="true">*</span>
+                        </label>
+                        <input id="billing-time-form-hours" type="number" step="0.25" min="0.25" class="billing-time-form-input" name="hours" inputmode="decimal" placeholder="1.5" required aria-required="true">
+                    </div>
+                    <div>
+                        <label for="billing-time-form-rate" class="billing-time-form-label">
+                            {% if product == "lite" %}Valor (R$/hr){% else %}Rate ($/hr){% endif %}
+                        </label>
+                        <input id="billing-time-form-rate" type="number" step="0.01" min="0" class="billing-time-form-input" name="rate" inputmode="decimal" placeholder="{% if product == 'lite' %}Opcional{% else %}Optional{% endif %}">
+                    </div>
+                </div>
+
+                <div class="billing-time-form-grid-2">
+                    <div>
+                        <label for="billing-time-form-user" class="billing-time-form-label">
+                            {% if product == "lite" %}Responsável{% else %}Staff Member{% endif %}
+                        </label>
+                        <select id="billing-time-form-user" class="billing-time-form-select" name="user_id">
+                            <option value="">{% if product == "lite" %}Usuário Atual ({{ user.name }}){% else %}Current User ({{ user.name }}){% endif %}</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <span class="billing-time-form-label">{% if product == "lite" %}Faturável{% else %}Billable{% endif %}</span>
+                        <input type="hidden" name="billable" value="false">
+                        <label class="billing-time-form-check" for="billing-time-form-billable">
+                            <input id="billing-time-form-billable" class="billing-time-form-check-input" type="checkbox" name="billable" value="true" checked>
+                            <span>{% if product == "lite" %}Este tempo é faturável{% else %}This time is billable{% endif %}</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="billing-time-form-actions">
+                <button type="submit" class="billing-time-form-btn billing-time-form-btn--primary">
+                    <i class="fas fa-clock" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Registrar{% else %}Log Time{% endif %}</span>
+                </button>
+                <a href="{{ PREFIX }}/billing" class="billing-time-form-btn billing-time-form-btn--ghost">
+                    {% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}
+                </a>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

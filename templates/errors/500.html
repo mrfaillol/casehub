@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.get('error.internal', 'Erro Interno') }} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/errors-500.css">
+{% endblock %}
+
+{% block content %}
+<main class="errors-500-main" role="main" aria-labelledby="errors-500-title">
+    <section class="errors-500-card" aria-describedby="errors-500-detail">
+        <div class="errors-500-icon" aria-hidden="true">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+
+        <p class="errors-500-code" aria-hidden="true">500</p>
+
+        <h1 id="errors-500-title" class="errors-500-lead">
+            {{ t.get('error.internal', 'Erro interno') }}
+        </h1>
+
+        <p id="errors-500-detail" class="errors-500-detail">
+            {{ t.get('error.internal_detail', 'Algo deu errado do nosso lado. Por favor, tente novamente mais tarde.') }}
+        </p>
+
+        {% if error_ref %}
+        <p class="errors-500-reference">
+            <span>{{ t.get('error.reference', 'Referencia do erro') }}</span>
+            <code>{{ error_ref }}</code>
+        </p>
+        {% endif %}
+
+        <div class="errors-500-actions">
+            <a href="{{ retry_url|default(request.url) }}" class="errors-500-btn errors-500-btn--ghost">
+                <i class="fas fa-rotate-right" aria-hidden="true"></i>
+                <span>{{ t.get('error.try_again', 'Tentar novamente') }}</span>
+            </a>
+            <a href="{{ PREFIX }}/dashboard" class="errors-500-btn errors-500-btn--primary">
+                <i class="fas fa-home" aria-hidden="true"></i>
+                <span>{{ t.get('error.go_dashboard', 'Ir para o Painel') }}</span>
+            </a>
+        </div>
+
+        {% if org_email %}
+        <hr class="errors-500-divider">
+        <footer class="errors-500-help">
+            <p>{{ t.get('error.contact_support', 'Se o problema persistir, entre em contato:') }}</p>
+            <p>
+                <i class="fas fa-envelope" aria-hidden="true"></i>
+                <a href="mailto:{{ org_email }}">{{ org_email }}</a>
+            </p>
+            {% if product == "lite" and org_phone %}
+            <p>
+                <i class="fas fa-phone" aria-hidden="true"></i>
+                <a href="tel:{{ org_phone }}">{{ org_phone }}</a>
+            </p>
+            {% endif %}
+        </footer>
+        {% endif %}
+    </section>
+</main>
+{% endblock %}

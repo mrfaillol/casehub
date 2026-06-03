@@ -1,0 +1,1189 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Manual · Index · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <style>
+    .manual-layout {
+        display: flex;
+        gap: 24px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    /* Sidebar TOC */
+    .manual-toc {
+        position: sticky;
+        top: 24px;
+        width: 280px;
+        min-width: 280px;
+        max-height: calc(100vh - 48px);
+        overflow-y: auto;
+        padding: 20px;
+        background: var(--glass-bg, rgba(255,255,255,0.12));
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border, rgba(255,255,255,0.18));
+        border-radius: 16px;
+        align-self: flex-start;
+    }
+
+    .manual-toc h5 {
+        font-weight: 700;
+        margin-bottom: 16px;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary);
+    }
+
+    .manual-toc a {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: var(--text-primary);
+        text-decoration: none;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+
+    .manual-toc a:hover,
+    .manual-toc a.active {
+        background: var(--accent, #1C2447);
+        color: #fff;
+    }
+
+    .manual-toc a i {
+        width: 16px;
+        text-align: center;
+        font-size: 12px;
+    }
+
+    /* Main content */
+    .manual-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .manual-section {
+        margin-bottom: 40px;
+        padding: 28px;
+        background: var(--glass-bg, rgba(255,255,255,0.12));
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border, rgba(255,255,255,0.18));
+        border-radius: 16px;
+    }
+
+    .manual-section h2 {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-primary);
+    }
+
+    .manual-section h2 i {
+        color: var(--accent, #1C2447);
+        font-size: 20px;
+    }
+
+    .manual-section h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        color: var(--text-primary);
+    }
+
+    .manual-section p,
+    .manual-section li {
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--text-secondary);
+    }
+
+    .manual-section ol,
+    .manual-section ul {
+        padding-left: 20px;
+        margin-bottom: 16px;
+    }
+
+    .manual-section ol li,
+    .manual-section ul li {
+        margin-bottom: 6px;
+    }
+
+    /* Tip callout */
+    .tip-card {
+        padding: 16px 20px;
+        background: rgba(28, 36, 71, 0.08);
+        border: 1px solid rgba(28, 36, 71, 0.2);
+        border-radius: 12px;
+        margin: 16px 0;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .tip-card strong {
+        color: var(--accent, #1C2447);
+    }
+
+    /* Maestro box */
+    .maestro-box {
+        padding: 16px 20px;
+        background: linear-gradient(135deg, rgba(138, 43, 226, 0.08), rgba(75, 0, 130, 0.06));
+        border: 1px solid rgba(138, 43, 226, 0.2);
+        border-radius: 12px;
+        margin: 16px 0;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .maestro-box::before {
+        content: '\f544';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        margin-right: 8px;
+        color: #8a2be2;
+    }
+
+    /* Keyboard shortcut badges */
+    kbd {
+        display: inline-block;
+        padding: 2px 6px;
+        font-size: 12px;
+        background: var(--bg-secondary, #e9ecef);
+        border: 1px solid var(--border-color, #dee2e6);
+        border-radius: 4px;
+        font-family: monospace;
+    }
+
+    /* Header hero */
+    .manual-hero {
+        text-align: center;
+        padding: 40px 28px;
+        margin-bottom: 32px;
+        background: var(--glass-bg, rgba(255,255,255,0.12));
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border, rgba(255,255,255,0.18));
+        border-radius: 16px;
+    }
+
+    .manual-hero h1 {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .manual-hero p {
+        font-size: 15px;
+        color: var(--text-secondary);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    /* Search */
+    .manual-search {
+        max-width: 400px;
+        margin: 20px auto 0;
+        position: relative;
+    }
+
+    .manual-search input {
+        width: 100%;
+        padding: 10px 16px 10px 40px;
+        border-radius: 10px;
+        border: 1px solid var(--glass-border, rgba(255,255,255,0.18));
+        background: var(--glass-bg, rgba(255,255,255,0.1));
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .manual-search i {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-secondary);
+    }
+
+    @media (max-width: 992px) {
+        .manual-layout { flex-direction: column; }
+        .manual-toc { width: 100%; min-width: 0; position: static; max-height: none; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="manual-hero">
+    <h1><i class="fas fa-book" style="color:var(--accent,#1C2447);"></i> Manual do CaseHub</h1>
+    <p>Guia completo de todas as funcionalidades do sistema. Use o índice lateral para navegar entre as secoes.</p>
+    <div class="manual-search">
+        <i class="fas fa-search"></i>
+        <input type="text" id="manualSearch" placeholder="Buscar no manual..." oninput="filterManualSections(this.value)">
+    </div>
+</div>
+
+<div class="manual-layout">
+    <!-- Table of Contents -->
+    <aside class="manual-toc" id="manualToc">
+        <h5>Índice</h5>
+        <a href="#primeiros-passos"><i class="fas fa-play"></i> Primeiros Passos</a>
+        <a href="#painel"><i class="fas fa-chart-line"></i> Painel</a>
+        <a href="#clientes"><i class="fas fa-users"></i> Clientes</a>
+        <a href="#processos"><i class="fas fa-gavel"></i> Processos</a>
+        <a href="#tarefas"><i class="fas fa-tasks"></i> Tarefas (Kanban)</a>
+        <a href="#documentos"><i class="fas fa-file-alt"></i> Documentos</a>
+        <a href="#agenda"><i class="fas fa-calendar"></i> Agenda</a>
+        <a href="#emails"><i class="fas fa-envelope"></i> E-mails</a>
+        <a href="#faturamento"><i class="fas fa-dollar-sign"></i> Faturamento</a>
+        <a href="#controladoria"><i class="fas fa-balance-scale"></i> Controladoria</a>
+        <a href="#calculadora-prazos"><i class="fas fa-calculator"></i> Calculadora de Prazos</a>
+        <a href="#consulta-tribunal"><i class="fas fa-university"></i> Consulta Tribunal</a>
+        <a href="#ferramentas"><i class="fas fa-tools"></i> Ferramentas</a>
+        <a href="#pecas"><i class="fas fa-file-contract"></i> Pecas Processuais</a>
+        <a href="#maestro"><i class="fas fa-robot"></i> Maestro IA</a>
+        <a href="#crm"><i class="fas fa-funnel-dollar"></i> CRM (Leads)</a>
+        <a href="#whatsapp"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+        <a href="#relatórios"><i class="fas fa-chart-bar"></i> Relatórios</a>
+        <a href="#importacao"><i class="fas fa-file-import"></i> Importacao</a>
+        <a href="#configuracoes"><i class="fas fa-cog"></i> Configurações</a>
+        <a href="#administração"><i class="fas fa-shield-alt"></i> Administracao</a>
+        <a href="#split-screen"><i class="fas fa-columns"></i> Split Screen</a>
+        <a href="#atalhos"><i class="fas fa-keyboard"></i> Atalhos</a>
+    </aside>
+
+    <!-- Sections -->
+    <div class="manual-content">
+
+        <!-- 1. Primeiros Passos -->
+        <section class="manual-section" id="primeiros-passos" data-search="primeiros passos login navegacao sidebar dark mode perfil">
+            <h2><i class="fas fa-play"></i> 1. Primeiros Passos</h2>
+
+            <h3>Login</h3>
+            <p>Acesse o sistema pelo endereço fornecido pelo seu escritório. Insira seu e-mail e senha. No primeiro acesso, o sistema solicitará que você altere sua senha.</p>
+            <ol>
+                <li>Acesse a URL do CaseHub do seu escritório</li>
+                <li>Insira e-mail e senha fornecidos pelo administrador</li>
+                <li>Caso seja seu primeiro acesso, defina uma nova senha segura</li>
+                <li>Voce sera redirecionado ao Painel principal</li>
+            </ol>
+
+            <h3>Navegacao (Sidebar)</h3>
+            <p>A barra lateral esquerda e o menu principal do sistema. Ela organiza todas as funcionalidades em categorias:</p>
+            <ul>
+                <li><strong>Gestao:</strong> Clientes, Processos, Tarefas, Documentos</li>
+                <li><strong>Comunicação:</strong> E-mails, WhatsApp, Agenda</li>
+                <li><strong>Financeiro:</strong> Faturamento, Cobrancas</li>
+                <li><strong>Jurídico:</strong> Controladoria, Prazos, Tribunal, Ferramentas, Pecas</li>
+                <li><strong>IA:</strong> Maestro, CRM</li>
+                <li><strong>Admin:</strong> Configurações, Usuários, Relatórios</li>
+            </ul>
+            <p>Clique nos cabecalhos das categorias para expandir ou recolher as subcategorias. Em telas menores, a sidebar vira um menu hamburger.</p>
+
+            <h3>Modo Escuro (Dark Mode)</h3>
+            <p>O CaseHub suporta tema claro e escuro. Para alternar:</p>
+            <ol>
+                <li>Clique no icone de lua/sol no canto inferior da sidebar</li>
+                <li>Ou acesse <strong>Configurações &gt; Aparência</strong></li>
+            </ol>
+            <p>A preferencia e salva no navegador e persiste entre sessoes.</p>
+
+            <h3>Perfil do Usuário</h3>
+            <p>No menu da sidebar, clique no seu nome ou em <strong>Perfil</strong> para:</p>
+            <ul>
+                <li>Alterar nome, foto e dados de contato</li>
+                <li>Atualizar senha</li>
+                <li>Configurar autenticação em dois fatores (2FA)</li>
+                <li>Definir preferencias de notificacao</li>
+            </ul>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Ative a autenticação em dois fatores (2FA) para maior seguranca. Acesse Perfil &gt; Seguranca.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Na primeira vez que acessar o sistema, faca o tutorial guiado clicando em "Ver Tutorial" na sidebar. Ele mostra cada secao do sistema em menos de 2 minutos.
+            </div>
+        </section>
+
+        <!-- 2. Painel (Dashboard) -->
+        <section class="manual-section" id="painel" data-search="painel dashboard widgets drag drop personalizacao">
+            <h2><i class="fas fa-chart-line"></i> 2. Painel (Dashboard)</h2>
+
+            <p>O painel e a página inicial do sistema. Ele apresenta um resumo visual de tudo o que está acontecendo no escritório.</p>
+
+            <h3>Widgets Disponiveis</h3>
+            <ul>
+                <li><strong>Resumo Geral:</strong> Total de clientes, processos ativos, tarefas pendentes</li>
+                <li><strong>Processos Recentes:</strong> Ultimos processos criados ou atualizados</li>
+                <li><strong>Tarefas Urgentes:</strong> Tarefas vencidas ou proximas do prazo</li>
+                <li><strong>Receita do Mes:</strong> Faturamento pago vs. pendente</li>
+                <li><strong>Tendencia de Processos:</strong> Grafico de evolucao mensal</li>
+                <li><strong>Clientes Recentes:</strong> Ultimos clientes cadastrados</li>
+                <li><strong>Processos que Exigem Atencao:</strong> Processos com status critico</li>
+            </ul>
+
+            <h3>Personalizacao com Drag & Drop</h3>
+            <ol>
+                <li>Clique no icone de engrenagem no canto superior do painel</li>
+                <li>Arraste os widgets para reorganizar a ordem</li>
+                <li>Ative ou desative widgets conforme a necessidade</li>
+                <li>Clique em "Salvar Layout" para aplicar</li>
+            </ol>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Cada usuário pode ter seu proprio layout de dashboard personalizado. Suas preferencias ficam salvas no navegador.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Comece o dia pelo dashboard para ter uma visão geral rapida. Os widgets de "Tarefas Urgentes" e "Processos com Atencao" ajudam a priorizar o que fazer primeiro.
+            </div>
+        </section>
+
+        <!-- 3. Clientes -->
+        <section class="manual-section" id="clientes" data-search="clientes cadastro busca filtros documentos vinculados financeiro">
+            <h2><i class="fas fa-users"></i> 3. Clientes</h2>
+
+            <h3>Cadastro de Clientes</h3>
+            <ol>
+                <li>Acesse <strong>Clientes</strong> na sidebar</li>
+                <li>Clique em <strong>"+ Novo Cliente"</strong></li>
+                <li>Preencha os dados: nome, CPF/CNPJ, e-mail, telefone, endereco</li>
+                <li>Opcionalmente, adicione observações e tags de categorias</li>
+                <li>Clique em <strong>"Salvar"</strong></li>
+            </ol>
+
+            <h3>Busca e Filtros</h3>
+            <p>Use a barra de busca para encontrar clientes por nome, e-mail ou CPF/CNPJ. Filtros avancados permitem:</p>
+            <ul>
+                <li>Filtrar por status (ativo, inativo)</li>
+                <li>Filtrar por data de cadastro</li>
+                <li>Filtrar por tags/categorias</li>
+                <li>Ordenar por nome, data ou quantidade de processos</li>
+            </ul>
+
+            <h3>Ficha do Cliente</h3>
+            <p>Cada cliente possui uma ficha completa com abas:</p>
+            <ul>
+                <li><strong>Dados:</strong> Informações pessoais e de contato</li>
+                <li><strong>Processos:</strong> Todos os processos vinculados</li>
+                <li><strong>Documentos:</strong> Arquivos do cliente</li>
+                <li><strong>Financeiro:</strong> Cobrancas e pagamentos</li>
+                <li><strong>Histórico:</strong> Timeline de atividades</li>
+            </ul>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Ao vincular documentos ao cliente, eles ficam automaticamente disponiveis nos processos associados. Isso evita duplicacao de arquivos.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Use tags para categorizar clientes (ex: "trabalhista", "civel", "VIP"). Isso facilita a filtragem e geracao de relatórios segmentados.
+            </div>
+        </section>
+
+        <!-- 4. Processos -->
+        <section class="manual-section" id="processos" data-search="processos cadastro cnj status checklist automático prazos">
+            <h2><i class="fas fa-gavel"></i> 4. Processos</h2>
+
+            <h3>Cadastro de Processos</h3>
+            <ol>
+                <li>Acesse <strong>Processos</strong> na sidebar</li>
+                <li>Clique em <strong>"+ Novo Processo"</strong></li>
+                <li>Preencha o número do CNJ (formato: NNNNNNN-DD.AAAA.J.TR.OOOO)</li>
+                <li>Selecione o cliente vinculado</li>
+                <li>Defina o tipo de acao, vara e comarca</li>
+                <li>O sistema criara automaticamente checklists e prazos iniciais</li>
+            </ol>
+
+            <h3>Status do Processo</h3>
+            <p>Cada processo tem um status que reflete sua fase atual:</p>
+            <ul>
+                <li><strong>Novo:</strong> Recem-cadastrado</li>
+                <li><strong>Em andamento:</strong> Tramitando normalmente</li>
+                <li><strong>Aguardando:</strong> Pendente de documentos ou decisao</li>
+                <li><strong>Urgente:</strong> Com prazo critico próximo</li>
+                <li><strong>Concluido:</strong> Encerrado ou arquivado</li>
+            </ul>
+
+            <h3>Checklist Automatico</h3>
+            <p>Ao criar um processo, o sistema gera automaticamente uma lista de tarefas baseada no tipo de acao. Voce pode:</p>
+            <ul>
+                <li>Marcar itens como concluidos</li>
+                <li>Adicionar itens personalizados</li>
+                <li>Associar responsaveis a cada item</li>
+                <li>Definir prazos individuais</li>
+            </ul>
+
+            <h3>Prazos Processuais</h3>
+            <p>Prazos cadastrados no processo aparecem automaticamente na Agenda e no modulo de Controladoria. O sistema envia alertas conforme a proximidade do vencimento.</p>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> O número CNJ e validado automaticamente. Se o formato estiver incorreto, o sistema avisa antes de salvar.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Use a "Consulta Tribunal" (secao 12) para importar dados automaticamente de um processo pelo número CNJ. Isso preenche informações como partes, classe e movimentações.
+            </div>
+        </section>
+
+        <!-- 5. Tarefas (Kanban) -->
+        <section class="manual-section" id="tarefas" data-search="tarefas kanban colunas tags subtarefas comentarios filtros calendario">
+            <h2><i class="fas fa-tasks"></i> 5. Tarefas (Kanban)</h2>
+
+            <h3>Visao Kanban</h3>
+            <p>As tarefas sao organizadas em um quadro Kanban com colunas personalizaveis:</p>
+            <ul>
+                <li><strong>A Fazer:</strong> Tarefas pendentes</li>
+                <li><strong>Em Progresso:</strong> Tarefas em andamento</li>
+                <li><strong>Revisão:</strong> Aguardando aprovacao</li>
+                <li><strong>Concluido:</strong> Tarefas finalizadas</li>
+            </ul>
+            <p>Arraste cartoes entre colunas para atualizar o status.</p>
+
+            <h3>Criando Tarefas</h3>
+            <ol>
+                <li>Clique em <strong>"+ Nova Tarefa"</strong> no topo ou dentro de uma coluna</li>
+                <li>Preencha titulo, descrição e prazo</li>
+                <li>Atribua a um membro da equipe</li>
+                <li>Adicione tags de prioridade (Baixa, Media, Alta, Urgente)</li>
+                <li>Vincule a um processo ou cliente (opcional)</li>
+            </ol>
+
+            <h3>Subtarefas</h3>
+            <p>Dentro de cada tarefa, você pode criar subtarefas para dividir o trabalho em etapas menores. Cada subtarefa possui seu proprio checkbox de conclusao.</p>
+
+            <h3>Comentarios</h3>
+            <p>Adicione comentarios nas tarefas para comunicação interna da equipe. Mencione colegas usando @nome para notifica-los.</p>
+
+            <h3>Filtros e Visoes</h3>
+            <ul>
+                <li>Filtrar por responsável, prioridade, prazo</li>
+                <li>Alternar entre visão Kanban e visão Lista</li>
+                <li>Visao Calendario: tarefas exibidas no calendario por data de vencimento</li>
+            </ul>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Use cores de tags para distinguir rapidamente tarefas por area do direito ou urgencia.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Tarefas vinculadas a processos aparecem automaticamente no checklist do processo. Mantenha tudo conectado para ter rastreabilidade completa.
+            </div>
+        </section>
+
+        <!-- 6. Documentos -->
+        <section class="manual-section" id="documentos" data-search="documentos upload categorias preview google drive sync">
+            <h2><i class="fas fa-file-alt"></i> 6. Documentos</h2>
+
+            <h3>Upload de Documentos</h3>
+            <ol>
+                <li>Acesse <strong>Documentos</strong> na sidebar</li>
+                <li>Clique em <strong>"+ Upload"</strong> ou arraste arquivos para a area de upload</li>
+                <li>Selecione a categoria (petição, contrato, procuracao, etc.)</li>
+                <li>Vincule a um cliente e/ou processo</li>
+                <li>Clique em <strong>"Enviar"</strong></li>
+            </ol>
+
+            <h3>Categorias</h3>
+            <p>Organize documentos por categorias predefinidas ou crie categorias personalizadas. Categorias comuns:</p>
+            <ul>
+                <li>Peticoes</li>
+                <li>Contratos</li>
+                <li>Procuracoes</li>
+                <li>Documentos Pessoais</li>
+                <li>Comprovantes</li>
+                <li>Decisoes Judiciais</li>
+            </ul>
+
+            <h3>Preview de Documentos</h3>
+            <p>O sistema suporta visualização direta de PDFs e imagens sem precisar fazer download. Clique no documento para abrir o preview.</p>
+
+            <h3>Google Drive Sync</h3>
+            <p>Se configurado, documentos podem ser sincronizados automaticamente com o Google Drive do escritório:</p>
+            <ol>
+                <li>Acesse <strong>Configurações &gt; Integrações &gt; Google Drive</strong></li>
+                <li>Autentique com a conta Google do escritório</li>
+                <li>Defina a pasta de sincronizacao</li>
+                <li>Ative a sincronizacao automática</li>
+            </ol>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Use o sistema de versoes para manter histórico de alteracoes. Cada upload de um documento com mesmo nome cria uma nova versao automaticamente.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Vincule sempre os documentos ao cliente E ao processo. Assim, qualquer membro da equipe encontra o arquivo tanto pela ficha do cliente quanto pelo processo.
+            </div>
+        </section>
+
+        <!-- 7. Agenda -->
+        <section class="manual-section" id="agenda" data-search="agenda google calendar eventos prazos calendario">
+            <h2><i class="fas fa-calendar"></i> 7. Agenda</h2>
+
+            <h3>Visao do Calendario</h3>
+            <p>A agenda apresenta todos os compromissos, prazos e eventos em formato de calendario mensal, semanal ou diario.</p>
+
+            <h3>Criando Eventos</h3>
+            <ol>
+                <li>Clique em um dia no calendario ou no botao <strong>"+ Novo Evento"</strong></li>
+                <li>Defina titulo, data, horário e duração</li>
+                <li>Adicione participantes e local (sala, foro, etc.)</li>
+                <li>Vincule a um processo (opcional)</li>
+                <li>Configure lembretes (15min, 1h, 1 dia antes)</li>
+            </ol>
+
+            <h3>Integração com Google Calendar</h3>
+            <p>Sincronize a agenda do CaseHub com o Google Calendar:</p>
+            <ol>
+                <li>Acesse <strong>Configurações &gt; Integrações &gt; Google Calendar</strong></li>
+                <li>Autorize o acesso a sua conta Google</li>
+                <li>Eventos criados no CaseHub aparecem no Google Calendar e vice-versa</li>
+            </ol>
+
+            <h3>Prazos no Calendario</h3>
+            <p>Prazos processuais cadastrados nos processos ou na Controladoria aparecem automaticamente no calendario com destaque visual diferenciado (cor vermelha para urgentes).</p>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Sincronize com o Google Calendar para receber notificações no celular. Assim, você nunca perde um prazo mesmo quando não está no sistema.
+            </div>
+        </section>
+
+        <!-- 8. E-mails -->
+        <section class="manual-section" id="emails" data-search="emails imap composicao templates auto link">
+            <h2><i class="fas fa-envelope"></i> 8. E-mails</h2>
+
+            <h3>Configuração de Conta IMAP</h3>
+            <ol>
+                <li>Acesse <strong>E-mails</strong> na sidebar</li>
+                <li>Clique em <strong>"Configurar Conta"</strong></li>
+                <li>Insira servidor IMAP, porta, e-mail e senha</li>
+                <li>Para Gmail: use imap.gmail.com, porta 993, SSL ativado</li>
+                <li>Teste a conexão e salve</li>
+            </ol>
+
+            <h3>Composicao de E-mails</h3>
+            <p>Envie e-mails diretamente do sistema. O editor suporta formatacao rica (negrito, italico, listas, links).</p>
+
+            <h3>Templates de E-mail</h3>
+            <p>Crie modelos reutilizaveis para comunicações frequentes:</p>
+            <ul>
+                <li>Resposta a consulta inicial</li>
+                <li>Envio de documentos</li>
+                <li>Cobranca de honorarios</li>
+                <li>Atualizacao de processo</li>
+            </ul>
+            <p>Use variaveis como <kbd>{{nome_cliente}}</kbd> e <kbd>{{numero_processo}}</kbd> para personalizacao automática.</p>
+
+            <h3>Auto-Link</h3>
+            <p>O sistema vincula automaticamente e-mails recebidos aos clientes correspondentes com base no endereco de e-mail. Voce também pode vincular manualmente.</p>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Para Gmail, use uma "Senha de App" em vez da senha normal. Acesse sua conta Google &gt; Seguranca &gt; Senhas de App.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Crie templates para as comunicações mais frequentes. Isso economiza tempo e garante consistência nas mensagens do escritório.
+            </div>
+        </section>
+
+        <!-- 9. Faturamento -->
+        <section class="manual-section" id="faturamento" data-search="faturamento cobranças tempo faturas reais">
+            <h2><i class="fas fa-dollar-sign"></i> 9. Faturamento</h2>
+
+            <h3>Lancamento de Cobrancas</h3>
+            <ol>
+                <li>Acesse <strong>Faturamento</strong> na sidebar</li>
+                <li>Clique em <strong>"+ Nova Cobranca"</strong></li>
+                <li>Selecione o cliente e o processo vinculado</li>
+                <li>Defina descrição, valor (R$), data de vencimento</li>
+                <li>Escolha o status: pendente, pago, atrasado</li>
+            </ol>
+
+            <h3>Controle de Tempo</h3>
+            <p>Registre horas trabalhadas em cada processo para controle de produtividade e faturamento por hora:</p>
+            <ol>
+                <li>Na ficha do processo, clique em <strong>"Registrar Tempo"</strong></li>
+                <li>Informe a data, duração (em horas) e descrição da atividade</li>
+                <li>Os registros alimentam relatórios de produtividade</li>
+            </ol>
+
+            <h3>Geracao de Faturas</h3>
+            <p>Gere faturas profissionais em PDF com os dados do escritório:</p>
+            <ul>
+                <li>Selecione as cobranças a incluir na fatura</li>
+                <li>O sistema gera um documento com numeracao sequencial</li>
+                <li>Envie a fatura por e-mail diretamente do sistema</li>
+            </ul>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Use a funcao de "Tempo" para registrar todas as atividades. No final do mes, gere faturas automáticas baseadas nas horas trabalhadas em cada processo.
+            </div>
+        </section>
+
+        <!-- 10. Controladoria -->
+        <section class="manual-section" id="controladoria" data-search="controladoria prazos processuais busca intimações exportar excel">
+            <h2><i class="fas fa-balance-scale"></i> 10. Controladoria</h2>
+
+            <h3>Painel de Controladoria</h3>
+            <p>A Controladoria oferece uma visão centralizada de todos os prazos e movimentações processuais do escritório:</p>
+            <ul>
+                <li><strong>Prazos Vencendo:</strong> Lista de prazos próximos ao vencimento</li>
+                <li><strong>Prazos Vencidos:</strong> Alertas de prazos ja expirados</li>
+                <li><strong>Intimacoes:</strong> Busca automática de intimações nos tribunais</li>
+                <li><strong>Indicadores:</strong> Metricas de produtividade e qualidade</li>
+            </ul>
+
+            <h3>Busca de Intimacoes</h3>
+            <p>O sistema pode buscar intimações automaticamente nos tribunais integrados. Configure os numeros de processo e o sistema monitora novas publicacoes.</p>
+
+            <h3>Exportacao para Excel</h3>
+            <p>Exporte todos os dados da Controladoria para planilhas Excel para análise externa ou envio a clientes:</p>
+            <ol>
+                <li>Aplique os filtros desejados</li>
+                <li>Clique em <strong>"Exportar Excel"</strong></li>
+                <li>O arquivo sera baixado automaticamente</li>
+            </ol>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Configure a Controladoria como página inicial se você e o responsável por monitorar prazos. Assim, logo no login você ve tudo que precisa de atencao imediata.
+            </div>
+        </section>
+
+        <!-- 11. Calculadora de Prazos -->
+        <section class="manual-section" id="calculadora-prazos" data-search="calculadora prazos cpc feriados dias uteis">
+            <h2><i class="fas fa-calculator"></i> 11. Calculadora de Prazos</h2>
+
+            <h3>Como Usar</h3>
+            <ol>
+                <li>Acesse <strong>Jurídico &gt; Prazos</strong> na sidebar</li>
+                <li>Selecione o tipo de prazo (CPC, CLT, etc.)</li>
+                <li>Informe a data da intimacao ou publicação</li>
+                <li>Informe a quantidade de dias do prazo</li>
+                <li>Selecione se o prazo e em dias úteis ou corridos</li>
+                <li>O sistema calcula automaticamente a data final, considerando feriados nacionais e suspensoes do Judiciario</li>
+            </ol>
+
+            <h3>Feriados</h3>
+            <p>O sistema possui calendário de feriados nacionais pré-configurado. Feriados estaduais e municipais podem ser adicionados nas configurações.</p>
+
+            <h3>Regras do CPC</h3>
+            <p>A calculadora respeita as regras do Codigo de Processo Civil:</p>
+            <ul>
+                <li>Início do prazo no primeiro dia útil seguinte à intimação</li>
+                <li>Exclusão do dia de início, inclusão do dia de vencimento</li>
+                <li>Prorrogação para o dia útil seguinte quando vence em dia não útil</li>
+                <li>Suspensão durante recesso forense (20/dez a 20/jan)</li>
+            </ul>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Ao calcular um prazo, você pode salva-lo diretamente como tarefa ou evento no calendario com um clique.
+            </div>
+        </section>
+
+        <!-- 12. Consulta Tribunal -->
+        <section class="manual-section" id="consulta-tribunal" data-search="consulta tribunal datajud busca cnj nome oab">
+            <h2><i class="fas fa-university"></i> 12. Consulta Tribunal</h2>
+
+            <h3>Busca por CNJ</h3>
+            <ol>
+                <li>Acesse <strong>Jurídico &gt; Tribunal</strong> na sidebar</li>
+                <li>Insira o número CNJ completo</li>
+                <li>O sistema consulta a base do DataJud e retorna: classe processual, assunto, partes, movimentações</li>
+            </ol>
+
+            <h3>Busca por Nome</h3>
+            <p>Pesquise processos pelo nome da parte. Util para:</p>
+            <ul>
+                <li>Verificar processos de um potencial cliente</li>
+                <li>Localizar processos não cadastrados no sistema</li>
+            </ul>
+
+            <h3>Busca por OAB</h3>
+            <p>Encontre todos os processos vinculados a um número da OAB. Ideal para:</p>
+            <ul>
+                <li>Monitorar a carteira de processos de um advogado</li>
+                <li>Importar processos em lote para o sistema</li>
+            </ul>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Use a busca por OAB para importar todos os seus processos ativos de uma vez. O sistema cria os registros automaticamente com os dados obtidos do tribunal.
+            </div>
+        </section>
+
+        <!-- 13. Ferramentas -->
+        <section class="manual-section" id="ferramentas" data-search="ferramentas calculadoras trabalhista civel criminal previdenciário tributário bancário">
+            <h2><i class="fas fa-tools"></i> 13. Ferramentas</h2>
+
+            <p>O CaseHub inclui 33 calculadoras jurídicas organizadas por area do direito:</p>
+
+            <h3>Trabalhista</h3>
+            <ul>
+                <li>Cálculo de verbas rescisórias (FGTS, aviso prévio, férias, 13o)</li>
+                <li>Horas extras e adicional noturno</li>
+                <li>Seguro-desemprego</li>
+                <li>Cálculo de insalubridade e periculosidade</li>
+                <li>Prescrição trabalhista</li>
+            </ul>
+
+            <h3>Civel</h3>
+            <ul>
+                <li>Correção monetária (varios índices: IGPM, IPCA, INPC)</li>
+                <li>Juros de mora (simples e compostos)</li>
+                <li>Custas processuais</li>
+                <li>Honorários de sucumbência</li>
+                <li>Danos morais (parametros jurisprudenciais)</li>
+            </ul>
+
+            <h3>Criminal</h3>
+            <ul>
+                <li>Dosimetria da pena</li>
+                <li>Progressao de regime</li>
+                <li>Prescrição penal</li>
+                <li>Detracoes</li>
+            </ul>
+
+            <h3>Previdenciário</h3>
+            <ul>
+                <li>Tempo de contribuição</li>
+                <li>Regras de transição (Reforma)</li>
+                <li>Valor do beneficio (RMI)</li>
+                <li>Revisão da vida toda</li>
+            </ul>
+
+            <h3>Tributário</h3>
+            <ul>
+                <li>IRPF e IRPJ</li>
+                <li>Simples Nacional</li>
+                <li>Multas tributarias</li>
+                <li>Compensacao de tributos</li>
+            </ul>
+
+            <h3>Bancário</h3>
+            <ul>
+                <li>Tabela Price vs. SAC</li>
+                <li>Anatocismo (juros sobre juros)</li>
+                <li>CET (Custo Efetivo Total)</li>
+                <li>Revisional de contrato</li>
+            </ul>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Todas as calculadoras permitem exportar o resultado em PDF para anexar como memorial de cálculo nas peticoes.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Use as calculadoras antes de elaborar pecas processuais. Os resultados podem ser inseridos diretamente nas peticoes geradas pelo modulo de Pecas (secao 14).
+            </div>
+        </section>
+
+        <!-- 14. Pecas Processuais -->
+        <section class="manual-section" id="pecas" data-search="pecas processuais geracao ia export docx petição contestação recurso">
+            <h2><i class="fas fa-file-contract"></i> 14. Pecas Processuais</h2>
+
+            <h3>Tipos de Pecas Disponiveis</h3>
+            <ul>
+                <li>Petição Inicial</li>
+                <li>Contestacao</li>
+                <li>Recurso (Apelacao, Agravo, Embargos)</li>
+                <li>Manifestação</li>
+                <li>Parecer</li>
+                <li>Notificação Extrajudicial</li>
+                <li>Contrato</li>
+                <li>Procuração</li>
+            </ul>
+
+            <h3>Geracao com IA</h3>
+            <ol>
+                <li>Acesse <strong>Jurídico &gt; Pecas</strong> na sidebar</li>
+                <li>Selecione o tipo de peca</li>
+                <li>Preencha os campos obrigatórios (partes, fatos, pedidos)</li>
+                <li>Opcionalmente, vincule a um processo para preencher dados automaticamente</li>
+                <li>Clique em <strong>"Gerar com IA"</strong></li>
+                <li>Revise e edite o texto gerado</li>
+                <li>Exporte em DOCX para finalizacao</li>
+            </ol>
+
+            <h3>Exportacao DOCX</h3>
+            <p>Todas as pecas podem ser exportadas em formato DOCX (compativel com Word e Google Docs) para edicao final e protocolo.</p>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> A IA gera um rascunho com base nos dados fornecidos. Sempre revise e adapte o texto antes de protocolar.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Vincule a peca ao processo para que os dados das partes, numeros e informações sejam preenchidos automaticamente. Isso reduz erros e acelera a produção.
+            </div>
+        </section>
+
+        <!-- 15. Maestro IA -->
+        <section class="manual-section" id="maestro" data-search="maestro ia chat fontes conhecimento personalidade dock mode assistente">
+            <h2><i class="fas fa-robot"></i> 15. Maestro IA</h2>
+
+            <h3>O que e o Maestro?</h3>
+            <p>O Maestro e o assistente de inteligencia artificial integrado ao CaseHub. Ele pode:</p>
+            <ul>
+                <li>Responder perguntas sobre legislacao e jurisprudencia</li>
+                <li>Auxiliar na elaboração de pecas processuais</li>
+                <li>Resumir documentos longos</li>
+                <li>Sugerir estrategias processuais</li>
+                <li>Calcular prazos e valores</li>
+            </ul>
+
+            <h3>Como Usar</h3>
+            <ol>
+                <li>Clique no icone do Maestro na sidebar ou use o atalho no canto inferior</li>
+                <li>Digite sua pergunta ou solicitação no chat</li>
+                <li>O Maestro responde com base em fontes jurídicas atualizadas</li>
+                <li>Voce pode continuar a conversa para refinar a resposta</li>
+            </ol>
+
+            <h3>Fontes de Conhecimento</h3>
+            <p>O Maestro utiliza diversas fontes para suas respostas:</p>
+            <ul>
+                <li>Legislacao brasileira atualizada</li>
+                <li>Jurisprudencia dos tribunais superiores</li>
+                <li>Doutrina jurídica</li>
+                <li>Dados do seu proprio sistema (processos, clientes, prazos)</li>
+            </ul>
+
+            <h3>Dock Mode</h3>
+            <p>Ative o modo dock para manter o Maestro fixo na lateral da tela enquanto trabalha em outras páginas. Ideal para consultas rapidas durante a elaboração de pecas.</p>
+
+            <h3>Personalidade</h3>
+            <p>Nas configurações, você pode ajustar o tom do Maestro:</p>
+            <ul>
+                <li><strong>Formal:</strong> Respostas em linguagem técnica jurídica</li>
+                <li><strong>Casual:</strong> Explicações mais acessíveis</li>
+                <li><strong>Didático:</strong> Respostas detalhadas com exemplos</li>
+            </ul>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Quanto mais especifica a pergunta, melhor a resposta. Em vez de "como funciona prescrição?", pergunte "qual o prazo prescricional para acao de cobrança de divida condominial apos o CC/2002?".
+            </div>
+        </section>
+
+        <!-- 16. CRM (Leads) -->
+        <section class="manual-section" id="crm" data-search="crm leads pipeline scoring stages funil vendas">
+            <h2><i class="fas fa-funnel-dollar"></i> 16. CRM (Leads)</h2>
+
+            <h3>Pipeline de Leads</h3>
+            <p>O CRM permite gerenciar potenciais clientes (leads) em um funil de vendas adaptado para escritórios de advocacia:</p>
+            <ul>
+                <li><strong>Novo Contato:</strong> Lead recem-captado</li>
+                <li><strong>Consulta Agendada:</strong> Reunião marcada</li>
+                <li><strong>Proposta Enviada:</strong> Honorários apresentados</li>
+                <li><strong>Contrato Enviado:</strong> Aguardando assinatura</li>
+                <li><strong>Convertido:</strong> Virou cliente</li>
+                <li><strong>Perdido:</strong> Nao converteu</li>
+            </ul>
+
+            <h3>Lead Scoring</h3>
+            <p>O sistema atribui pontuações automáticas aos leads com base em:</p>
+            <ul>
+                <li>Interações (e-mails abertos, respostas)</li>
+                <li>Valor estimado do caso</li>
+                <li>Urgência da demanda</li>
+                <li>Origem do lead (indicação, site, WhatsApp)</li>
+            </ul>
+
+            <h3>Conversao para Cliente</h3>
+            <p>Ao converter um lead em cliente, todos os dados e histórico de comunicação sao transferidos automaticamente para a ficha do novo cliente.</p>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Leads com score acima de 70 tem alta probabilidade de conversão. Priorize o follow-up nesses contatos.
+            </div>
+        </section>
+
+        <!-- 17. WhatsApp -->
+        <section class="manual-section" id="whatsapp" data-search="whatsapp templates envio status mensagens">
+            <h2><i class="fab fa-whatsapp"></i> 17. WhatsApp</h2>
+
+            <h3>Configuração</h3>
+            <ol>
+                <li>Acesse <strong>WhatsApp</strong> na sidebar</li>
+                <li>Configure a integração com a API do WhatsApp Business</li>
+                <li>Verifique o status da conexão</li>
+            </ol>
+
+            <h3>Templates de Mensagem</h3>
+            <p>Crie modelos de mensagem para comunicações frequentes:</p>
+            <ul>
+                <li>Confirmacao de reunião</li>
+                <li>Solicitação de documentos</li>
+                <li>Atualizacao de processo</li>
+                <li>Lembrete de pagamento</li>
+            </ul>
+
+            <h3>Envio de Mensagens</h3>
+            <p>Envie mensagens diretamente da ficha do cliente ou do processo. O histórico de conversas fica registrado no sistema.</p>
+
+            <h3>Status e Monitoramento</h3>
+            <p>Acompanhe o status de cada mensagem enviada: entregue, lida, respondida. Mensagens não lidas por mais de 24h geram alertas.</p>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Templates aprovados pelo WhatsApp Business podem ser usados para iniciar conversas. Mensagens livres so podem ser enviadas dentro da janela de 24h apos a ultima mensagem do cliente.
+            </div>
+        </section>
+
+        <!-- 18. Relatórios -->
+        <section class="manual-section" id="relatórios" data-search="relatórios charts export graficos produtividade financeiro">
+            <h2><i class="fas fa-chart-bar"></i> 18. Relatórios</h2>
+
+            <h3>Tipos de Relatórios</h3>
+            <ul>
+                <li><strong>Produtividade:</strong> Horas trabalhadas por advogado, tarefas concluidas</li>
+                <li><strong>Financeiro:</strong> Receita, inadimplencia, faturamento por período</li>
+                <li><strong>Processos:</strong> Status, tipos de acao, tribunais, durações medias</li>
+                <li><strong>Clientes:</strong> Novos clientes, taxa de retencao, segmentacao</li>
+                <li><strong>Prazos:</strong> Conformidade, prazos cumpridos vs. perdidos</li>
+            </ul>
+
+            <h3>Graficos e Visualizacao</h3>
+            <p>Cada relatório inclui graficos interativos (barras, linhas, pizza) que facilitam a análise visual dos dados.</p>
+
+            <h3>Exportacao</h3>
+            <p>Todos os relatórios podem ser exportados em:</p>
+            <ul>
+                <li>PDF (para apresentacao)</li>
+                <li>Excel (para análise detalhada)</li>
+                <li>CSV (para importacao em outros sistemas)</li>
+            </ul>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Gere o relatório financeiro no início de cada mes para acompanhar a saude do escritório. Compare com meses anteriores para identificar tendencias.
+            </div>
+        </section>
+
+        <!-- 19. Importacao -->
+        <section class="manual-section" id="importacao" data-search="importacao csv excel mapeamento templates dados">
+            <h2><i class="fas fa-file-import"></i> 19. Importacao de Dados</h2>
+
+            <h3>Importacao CSV/Excel</h3>
+            <ol>
+                <li>Acesse <strong>Admin &gt; Importar Dados</strong></li>
+                <li>Selecione o tipo de dados (clientes, processos, contatos)</li>
+                <li>Faca upload do arquivo CSV ou Excel</li>
+                <li>Mapeie as colunas do arquivo para os campos do sistema</li>
+                <li>Visualize o preview dos dados antes de confirmar</li>
+                <li>Clique em <strong>"Importar"</strong></li>
+            </ol>
+
+            <h3>Templates de Importacao</h3>
+            <p>Baixe modelos de planilha ja formatados para cada tipo de dado. Isso garante que os campos estejam no formato correto:</p>
+            <ul>
+                <li>Template de Clientes</li>
+                <li>Template de Processos</li>
+                <li>Template de Contatos</li>
+            </ul>
+
+            <h3>Mapeamento de Campos</h3>
+            <p>O sistema tenta mapear automaticamente as colunas do arquivo, mas você pode ajustar manualmente. Campos obrigatórios sao destacados.</p>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Antes de importar um volume grande de dados, faca um teste com 5-10 registros para validar o mapeamento.
+            </div>
+        </section>
+
+        <!-- 20. Configurações -->
+        <section class="manual-section" id="configuracoes" data-search="configurações aparencia sidebar widgets integrações numeracao tema">
+            <h2><i class="fas fa-cog"></i> 20. Configurações</h2>
+
+            <h3>Aparência</h3>
+            <ul>
+                <li><strong>Tema:</strong> Claro ou escuro</li>
+                <li><strong>Cor principal:</strong> Personalize a cor do sistema com as cores do escritório</li>
+                <li><strong>Logo:</strong> Faca upload do logo do escritório</li>
+                <li><strong>Favicon:</strong> Personalize o icone da aba do navegador</li>
+            </ul>
+
+            <h3>Sidebar</h3>
+            <p>Personalize quais itens aparecem na sidebar e a ordem em que sao exibidos. Cada usuário pode ter sua propria configuração.</p>
+
+            <h3>Widgets do Dashboard</h3>
+            <p>Escolha quais widgets aparecem no painel principal e defina a ordem de exibicao.</p>
+
+            <h3>Integrações</h3>
+            <ul>
+                <li><strong>Google Calendar:</strong> Sincronizacao de agenda</li>
+                <li><strong>Google Drive:</strong> Armazenamento de documentos</li>
+                <li><strong>WhatsApp Business:</strong> Comunicação com clientes</li>
+                <li><strong>E-mail (IMAP/SMTP):</strong> Envio e recebimento de e-mails</li>
+            </ul>
+
+            <h3>Numeracao</h3>
+            <p>Configure a numeracao automática de faturas, protocolos e documentos gerados pelo sistema.</p>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Personalize o sistema com o logo e as cores do escritório nas Configurações &gt; Aparência. Isso da um aspecto profissional e reforça a identidade visual do escritório.
+            </div>
+        </section>
+
+        <!-- 21. Administração -->
+        <section class="manual-section" id="administração" data-search="administração usuários cargos permissoes controle acesso">
+            <h2><i class="fas fa-shield-alt"></i> 21. Administracao</h2>
+
+            <h3>Gestao de Usuários</h3>
+            <ol>
+                <li>Acesse <strong>Admin &gt; Usuários</strong></li>
+                <li>Clique em <strong>"+ Novo Usuário"</strong></li>
+                <li>Informe nome, e-mail e cargo</li>
+                <li>Uma senha temporaria sera gerada automaticamente</li>
+                <li>O usuário devera trocar a senha no primeiro acesso</li>
+            </ol>
+
+            <h3>Cargos e Permissoes</h3>
+            <p>O sistema possui niveis de acesso predefinidos:</p>
+            <ul>
+                <li><strong>Administrador:</strong> Acesso total ao sistema</li>
+                <li><strong>Advogado:</strong> Acesso a processos, clientes, documentos, tarefas</li>
+                <li><strong>Estagiario:</strong> Acesso limitado (somente visualização em areas sensiveis)</li>
+                <li><strong>Financeiro:</strong> Acesso a faturamento, cobranças e relatórios financeiros</li>
+                <li><strong>Secretaria:</strong> Acesso a clientes, agenda e comunicações</li>
+            </ul>
+
+            <h3>Controle de Acesso</h3>
+            <p>Cada permissao pode ser ajustada individualmente. Voce pode:</p>
+            <ul>
+                <li>Permitir ou bloquear acesso a modulos especificos</li>
+                <li>Definir permissoes de leitura vs. edicao</li>
+                <li>Restringir acesso a dados financeiros</li>
+                <li>Ativar/desativar usuários sem excluir seus dados</li>
+            </ul>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Siga o principio do menor privilegio: de a cada usuário apenas as permissoes necessarias para sua funcao.
+            </div>
+        </section>
+
+        <!-- 22. Split Screen -->
+        <section class="manual-section" id="split-screen" data-search="split screen modo dividido duas telas">
+            <h2><i class="fas fa-columns"></i> 22. Split Screen</h2>
+
+            <h3>O que e o Split Screen?</h3>
+            <p>O modo Split Screen permite visualizar duas páginas do sistema lado a lado na mesma tela. Ideal para:</p>
+            <ul>
+                <li>Comparar dados de dois processos</li>
+                <li>Redigir uma peca enquanto consulta a legislacao no Maestro</li>
+                <li>Preencher dados de um cliente enquanto visualiza documentos</li>
+            </ul>
+
+            <h3>Como Ativar</h3>
+            <ol>
+                <li>Clique com o botao direito em qualquer link da sidebar</li>
+                <li>Selecione <strong>"Abrir em Split Screen"</strong></li>
+                <li>A tela sera dividida em dois paineis</li>
+                <li>Arraste a divisoria central para ajustar o tamanho de cada painel</li>
+            </ol>
+
+            <h3>Como Desativar</h3>
+            <p>Clique no icone de fechar (X) em um dos paineis ou pressione <kbd>Esc</kbd> para voltar a visualização normal.</p>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Use Split Screen com o Maestro fixo em um lado para tirar duvidas enquanto trabalha em pecas ou processos no outro.
+            </div>
+        </section>
+
+        <!-- 23. Atalhos -->
+        <section class="manual-section" id="atalhos" data-search="atalhos dicas truques teclado produtividade">
+            <h2><i class="fas fa-keyboard"></i> 23. Atalhos e Dicas</h2>
+
+            <h3>Atalhos do Teclado</h3>
+            <ul>
+                <li><kbd>Ctrl</kbd> + <kbd>K</kbd> &mdash; Busca global rapida</li>
+                <li><kbd>Ctrl</kbd> + <kbd>N</kbd> &mdash; Novo registro (no contexto atual)</li>
+                <li><kbd>Ctrl</kbd> + <kbd>S</kbd> &mdash; Salvar formulário</li>
+                <li><kbd>Esc</kbd> &mdash; Fechar modal/painel</li>
+                <li><kbd>?</kbd> &mdash; Mostrar atalhos disponiveis</li>
+            </ul>
+
+            <h3>Dicas de Produtividade</h3>
+            <ul>
+                <li><strong>Busca Global:</strong> Use <kbd>Ctrl</kbd> + <kbd>K</kbd> para encontrar qualquer cliente, processo ou tarefa rapidamente</li>
+                <li><strong>Favoritos:</strong> Marque processos frequentes como favoritos para acesso rapido</li>
+                <li><strong>Notificações:</strong> Configure lembretes por e-mail ou push para prazos importantes</li>
+                <li><strong>Templates:</strong> Crie templates de tarefas para fluxos repetitivos</li>
+                <li><strong>Tags:</strong> Use tags consistentes para organizar e filtrar dados eficientemente</li>
+            </ul>
+
+            <h3>Suporte</h3>
+            <p>Em caso de duvidas ou problemas:</p>
+            <ul>
+                <li>Use o Maestro IA para perguntas sobre o sistema</li>
+                <li>Clique em <strong>"Ver Tutorial"</strong> na sidebar para refazer o tour guiado</li>
+                <li>Contate o administrador do sistema</li>
+            </ul>
+
+            <div class="tip-card">
+                <strong>Dica:</strong> Dedique 5 minutos por semana para explorar uma funcionalidade que você ainda não usa. O CaseHub tem muitos recursos que podem otimizar significativamente o fluxo de trabalho do escritório.
+            </div>
+
+            <div class="maestro-box">
+                <strong>Dica do Maestro:</strong> Pergunte-me qualquer coisa! "Como calcular prescrição trabalhista?", "Monte uma petição inicial de cobrança", "Quais prazos vencem esta semana?" - estou aqui para ajudar.
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+// TOC active state on scroll
+(function() {
+    const sections = document.querySelectorAll('.manual-section');
+    const tocLinks = document.querySelectorAll('.manual-toc a');
+
+    function updateActive() {
+        let currentId = '';
+        sections.forEach(function(section) {
+            const rect = section.getBoundingClientRect();
+            if (rect.top <= 120) {
+                currentId = section.id;
+            }
+        });
+        tocLinks.forEach(function(link) {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === '#' + currentId) {
+                link.classList.add('active');
+            }
+        });
+    }
+
+    window.addEventListener('scroll', updateActive);
+    updateActive();
+
+    // Smooth scroll for TOC links
+    tocLinks.forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var targetId = this.getAttribute('href').substring(1);
+            var target = document.getElementById(targetId);
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+})();
+
+// Search/filter functionality
+function filterManualSections(query) {
+    var sections = document.querySelectorAll('.manual-section');
+    var q = query.toLowerCase().trim();
+    sections.forEach(function(section) {
+        if (!q) {
+            section.style.display = '';
+            return;
+        }
+        var searchData = (section.getAttribute('data-search') || '') + ' ' + section.textContent;
+        if (searchData.toLowerCase().indexOf(q) !== -1) {
+            section.style.display = '';
+        } else {
+            section.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

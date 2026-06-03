@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} {% if product == "lite" %}Usuário{% else %}User{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/admin-user-form.css">
+{% endblock %}
+
+{% block content %}
+<main class="admin-user-form-main" role="main" aria-labelledby="admin-user-form-title">
+    <header class="admin-user-form-header">
+        <a href="{{ PREFIX }}/admin/users" class="admin-user-form-back">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Voltar{% else %}Back{% endif %}</span>
+        </a>
+        <h1 id="admin-user-form-title" class="admin-user-form-title">
+            <i class="fas fa-user-{% if edit_user %}edit{% else %}plus{% endif %} admin-user-form-title-icon" aria-hidden="true"></i>
+            <span>{{ action }} {% if product == "lite" %}Usuário{% else %}User{% endif %}</span>
+        </h1>
+    </header>
+
+    <form method="post" action="{% if edit_user %}{{ PREFIX }}/admin/users/{{ edit_user.id }}/edit{% else %}{{ PREFIX }}/admin/users/new{% endif %}">
+        <section class="admin-user-form-card" aria-labelledby="admin-user-form-card-title">
+            <header id="admin-user-form-card-title" class="admin-user-form-card-header">
+                <i class="fas fa-user" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Dados do Usuário{% else %}User Details{% endif %}</span>
+            </header>
+            <div class="admin-user-form-card-body">
+                <div class="admin-user-form-field">
+                    <label for="admin-user-form-name" class="admin-user-form-label">
+                        {% if product == "lite" %}Nome{% else %}Name{% endif %}<span class="admin-user-form-required" aria-hidden="true">*</span>
+                    </label>
+                    <input type="text"
+                           id="admin-user-form-name"
+                           name="name"
+                           class="admin-user-form-input"
+                           value="{{ edit_user.name if edit_user else '' }}"
+                           autocomplete="name"
+                           required>
+                </div>
+
+                <div class="admin-user-form-field">
+                    <label for="admin-user-form-email" class="admin-user-form-label">
+                        Email<span class="admin-user-form-required" aria-hidden="true">*</span>
+                    </label>
+                    <input type="email"
+                           id="admin-user-form-email"
+                           name="email"
+                           class="admin-user-form-input"
+                           value="{{ edit_user.email if edit_user else '' }}"
+                           autocomplete="email"
+                           required>
+                </div>
+
+                <div class="admin-user-form-field">
+                    <label for="admin-user-form-password" class="admin-user-form-label">
+                        {% if product == "lite" %}Senha{% else %}Password{% endif %}{% if not edit_user %}<span class="admin-user-form-required" aria-hidden="true">*</span>{% endif %}
+                    </label>
+                    <input type="password"
+                           id="admin-user-form-password"
+                           name="password"
+                           class="admin-user-form-input"
+                           autocomplete="new-password"
+                           placeholder="{% if edit_user %}{% if product == 'lite' %}Deixe em branco para manter a atual{% else %}Leave blank to keep current{% endif %}{% endif %}"
+                           {% if not edit_user %}required{% endif %}>
+                </div>
+
+                <div class="admin-user-form-field">
+                    <label for="admin-user-form-user-type" class="admin-user-form-label">
+                        {% if product == "lite" %}Tipo de Usuário{% else %}User Type{% endif %}
+                    </label>
+                    <select id="admin-user-form-user-type" name="user_type" class="admin-user-form-select">
+                        {% if product == "lite" %}
+                        <option value="assistant" {% if edit_user and edit_user.user_type == 'assistant' %}selected{% endif %}>Assistente</option>
+                        <option value="paralegal" {% if edit_user and edit_user.user_type == 'paralegal' %}selected{% endif %}>Estagiário</option>
+                        <option value="attorney" {% if edit_user and edit_user.user_type == 'attorney' %}selected{% endif %}>Advogado</option>
+                        <option value="admin" {% if edit_user and edit_user.user_type == 'admin' %}selected{% endif %}>Administrador</option>
+                        {% if user and user.user_type == 'superadmin' %}
+                        <option value="superadmin" {% if edit_user and edit_user.user_type == 'superadmin' %}selected{% endif %}>Superadmin</option>
+                        {% endif %}
+                        {% else %}
+                        <option value="case_worker" {% if edit_user and edit_user.user_type == 'case_worker' %}selected{% endif %}>Case Worker</option>
+                        <option value="paralegal" {% if edit_user and edit_user.user_type == 'paralegal' %}selected{% endif %}>Paralegal</option>
+                        <option value="attorney" {% if edit_user and edit_user.user_type == 'attorney' %}selected{% endif %}>Attorney</option>
+                        <option value="admin" {% if edit_user and edit_user.user_type == 'admin' %}selected{% endif %}>Admin</option>
+                        {% endif %}
+                    </select>
+                </div>
+
+                {% if edit_user %}
+                <div class="admin-user-form-checkbox-field">
+                    <input type="hidden" name="enabled" value="false">
+                    <input type="checkbox"
+                           id="admin-user-form-enabled"
+                           name="enabled"
+                           value="true"
+                           class="admin-user-form-checkbox"
+                           {% if edit_user.enabled %}checked{% endif %}>
+                    <label for="admin-user-form-enabled" class="admin-user-form-checkbox-label">
+                        {% if product == "lite" %}Conta Ativa{% else %}Account Enabled{% endif %}
+                    </label>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <div class="admin-user-form-actions">
+            <button type="submit" class="admin-user-form-btn admin-user-form-btn--primary">
+                <i class="fas fa-save" aria-hidden="true"></i>
+                <span>{{ action }} {% if product == "lite" %}Usuário{% else %}User{% endif %}</span>
+            </button>
+            <a href="{{ PREFIX }}/admin/users" class="admin-user-form-btn admin-user-form-btn--ghost">
+                <span>{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</span>
+            </a>
+        </div>
+    </form>
+</main>
+{% endblock %}

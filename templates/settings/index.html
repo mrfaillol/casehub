@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product == "lite" %}Configurações{% else %}Application Settings{% endif %}{% endblock %}
+
+{% block extra_css %}
+{% if product != "lite" %}
+<link rel="stylesheet" href="/static/css/templates/settings-index.css">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="settings-index-main" aria-labelledby="settings-index-title">
+    <header class="settings-index-header">
+        <h1 id="settings-index-title" class="settings-index-title">
+            <i class="fas fa-cog settings-index-title-icon" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Configurações{% else %}Application Settings{% endif %}</span>
+        </h1>
+    </header>
+
+    <div class="settings-index-grid">
+        <!-- Numbering Settings -->
+        <section class="settings-index-card" aria-labelledby="settings-card-numbering">
+            <header class="settings-index-card-header">
+                <i class="fas fa-hashtag settings-index-card-header-icon settings-index-card-header-icon--accent" aria-hidden="true"></i>
+                <h2 id="settings-card-numbering" class="settings-index-card-title">{% if product == "lite" %}Numeração Automática{% else %}Auto-Numbering{% endif %}</h2>
+            </header>
+            <div class="settings-index-card-body">
+                <p class="settings-index-card-description">
+                    {% if product == "lite" %}Configure os formatos de numeração automática para processos e clientes.{% else %}Configure automatic numbering formats for cases and clients.{% endif %}
+                </p>
+                <dl class="settings-index-meta">
+                    <div class="settings-index-meta-row">
+                        <dt class="settings-index-meta-term">{% if product == "lite" %}Formato de Processo{% else %}Case Format{% endif %}</dt>
+                        <dd class="settings-index-meta-value">
+                            <code class="settings-index-code">{{ numbering.case_format }}</code>
+                            <span class="settings-index-arrow" aria-hidden="true">&rarr;</span>
+                            <span class="settings-index-badge">{{ preview_case }}</span>
+                        </dd>
+                    </div>
+                    <div class="settings-index-meta-row">
+                        <dt class="settings-index-meta-term">{% if product == "lite" %}Formato de Cliente{% else %}Client Format{% endif %}</dt>
+                        <dd class="settings-index-meta-value">
+                            <code class="settings-index-code">{{ numbering.client_format }}</code>
+                            <span class="settings-index-arrow" aria-hidden="true">&rarr;</span>
+                            <span class="settings-index-badge">{{ preview_client }}</span>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+            <footer class="settings-index-card-footer">
+                <a href="{{ PREFIX }}/settings/numbering" class="settings-index-button settings-index-button--primary">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Configurar{% else %}Configure{% endif %}</span>
+                </a>
+            </footer>
+        </section>
+
+        <!-- Email Settings -->
+        <section class="settings-index-card" aria-labelledby="settings-card-email">
+            <header class="settings-index-card-header">
+                <i class="fas fa-envelope settings-index-card-header-icon settings-index-card-header-icon--info" aria-hidden="true"></i>
+                <h2 id="settings-card-email" class="settings-index-card-title">{% if product == "lite" %}Configurações de E-mail{% else %}Email Settings{% endif %}</h2>
+            </header>
+            <div class="settings-index-card-body">
+                <p class="settings-index-card-description">
+                    {% if product == "lite" %}Configure o servidor SMTP para envio de notificações por e-mail.{% else %}Configure SMTP settings for email notifications.{% endif %}
+                </p>
+                <p class="settings-index-card-note">
+                    {% if product == "lite" %}Servidor SMTP, templates e preferências de notificação.{% else %}SMTP server, templates, and notification preferences.{% endif %}
+                </p>
+            </div>
+            <footer class="settings-index-card-footer">
+                <a href="{{ PREFIX }}/emails/settings" class="settings-index-button settings-index-button--primary">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Configurar{% else %}Configure{% endif %}</span>
+                </a>
+            </footer>
+        </section>
+
+        <!-- WhatsApp Settings -->
+        <section class="settings-index-card" aria-labelledby="settings-card-whatsapp">
+            <header class="settings-index-card-header">
+                <i class="fab fa-whatsapp settings-index-card-header-icon settings-index-card-header-icon--success" aria-hidden="true"></i>
+                <h2 id="settings-card-whatsapp" class="settings-index-card-title">{% if product == "lite" %}Configurações de WhatsApp{% else %}WhatsApp{% endif %}</h2>
+            </header>
+            <div class="settings-index-card-body">
+                <p class="settings-index-card-description">
+                    {% if product == "lite" %}Configure a conexão do bot de WhatsApp para comunicação com clientes.{% else %}Configure WhatsApp integration for client messaging.{% endif %}
+                </p>
+                <p class="settings-index-card-note">
+                    {% if product == "lite" %}Conexão do bot, modelos de mensagem e notificações automáticas.{% else %}API settings and message templates.{% endif %}
+                </p>
+            </div>
+            <footer class="settings-index-card-footer">
+                <a href="{{ PREFIX }}/whatsapp" class="settings-index-button settings-index-button--primary">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Configurar{% else %}Configure{% endif %}</span>
+                </a>
+            </footer>
+        </section>
+
+        <!-- Backup & Security -->
+        <section class="settings-index-card" aria-labelledby="settings-card-security">
+            <header class="settings-index-card-header">
+                <i class="fas fa-shield-alt settings-index-card-header-icon settings-index-card-header-icon--warning" aria-hidden="true"></i>
+                <h2 id="settings-card-security" class="settings-index-card-title">{% if product == "lite" %}Backup e Segurança{% else %}Backups &amp; Security{% endif %}</h2>
+            </header>
+            <div class="settings-index-card-body">
+                <p class="settings-index-card-description">
+                    {% if product == "lite" %}Gerencie backups automáticos e configurações de segurança.{% else %}Configure automatic backup and security settings.{% endif %}
+                </p>
+                {% if product == "lite" %}
+                <ul class="settings-index-feature-list settings-index-feature-list--plain">
+                    <li>Backups diários habilitados por padrão</li>
+                    <li>Criptografia de dados em trânsito (TLS)</li>
+                    <li>Autenticação de dois fatores (2FA)</li>
+                    <li>Controle de acesso por perfil</li>
+                </ul>
+                {% else %}
+                <p class="settings-index-card-note">Daily backups are enabled by default. 2FA and access controls available.</p>
+                {% endif %}
+            </div>
+            <footer class="settings-index-card-footer">
+                <a href="{{ PREFIX }}/2fa/setup" class="settings-index-button settings-index-button--primary">
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Configurar 2FA{% else %}2FA Setup{% endif %}</span>
+                </a>
+                <a href="{{ PREFIX }}/admin" class="settings-index-button">
+                    <i class="fas fa-cog" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Painel Admin{% else %}Admin Panel{% endif %}</span>
+                </a>
+            </footer>
+        </section>
+
+        <!-- Integrations -->
+        <section class="settings-index-card" aria-labelledby="settings-card-integrations">
+            <header class="settings-index-card-header">
+                <i class="fas fa-plug settings-index-card-header-icon" aria-hidden="true"></i>
+                <h2 id="settings-card-integrations" class="settings-index-card-title">{% if product == "lite" %}Integrações{% else %}Integrations{% endif %}</h2>
+            </header>
+            <div class="settings-index-card-body">
+                {% if product == "lite" %}
+                <p class="settings-index-card-description">Conecte serviços externos para ampliar as funcionalidades do sistema.</p>
+                <ul class="settings-index-feature-list">
+                    <li><i class="fab fa-google-drive" aria-hidden="true"></i>Google Drive — armazenamento de documentos</li>
+                    <li><i class="fas fa-calendar-alt" aria-hidden="true"></i>Google Calendar — agenda de prazos</li>
+                    <li><i class="fas fa-gavel" aria-hidden="true"></i>DataJud — consulta processual</li>
+                    <li><i class="fas fa-search" aria-hidden="true"></i>Escavador — pesquisa jurídica</li>
+                </ul>
+                {% else %}
+                <p class="settings-index-card-description">Connect external services and APIs.</p>
+                <ul class="settings-index-feature-list settings-index-feature-list--plain">
+                    <li>Google Drive &mdash; document storage</li>
+                    <li>Google Calendar &mdash; deadline tracking</li>
+                    <li>Twilio / CallHippo &mdash; telephony</li>
+                    <li>Notion &mdash; knowledge base</li>
+                    <li>API &amp; Webhooks</li>
+                </ul>
+                {% endif %}
+            </div>
+            <footer class="settings-index-card-footer">
+                <a href="{{ PREFIX }}/integrations" class="settings-index-button settings-index-button--primary">
+                    <i class="fas fa-plug" aria-hidden="true"></i>
+                    <span>{% if product == "lite" %}Gerenciar Integrações{% else %}Manage Integrations{% endif %}</span>
+                </a>
+                {% if product != "lite" %}
+                <a href="{{ PREFIX }}/api/docs" class="settings-index-button">
+                    <i class="fas fa-book" aria-hidden="true"></i>
+                    <span>API Docs</span>
+                </a>
+                {% endif %}
+            </footer>
+        </section>
+
+        {% if product != "lite" %}
+        <!-- Telephony (Immigration only) -->
+        <section class="settings-index-card" aria-labelledby="settings-card-telephony">
+            <header class="settings-index-card-header">
+                <i class="fas fa-phone settings-index-card-header-icon" aria-hidden="true"></i>
+                <h2 id="settings-card-telephony" class="settings-index-card-title">Telephony</h2>
+            </header>
+            <div class="settings-index-card-body">
+                <p class="settings-index-card-description">Configure Twilio and CallHippo for phone integration.</p>
+                <p class="settings-index-card-note">Call tracking, SMS notifications, and VoIP settings.</p>
+            </div>
+            <footer class="settings-index-card-footer">
+                <a href="{{ PREFIX }}/settings/telephony" class="settings-index-button settings-index-button--primary">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
+                    <span>Configure</span>
+                </a>
+            </footer>
+        </section>
+
+        <!-- Notion (Immigration only) -->
+        <section class="settings-index-card" aria-labelledby="settings-card-notion">
+            <header class="settings-index-card-header">
+                <i class="fas fa-book settings-index-card-header-icon" aria-hidden="true"></i>
+                <h2 id="settings-card-notion" class="settings-index-card-title">Notion</h2>
+            </header>
+            <div class="settings-index-card-body">
+                <p class="settings-index-card-description">Connect Notion for knowledge base and documentation sync.</p>
+                <p class="settings-index-card-note">Sync case notes and templates with Notion workspace.</p>
+            </div>
+            <footer class="settings-index-card-footer">
+                <a href="{{ PREFIX }}/settings/notion" class="settings-index-button settings-index-button--primary">
+                    <i class="fas fa-edit" aria-hidden="true"></i>
+                    <span>Configure</span>
+                </a>
+            </footer>
+        </section>
+
+        <!-- API & Webhooks (Immigration only) -->
+        <section class="settings-index-card" aria-labelledby="settings-card-api">
+            <header class="settings-index-card-header">
+                <i class="fas fa-code settings-index-card-header-icon" aria-hidden="true"></i>
+                <h2 id="settings-card-api" class="settings-index-card-title">API &amp; Webhooks</h2>
+            </header>
+            <div class="settings-index-card-body">
+                <p class="settings-index-card-description">Configure API access and webhook endpoints.</p>
+                <p class="settings-index-card-note">API documentation and webhook management.</p>
+            </div>
+            <footer class="settings-index-card-footer">
+                <a href="{{ PREFIX }}/api/docs" class="settings-index-button settings-index-button--primary">
+                    <i class="fas fa-book" aria-hidden="true"></i>
+                    <span>API Docs</span>
+                </a>
+            </footer>
+        </section>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

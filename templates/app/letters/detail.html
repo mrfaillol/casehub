@@ -1,0 +1,139 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Letters · Detail · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/letters-detail.css">
+{% endblock %}
+{% block content %}
+<section class="letters-detail-main" aria-labelledby="letters-detail-title">
+    <header class="letters-detail-header">
+        <div class="letters-detail-header-info">
+            <a href="{{ PREFIX }}/letters" class="letters-detail-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Back to Templates</span>
+            </a>
+            <h1 id="letters-detail-title" class="letters-detail-title">
+                <i class="fas fa-file-alt" aria-hidden="true"></i>
+                <span>{{ template.name }}</span>
+            </h1>
+            {% if template.description %}
+            <p class="letters-detail-description">{{ template.description }}</p>
+            {% endif %}
+        </div>
+
+        <div class="letters-detail-actions" role="toolbar" aria-label="Template actions">
+            <a href="{{ PREFIX }}/letters/{{ template.id }}/generate" class="letters-detail-btn letters-detail-btn--primary">
+                <i class="fas fa-magic" aria-hidden="true"></i>
+                <span>Generate Letter</span>
+            </a>
+            <a href="{{ PREFIX }}/letters/{{ template.id }}/edit" class="letters-detail-btn letters-detail-btn--ghost">
+                <i class="fas fa-edit" aria-hidden="true"></i>
+                <span>Edit</span>
+            </a>
+        </div>
+    </header>
+
+    <div class="letters-detail-grid">
+        <section class="letters-detail-card" aria-labelledby="letters-detail-preview-title">
+            <h2 id="letters-detail-preview-title" class="letters-detail-card-header">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+                <span>Template Preview</span>
+            </h2>
+            <div class="letters-detail-card-body">
+                {% if template.subject %}
+                <div class="letters-detail-field">
+                    <span class="letters-detail-field-label" id="letters-detail-subject-label">Subject</span>
+                    <div class="letters-detail-subject" aria-labelledby="letters-detail-subject-label">{{ template.subject }}</div>
+                </div>
+                {% endif %}
+
+                <div class="letters-detail-field">
+                    <span class="letters-detail-field-label" id="letters-detail-body-label">Body</span>
+                    <pre class="letters-detail-body" aria-labelledby="letters-detail-body-label">{{ template.body }}</pre>
+                </div>
+            </div>
+        </section>
+
+        <aside class="letters-detail-sidebar" aria-label="Template details">
+            <section class="letters-detail-card" aria-labelledby="letters-detail-info-title">
+                <h2 id="letters-detail-info-title" class="letters-detail-card-header">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <span>Template Info</span>
+                </h2>
+                <div class="letters-detail-card-body">
+                    <dl class="letters-detail-info">
+                        <div class="letters-detail-info-row">
+                            <dt class="letters-detail-info-term">Category</dt>
+                            <dd class="letters-detail-info-value">
+                                {% if template.category %}
+                                <span class="letters-detail-badge letters-detail-badge--info">{{ template.category|replace('_', ' ')|title }}</span>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </dd>
+                        </div>
+                        <div class="letters-detail-info-row">
+                            <dt class="letters-detail-info-term">Status</dt>
+                            <dd class="letters-detail-info-value">
+                                {% if template.is_active %}
+                                <span class="letters-detail-badge letters-detail-badge--success">Active</span>
+                                {% else %}
+                                <span class="letters-detail-badge letters-detail-badge--muted">Inactive</span>
+                                {% endif %}
+                            </dd>
+                        </div>
+                        <div class="letters-detail-info-row">
+                            <dt class="letters-detail-info-term">Created By</dt>
+                            <dd class="letters-detail-info-value">{{ template.created_by_name or 'System' }}</dd>
+                        </div>
+                        <div class="letters-detail-info-row">
+                            <dt class="letters-detail-info-term">Created</dt>
+                            <dd class="letters-detail-info-value letters-detail-info-value--mono">{{ template.created_at.strftime('%Y-%m-%d') if template.created_at else '—' }}</dd>
+                        </div>
+                        <div class="letters-detail-info-row">
+                            <dt class="letters-detail-info-term">Last Updated</dt>
+                            <dd class="letters-detail-info-value letters-detail-info-value--mono">{{ template.updated_at.strftime('%Y-%m-%d') if template.updated_at else '—' }}</dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+
+            <section class="letters-detail-card" aria-labelledby="letters-detail-variables-title">
+                <h2 id="letters-detail-variables-title" class="letters-detail-card-header">
+                    <i class="fas fa-code" aria-hidden="true"></i>
+                    <span>Variables ({{ template.variables_list|length if template.variables_list else 0 }})</span>
+                </h2>
+                <div class="letters-detail-card-body">
+                    {% if template.variables_list %}
+                    <ul class="letters-detail-variables">
+                        {% for var in template.variables_list %}
+                        <li class="letters-detail-variable"><code>{{ var }}</code></li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="letters-detail-empty">No variables</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="letters-detail-card letters-detail-card--danger" aria-labelledby="letters-detail-danger-title">
+                <h2 id="letters-detail-danger-title" class="letters-detail-card-header">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    <span>Danger Zone</span>
+                </h2>
+                <div class="letters-detail-card-body">
+                    <form class="letters-detail-danger-form" action="{{ PREFIX }}/letters/{{ template.id }}/delete" method="POST">
+                        <button type="submit" class="letters-detail-btn letters-detail-btn--danger" onclick="return confirm('Delete this template?');">
+                            <i class="fas fa-trash" aria-hidden="true"></i>
+                            <span>Delete Template</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+        </aside>
+    </div>
+</section>
+{% endblock %}
+{% block extra_js %}
+
+{% endblock %}

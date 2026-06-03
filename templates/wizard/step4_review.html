@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Case Wizard - Step 4: Review & Create{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/wizard-step4-review.css">
+{% endblock %}
+
+{% block content %}
+{% set priority_colors = {'low': 'neutral', 'medium': 'info', 'high': 'warning', 'urgent': 'danger'} %}
+<main class="wizard-step4-main" aria-labelledby="wizard-step4-title">
+    <section class="wizard-step4-progress" aria-labelledby="wizard-step4-progress-title">
+        <header class="wizard-step4-progress-header">
+            <h1 id="wizard-step4-progress-title" class="wizard-step4-progress-title">Case Creation Wizard</h1>
+            <span class="wizard-step4-progress-counter">Step {{ step }} of {{ total_steps }}</span>
+        </header>
+        <div class="wizard-step4-progress-track" role="progressbar"
+             aria-valuenow="{{ step }}" aria-valuemin="0" aria-valuemax="{{ total_steps }}"
+             aria-label="Wizard progress">
+            <div class="wizard-step4-progress-fill" style="width: 100%;"></div>
+        </div>
+        <ol class="wizard-step4-progress-steps">
+            <li class="wizard-step4-progress-step">1. Client</li>
+            <li class="wizard-step4-progress-step">2. Case Type</li>
+            <li class="wizard-step4-progress-step">3. Parties</li>
+            <li class="wizard-step4-progress-step">4. Review</li>
+        </ol>
+    </section>
+
+    <div class="wizard-step4-grid">
+        <section class="wizard-step4-card" aria-labelledby="wizard-step4-title">
+            <header class="wizard-step4-card-header wizard-step4-card-header--accent">
+                <h2 id="wizard-step4-title" class="wizard-step4-card-title">
+                    <i class="fas fa-clipboard-check" aria-hidden="true"></i>
+                    <span>Review Your Case</span>
+                </h2>
+            </header>
+            <div class="wizard-step4-card-body">
+                <div class="wizard-step4-sections">
+                    <section class="wizard-step4-section" aria-labelledby="wizard-step4-client-title">
+                        <h3 id="wizard-step4-client-title" class="wizard-step4-section-title">
+                            <i class="fas fa-user wizard-step4-section-title-icon" aria-hidden="true"></i>
+                            <span>Client Information</span>
+                        </h3>
+                        <dl class="wizard-step4-dl">
+                            <dt>Name</dt>
+                            <dd data-variant="strong">{{ client.first_name }} {{ client.middle_name or '' }} {{ client.last_name }}</dd>
+
+                            <dt>Email</dt>
+                            {% if client.email %}
+                            <dd>{{ client.email }}</dd>
+                            {% else %}
+                            <dd data-state="empty">Not provided</dd>
+                            {% endif %}
+
+                            <dt>Phone</dt>
+                            {% if client.phone %}
+                            <dd>{{ client.phone }}</dd>
+                            {% else %}
+                            <dd data-state="empty">Not provided</dd>
+                            {% endif %}
+
+                            <dt>Country</dt>
+                            {% if client.country_of_origin %}
+                            <dd>{{ client.country_of_origin }}</dd>
+                            {% else %}
+                            <dd data-state="empty">Not provided</dd>
+                            {% endif %}
+
+                            {% if session_data.is_new_client %}
+                            <dd class="wizard-step4-dl-row--full">
+                                <span class="wizard-step4-badge wizard-step4-badge--success">New Client — Will be created</span>
+                            </dd>
+                            {% endif %}
+                        </dl>
+                    </section>
+
+                    <section class="wizard-step4-section" aria-labelledby="wizard-step4-case-title">
+                        <h3 id="wizard-step4-case-title" class="wizard-step4-section-title">
+                            <i class="fas fa-briefcase wizard-step4-section-title-icon" aria-hidden="true"></i>
+                            <span>Case Information</span>
+                        </h3>
+                        <dl class="wizard-step4-dl">
+                            <dt>Case Number</dt>
+                            <dd data-variant="mono">{{ preview_number }}</dd>
+
+                            <dt>Case Name</dt>
+                            <dd>{{ session_data.case_name }}</dd>
+
+                            <dt>Visa Type</dt>
+                            <dd>
+                                <span class="wizard-step4-badge wizard-step4-badge--accent">{{ session_data.visa_type }}</span>
+                            </dd>
+
+                            <dt>Priority</dt>
+                            <dd>
+                                <span class="wizard-step4-badge wizard-step4-badge--{{ priority_colors.get(session_data.priority, 'neutral') }}">
+                                    {{ session_data.priority|capitalize }}
+                                </span>
+                            </dd>
+
+                            <dt>Processing</dt>
+                            <dd>
+                                {% if session_data.premium_processing %}
+                                <span class="wizard-step4-badge wizard-step4-badge--warning">Premium Processing</span>
+                                {% else %}
+                                Regular Processing
+                                {% endif %}
+                            </dd>
+                        </dl>
+                    </section>
+                </div>
+
+                <hr class="wizard-step4-divider">
+
+                <div class="wizard-step4-sections">
+                    <section class="wizard-step4-section" aria-labelledby="wizard-step4-employer-title">
+                        <h3 id="wizard-step4-employer-title" class="wizard-step4-section-title">
+                            <i class="fas fa-building wizard-step4-section-title-icon" aria-hidden="true"></i>
+                            <span>Employer</span>
+                        </h3>
+                        {% if session_data.employer and session_data.employer.name %}
+                        <dl class="wizard-step4-dl">
+                            <dt>Company</dt>
+                            <dd>{{ session_data.employer.name }}</dd>
+
+                            {% if session_data.employer.address %}
+                            <dt>Address</dt>
+                            <dd>{{ session_data.employer.address }}</dd>
+                            {% endif %}
+
+                            {% if session_data.employer.ein %}
+                            <dt>EIN</dt>
+                            <dd data-variant="mono">{{ session_data.employer.ein }}</dd>
+                            {% endif %}
+                        </dl>
+                        {% else %}
+                        <p class="wizard-step4-section-text wizard-step4-section-text--muted">Not specified</p>
+                        {% endif %}
+                    </section>
+
+                    <section class="wizard-step4-section" aria-labelledby="wizard-step4-petitioner-title">
+                        <h3 id="wizard-step4-petitioner-title" class="wizard-step4-section-title">
+                            <i class="fas fa-user-tie wizard-step4-section-title-icon" aria-hidden="true"></i>
+                            <span>Petitioner / Signatory</span>
+                        </h3>
+                        {% if session_data.petitioner and session_data.petitioner.name %}
+                        <dl class="wizard-step4-dl">
+                            <dt>Name</dt>
+                            <dd>{{ session_data.petitioner.name }}</dd>
+
+                            {% if session_data.petitioner.title %}
+                            <dt>Title</dt>
+                            <dd>{{ session_data.petitioner.title }}</dd>
+                            {% endif %}
+                        </dl>
+                        {% else %}
+                        <p class="wizard-step4-section-text wizard-step4-section-text--muted">Not specified</p>
+                        {% endif %}
+                    </section>
+                </div>
+
+                {% if attorney %}
+                <hr class="wizard-step4-divider">
+                <section class="wizard-step4-section wizard-step4-section--full" aria-labelledby="wizard-step4-attorney-title">
+                    <h3 id="wizard-step4-attorney-title" class="wizard-step4-section-title">
+                        <i class="fas fa-gavel wizard-step4-section-title-icon" aria-hidden="true"></i>
+                        <span>Assigned Attorney</span>
+                    </h3>
+                    <p class="wizard-step4-section-text">{{ attorney.name }} ({{ attorney.email }})</p>
+                </section>
+                {% endif %}
+
+                {% if session_data.notes %}
+                <hr class="wizard-step4-divider">
+                <section class="wizard-step4-section wizard-step4-section--full" aria-labelledby="wizard-step4-notes-title">
+                    <h3 id="wizard-step4-notes-title" class="wizard-step4-section-title">
+                        <i class="fas fa-sticky-note wizard-step4-section-title-icon" aria-hidden="true"></i>
+                        <span>Notes</span>
+                    </h3>
+                    <p class="wizard-step4-section-text">{{ session_data.notes }}</p>
+                </section>
+                {% endif %}
+            </div>
+        </section>
+
+        <aside class="wizard-step4-sidebar" aria-labelledby="wizard-step4-create-title">
+            <section class="wizard-step4-create">
+                <i class="fas fa-check-circle wizard-step4-create-icon" aria-hidden="true"></i>
+                <h2 id="wizard-step4-create-title" class="wizard-step4-create-title">Ready to Create Case</h2>
+                <p class="wizard-step4-create-text">Please review all information above before creating the case.</p>
+                <form class="wizard-step4-create-form" method="POST" action="{{ PREFIX }}/wizard/create">
+                    <button type="submit" class="wizard-step4-btn wizard-step4-btn--primary wizard-step4-btn--block">
+                        <i class="fas fa-plus" aria-hidden="true"></i>
+                        <span>Create Case</span>
+                    </button>
+                </form>
+            </section>
+
+            <section class="wizard-step4-card wizard-step4-next" aria-labelledby="wizard-step4-next-title">
+                <header class="wizard-step4-card-header">
+                    <h2 id="wizard-step4-next-title" class="wizard-step4-card-title">
+                        <i class="fas fa-info-circle" aria-hidden="true"></i>
+                        <span>What happens next?</span>
+                    </h2>
+                </header>
+                <div class="wizard-step4-card-body">
+                    <ul class="wizard-step4-next-list">
+                        <li class="wizard-step4-next-item">
+                            <i class="fas fa-check wizard-step4-next-icon" aria-hidden="true"></i>
+                            <span>Case will be created with status &quot;Intake&quot;.</span>
+                        </li>
+                        <li class="wizard-step4-next-item">
+                            <i class="fas fa-check wizard-step4-next-icon" aria-hidden="true"></i>
+                            <span>Case number auto-generated: <code class="wizard-step4-next-code">{{ preview_number }}</code></span>
+                        </li>
+                        <li class="wizard-step4-next-item">
+                            <i class="fas fa-check wizard-step4-next-icon" aria-hidden="true"></i>
+                            <span>Initial tasks will be created automatically.</span>
+                        </li>
+                        <li class="wizard-step4-next-item">
+                            <i class="fas fa-check wizard-step4-next-icon" aria-hidden="true"></i>
+                            <span>You'll be redirected to the case detail page.</span>
+                        </li>
+                    </ul>
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <nav class="wizard-step4-nav" aria-label="Wizard navigation">
+        <a href="{{ PREFIX }}/wizard/step3" class="wizard-step4-btn wizard-step4-btn--ghost">
+            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span>Back to Step 3</span>
+        </a>
+        <a href="{{ PREFIX }}/cases" class="wizard-step4-btn wizard-step4-btn--danger">
+            <i class="fas fa-times" aria-hidden="true"></i>
+            <span>Cancel</span>
+        </a>
+    </nav>
+</main>
+{% endblock %}

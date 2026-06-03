@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}Superendividamento - {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/templates/tools-superendividamento.css">
+{% endblock %}
+
+{% block content %}
+<div class="tools-super-main" aria-labelledby="tools-super-title">
+    <div class="tools-super-container">
+        <header class="tools-super-header tools-super-no-print">
+            <div>
+                <h1 id="tools-super-title" class="tools-super-title">
+                    <i class="fas fa-exclamation-triangle tools-super-title-icon" aria-hidden="true"></i>
+                    <span>Superendividamento</span>
+                </h1>
+                <p class="tools-super-subtitle">Analise conforme Lei 14.181/2021 e plano de pagamento</p>
+            </div>
+            <a href="{{ PREFIX }}/tools" class="tools-super-back">
+                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <span>Voltar</span>
+            </a>
+        </header>
+
+        {% if error %}
+        <div class="tools-super-alert" role="alert">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <div class="tools-super-grid {% if resultado %}tools-super-grid--with-result{% endif %}">
+            <section aria-labelledby="tools-super-form-title">
+                <h2 id="tools-super-form-title" class="tools-super-section-title">Dados para análise</h2>
+                <form method="POST" action="{{ PREFIX }}/tools/superendividamento/calcular" id="superForm">
+                    <input type="hidden" name="dividas_json" id="dividas_json" value="{{ form.dividas_json if form else '[]' }}">
+
+                    <div class="tools-super-card">
+                        <h3 class="tools-super-section-title">Renda e Despesas</h3>
+                        <div class="tools-super-field-grid">
+                            <div class="tools-super-field">
+                                <label for="super-renda" class="tools-super-label">Renda Mensal Bruta (R$)</label>
+                                <input id="super-renda" class="tools-super-input" type="number" name="renda_mensal"
+                                       value="{{ form.renda_mensal if form else '' }}" step="0.01" min="0" required
+                                       aria-required="true" placeholder="3000.00">
+                            </div>
+                            <div class="tools-super-field">
+                                <label for="super-despesas" class="tools-super-label">Despesas Essenciais (R$)</label>
+                                <input id="super-despesas" class="tools-super-input" type="number" name="despesas_essenciais"
+                                       value="{{ form.despesas_essenciais if form else '' }}" step="0.01" min="0"
+                                       placeholder="Alimentação, moradia, saúde..."
+                                       aria-describedby="super-despesas-hint">
+                                <span id="super-despesas-hint" class="tools-super-hint">
+                                    Mínimo existencial: 25% do SM (R$ {{ "%.2f"|format(salario_minimo * 0.25) }})
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tools-super-card">
+                        <h3 class="tools-super-section-title">Dívidas</h3>
+                        <div id="dividas-container" class="tools-super-divida-list" role="list"></div>
+                        <button type="button" class="tools-super-btn tools-super-btn--ghost tools-super-btn--sm"
+                                onclick="addDivida()" aria-label="Adicionar nova dívida">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            <span>Adicionar Dívida</span>
+                        </button>
+                    </div>
+
+                    <button type="submit" class="tools-super-btn tools-super-btn--primary">
+                        <i class="fas fa-calculator" aria-hidden="true"></i>
+                        <span>Analisar Superendividamento</span>
+                    </button>
+                </form>
+            </section>
+
+            {% if resultado %}
+            <section aria-labelledby="tools-super-result-title">
+                <h2 id="tools-super-result-title" class="tools-super-section-title">Resultado da análise</h2>
+
+                <div class="tools-super-card tools-super-card--status {% if resultado.superendividado %}tools-super-card--status-danger{% else %}tools-super-card--status-success{% endif %}">
+                    {% if resultado.superendividado %}
+                    <span class="tools-super-badge tools-super-badge--danger" role="status" aria-live="assertive">
+                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        <span>SUPERENDIVIDADO</span>
+                    </span>
+                    {% else %}
+                    <span class="tools-super-badge tools-super-badge--success" role="status" aria-live="assertive">
+                        <i class="fas fa-check-circle" aria-hidden="true"></i>
+                        <span>SITUAÇÃO CONTROLÁVEL</span>
+                    </span>
+                    {% endif %}
+
+                    <div class="tools-super-metrics">
+                        <div class="tools-super-metric">
+                            <span class="tools-super-metric-value">{{ resultado.comprometimento }}%</span>
+                            <span class="tools-super-metric-label">Comprometimento da renda</span>
+                        </div>
+                        <div class="tools-super-metric">
+                            <span class="tools-super-metric-value tools-super-metric-value--danger">R$ {{ "%.2f"|format(resultado.soma_parcelas) }}</span>
+                            <span class="tools-super-metric-label">Soma das parcelas</span>
+                        </div>
+                        <div class="tools-super-metric">
+                            <span class="tools-super-metric-value tools-super-metric-value--warning">R$ {{ "%.2f"|format(resultado.minimo_existencial) }}</span>
+                            <span class="tools-super-metric-label">Mínimo existencial</span>
+                        </div>
+                        <div class="tools-super-metric">
+                            <span class="tools-super-metric-value tools-super-metric-value--success">R$ {{ "%.2f"|format(resultado.disponivel_mensal) }}</span>
+                            <span class="tools-super-metric-label">Disponível / mês</span>
+                        </div>
+                    </div>
+                </div>
+
+                {% if resultado.plano %}
+                <div class="tools-super-card">
+                    <h3 class="tools-super-result-title">
+                        <i class="fas fa-clipboard-list" aria-hidden="true"></i>
+                        <span>Plano de Pagamento Sugerido</span>
+                    </h3>
+                    <p class="tools-super-result-desc">
+                        Distribuição proporcional do valor disponível (máx. 5 anos, Art. 104-B CDC).
+                    </p>
+                    <div class="tools-super-table-wrap">
+                        <table class="tools-super-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Credor</th>
+                                    <th scope="col">Dívida Total</th>
+                                    <th scope="col">Parcela Atual</th>
+                                    <th scope="col">Parcela Sugerida</th>
+                                    <th scope="col">Meses p/ Quitar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in resultado.plano %}
+                                <tr>
+                                    <td>{{ item.nome }}</td>
+                                    <td>R$ {{ "%.2f"|format(item.valor_total) }}</td>
+                                    <td class="tools-super-table-cell--danger">R$ {{ "%.2f"|format(item.parcela_atual) }}</td>
+                                    <td class="tools-super-table-cell--success">R$ {{ "%.2f"|format(item.parcela_sugerida) }}</td>
+                                    <td>{{ item.meses_para_quitar }} meses</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="tools-super-card">
+                    <h3 class="tools-super-result-title">
+                        <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                        <span>Fundamentação Legal</span>
+                    </h3>
+                    <ul class="tools-super-legal">
+                        {% for ref in resultado.fundamentacao %}
+                        <li class="tools-super-legal-item">
+                            <i class="fas fa-paragraph tools-super-legal-icon" aria-hidden="true"></i>
+                            <span>{{ ref }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="tools-super-print-actions tools-super-no-print">
+                    <button type="button" onclick="window.print()" class="tools-super-btn tools-super-btn--ghost">
+                        <i class="fas fa-print" aria-hidden="true"></i>
+                        <span>Imprimir</span>
+                    </button>
+                </div>
+            </section>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const container = document.getElementById('dividas-container');
+    const jsonInput = document.getElementById('dividas_json');
+    let dividas = [];
+    try { dividas = JSON.parse(jsonInput.value) || []; } catch (e) { dividas = []; }
+
+    function updateJson() {
+        jsonInput.value = JSON.stringify(dividas);
+    }
+
+    function makeField(labelText, value, type, onInput) {
+        const wrap = document.createElement('div');
+        wrap.className = 'tools-super-field';
+        const label = document.createElement('label');
+        label.className = 'tools-super-label tools-super-label--small';
+        label.textContent = labelText;
+        const input = document.createElement('input');
+        input.className = 'tools-super-input' + (type === 'text' ? ' tools-super-input--text' : '');
+        input.type = type;
+        if (type === 'number') input.step = '0.01';
+        input.value = value;
+        input.addEventListener('input', onInput);
+        const id = 'divida-' + labelText.toLowerCase().replace(/[^a-z]/g, '') + '-' + Math.random().toString(36).slice(2, 7);
+        input.id = id;
+        label.setAttribute('for', id);
+        wrap.appendChild(label);
+        wrap.appendChild(input);
+        return wrap;
+    }
+
+    function renderDividas() {
+        container.innerHTML = '';
+        dividas.forEach((d, idx) => {
+            const row = document.createElement('div');
+            row.className = 'tools-super-divida-row';
+            row.setAttribute('role', 'listitem');
+
+            const header = document.createElement('div');
+            header.className = 'tools-super-divida-header';
+            const title = document.createElement('span');
+            title.className = 'tools-super-divida-label';
+            title.textContent = '#' + (idx + 1) + ' ' + (d.nome || 'Credor');
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'tools-super-btn tools-super-btn--icon';
+            removeBtn.setAttribute('aria-label', 'Remover dívida #' + (idx + 1));
+            removeBtn.innerHTML = '<i class="fas fa-trash" aria-hidden="true"></i>';
+            removeBtn.addEventListener('click', () => { dividas.splice(idx, 1); renderDividas(); });
+            header.appendChild(title);
+            header.appendChild(removeBtn);
+
+            const grid = document.createElement('div');
+            grid.className = 'tools-super-divida-grid';
+            grid.appendChild(makeField('Credor', d.nome || '', 'text', e => {
+                dividas[idx].nome = e.target.value;
+                title.textContent = '#' + (idx + 1) + ' ' + (e.target.value || 'Credor');
+                updateJson();
+            }));
+            grid.appendChild(makeField('Valor Total (R$)', d.valor_total, 'number', e => {
+                dividas[idx].valor_total = parseFloat(e.target.value) || 0; updateJson();
+            }));
+            grid.appendChild(makeField('Parcela (R$)', d.parcela, 'number', e => {
+                dividas[idx].parcela = parseFloat(e.target.value) || 0; updateJson();
+            }));
+            grid.appendChild(makeField('Taxa (% a.m.)', d.taxa_mensal, 'number', e => {
+                dividas[idx].taxa_mensal = parseFloat(e.target.value) || 0; updateJson();
+            }));
+
+            row.appendChild(header);
+            row.appendChild(grid);
+            container.appendChild(row);
+        });
+        updateJson();
+    }
+
+    window.addDivida = function () {
+        dividas.push({ nome: 'Credor ' + (dividas.length + 1), valor_total: 0, parcela: 0, taxa_mensal: 0 });
+        renderDividas();
+    };
+
+    if (dividas.length === 0) { window.addDivida(); } else { renderDividas(); }
+})();
+</script>
+{% endblock %}

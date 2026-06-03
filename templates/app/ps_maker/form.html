@@ -1,0 +1,552 @@
+{% extends "app/base.html" %}
+{% set active_module = 'documents' %}
+{% block title %}Ps_Maker · Form · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+  <style>
+#downloadArea, #loadingArea, #extractStatus, #suggestionsPanel { display:none; }
+.section-card textarea { min-height: 120px; }
+.checklist-group { margin-bottom: 1rem; }
+.checklist-group h6 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.checklist-group .form-check { padding-left: 1.8rem; }
+.checklist-group .form-check-input:disabled { opacity: 0.6; }
+.checklist-group .form-check-input:checked { opacity: 1; }
+#psChecklistBar { height: 8px; border-radius: 4px; transition: width 0.3s, background-color 0.3s; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        {% if case %}
+        <a href="{{ PREFIX }}/cases/{{ case.id }}" class="text-muted text-decoration-none"><i class="fas fa-arrow-left me-1"></i> Back to Case</a>
+        {% endif %}
+        <h2 class="mt-2"><i class="fas fa-pen me-2"></i>Personal Statement Maker</h2>
+        <p class="text-muted mb-0">Generate a professionally formatted Personal Statement for EB-2 NIW petitions.</p>
+    </div>
+</div>
+
+{# ======== CONTENT EXTRACTOR ======== #}
+<div class="card mb-4" style="border-left: 4px solid #9b59b6;">
+    <div class="card-header"><i class="fas fa-magic me-1" style="color:#9b59b6"></i> Content Extractor</div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">Import a draft document (CV, existing PS, or notes) and let the system extract and organize content into the form fields automátically.</p>
+        <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('psExtractFile').click()">
+                <i class="fas fa-upload me-1"></i> Upload File
+            </button>
+            <input type="file" id="psExtractFile" accept=".pdf,.docx,.doc,.txt" style="display:none" onchange="handlePSExtractFile(this)">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Additional Context (optional)</label>
+            <textarea class="form-control glass-input" id="psExtractContext" rows="2" placeholder="Describe anything specific about this document or what you want to emphasize..."></textarea>
+        </div>
+        <div class="d-flex gap-3 mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="psFixErrors" checked>
+                <label class="form-check-label" for="psFixErrors">Fix grammar/spelling</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="psCompleteSections" checked>
+                <label class="form-check-label" for="psCompleteSections">Complete incomplete sections</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="psEnhanceLanguage" checked>
+                <label class="form-check-label" for="psEnhanceLanguage">Enhance professional language</label>
+            </div>
+        </div>
+        <div id="extractStatus" class="text-center py-3">
+            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+            <span class="text-muted" id="extractStatusText">Analyzing document...</span>
+        </div>
+        <div id="suggestionsPanel" class="p-3 rounded" style="background:rgba(155,89,182,0.08); border-left:3px solid #9b59b6;">
+            <h6 style="color:#9b59b6"><i class="fas fa-lightbulb me-1"></i> Smart Suggestions</h6>
+            <ul id="suggestionsList" class="mb-0 small"></ul>
+        </div>
+    </div>
+</div>
+
+<form id="psForm" onsubmit="return generatePS(event)">
+{% if case %}<input type="hidden" name="case_id" value="{{ case.id }}">{% endif %}
+
+{# ======== BENEFICIARY INFO ======== #}
+<div class="card mb-4">
+    <div class="card-header"><i class="fas fa-user me-1"></i> Beneficiary Information</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Beneficiary Name <span class="text-danger">*</span></label>
+                <input type="text" class="form-control glass-input" name="beneficiary_name" value="{{ prefill.beneficiary_name }}" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Field <span class="text-danger">*</span></label>
+                <div class="editable-select-wrapper">
+                    <select name="field" id="ps_field" class="form-select glass-input" required onchange="handleSelectChange(this, 'field')">
+                        <option value="">-- Select field --</option>
+                        {% for f in fields %}
+                        <option value="{{ f }}" {% if prefill.field == f %}selected{% endif %}>{{ f|replace('_', ' ')|title }}</option>
+                        {% endfor %}
+                        <option value="__add_new__">+ Add New...</option>
+                    </select>
+                    <div class="add-new-input" id="add-ps_field">
+                        <input type="text" class="form-control form-control-sm" placeholder="New field...">
+                        <button type="button" class="btn btn-sm btn-primary" onclick="addNewOption('ps_field')">Add</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelAddNew('ps_field')">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ======== DOCUMENT STYLE ======== #}
+<div class="card mb-4">
+    <div class="card-header"><i class="fas fa-cog me-1"></i> Document Style</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Salutation</label>
+                <select name="salutation" class="form-select glass-input">
+                    <option value="">-- Default (Dear Immigration Official,) --</option>
+                    <option value="To Whom It May Concern:">To Whom It May Concern:</option>
+                    <option value="Dear Sir or Madam:">Dear Sir or Madam:</option>
+                    <option value="To the Reviewing Officer:">To the Reviewing Officer:</option>
+                    <option value="Dear Adjudication Officer,">Dear Adjudication Officer,</option>
+                    <option value="USCIS Officer,">USCIS Officer,</option>
+                    <option value="To the United States Citizenship and Immigration Services:">To the USCIS:</option>
+                    <option value="Dear Immigration Officer:">Dear Immigration Officer:</option>
+                    <option value="Dear Officer,">Dear Officer,</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Closing</label>
+                <select name="closing" class="form-select glass-input">
+                    <option value="">-- Default (Sincerely,) --</option>
+                    <option value="Sincerely,">Sincerely,</option>
+                    <option value="Respectfully submitted,">Respectfully submitted,</option>
+                    <option value="Best regards,">Best regards,</option>
+                    <option value="Regards,">Regards,</option>
+                    <option value="Respectfully,">Respectfully,</option>
+                    <option value="With appreciation,">With appreciation,</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ======== 5 CONTENT SECTIONS ======== #}
+<div class="card mb-4">
+    <div class="card-header"><i class="fas fa-list-ol me-1"></i> Personal Statement Sections</div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">Fill in each section below. Each has an editable title and content area. Leave content blank to use auto-generated templates.</p>
+
+        {% set sections = [
+            ('section1_title', 'overview', 'I. Overview of the Proposed Endeavor', [
+                'I. Overview of the Proposed Endeavor',
+                'I. Introduction and Proposed Endeavor',
+                'I. Statement of Purpose',
+                'I. Executive Summary',
+                'I. Professional Overview'
+            ], 'My proposed endeavor in the United States is to continue advancing...'),
+            ('section2_title', 'national_importance', 'II. National Importance of the Endeavor', [
+                'II. National Importance of the Endeavor',
+                'II. Substantial Merit and National Importance (Prong 1)',
+                'II. National Interest and Strategic Value',
+                'II. Benefit to the United States',
+                'II. Why This Work Matters'
+            ], 'The proposed endeavor possesses substantial merit and national importance...'),
+            ('section3_title', 'practical_impact', 'III. Practical Impact and Innovation', [
+                'III. Practical Impact and Innovation',
+                'III. Evidence of Impact',
+                'III. Professional Achievements and Contributions',
+                'III. Track Record of Success',
+                'III. Demonstrated Results'
+            ], 'The real-world impact of my work is already evident...'),
+            ('section4_title', 'well_positioned', 'IV. Why I Am Well-Positioned', [
+                'IV. Why I Am Well-Positioned',
+                'IV. Well-Positioned to Advance the Endeavor (Prong 2)',
+                'IV. Qualifications and Expertise',
+                'IV. Unique Skills and Experience',
+                'IV. Why I Am Uniquely Qualified'
+            ], 'What uniquely qualifies me to lead this endeavor...'),
+            ('section5_title', 'conclusion', 'V. Conclusion', [
+                'V. Conclusion',
+                'V. Balance of Factors (Prong 3)',
+                'V. Waiver of Labor Certification',
+                'V. Summary and Request for Approval',
+                'V. Final Statement'
+            ], 'In light of my academic background and professional accomplishments...')
+        ] %}
+
+        {% for title_name, content_name, default_title, title_options, placeholder in sections %}
+        <div class="section-card mb-3">
+            <div class="editable-select-wrapper mb-2">
+                <select name="{{ title_name }}" id="ps_{{ title_name }}" class="form-select form-select-sm fw-bold" onchange="handleSelectChange(this, 'ps_{{ title_name }}')">
+                    {% for opt in title_options %}
+                    <option value="{{ opt }}" {% if loop.first %}selected{% endif %}>{{ opt }}</option>
+                    {% endfor %}
+                    <option value="__add_new__">+ Add New...</option>
+                </select>
+                <div class="add-new-input" id="add-ps_{{ title_name }}">
+                    <input type="text" class="form-control form-control-sm" placeholder="Custom section title...">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="addNewOption('ps_{{ title_name }}')">Add</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="cancelAddNew('ps_{{ title_name }}')">Cancel</button>
+                </div>
+            </div>
+            <textarea class="form-control glass-input" name="{{ content_name }}" rows="5" placeholder="{{ placeholder }}"></textarea>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{# ======== QUALITY CHECKLIST ======== #}
+<div class="card mb-4">
+    <div class="card-header"><i class="fas fa-check-double me-1"></i> Quality Checklist</div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">Auto-checked as you type. Ensure your Personal Statement addresses these points.</p>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="checklist-group">
+                    <h6 style="color:#3498db">Prong 1: Substantial Merit & National Importance</h6>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-endeavor-defined" disabled><label class="form-check-label small" for="ck-endeavor-defined">Proposed endeavor is clearly defined</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-field-importance" disabled><label class="form-check-label small" for="ck-field-importance">Field's importance to the US is explained</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-gov-priorities" disabled><label class="form-check-label small" for="ck-gov-priorities">References government priorities/Executive Orders</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-statistics" disabled><label class="form-check-label small" for="ck-statistics">Includes relevant statistics or data</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-broader-impact" disabled><label class="form-check-label small" for="ck-broader-impact">Shows broader impact beyond individual benefit</label></div>
+                </div>
+                <div class="checklist-group">
+                    <h6 style="color:#2ecc71">Prong 2: Well-Positioned to Advance</h6>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-education" disabled><label class="form-check-label small" for="ck-education">Education and degrees mentioned</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-experience" disabled><label class="form-check-label small" for="ck-experience">Relevant work experience described</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-achievements" disabled><label class="form-check-label small" for="ck-achievements">Specific achievements listed</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-skills" disabled><label class="form-check-label small" for="ck-skills">Unique skills or expertise highlighted</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-track-record" disabled><label class="form-check-label small" for="ck-track-record">Track record demonstrated</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-future-plans" disabled><label class="form-check-label small" for="ck-future-plans">Concrete future plans outlined</label></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="checklist-group">
+                    <h6 style="color:#e74c3c">Prong 3: Balance of Factors / Waiver</h6>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-labor-cert" disabled><label class="form-check-label small" for="ck-labor-cert">Explains why labor certification impractical</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-urgency" disabled><label class="form-check-label small" for="ck-urgency">Demonstrates urgency of the work</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-us-benefit" disabled><label class="form-check-label small" for="ck-us-benefit">Shows US would benefit from waiver</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-detriment" disabled><label class="form-check-label small" for="ck-detriment">Addresses detriment if denied</label></div>
+                </div>
+                <div class="checklist-group">
+                    <h6 style="color:#9b59b6">Format & Style</h6>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-first-person" disabled><label class="form-check-label small" for="ck-first-person">Written in first person ("I", "my")</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-professional" disabled><label class="form-check-label small" for="ck-professional">Professional, formal tone</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-specific" disabled><label class="form-check-label small" for="ck-specific">Uses specific examples</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="ck-length" disabled><label class="form-check-label small" for="ck-length">Appropriate length (5-10 pages)</label></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <small class="text-muted" id="psChecklistProgress">0 / 19 items</small>
+            </div>
+            <div style="background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden;">
+                <div id="psChecklistBar" style="width:0%; background:#e74c3c;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ======== GENERATE ======== #}
+<div class="d-flex gap-2 mb-4">
+    <button type="submit" class="btn btn-primary glass-btn glass-btn--primary btn-lg" id="generateBtn">
+        <i class="fas fa-file-word me-2"></i> Generate Personal Statement
+    </button>
+</div>
+
+<div id="loadingArea" class="card mb-4">
+    <div class="card-body text-center py-4">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="text-muted mb-0">Generating Personal Statement...</p>
+    </div>
+</div>
+
+<div id="downloadArea" class="card mb-4 border-success">
+    <div class="card-body">
+        <h5 class="text-success"><i class="fas fa-check-circle me-2"></i>Personal Statement Generated</h5>
+        <p class="text-muted mb-2" id="downloadInfo"></p>
+        <a href="#" id="downloadLink" class="btn btn-success glass-btn glass-btn--success">
+            <i class="fas fa-download me-1"></i> Download DOCX
+        </a>
+    </div>
+</div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+var PREFIX = '{{ PREFIX }}';
+var CUSTOM_OPTIONS_KEY = 'ilc_custom_options';
+var FORM_STORAGE_KEY = 'ilc_ps_form_state';
+var extractPendingFile = null;
+
+// ======== CONTENT EXTRACTOR ========
+function handlePSExtractFile(input) {
+    if (input.files.length === 0) return;
+    extractPendingFile = input.files[0];
+    processExtraction();
+}
+
+async function processExtraction() {
+    if (!extractPendingFile) return;
+    document.getElementById('extractStatus').style.display = 'block';
+    document.getElementById('extractStatusText').textContent = 'Analyzing document...';
+
+    var formData = new FormData();
+    formData.append('file', extractPendingFile);
+    formData.append('context', document.getElementById('psExtractContext').value);
+    formData.append('fix_errors', document.getElementById('psFixErrors').checked ? 'true' : 'false');
+    formData.append('complete_sections', document.getElementById('psCompleteSections').checked ? 'true' : 'false');
+    formData.append('enhance_language', document.getElementById('psEnhanceLanguage').checked ? 'true' : 'false');
+
+    try {
+        var res = await fetch(PREFIX + '/api/ps/extract', { method: 'POST', body: formData });
+        var data = await res.json();
+
+        document.getElementById('extractStatus').style.display = 'none';
+
+        if (data.success && data.extracted) {
+            fillPSForm(data.extracted);
+            if (data.extracted.suggestions && data.extracted.suggestions.length > 0) {
+                showSuggestionsPanel(data.extracted.suggestions);
+            }
+            setTimeout(analyzeFormForChecklist, 500);
+        } else {
+            alert(data.error || 'Extraction failed');
+        }
+    } catch (err) {
+        document.getElementById('extractStatus').style.display = 'none';
+        alert('Error: ' + err.message);
+    }
+    extractPendingFile = null;
+}
+
+function fillPSForm(extracted) {
+    function setVal(name, value) {
+        if (!value) return;
+        var el = document.querySelector('[name="' + name + '"]');
+        if (el) el.value = value;
+    }
+    function setSelect(name, value) {
+        if (!value) return;
+        var el = document.querySelector('[name="' + name + '"]');
+        if (!el) return;
+        var valLower = value.toLowerCase();
+        for (var i = 0; i < el.options.length; i++) {
+            if (el.options[i].value.toLowerCase() === valLower || el.options[i].value === value) {
+                el.selectedIndex = i; return;
+            }
+        }
+    }
+    setVal('beneficiary_name', extracted.beneficiary_name);
+    setSelect('field', extracted.field);
+    setVal('overview', extracted.overview);
+    setVal('national_importance', extracted.national_importance);
+    setVal('practical_impact', extracted.practical_impact);
+    setVal('well_positioned', extracted.well_positioned);
+    setVal('conclusion', extracted.conclusion);
+}
+
+function showSuggestionsPanel(suggestions) {
+    var panel = document.getElementById('suggestionsPanel');
+    var list = document.getElementById('suggestionsList');
+    list.innerHTML = '';
+    suggestions.forEach(function(s) {
+        var li = document.createElement('li');
+        li.textContent = s;
+        list.appendChild(li);
+    });
+    panel.style.display = 'block';
+}
+
+// ======== QUALITY CHECKLIST ========
+var checklistTimeout;
+function analyzeFormForChecklist() {
+    var texts = [];
+    ['overview', 'national_importance', 'practical_impact', 'well_positioned', 'conclusion'].forEach(function(name) {
+        var el = document.querySelector('[name="' + name + '"]');
+        if (el) texts.push(el.value);
+    });
+    var all = texts.join(' ').toLowerCase();
+
+    function check(id, regex) {
+        document.getElementById(id).checked = regex.test(all);
+    }
+
+    // Prong 1
+    check('ck-endeavor-defined', /.{200,}/);
+    check('ck-field-importance', /national|united states|american|country|importance/i);
+    check('ck-gov-priorities', /executive order|act of|legislation|federal priority|white house|ostp|critical|strategic/i);
+    check('ck-statistics', /\d+%|\d+ (million|billion|thousand)|according to|report|study|census|bureau/i);
+    check('ck-broader-impact', /national|society|globally|economy|healthcare|security|public/i);
+
+    // Prong 2
+    check('ck-education', /degree|university|ph\.?d|master|bachelor|graduate|academic/i);
+    check('ck-experience', /years? (of )?experience|worked at|position|role|career/i);
+    check('ck-achievements', /achieved|accomplished|developed|created|led|managed|designed|invented|published/i);
+    check('ck-skills', /expertise|specialized|proficient|skilled|knowledge|technical|competence/i);
+    check('ck-track-record', /track record|history of|demonstrated|proven|success|award|recognition/i);
+    check('ck-future-plans', /plan to|will continue|intend to|propose to|goal is|aim to/i);
+
+    // Prong 3
+    check('ck-labor-cert', /labor certification|perm|traditional process|job offer|specific employer/i);
+    check('ck-urgency', /urgency|critical|immediate|time-sensitive|current need|pressing/i);
+    check('ck-us-benefit', /benefit.*united states|national interest|public good|welfare/i);
+    check('ck-detriment', /loss|detriment|without|deny|denied|deprive/i);
+
+    // Format
+    check('ck-first-person', /\b(i|my|me)\b/i);
+    check('ck-professional', /sincerely|respectfully|submitted|petition|adjudication/i);
+    check('ck-specific', /\d{4}|specific|particular|example|instance|case/i);
+    document.getElementById('ck-length').checked = all.length > 3000;
+
+    updateChecklistProgress();
+}
+
+function updateChecklistProgress() {
+    var total = 19;
+    var checked = document.querySelectorAll('.checklist-group .form-check-input:checked').length;
+    document.getElementById('psChecklistProgress').textContent = checked + ' / ' + total + ' items';
+    var pct = Math.round((checked / total) * 100);
+    var bar = document.getElementById('psChecklistBar');
+    bar.style.width = pct + '%';
+    if (pct < 30) bar.style.background = '#e74c3c';
+    else if (pct < 80) bar.style.background = '#f39c12';
+    else bar.style.background = '#2ecc71';
+}
+
+// ======== EDITABLE DROPDOWNS ========
+function handleSelectChange(el, type) {
+    if (el.value === '__add_new__') {
+        var wrapper = document.getElementById('add-' + el.id);
+        if (wrapper) { wrapper.classList.add('show'); wrapper.style.display = 'flex'; }
+        el.value = '';
+    }
+    saveFormState();
+}
+
+function addNewOption(selectId) {
+    var wrapper = document.getElementById('add-' + selectId);
+    var input = wrapper.querySelector('input');
+    var value = input.value.trim();
+    if (!value) return;
+    var select = document.getElementById(selectId);
+    var opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = value;
+    select.insertBefore(opt, select.querySelector('[value="__add_new__"]'));
+    select.value = value;
+    input.value = '';
+    wrapper.classList.remove('show'); wrapper.style.display = 'none';
+
+    var stored = JSON.parse(localStorage.getItem(CUSTOM_OPTIONS_KEY) || '{}');
+    if (!stored[selectId]) stored[selectId] = [];
+    stored[selectId].push({slug: value, label: value});
+    localStorage.setItem(CUSTOM_OPTIONS_KEY, JSON.stringify(stored));
+    saveFormState();
+}
+
+function cancelAddNew(selectId) {
+    var wrapper = document.getElementById('add-' + selectId);
+    wrapper.querySelector('input').value = '';
+    wrapper.classList.remove('show'); wrapper.style.display = 'none';
+}
+
+function restoreCustomOptions() {
+    var stored = JSON.parse(localStorage.getItem(CUSTOM_OPTIONS_KEY) || '{}');
+    for (var selectId in stored) {
+        var select = document.getElementById(selectId);
+        if (!select) continue;
+        stored[selectId].forEach(function(item) {
+            if (!select.querySelector('option[value="' + CSS.escape(item.slug) + '"]')) {
+                var opt = document.createElement('option');
+                opt.value = item.slug;
+                opt.textContent = item.label;
+                var addNew = select.querySelector('[value="__add_new__"]');
+                if (addNew) select.insertBefore(opt, addNew);
+                else select.appendChild(opt);
+            }
+        });
+    }
+}
+
+// ======== FORM PERSISTENCE ========
+var saveTimeout;
+function saveFormState() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(function() {
+        var form = document.getElementById('psForm');
+        var data = {};
+        new FormData(form).forEach(function(val, key) { data[key] = val; });
+        localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
+    }, 1000);
+}
+
+function restoreFormState() {
+    var saved = localStorage.getItem(FORM_STORAGE_KEY);
+    if (!saved) return;
+    try {
+        var data = JSON.parse(saved);
+        for (var key in data) {
+            var el = document.querySelector('#psForm [name="' + key + '"]');
+            if (el) el.value = data[key];
+        }
+    } catch(e) {}
+}
+
+// ======== GENERATE ========
+async function generatePS(e) {
+    e.preventDefault();
+    var form = document.getElementById('psForm');
+    var formData = new FormData(form);
+
+    document.getElementById('generateBtn').disabled = true;
+    document.getElementById('loadingArea').style.display = 'block';
+    document.getElementById('downloadArea').style.display = 'none';
+
+    try {
+        var res = await fetch(PREFIX + '/api/ps/generate', { method: 'POST', body: formData });
+        var data = await res.json();
+
+        document.getElementById('loadingArea').style.display = 'none';
+
+        if (data.success) {
+            document.getElementById('downloadArea').style.display = 'block';
+            document.getElementById('downloadInfo').textContent = 'Beneficiary: ' + data.beneficiary + ' | Field: ' + data.field;
+            document.getElementById('downloadLink').href = data.download_url;
+        } else {
+            alert(data.error || 'Error generating Personal Statement');
+        }
+    } catch (err) {
+        document.getElementById('loadingArea').style.display = 'none';
+        alert('Error: ' + err.message);
+    }
+
+    document.getElementById('generateBtn').disabled = false;
+    return false;
+}
+
+// ======== INIT ========
+document.addEventListener('DOMContentLoaded', function() {
+    restoreCustomOptions();
+    restoreFormState();
+
+    // Auto-save + checklist on textarea input
+    document.querySelectorAll('#psForm input, #psForm select, #psForm textarea').forEach(function(el) {
+        el.addEventListener('input', function() {
+            saveFormState();
+            clearTimeout(checklistTimeout);
+            checklistTimeout = setTimeout(analyzeFormForChecklist, 1000);
+        });
+        el.addEventListener('change', saveFormState);
+    });
+
+    // Initial checklist scan
+    analyzeFormForChecklist();
+});
+</script>
+{% endblock %}

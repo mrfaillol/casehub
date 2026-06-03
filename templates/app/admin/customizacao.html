@@ -1,0 +1,892 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% set s = org_settings|default({}) %}
+{% block title %}Personalizar · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* In-page tab buttons (sticky horizontal scroll) for the customizacao multi-section page. */
+  .cz-tabs { display: flex; gap: var(--space-1); overflow-x: auto; border-bottom: 1px solid var(--line);
+             margin-bottom: var(--space-5); padding-bottom: 0; scrollbar-width: none; }
+  .cz-tabs::-webkit-scrollbar { display: none; }
+  .cz-tab { display: inline-flex; align-items: center; gap: var(--space-2);
+            padding: var(--space-2) var(--space-4); min-height: 44px;
+            background: transparent; border: 1px solid transparent; border-bottom: none;
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.10em;
+            text-transform: uppercase; color: var(--fg-muted);
+            cursor: pointer; white-space: nowrap; margin-bottom: -1px;
+            transition: color var(--motion-fast) var(--ease-out),
+                        background var(--motion-fast) var(--ease-out); }
+  .cz-tab:hover { color: var(--fg-default); background: var(--surface-card-2); }
+  .cz-tab[aria-selected="true"] { color: var(--c-green-d);
+                                   background: var(--surface-card); border-color: var(--line);
+                                   border-bottom-color: var(--surface-card); }
+  [data-theme="dark"] .cz-tab[aria-selected="true"] { color: var(--c-pollen); }
+  .cz-panel { display: none; }
+  .cz-panel.is-active { display: block; }
+  .cz-toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex: 0 0 auto; }
+  .cz-toggle input { opacity: 0; width: 0; height: 0; }
+  .cz-toggle__slider { position: absolute; inset: 0; background: var(--surface-card-2);
+                       border: 1px solid var(--line); border-radius: var(--radius-pill); cursor: pointer;
+                       transition: background var(--motion-fast) var(--ease-out); }
+  .cz-toggle__slider::before { content: ""; position: absolute; left: 2px; top: 2px;
+                                width: 18px; height: 18px; border-radius: 50%;
+                                background: var(--fg-default);
+                                transition: transform var(--motion-fast) var(--ease-out); }
+  .cz-toggle input:checked + .cz-toggle__slider { background: var(--c-green-d); border-color: var(--c-green-d); }
+  .cz-toggle input:checked + .cz-toggle__slider::before { transform: translateX(20px); background: white; }
+  .cz-sortable-item { display: flex; align-items: center; gap: var(--space-3);
+                       padding: var(--space-3); border: 1px solid var(--line);
+                       border-radius: var(--radius-sm); background: var(--surface-card);
+                       margin-bottom: var(--space-2); }
+  .cz-sortable-item .handle { cursor: grab; color: var(--fg-muted); padding: var(--space-1); }
+  .cz-sortable-item label { flex: 1; font-weight: 500; }
+  .sortable-ghost { opacity: 0.4; background: var(--surface-card-2); }
+  .cz-integrations-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .cz-integration-card { display: grid; gap: var(--space-3); padding: var(--space-4);
+                         border: 1px solid var(--line); border-radius: var(--radius-md);
+                         background: var(--surface-card); }
+  .cz-integration-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+  .cz-integration-card__title { margin: 0; font-size: var(--fs-base); line-height: var(--lh-tight); color: var(--fg-default); }
+  .cz-integration-card__meta { margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-xs); }
+  .cz-integration-card__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+  @media (max-width: 720px) { .cz-integrations-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Admin · Personalização</span>
+    <h1>Painel de <em>personalização</em>.</h1>
+    <p class="ch-page-head__sub">Configure a aparência e comportamento do sistema.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/admin">
+      <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
+    </a>
+  </div>
+</section>
+
+{% if success %}
+<section class="ch-card ch-card--compact" role="status" style="border-color: var(--c-green-d); margin-bottom: var(--space-4);">
+  <div style="display: flex; gap: var(--space-2); align-items: center; justify-content: space-between;">
+    <div style="display: flex; gap: var(--space-2); align-items: center;">
+      <span data-icon="check" data-icon-size="18" style="color: var(--c-green-d);"></span>
+      <span>{{ success }}</span>
+    </div>
+    <button type="button" class="ch-chip" data-admin-custom-dismiss aria-label="Fechar">
+      <span data-icon="x" data-icon-size="14"></span>
+    </button>
+  </div>
+</section>
+{% endif %}
+{% if error %}
+<section class="ch-card ch-card--compact" role="alert" style="border-color: var(--c-danger); margin-bottom: var(--space-4);">
+  <div style="display: flex; gap: var(--space-2); align-items: center; justify-content: space-between;">
+    <div style="display: flex; gap: var(--space-2); align-items: center;">
+      <span data-icon="x" data-icon-size="18" style="color: var(--c-danger);"></span>
+      <span>{{ error }}</span>
+    </div>
+    <button type="button" class="ch-chip" data-admin-custom-dismiss aria-label="Fechar">
+      <span data-icon="x" data-icon-size="14"></span>
+    </button>
+  </div>
+</section>
+{% endif %}
+
+<div class="cz-tabs" role="tablist" aria-label="Seções de personalização">
+  {% set tabs_list = [
+    ('aparencia', 'target', 'Aparência'),
+    ('sidebar', 'menu', 'Sidebar'),
+    ('widgets', 'cube', 'Widgets'),
+    ('notificacoes', 'bell', 'Notificações'),
+  ] %}
+  {% for key, icon, label in tabs_list %}
+  <button type="button" class="cz-tab"
+          id="tabbtn-{{ key }}"
+          role="tab"
+          aria-selected="{{ 'true' if active_tab == key else 'false' }}"
+          aria-controls="tab-{{ key }}"
+          tabindex="{{ '0' if active_tab == key else '-1' }}"
+          data-tab-target="{{ key }}">
+    <span data-icon="{{ icon }}" data-icon-size="14"></span>
+    <span>{{ label }}</span>
+  </button>
+  {% endfor %}
+  {# P0.3 audit: Integrações tab moved to canonical /integrations hub
+     (single source of truth — eliminates Client ID raw exposure + 3 concurrent screens). #}
+  <a class="cz-tab" href="{{ PREFIX }}/integrations" style="text-decoration: none;">
+    <span data-icon="processes" data-icon-size="14"></span>
+    <span>Integrações</span>
+    <span data-icon="external_link" data-icon-size="12" style="opacity: 0.6;"></span>
+  </a>
+</div>
+
+{# ============================================================ #}
+{# TAB 1: Aparência                                              #}
+{# ============================================================ #}
+<section id="tab-aparencia" class="cz-panel{% if active_tab == 'aparencia' %} is-active{% endif %}"
+         role="tabpanel" aria-labelledby="tabbtn-aparencia" tabindex="0">
+  <div class="ch-grid ch-grid--2" style="gap: var(--space-5); align-items: start;">
+    <form method="POST" action="{{ PREFIX }}/admin/customizacao/aparencia" id="formAparencia" enctype="multipart/form-data">
+      <article class="ch-card" style="margin-bottom: var(--space-5);">
+        <header class="ch-card__header">
+          <div>
+            <span class="ch-card__eyebrow">Paleta</span>
+            <h2 class="ch-card__title">Cores do tema</h2>
+          </div>
+          <span data-icon="target" data-icon-size="20" style="color: var(--c-blue);"></span>
+        </header>
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field">
+            <label class="ch-field__label" for="inputPrimaryColor">Cor primária</label>
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+              <input type="color" class="" name="primary_color" id="inputPrimaryColor"
+                     value="{{ s.get('primary_color') or '#0EA5E9' }}"
+                     data-default-token="--accent"
+                     data-preview="livePreview"
+                     style="width: 44px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer;" />
+              <input type="text" class="ch-input ch-mono" id="inputPrimaryHex"
+                     aria-label="Código hex da cor primária"
+                     value="{{ s.get('primary_color', '') }}" />
+            </div>
+            <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">Botões, links, destaques</small>
+          </div>
+          <div class="ch-field">
+            <label class="ch-field__label" for="inputSecondaryColor">Cor secundária</label>
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+              <input type="color" class="" name="secondary_color" id="inputSecondaryColor"
+                     value="{{ s.get('secondary_color') or '#6366F1' }}"
+                     data-default-token="--accent-hover"
+                     data-preview="livePreview"
+                     style="width: 44px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm); cursor: pointer;" />
+              <input type="text" class="ch-input ch-mono" id="inputSecondaryHex"
+                     aria-label="Código hex da cor secundária"
+                     value="{{ s.get('secondary_color', '') }}" />
+            </div>
+            <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">Sidebar, cabeçalhos</small>
+          </div>
+        </div>
+        <button type="button" class="ch-btn ch-btn--sm" id="resetCoresBtn" style="margin-top: var(--space-3);">
+          <span data-icon="x"></span> Restaurar padrão
+        </button>
+      </article>
+
+      <article class="ch-card" style="margin-bottom: var(--space-5);">
+        <header class="ch-card__header">
+          <div>
+            <span class="ch-card__eyebrow">Identidade</span>
+            <h2 class="ch-card__title">Nome e logo</h2>
+          </div>
+          <span data-icon="user" data-icon-size="20" style="color: var(--c-green-d);"></span>
+        </header>
+        <div class="ch-field">
+          <label class="ch-field__label" for="inputOrgName">Nome do escritório</label>
+          <input type="text" class="ch-input" name="org_display_name" id="inputOrgName"
+                 value="{{ s.get('org_display_name', org_name|default('CaseHub')) }}"
+                 placeholder="Meu Escritório de Advocacia" />
+          <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">Exibido na sidebar, título e e-mails</small>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="inputLogoUrl">URL do logo</label>
+          <input type="url" class="ch-input" name="logo_url" id="inputLogoUrl"
+                 value="{{ s.get('logo_url', '') }}" placeholder="https://exemplo.com/logo.png" />
+          <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">URL da imagem do logo (PNG, SVG, JPG)</small>
+          {% if s.get('logo_url') %}
+          <div style="margin-top: var(--space-3); padding: var(--space-3); background: var(--surface-card-2); border-radius: var(--radius-sm); display: inline-block;">
+            <img src="{{ s.get('logo_url') }}" alt="Pré-visualização do logo atual" id="logoPreviewImg" loading="lazy" style="max-height: 60px; max-width: 200px;" />
+          </div>
+          {% endif %}
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="inputLogoFile">
+            {% if product == "lite" %}Ou enviar arquivo da logo{% else %}Or upload logo file{% endif %}
+          </label>
+          <input type="file" class="ch-input" id="inputLogoFile" name="logo_file" accept="image/*"
+                 data-logo-preview="logo-preview" />
+          <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">
+            {% if product == "lite" %}A logo será exibida dentro do squircle preto{% else %}Logo will be displayed inside the black squircle{% endif %}
+          </small>
+        </div>
+
+        {% if s.get('logo_file_path') %}
+        <div style="margin-top: var(--space-3); padding: var(--space-3); background: var(--surface-card-2); border-radius: var(--radius-sm); display: flex; gap: var(--space-3); align-items: center;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: var(--radius-md); background: black; overflow: hidden;" aria-hidden="true">
+            <img src="{{ s.get('logo_file_path') }}" alt="" loading="lazy" style="max-width: 100%; max-height: 100%;" />
+          </span>
+          <span style="font-weight: 600;">{{ s.get('org_display_name', org_name|default('CaseHub')) }}</span>
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>{% if product == "lite" %}Salvo{% else %}Saved{% endif %}</span>
+        </div>
+        {% endif %}
+
+        <div id="logo-preview" hidden style="margin-top: var(--space-3); padding: var(--space-3); background: var(--surface-card-2); border-radius: var(--radius-sm); display: flex; gap: var(--space-3); align-items: center;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: var(--radius-md); background: black; overflow: hidden;" aria-hidden="true">
+            <img id="logo-preview-img" alt="" style="max-width: 100%; max-height: 100%;" />
+          </span>
+          <span style="font-weight: 600;">{{ s.get('org_display_name', org_name|default('CaseHub')) }}</span>
+        </div>
+
+        <div class="ch-field" style="margin-top: var(--space-3);">
+          <label class="ch-field__label" for="inputFaviconUrl">URL do favicon</label>
+          <input type="url" class="ch-input" name="favicon_url" id="inputFaviconUrl"
+                 value="{{ s.get('favicon_url', '') }}" placeholder="https://exemplo.com/favicon.ico" />
+          <small style="display: block; margin-top: var(--space-1); font-size: var(--fs-xs); color: var(--fg-muted);">Ícone da aba do navegador</small>
+        </div>
+      </article>
+
+      <button type="submit" class="ch-btn ch-btn--primary">
+        <span data-icon="check"></span> Salvar aparência
+      </button>
+    </form>
+
+    <aside aria-label="Pré-visualização em tempo real" style="position: sticky; top: calc(var(--topbar-h) + var(--space-4));">
+      <article class="ch-card">
+        <header class="ch-card__header">
+          <div>
+            <span class="ch-card__eyebrow">Preview</span>
+            <h2 class="ch-card__title">Pré-visualização</h2>
+          </div>
+          <span data-icon="dashboard" data-icon-size="20" style="color: var(--c-info);"></span>
+        </header>
+        <div id="livePreviewPanel" style="border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden;">
+          <div style="display: grid; grid-template-columns: 120px 1fr; min-height: 240px;">
+            <div id="previewSidebar" style="background: var(--surface-inverse); color: white; padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2);">
+              <div id="previewLogo" style="font-weight: 700; font-size: var(--fs-sm); margin-bottom: var(--space-2);">
+                {{ s.get('org_display_name', org_name|default('CaseHub')) }}
+              </div>
+              <div style="font-size: var(--fs-xs); opacity: 0.9;">Dashboard</div>
+              <div style="font-size: var(--fs-xs); opacity: 0.9;">Clientes</div>
+              <div style="font-size: var(--fs-xs); opacity: 0.9;">Casos</div>
+              <div style="font-size: var(--fs-xs); opacity: 0.9;">Documentos</div>
+              <div style="font-size: var(--fs-xs); opacity: 0.9;">Tarefas</div>
+            </div>
+            <div style="background: var(--surface-app); padding: var(--space-3);">
+              <div id="previewHeader" style="padding: var(--space-2); border-radius: var(--radius-sm); color: white; font-weight: 600; margin-bottom: var(--space-3); background: var(--surface-inverse);">
+                <span id="previewOrgName">{{ s.get('org_display_name', org_name|default('CaseHub')) }}</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--fs-xs);">
+                <div><strong>Casos Ativos:</strong> 12</div>
+                <div><strong>Tarefas:</strong> 5</div>
+                <div><strong>Documentos:</strong> 48</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </aside>
+  </div>
+</section>
+
+{# ============================================================ #}
+{# TAB 2: Sidebar                                                #}
+{# ============================================================ #}
+<section id="tab-sidebar" class="cz-panel{% if active_tab == 'sidebar' %} is-active{% endif %}"
+         role="tabpanel" aria-labelledby="tabbtn-sidebar" tabindex="0">
+  <form method="POST" action="{{ PREFIX }}/admin/customizacao/sidebar" id="formSidebar">
+    <input type="hidden" name="sidebar_order" id="sidebarOrderInput" value="" />
+    <article class="ch-card" style="margin-bottom: var(--space-5);">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Navegação</span>
+          <h2 class="ch-card__title">Itens da sidebar</h2>
+          <p class="ch-card__subtitle">Arraste para reordenar. Toggle para mostrar ou esconder.</p>
+        </div>
+        <span data-icon="menu" data-icon-size="20" style="color: var(--c-pollen);"></span>
+      </header>
+
+      {% set sidebar_items = [
+        ("dashboard", "dashboard", "Dashboard"),
+        ("clientes", "clients", "Clientes"),
+        ("casos", "processes", "Casos"),
+        ("documentos", "docs", "Documentos"),
+        ("tarefas", "tasks", "Tarefas"),
+        ("calendario", "calendar", "Calendário"),
+        ("financeiro", "billing", "Financeiro"),
+        ("prazos", "calendar", "Prazos"),
+        ("relatorios", "chart", "Relatórios"),
+        ("tribunal", "target", "Tribunal"),
+        ("leads", "flame", "Leads"),
+        ("tickets", "inbox", "Tickets"),
+        ("controladoria", "controladoria", "Controladoria"),
+        ("admin", "settings", "Admin"),
+      ] %}
+      {% set vis = s.get('sidebar_visibility', {}) %}
+
+      <div id="sidebarSortable" role="list" aria-label="Itens da sidebar (arraste para reordenar)">
+        {% for key, icon, label in sidebar_items %}
+        {% set legacy_key = 'relatórios' if key == 'relatorios' else key %}
+        {% set is_visible = vis.get(key, vis.get(legacy_key, true)) is not false %}
+        <div class="cz-sortable-item" data-key="{{ key }}" role="listitem">
+          <span class="handle" aria-hidden="true"><span data-icon="menu" data-icon-size="14"></span></span>
+          <span aria-hidden="true" style="color: var(--c-green-d);"><span data-icon="{{ icon }}" data-icon-size="16"></span></span>
+          <label for="visible_{{ key }}">{{ label }}</label>
+          <span class="cz-toggle">
+            <input type="checkbox" name="visible_{{ key }}" id="visible_{{ key }}" {% if is_visible %}checked{% endif %} />
+            <span class="cz-toggle__slider" aria-hidden="true"></span>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <button type="submit" class="ch-btn ch-btn--primary" id="saveSidebarBtn">
+      <span data-icon="check"></span> Salvar sidebar
+    </button>
+  </form>
+</section>
+
+{# ============================================================ #}
+{# TAB 3: Widgets                                                #}
+{# ============================================================ #}
+<section id="tab-widgets" class="cz-panel{% if active_tab == 'widgets' %} is-active{% endif %}"
+         role="tabpanel" aria-labelledby="tabbtn-widgets" tabindex="0">
+  <form method="POST" action="{{ PREFIX }}/admin/customizacao/widgets">
+    <div class="ch-grid ch-grid--2" style="gap: var(--space-5); align-items: start;">
+      <div>
+        <article class="ch-card" style="margin-bottom: var(--space-5);">
+          <header class="ch-card__header">
+            <div>
+              <span class="ch-card__eyebrow">Dashboard</span>
+              <h2 class="ch-card__title">Widgets do dashboard</h2>
+              <p class="ch-card__subtitle">Selecione quais widgets aparecem por padrão para novos usuários.</p>
+            </div>
+            <span data-icon="cube" data-icon-size="20" style="color: var(--c-pollen);"></span>
+          </header>
+
+          {% set dw = s.get('default_widgets', {}) %}
+          {% set widgets = [
+            ("casos_ativos", "folder", "Casos Ativos", "Mostra contagem e lista de casos em andamento", "var(--c-green-d)"),
+            ("tarefas_pendentes", "tasks", "Tarefas Pendentes", "Tarefas aguardando conclusão com prazos", "var(--c-warn)"),
+            ("documentos_recentes", "docs", "Documentos Recentes", "Últimos documentos adicionados ou atualizados", "var(--c-info)"),
+            ("prazos_proximos", "calendar", "Próximos Prazos", "Prazos processuais dos próximos 30 dias", "var(--c-danger)"),
+            ("receita_mensal", "billing", "Receita Mensal", "Resumo financeiro do mês atual", "var(--c-green-d)"),
+            ("grafico_casos", "chart", "Gráfico de Casos", "Evolução de casos nos últimos 6 meses", "var(--c-pollen)"),
+            ("calendario_mini", "calendar", "Mini Calendário", "Calendário compacto com eventos", "var(--c-warn)"),
+            ("atividade_recente", "bell", "Atividade Recente", "Últimas ações no sistema", "var(--c-info)"),
+          ] %}
+
+          <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+            {% for key, icon, label, desc, color in widgets %}
+            <div style="display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-card);">
+              <span style="color: {{ color }};" aria-hidden="true"><span data-icon="{{ icon }}" data-icon-size="22"></span></span>
+              <div style="flex: 1;">
+                <label for="widget_{{ key }}" style="display: block; font-weight: 600; cursor: pointer;">{{ label }}</label>
+                <small style="display: block; margin-top: var(--space-1); color: var(--fg-muted); font-size: var(--fs-xs);">{{ desc }}</small>
+              </div>
+              <span class="cz-toggle">
+                <input type="checkbox" name="widget_{{ key }}" id="widget_{{ key }}" {% if dw.get(key, true) is not false %}checked{% endif %} />
+                <span class="cz-toggle__slider" aria-hidden="true"></span>
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        </article>
+
+        <button type="submit" class="ch-btn ch-btn--primary">
+          <span data-icon="check"></span> Salvar widgets
+        </button>
+      </div>
+
+      <aside aria-label="Layout padrão" style="position: sticky; top: calc(var(--topbar-h) + var(--space-4));">
+        <article class="ch-card">
+          <header class="ch-card__header">
+            <div>
+              <span class="ch-card__eyebrow">Preview</span>
+              <h2 class="ch-card__title">Layout padrão</h2>
+            </div>
+            <span data-icon="dashboard" data-icon-size="20" style="color: var(--c-info);"></span>
+          </header>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);">
+            {% for key, icon, label, desc, color in widgets[:4] %}
+            <div style="padding: var(--space-3); background: var(--surface-card-2); border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: var(--space-2); align-items: center; text-align: center;">
+              <span style="color: {{ color }};" aria-hidden="true"><span data-icon="{{ icon }}" data-icon-size="24"></span></span>
+              <small style="font-size: var(--fs-xs); font-weight: 600;">{{ label }}</small>
+            </div>
+            {% endfor %}
+          </div>
+        </article>
+      </aside>
+    </div>
+  </form>
+</section>
+
+{# ============================================================ #}
+{# TAB 4: Notificações                                           #}
+{# ============================================================ #}
+<section id="tab-notificacoes" class="cz-panel{% if active_tab == 'notificacoes' %} is-active{% endif %}"
+         role="tabpanel" aria-labelledby="tabbtn-notificacoes" tabindex="0">
+  <form method="POST" action="{{ PREFIX }}/admin/customizacao/notificacoes" class="ch-grid" style="grid-template-columns: 1fr; gap: var(--space-5);">
+
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Canais</span>
+          <h2 class="ch-card__title">Canais de notificação</h2>
+        </div>
+        <span data-icon="bell" data-icon-size="20" style="color: var(--c-danger);"></span>
+      </header>
+      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+        <div style="display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm);">
+          <div style="flex: 1;">
+            <label for="notif_email" style="display: block; font-weight: 600; cursor: pointer;">Notificações por e-mail</label>
+            <small style="display: block; margin-top: var(--space-1); color: var(--fg-muted); font-size: var(--fs-xs);">Receber alertas e resumos por e-mail</small>
+          </div>
+          <span class="cz-toggle">
+            <input type="checkbox" name="notif_email" id="notif_email" {% if s.get('notif_email', true) is not false %}checked{% endif %} />
+            <span class="cz-toggle__slider" aria-hidden="true"></span>
+          </span>
+        </div>
+        <div style="display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm);">
+          <div style="flex: 1;">
+            <label for="notif_inapp" style="display: block; font-weight: 600; cursor: pointer;">Notificações no app</label>
+            <small style="display: block; margin-top: var(--space-1); color: var(--fg-muted); font-size: var(--fs-xs);">Alertas dentro do CaseHub</small>
+          </div>
+          <span class="cz-toggle">
+            <input type="checkbox" name="notif_inapp" id="notif_inapp" {% if s.get('notif_inapp', true) is not false %}checked{% endif %} />
+            <span class="cz-toggle__slider" aria-hidden="true"></span>
+          </span>
+        </div>
+      </div>
+    </article>
+
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Frequência</span>
+          <h2 class="ch-card__title">Resumo por e-mail</h2>
+        </div>
+        <span data-icon="calendar" data-icon-size="20" style="color: var(--c-info);"></span>
+      </header>
+      <div class="ch-field">
+        <label class="ch-field__label" for="notifFrequency">Periodicidade</label>
+        <select name="notif_frequency" id="notifFrequency" class="ch-select">
+          <option value="diario" {% if s.get('notif_frequency', 'diario') == 'diario' %}selected{% endif %}>Diário</option>
+          <option value="semanal" {% if s.get('notif_frequency') == 'semanal' %}selected{% endif %}>Semanal</option>
+          <option value="mensal" {% if s.get('notif_frequency') == 'mensal' %}selected{% endif %}>Mensal</option>
+        </select>
+      </div>
+    </article>
+
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Filtro</span>
+          <h2 class="ch-card__title">Tipos de notificação</h2>
+        </div>
+        <span data-icon="bell" data-icon-size="20" style="color: var(--c-warn);"></span>
+      </header>
+      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+        {% set notif_types = [
+          ('prazos', 'calendar', 'var(--c-danger)', 'Prazos', 'Alertas de prazos processuais próximos'),
+          ('tarefas', 'tasks', 'var(--c-warn)', 'Tarefas', 'Novas tarefas atribuídas e vencidas'),
+          ('documentos', 'docs', 'var(--c-info)', 'Documentos', 'Novos uploads e documentos pendentes'),
+        ] %}
+        {% for k, icon, color, label, desc in notif_types %}
+        <div style="display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm);">
+          <span style="color: {{ color }};" aria-hidden="true"><span data-icon="{{ icon }}" data-icon-size="20"></span></span>
+          <div style="flex: 1;">
+            <label for="notif_{{ k }}" style="display: block; font-weight: 600; cursor: pointer;">{{ label }}</label>
+            <small style="display: block; margin-top: var(--space-1); color: var(--fg-muted); font-size: var(--fs-xs);">{{ desc }}</small>
+          </div>
+          <span class="cz-toggle">
+            <input type="checkbox" name="notif_{{ k }}" id="notif_{{ k }}" {% if s.get('notif_' + k, true) is not false %}checked{% endif %} />
+            <span class="cz-toggle__slider" aria-hidden="true"></span>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </article>
+
+    <button type="submit" class="ch-btn ch-btn--primary" style="align-self: flex-start;">
+      <span data-icon="check"></span> Salvar notificações
+    </button>
+  </form>
+</section>
+
+{# ============================================================ #}
+{# TAB 5: Integrações — REMOVED (P0.3 audit)                     #}
+{# Hub canônico /integrations é fonte única. Esta section ficou  #}
+{# obsoleta porque expunha Client ID raw + Folder ID em UI admin #}
+{# (jargão técnico que vazava pro usuário final). Os toggles que #}
+{# moram aqui devem ser apresentados no /integrations card,      #}
+{# nunca em /admin/customizacao.                                 #}
+{# ============================================================ #}
+{# Section abaixo permanece apenas para o request canônico não   #}
+{# quebrar quando active_tab == 'integracoes' raceia com legacy  #}
+{# bookmarks; já redirecionamos no route handler. Não é exposto. #}
+<section id="tab-integracoes" class="cz-panel" style="display: none;"
+         role="tabpanel" aria-labelledby="tabbtn-integracoes" tabindex="0" hidden>
+  <form method="POST" action="{{ PREFIX }}/admin/customizacao/integracoes" class="ch-grid" style="grid-template-columns: 1fr; gap: var(--space-5);">
+    {% set quick_integrations = [
+      ('whatsapp', 'WhatsApp Chat', 'Chat, bot e atendimento humano', s.get('whatsapp_enabled', true), PREFIX ~ '/whatsapp-chat'),
+      ('maestro', 'Maestro', 'Assistente interno e configuração de contexto', s.get('maestro_enabled', true), PREFIX ~ '/assistente'),
+      ('moskit', 'Moskit / Leads', 'CRM, leads e qualificação comercial', s.get('moskit_enabled', false), PREFIX ~ '/leads'),
+      ('stripe', 'Stripe / Assinatura', 'Planos, cobrança e checkout', s.get('stripe_enabled', false), PREFIX ~ '/subscription'),
+      ('pdpj', 'PDPJ / Controladoria', 'Consultas processuais e operação jurídica', s.get('pdpj_enabled', false), PREFIX ~ '/controladoria'),
+      ('twilio', 'Twilio', 'SMS e WhatsApp Business alternativo', s.get('twilio_enabled', false), PREFIX ~ '/twilio'),
+      ('webhooks', 'Webhooks', 'Eventos externos e automações', s.get('webhooks_enabled', false), PREFIX ~ '/webhooks'),
+      ('integrations_hub', 'Hub de Integrações', 'Diagnóstico central de serviços', s.get('integrations_hub_enabled', true), PREFIX ~ '/integrations')
+    ] %}
+
+    <section class="cz-integrations-grid" aria-label="Integrações do produto">
+      {% for key, label, desc, enabled, href in quick_integrations %}
+      <article class="cz-integration-card">
+        <div class="cz-integration-card__head">
+          <div>
+            <span class="ch-card__eyebrow">Módulo</span>
+            <h2 class="cz-integration-card__title">{{ label }}</h2>
+            <p class="cz-integration-card__meta">{{ desc }}</p>
+          </div>
+          {% if enabled %}
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>Ativo</span>
+          {% else %}
+          <span class="ch-pill ch-pill--danger"><span class="dot"></span>Oculto</span>
+          {% endif %}
+        </div>
+        <div class="cz-integration-card__foot">
+          <label for="{{ key }}_enabled" style="font-weight: 600;">Exibir no produto</label>
+          <span class="cz-toggle">
+            <input type="checkbox" name="{{ key }}_enabled" id="{{ key }}_enabled" {% if enabled %}checked{% endif %} />
+            <span class="cz-toggle__slider" aria-hidden="true"></span>
+          </span>
+        </div>
+        <a class="ch-btn ch-btn--ghost ch-btn--sm" href="{{ href }}" style="justify-self: flex-start;">
+          <i data-lucide="external-link"></i> Abrir
+        </a>
+      </article>
+      {% endfor %}
+    </section>
+
+    {# Google Calendar #}
+    <article class="ch-card" aria-labelledby="int-gcal-title">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Google</span>
+          <h2 class="ch-card__title" id="int-gcal-title">Google Calendar</h2>
+        </div>
+        <div style="display: flex; gap: var(--space-2); align-items: center;">
+          {% if s.get('gcal_enabled') %}
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>Conectado</span>
+          {% else %}
+          <span class="ch-pill ch-pill--danger"><span class="dot"></span>Desconectado</span>
+          {% endif %}
+        </div>
+      </header>
+      <div style="display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--line);">
+        <label for="gcal_enabled" style="flex: 1; font-weight: 600;">Ativar sincronização</label>
+        <span class="cz-toggle">
+          <input type="checkbox" name="gcal_enabled" id="gcal_enabled"
+                 aria-controls="gcalFields" data-toggle-fields="gcalFields"
+                 {% if s.get('gcal_enabled') %}checked{% endif %} />
+          <span class="cz-toggle__slider" aria-hidden="true"></span>
+        </span>
+      </div>
+      <div id="gcalFields" {% if not s.get('gcal_enabled') %}hidden{% endif %} style="padding-top: var(--space-3);">
+        <div class="ch-field">
+          <label class="ch-field__label" for="gcal_client_id">Client ID</label>
+          <input type="text" class="ch-input ch-mono" name="gcal_client_id" id="gcal_client_id"
+                 value="{{ s.get('gcal_client_id', '') }}"
+                 placeholder="xxxx.apps.googleusercontent.com" />
+        </div>
+      </div>
+    </article>
+
+    {# Google Drive #}
+    <article class="ch-card" aria-labelledby="int-gdrive-title">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Google</span>
+          <h2 class="ch-card__title" id="int-gdrive-title">Google Drive</h2>
+        </div>
+        <div>
+          {% if s.get('gdrive_enabled') %}
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>Conectado</span>
+          {% else %}
+          <span class="ch-pill ch-pill--danger"><span class="dot"></span>Desconectado</span>
+          {% endif %}
+        </div>
+      </header>
+      <div style="display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--line);">
+        <label for="gdrive_enabled" style="flex: 1; font-weight: 600;">Ativar sincronização</label>
+        <span class="cz-toggle">
+          <input type="checkbox" name="gdrive_enabled" id="gdrive_enabled"
+                 aria-controls="gdriveFields" data-toggle-fields="gdriveFields"
+                 {% if s.get('gdrive_enabled') %}checked{% endif %} />
+          <span class="cz-toggle__slider" aria-hidden="true"></span>
+        </span>
+      </div>
+      <div id="gdriveFields" {% if not s.get('gdrive_enabled') %}hidden{% endif %} style="padding-top: var(--space-3);">
+        <div class="ch-field">
+          <label class="ch-field__label" for="gdrive_folder_id">Folder ID</label>
+          <input type="text" class="ch-input ch-mono" name="gdrive_folder_id" id="gdrive_folder_id"
+                 value="{{ s.get('gdrive_folder_id', '') }}"
+                 placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms" />
+        </div>
+      </div>
+    </article>
+
+    {# SMTP #}
+    <article class="ch-card" aria-labelledby="int-smtp-title">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">E-mail</span>
+          <h2 class="ch-card__title" id="int-smtp-title">Email SMTP</h2>
+        </div>
+        <div>
+          {% if s.get('smtp_enabled') %}
+          <span class="ch-pill ch-pill--ok"><span class="dot"></span>Configurado</span>
+          {% else %}
+          <span class="ch-pill ch-pill--danger"><span class="dot"></span>Desconectado</span>
+          {% endif %}
+        </div>
+      </header>
+      <div style="display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--line);">
+        <label for="smtp_enabled" style="flex: 1; font-weight: 600;">Ativar envio de e-mail</label>
+        <span class="cz-toggle">
+          <input type="checkbox" name="smtp_enabled" id="smtp_enabled"
+                 aria-controls="smtpFields" data-toggle-fields="smtpFields"
+                 {% if s.get('smtp_enabled') %}checked{% endif %} />
+          <span class="cz-toggle__slider" aria-hidden="true"></span>
+        </span>
+      </div>
+      <div id="smtpFields" {% if not s.get('smtp_enabled') %}hidden{% endif %} style="padding-top: var(--space-3);">
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field">
+            <label class="ch-field__label" for="smtp_host">Host SMTP</label>
+            <input type="text" class="ch-input ch-mono" name="smtp_host" id="smtp_host"
+                   value="{{ s.get('smtp_host', '') }}" placeholder="smtp.gmail.com" />
+          </div>
+          <div class="ch-field">
+            <label class="ch-field__label" for="smtp_port">Porta</label>
+            <input type="text" class="ch-input ch-mono" name="smtp_port" id="smtp_port"
+                   value="{{ s.get('smtp_port', '587') }}" placeholder="587" />
+          </div>
+        </div>
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field">
+            <label class="ch-field__label" for="smtp_user">Usuário</label>
+            <input type="text" class="ch-input" name="smtp_user" id="smtp_user"
+                   value="{{ s.get('smtp_user', '') }}" placeholder="user@exemplo.com"
+                   autocomplete="username" />
+          </div>
+          <div class="ch-field">
+            <label class="ch-field__label" for="smtp_password">Senha</label>
+            <input type="password" class="ch-input" name="smtp_password" id="smtp_password"
+                   value="{{ s.get('smtp_password', '') }}" placeholder="********"
+                   autocomplete="new-password" />
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <button type="submit" class="ch-btn ch-btn--primary" style="align-self: flex-start;">
+      <span data-icon="check"></span> Salvar integrações
+    </button>
+  </form>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  function rgbToHex(value) {
+    if (!value) return '';
+    value = value.trim();
+    if (value.charAt(0) === '#') return value;
+    var match = value.match(/\d+(\.\d+)?/g);
+    if (!match || match.length < 3) return '';
+    var hex = match.slice(0, 3).map(function (n) {
+      var i = parseInt(n, 10);
+      if (isNaN(i)) return '00';
+      return (i < 16 ? '0' : '') + i.toString(16);
+    }).join('');
+    return '#' + hex;
+  }
+
+  function resolveTokenHex(token) {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+    return rgbToHex(raw) || raw;
+  }
+
+  function hydrateDefaultColors() {
+    document.querySelectorAll('[data-default-token]').forEach(function (el) {
+      if (el.value) return;
+      var fallback = resolveTokenHex(el.dataset.defaultToken);
+      if (fallback) {
+        el.value = fallback;
+        var hex = document.getElementById(el.id.replace('Color', 'Hex'));
+        if (hex && !hex.value) hex.value = fallback;
+      }
+    });
+  }
+
+  function activateTab(name) {
+    document.querySelectorAll('.cz-tab').forEach(function (tab) {
+      var isActive = tab.dataset.tabTarget === name;
+      tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      tab.setAttribute('tabindex', isActive ? '0' : '-1');
+    });
+    document.querySelectorAll('.cz-panel').forEach(function (panel) {
+      panel.classList.toggle('is-active', panel.id === 'tab-' + name);
+    });
+    var url = new URL(window.location);
+    url.searchParams.set('tab', name);
+    window.history.replaceState({}, '', url);
+  }
+
+  function setupTabs() {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.cz-tab'));
+    tabs.forEach(function (tab, idx) {
+      tab.addEventListener('click', function () {
+        activateTab(tab.dataset.tabTarget);
+        tab.focus();
+      });
+      tab.addEventListener('keydown', function (e) {
+        var next = null;
+        if (e.key === 'ArrowRight') next = tabs[(idx + 1) % tabs.length];
+        else if (e.key === 'ArrowLeft') next = tabs[(idx - 1 + tabs.length) % tabs.length];
+        else if (e.key === 'Home') next = tabs[0];
+        else if (e.key === 'End') next = tabs[tabs.length - 1];
+        if (next) {
+          e.preventDefault();
+          activateTab(next.dataset.tabTarget);
+          next.focus();
+        }
+      });
+    });
+  }
+
+  function livePreview() {
+    var primaryInput = document.getElementById('inputPrimaryColor');
+    var secondaryInput = document.getElementById('inputSecondaryColor');
+    if (!primaryInput || !secondaryInput) return;
+    var primary = primaryInput.value;
+    var secondary = secondaryInput.value;
+    var orgNameInput = document.getElementById('inputOrgName');
+    var orgName = orgNameInput ? orgNameInput.value : 'CaseHub';
+    var primaryHex = document.getElementById('inputPrimaryHex');
+    var secondaryHex = document.getElementById('inputSecondaryHex');
+    if (primaryHex) primaryHex.value = primary;
+    if (secondaryHex) secondaryHex.value = secondary;
+    if (primary) document.documentElement.style.setProperty('--accent', primary);
+    var sidebar = document.getElementById('previewSidebar');
+    if (sidebar && secondary && primary) {
+      sidebar.style.background = 'linear-gradient(180deg, ' + secondary + ' 0%, var(--surface-inverse) 100%)';
+    }
+    var header = document.getElementById('previewHeader');
+    if (header && secondary && primary) {
+      header.style.background = 'linear-gradient(135deg, ' + secondary + ', ' + primary + ')';
+    }
+    var previewName = document.getElementById('previewOrgName');
+    if (previewName) previewName.textContent = orgName;
+    var previewLogo = document.getElementById('previewLogo');
+    if (previewLogo) previewLogo.textContent = orgName;
+  }
+
+  function setupColorInputs() {
+    ['Primary', 'Secondary'].forEach(function (key) {
+      var color = document.getElementById('input' + key + 'Color');
+      var hex = document.getElementById('input' + key + 'Hex');
+      if (color) color.addEventListener('input', livePreview);
+      if (hex && color) {
+        hex.addEventListener('change', function () {
+          var match = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(hex.value);
+          if (match) {
+            var h = match[1];
+            if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+            color.value = '#' + h.toLowerCase();
+            hex.value = color.value;
+            livePreview();
+          }
+        });
+      }
+    });
+    var reset = document.getElementById('resetCoresBtn');
+    if (reset) {
+      reset.addEventListener('click', function () {
+        var primary = document.getElementById('inputPrimaryColor');
+        var secondary = document.getElementById('inputSecondaryColor');
+        if (primary) primary.value = resolveTokenHex(primary.dataset.defaultToken || '--accent');
+        if (secondary) secondary.value = resolveTokenHex(secondary.dataset.defaultToken || '--accent-hover');
+        livePreview();
+      });
+    }
+    var orgName = document.getElementById('inputOrgName');
+    if (orgName) orgName.addEventListener('input', livePreview);
+  }
+
+  function setupLogoUpload() {
+    var input = document.querySelector('[data-logo-preview]');
+    if (!input) return;
+    input.addEventListener('change', function () {
+      if (!input.files || !input.files[0]) return;
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var img = document.getElementById('logo-preview-img');
+        var wrap = document.getElementById('logo-preview');
+        if (img) img.src = e.target.result;
+        if (wrap) wrap.removeAttribute('hidden');
+      };
+      reader.readAsDataURL(input.files[0]);
+    });
+  }
+
+  function setupSortable() {
+    var el = document.getElementById('sidebarSortable');
+    if (el && window.Sortable) {
+      Sortable.create(el, {
+        handle: '.handle',
+        animation: 200,
+        ghostClass: 'sortable-ghost'
+      });
+    }
+    function updateSidebarOrderInput() {
+      var items = document.querySelectorAll('#sidebarSortable .cz-sortable-item');
+      var order = Array.prototype.map.call(items, function (item) { return item.dataset.key; });
+      var input = document.getElementById('sidebarOrderInput');
+      if (input) input.value = order.join(',');
+    }
+    var form = document.getElementById('formSidebar');
+    if (form) form.addEventListener('submit', updateSidebarOrderInput);
+    var saveBtn = document.getElementById('saveSidebarBtn');
+    if (saveBtn) saveBtn.addEventListener('click', updateSidebarOrderInput);
+  }
+
+  function setupIntegrationToggles() {
+    document.querySelectorAll('[data-toggle-fields]').forEach(function (checkbox) {
+      checkbox.addEventListener('change', function () {
+        var fields = document.getElementById(checkbox.dataset.toggleFields);
+        if (!fields) return;
+        if (checkbox.checked) fields.removeAttribute('hidden');
+        else fields.setAttribute('hidden', '');
+      });
+    });
+  }
+
+  function setupAlertDismiss() {
+    document.querySelectorAll('[data-admin-custom-dismiss]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var alert = btn.closest('.ch-card');
+        if (alert) alert.remove();
+      });
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    hydrateDefaultColors();
+    setupTabs();
+    setupColorInputs();
+    setupLogoUpload();
+    setupSortable();
+    setupIntegrationToggles();
+    setupAlertDismiss();
+    livePreview();
+  });
+})();
+</script>
+{% endblock %}

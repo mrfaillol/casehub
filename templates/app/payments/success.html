@@ -1,0 +1,51 @@
+{% extends "app/base.html" %}
+{% set active_module = 'billing' %}
+{% block title %}Pagamento confirmado · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow" style="color: var(--c-green-d);">Pagamento · Sucesso</span>
+    <h1>Pagamento <em>confirmado</em>.</h1>
+    {% if payment_info %}
+    <p class="ch-page-head__sub">
+      Obrigado pelo pagamento de
+      <strong style="color: var(--c-green-d);">R$ {{ "%.2f"|format((payment_info.amount|default(0)|float) / 100) }}</strong>.
+      {% if payment_info.email %}
+      Um recibo foi enviado para <strong>{{ payment_info.email }}</strong>.
+      {% endif %}
+    </p>
+    {% else %}
+    <p class="ch-page-head__sub">Obrigado. Seu pagamento foi processado com sucesso.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="ch-card ch-card--neu" style="margin-bottom: var(--space-5); text-align: center; padding: var(--space-6);">
+  <div style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; border-radius: 50%; background: var(--c-green-l, rgba(16,185,129,0.12)); margin-bottom: var(--space-4);">
+    <span data-icon="check" data-icon-size="40" style="color: var(--c-green-d);"></span>
+  </div>
+  <h2 class="ch-card__title" style="font-size: var(--fs-2xl); margin-bottom: var(--space-2);">Tudo certo!</h2>
+  {% if invoice_number %}
+  <p style="color: var(--fg-default); margin-bottom: var(--space-4);">
+    Fatura <strong class="ch-mono">{{ invoice_number }}</strong> marcada como paga.
+  </p>
+  {% endif %}
+  <div style="display: flex; gap: var(--space-2); justify-content: center; flex-wrap: wrap;">
+    {% if invoice_number %}
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/invoices/{{ invoice_number }}">
+      <span data-icon="docs"></span> Ver fatura
+    </a>
+    {% endif %}
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/dashboard">
+      <span data-icon="dashboard"></span> Voltar ao painel
+    </a>
+  </div>
+</section>
+
+<section class="ch-card ch-card--compact" style="text-align: center;">
+  <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint); letter-spacing: 0.10em; text-transform: uppercase;">
+    Dúvidas sobre o pagamento? {% if org_email|default('') %}{{ org_email }}{% endif %}
+  </span>
+</section>
+{% endblock %}

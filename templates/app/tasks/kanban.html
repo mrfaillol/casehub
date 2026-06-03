@@ -1,0 +1,630 @@
+{% extends "app/base.html" %}
+{% set active_module = 'kanban' %}
+{% block title %}Kanban · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ asset_url('css/app/kanban.css') }}" />
+{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Kanban · Tarefas</span>
+    <h1>Fluxo de <em>trabalho</em> em movimento.</h1>
+    <p class="ch-page-head__sub">Arraste tarefas entre colunas — o status atualiza imediatamente.</p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks">
+      <span data-icon="tasks"></span> Ver lista
+    </a>
+    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/tasks/new">
+      <span data-icon="plus"></span> Nova tarefa
+    </a>
+  </div>
+</section>
+
+{% if tasks_capped %}
+<div class="ch-card ch-card--compact" style="margin-bottom: var(--space-4); border-color: var(--c-warn-soft); background: rgba(217, 119, 6, 0.06);">
+  <p style="margin: 0; font-size: var(--fs-sm); color: var(--fg-default);">
+    <strong>Exibindo as primeiras {{ kanban_total_limit|default(500) }} tarefas.</strong>
+    Use os filtros (em breve) ou abra a lista completa.
+  </p>
+</div>
+{% endif %}
+
+<section class="ch-kanban-create" aria-label="Controles do quadro">
+  {# Dual toggle: view = columns visibility | user filter = assigned_to #}
+  {% set current_user_filter = request.query_params.get('user', '') %}
+  <nav class="ch-kanban-switch" aria-label="Visualização do Kanban">
+    <a class="{% if kanban_view_mode == 'all' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=all{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="Listas compartilhadas + suas listas privadas">Tudo</a>
+    <a class="{% if kanban_view_mode == 'shared' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=shared{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="Apenas listas compartilhadas do escritório">Equipe</a>
+    <a class="{% if kanban_view_mode == 'private' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=private{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="Apenas suas listas privadas">Meu quadro</a>
+  </nav>
+  <nav class="ch-kanban-switch" aria-label="Filtro de responsável" style="margin-left: var(--space-2, 8px);">
+    <a class="{% if not current_user_filter %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view={{ kanban_view_mode }}" title="Tarefas de toda a equipe">Toda equipe</a>
+    <a class="{% if current_user_filter == 'me' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view={{ kanban_view_mode }}&user=me" title="Apenas tarefas atribuídas a você">Meus tasks</a>
+  </nav>
+  <form id="chColumnForm" class="ch-kanban-create__form">
+    <input class="ch-input" name="name" placeholder="Nova lista" required />
+    <select class="ch-select" name="visibility" aria-label="Tipo de lista">
+      <option value="private">Privada</option>
+      {% if can_manage_shared_kanban %}
+      <option value="shared">Compartilhada</option>
+      {% endif %}
+    </select>
+    <input class="ch-input ch-kanban-create__color" name="color" type="color" value="#1C2447" aria-label="Cor da lista" />
+    <button class="ch-btn ch-btn--primary" type="submit"><span data-icon="plus"></span> Criar lista</button>
+  </form>
+</section>
+
+<div class="ch-board" id="chBoard">
+  {% for col in (kanban_columns or []) %}
+  <section class="ch-column {% if col.is_private %}is-private{% endif %}" data-column-id="{{ col.id }}" data-column-status="{{ col.status }}" data-column-slug="{{ col.slug }}" data-column-private="{{ '1' if col.is_private else '0' }}">
+    <header class="ch-column__header">
+      <div>
+        <h2 class="ch-column__name">
+          <span class="dot" style="background: {{ col.color or 'var(--c-green-d)' }};"></span>
+          {{ col.name }}
+        </h2>
+        <div class="ch-column__meta">
+          <span class="ch-column__scope">{{ col.visibility_label }}</span>
+          <span>{{ col.tasks|length }}{% if col.hours %} · {{ col.hours }}h{% endif %}</span>
+        </div>
+      </div>
+      {% if col.is_owner or can_manage_shared_kanban %}
+      <div class="ch-column__tools">
+        <button class="ch-column__icon" type="button" data-column-rename="{{ col.id }}" title="Renomear lista" aria-label="Renomear lista"><span data-icon="edit"></span></button>
+        <button class="ch-column__icon" type="button" data-column-delete="{{ col.id }}" title="Remover lista" aria-label="Remover lista"><span data-icon="trash"></span></button>
+      </div>
+      {% endif %}
+    </header>
+    <div class="ch-column__body" data-drop-zone="true">
+      {% for t in col.tasks %}
+      <a class="ch-task-card" href="{{ PREFIX }}/tasks/{{ t.id }}" draggable="true" data-task-id="{{ t.id }}">
+        <p class="ch-task-card__title">{{ t.title or 'Sem título' }}</p>
+        <div class="ch-task-card__meta">
+          {% if t.priority == 'high' or t.priority == 'urgent' %}
+            <span class="ch-pill ch-pill--danger"><span class="dot"></span>{{ t.priority }}</span>
+          {% elif t.priority == 'medium' %}
+            <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ t.priority }}</span>
+          {% elif t.priority %}
+            <span class="ch-pill"><span class="dot"></span>{{ t.priority }}</span>
+          {% endif %}
+          {% if t.due_date %}
+            <span>{{ t.due_date.strftime('%d/%m') }}</span>
+          {% endif %}
+        </div>
+        {% if t.assignee or t.case_id %}
+        <div class="ch-task-card__footer">
+          {% if t.assignee %}
+          <span class="ch-task-card__assignee">
+            <span class="ch-task-card__assignee-dot">{{ t.assignee.name[0]|upper if t.assignee.name else '?' }}</span>
+            {{ t.assignee.name.split()[0] if t.assignee.name else 'Não atribuída' }}
+          </span>
+          {% else %}<span></span>{% endif %}
+          {% if t.case_id %}
+          <span class="ch-mono" style="font-size: 10px; color: var(--fg-faint);">
+            {{ t.case.case_number if t.case else 'caso #'+t.case_id|string }}
+          </span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </a>
+      {% else %}
+      <div class="ch-column__empty">
+        Vazio
+      </div>
+      {% endfor %}
+    </div>
+    <form class="ch-column__quickadd" data-quick-add="{{ col.id }}" data-status="{{ col.status }}">
+      <input class="ch-input" name="title" placeholder="Adicionar cartão..." aria-label="Adicionar cartão em {{ col.name }}" />
+      <button class="ch-btn ch-btn--ghost" type="submit" aria-label="Adicionar cartão em {{ col.name }}"><span data-icon="plus" aria-hidden="true"></span></button>
+    </form>
+  </section>
+  {% else %}
+  <section class="ch-card" style="flex: 1;">
+    <div class="ch-empty">
+      <span class="ch-empty__icon" aria-hidden="true"><span data-icon="kanban"></span></span>
+      <h3>Sem colunas configuradas</h3>
+      <p>Crie suas primeiras colunas no módulo de tarefas.</p>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+{# ─── Quick-edit modal (Trello-style, pedido [parceiro] 25/05) ─── #}
+<div class="ch-overlay" id="ch-task-modal" hidden aria-hidden="true">
+  <div class="ch-modal ch-modal--lg" role="dialog" aria-modal="true" aria-labelledby="ch-task-modal-title">
+    <header class="ch-modal__header">
+      <div style="flex: 1; min-width: 0;">
+        <span class="ch-card__eyebrow" id="ch-task-modal-eyebrow">Tarefa</span>
+        <h2 class="ch-modal__title" id="ch-task-modal-title">Editar tarefa</h2>
+      </div>
+      <button type="button" class="ch-modal__close" data-task-modal-close aria-label="Fechar">
+        <span data-icon="x" data-icon-size="16"></span>
+      </button>
+    </header>
+    <div class="ch-modal__body">
+      <form id="ch-task-modal-form" style="display: flex; flex-direction: column; gap: var(--space-4);">
+        <input type="hidden" name="task_id" id="ch-task-modal-id" />
+
+        <div class="ch-field">
+          <label class="ch-field__label" for="ch-task-modal-title-input">Título</label>
+          <input class="ch-input" id="ch-task-modal-title-input" name="title" type="text" required />
+        </div>
+
+        <div class="ch-field">
+          <label class="ch-field__label" for="ch-task-modal-desc">Descrição</label>
+          <textarea class="ch-textarea" id="ch-task-modal-desc" name="description" rows="4"
+                    placeholder="Contexto, passos, critério de conclusão…"></textarea>
+        </div>
+
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field">
+            <label class="ch-field__label" for="ch-task-modal-priority">Prioridade</label>
+            <select class="ch-select" id="ch-task-modal-priority" name="priority">
+              <option value="low">Baixa</option>
+              <option value="medium">Média</option>
+              <option value="high">Alta</option>
+              <option value="urgent">Urgente</option>
+            </select>
+          </div>
+          <div class="ch-field">
+            <label class="ch-field__label" for="ch-task-modal-due">Vencimento</label>
+            <input class="ch-input ch-mono" id="ch-task-modal-due" name="due_date" type="date" />
+          </div>
+        </div>
+
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field">
+            <label class="ch-field__label" for="ch-task-modal-assignee">Responsável</label>
+            <select class="ch-select" id="ch-task-modal-assignee" name="assigned_to">
+              <option value="">Não atribuído</option>
+              {% for u in org_users or [] %}
+              <option value="{{ u.id }}">{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="ch-field">
+            <label class="ch-field__label" for="ch-task-modal-tags">Tags</label>
+            <input class="ch-input" id="ch-task-modal-tags" name="tags" type="text"
+                   placeholder="ex: urgente, prazo" />
+          </div>
+        </div>
+
+        <div class="ch-field" id="ch-task-modal-context" hidden>
+          <label class="ch-field__label">Vínculos</label>
+          <p style="margin: 0; font-size: var(--fs-sm); color: var(--fg-muted);" id="ch-task-modal-context-text"></p>
+        </div>
+      </form>
+
+      {# Comments section #}
+      <section style="margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--line);">
+        <h3 style="margin: 0 0 var(--space-3); font-size: var(--fs-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-muted);">
+          Comentários <span id="ch-task-modal-comment-count" style="color: var(--fg-faint);"></span>
+        </h3>
+        <div id="ch-task-modal-comments" style="display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); max-height: 240px; overflow-y: auto;"></div>
+        <form id="ch-task-modal-comment-form" style="display: flex; gap: var(--space-2);">
+          <input class="ch-input" id="ch-task-modal-comment-input" type="text" placeholder="Adicionar comentário…" />
+          <button class="ch-btn ch-btn--primary" type="submit">
+            <span data-icon="send" data-icon-size="14"></span> Enviar
+          </button>
+        </form>
+      </section>
+    </div>
+    <footer class="ch-modal__footer">
+      <a class="ch-btn ch-btn--ghost" id="ch-task-modal-full" href="#">
+        <span data-icon="expand" data-icon-size="14"></span> Abrir página completa
+      </a>
+      <span style="flex: 1;"></span>
+      <button type="button" class="ch-btn ch-btn--ghost" data-task-modal-close>Cancelar</button>
+      <button type="button" class="ch-btn ch-btn--primary" id="ch-task-modal-save">
+        <span data-icon="check" data-icon-size="14"></span> Salvar
+      </button>
+    </footer>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  'use strict';
+  // Minimal vanilla drag-and-drop. Persists via PATCH /casehub/tasks/api/{id}/move.
+  var dragId = null;
+  var board = document.getElementById('chBoard');
+  if (!board) return;
+  var prefix = window.CASEHUB_PREFIX || '{{ PREFIX }}';
+
+  function postJson(url, method, payload) {
+    return fetch(url, {
+      method: method || 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload || {})
+    }).then(function (res) {
+      if (!res.ok) return res.json().catch(function () { return {}; }).then(function (data) {
+        throw new Error(data.error || 'Falha na operação');
+      });
+      return res.json().catch(function () { return {}; });
+    });
+  }
+
+  // Toast helper (prefer global window.toast, fallback alert)
+  function notify(msg, type) {
+    if (window.toast && typeof window.toast[type || 'info'] === 'function') {
+      window.toast[type || 'info'](msg);
+    } else {
+      alert(msg);
+    }
+  }
+
+  var columnForm = document.getElementById('chColumnForm');
+  if (columnForm) {
+    columnForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = new FormData(columnForm);
+      postJson(prefix + '/tasks/api/columns', 'POST', {
+        name: data.get('name'),
+        visibility: data.get('visibility'),
+        color: data.get('color')
+      }).then(function (result) {
+        var view = result.visibility === 'shared' ? 'shared' : 'private';
+        window.location.href = prefix + '/tasks/kanban?view=' + view;
+      }).catch(function (err) { notify(err.message, 'error'); });
+    });
+  }
+
+  board.addEventListener('dragstart', function (e) {
+    var card = e.target.closest && e.target.closest('.ch-task-card[draggable="true"]');
+    if (!card) return;
+    dragId = card.getAttribute('data-task-id');
+    card.classList.add('is-dragging');
+    try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {}
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  });
+
+  board.addEventListener('dragend', function (e) {
+    var card = e.target.closest && e.target.closest('.ch-task-card');
+    if (card) card.classList.remove('is-dragging');
+    board.querySelectorAll('.ch-column.is-drop-target').forEach(function (c) { c.classList.remove('is-drop-target'); });
+  });
+
+  board.querySelectorAll('.ch-column').forEach(function (col) {
+    col.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      col.classList.add('is-drop-target');
+    });
+    col.addEventListener('dragleave', function (e) {
+      if (e.target === col) col.classList.remove('is-drop-target');
+    });
+    col.addEventListener('drop', function (e) {
+      e.preventDefault();
+      col.classList.remove('is-drop-target');
+      var taskId = dragId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
+      if (!taskId) return;
+      var card = document.querySelector('.ch-task-card[data-task-id="' + taskId + '"]');
+      var body = col.querySelector('.ch-column__body');
+      if (card && body && card.parentElement !== body) body.appendChild(card);
+      var colId = col.getAttribute('data-column-id');
+      var status = col.getAttribute('data-column-status');
+      var position = Array.prototype.indexOf.call(body.querySelectorAll('.ch-task-card'), card);
+      postJson(prefix + '/tasks/api/' + taskId + '/move', 'PATCH', {
+        column_id: colId,
+        status: status,
+        position: Math.max(position, 0)
+      }).catch(function () { window.location.reload(); });
+      dragId = null;
+    });
+  });
+
+  board.addEventListener('submit', function (e) {
+    var form = e.target.closest && e.target.closest('[data-quick-add]');
+    if (!form) return;
+    e.preventDefault();
+    var input = form.querySelector('input[name="title"]');
+    var title = input && input.value.trim();
+    if (!title) return;
+    postJson(prefix + '/tasks/api/quick-add', 'POST', {
+      title: title,
+      column_id: form.getAttribute('data-quick-add'),
+      status: form.getAttribute('data-status')
+    }).then(function () { window.location.reload(); })
+      .catch(function (err) { notify(err.message, 'error'); });
+  });
+
+  // B6 (26/05): swap prompt() por edição inline ao clicar no botão "edit".
+  // [parceiro] reunião 25/05 [01:09:27] pediu UX ágil tipo Trello — modal/prompt
+  // pesado é "burocrático demais". Foco salva via PATCH, Esc cancela.
+  function startInlineRename(target, colId, currentText, onSave) {
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentText;
+    input.className = 'ch-input ch-inline-rename';
+    input.style.cssText = 'width:100%;min-width:140px;font-weight:inherit;font-size:inherit;padding:2px 6px;';
+    var prev = target.innerHTML;
+    target.innerHTML = '';
+    target.appendChild(input);
+    input.focus();
+    input.select();
+    var done = false;
+    var restore = function (html) { if (done) return; done = true; target.innerHTML = html; };
+    var save = function () {
+      if (done) return;
+      var next = input.value.trim();
+      if (!next || next === currentText) { restore(prev); return; }
+      input.disabled = true;
+      postJson(prefix + '/tasks/api/columns/' + colId, 'PATCH', { name: next })
+        .then(function () { onSave(next); })
+        .catch(function (err) { restore(prev); notify(err.message, 'error'); });
+    };
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter')  { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.preventDefault(); restore(prev); }
+    });
+    input.addEventListener('blur', save);
+  }
+
+  // ─── Quick-edit modal (Trello-style, pedido [parceiro] 25/05) ───
+  // Single click no card → abre modal inline. Double click no título → edit
+  // inline rápido (legado B6 mantido para muscle-memory). Drag/drop continua.
+  // Modal substitui navegação full-page que era fricção visível na demo.
+  var modal = document.getElementById('ch-task-modal');
+  var modalForm = document.getElementById('ch-task-modal-form');
+  var modalCommentForm = document.getElementById('ch-task-modal-comment-form');
+  var modalSaveBtn = document.getElementById('ch-task-modal-save');
+  var modalFullLink = document.getElementById('ch-task-modal-full');
+  var _modalCurrentTaskId = null;
+  var _modalDirty = false;
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function openTaskModal(taskId) {
+    if (!modal) return;
+    _modalCurrentTaskId = taskId;
+    _modalDirty = false;
+    modalFullLink.setAttribute('href', prefix + '/tasks/' + taskId);
+    // Reset form
+    modalForm.reset();
+    document.getElementById('ch-task-modal-id').value = taskId;
+    document.getElementById('ch-task-modal-comments').innerHTML =
+      '<p style="color: var(--fg-faint); font-size: var(--fs-sm); margin: 0;">Carregando…</p>';
+    document.getElementById('ch-task-modal-comment-count').textContent = '';
+    var ctx = document.getElementById('ch-task-modal-context');
+    if (ctx) ctx.hidden = true;
+    modal.hidden = false;
+    modal.setAttribute('data-open', 'true');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+
+    fetch(prefix + '/tasks/api/' + taskId + '/detail', {
+      credentials: 'same-origin'
+    }).then(function (r) {
+      if (!r.ok) throw new Error('Falha ao carregar tarefa');
+      return r.json();
+    }).then(function (data) {
+      document.getElementById('ch-task-modal-title-input').value = data.title || '';
+      document.getElementById('ch-task-modal-title').textContent = data.title || 'Tarefa';
+      document.getElementById('ch-task-modal-eyebrow').textContent = 'Tarefa #' + data.id;
+      document.getElementById('ch-task-modal-desc').value = data.description || '';
+      document.getElementById('ch-task-modal-priority').value = data.priority || 'medium';
+      document.getElementById('ch-task-modal-due').value = data.due_date ? data.due_date.slice(0, 10) : '';
+      document.getElementById('ch-task-modal-assignee').value = data.assigned_to || '';
+      document.getElementById('ch-task-modal-tags').value = data.tags || '';
+
+      // Context (client/case)
+      var ctxLines = [];
+      if (data.client_name) ctxLines.push('Cliente: ' + data.client_name);
+      if (data.case_name) ctxLines.push('Processo: ' + data.case_name);
+      if (ctxLines.length) {
+        document.getElementById('ch-task-modal-context-text').textContent = ctxLines.join(' · ');
+        ctx.hidden = false;
+      }
+
+      // Comments
+      var commentsEl = document.getElementById('ch-task-modal-comments');
+      var countEl = document.getElementById('ch-task-modal-comment-count');
+      commentsEl.innerHTML = '';
+      if (data.comments && data.comments.length) {
+        countEl.textContent = '(' + data.comments.length + ')';
+        data.comments.forEach(function (c) {
+          commentsEl.appendChild(renderComment(c));
+        });
+      } else {
+        commentsEl.innerHTML = '<p style="color: var(--fg-faint); font-size: var(--fs-sm); margin: 0;">Nenhum comentário ainda.</p>';
+      }
+    }).catch(function (err) {
+      notify(err.message || 'Erro ao carregar tarefa', 'error');
+      closeTaskModal();
+    });
+  }
+
+  function renderComment(c) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'padding: var(--space-2) var(--space-3); background: var(--surface-app); border-radius: var(--radius-md); border: 1px solid var(--line);';
+    wrap.innerHTML =
+      '<div style="display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); margin-bottom: 2px;">' +
+        '<strong style="font-size: var(--fs-sm);">' + escapeHtml(c.user_name) + '</strong>' +
+        '<span style="font-size: var(--fs-xs); color: var(--fg-faint); font-family: var(--mono);">' + escapeHtml(c.created_at) + '</span>' +
+      '</div>' +
+      '<p style="margin: 0; font-size: var(--fs-sm); white-space: pre-wrap;">' + escapeHtml(c.content) + '</p>';
+    return wrap;
+  }
+
+  function closeTaskModal() {
+    if (!modal) return;
+    if (_modalDirty) {
+      // Auto-save on close if user typed something
+      saveTaskModal(true);
+      return;
+    }
+    modal.hidden = true;
+    modal.removeAttribute('data-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    _modalCurrentTaskId = null;
+  }
+
+  function saveTaskModal(closeAfter) {
+    if (!_modalCurrentTaskId) return;
+    var payload = {
+      title: document.getElementById('ch-task-modal-title-input').value.trim(),
+      description: document.getElementById('ch-task-modal-desc').value,
+      priority: document.getElementById('ch-task-modal-priority').value,
+      due_date: document.getElementById('ch-task-modal-due').value || null,
+      assigned_to: document.getElementById('ch-task-modal-assignee').value || null,
+      tags: document.getElementById('ch-task-modal-tags').value
+    };
+    if (!payload.title) {
+      notify('Título não pode ficar vazio', 'warning');
+      return;
+    }
+    modalSaveBtn.disabled = true;
+    postJson(prefix + '/tasks/api/' + _modalCurrentTaskId + '/update', 'PUT', payload)
+      .then(function () {
+        notify('Tarefa salva', 'success');
+        _modalDirty = false;
+        // Refresh card title in place to avoid full reload
+        var card = document.querySelector('.ch-task-card[data-task-id="' + _modalCurrentTaskId + '"]');
+        if (card) {
+          var titleEl = card.querySelector('.ch-task-card__title');
+          if (titleEl) titleEl.textContent = payload.title;
+        }
+        if (closeAfter) {
+          modal.hidden = true;
+          modal.removeAttribute('data-open');
+          modal.setAttribute('aria-hidden', 'true');
+          document.body.style.overflow = '';
+          _modalCurrentTaskId = null;
+        }
+      })
+      .catch(function (err) { notify(err.message || 'Erro ao salvar', 'error'); })
+      .then(function () { modalSaveBtn.disabled = false; });
+  }
+
+  // Modal close handlers
+  if (modal) {
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeTaskModal(); // backdrop click
+      var closeBtn = e.target.closest && e.target.closest('[data-task-modal-close]');
+      if (closeBtn) { e.preventDefault(); closeTaskModal(); }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hidden) closeTaskModal();
+    });
+  }
+  if (modalSaveBtn) {
+    modalSaveBtn.addEventListener('click', function () { saveTaskModal(true); });
+  }
+  if (modalForm) {
+    modalForm.addEventListener('input', function () { _modalDirty = true; });
+    modalForm.addEventListener('submit', function (e) { e.preventDefault(); saveTaskModal(true); });
+  }
+  if (modalCommentForm) {
+    modalCommentForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!_modalCurrentTaskId) return;
+      var input = document.getElementById('ch-task-modal-comment-input');
+      var content = input.value.trim();
+      if (!content) return;
+      postJson(prefix + '/tasks/api/' + _modalCurrentTaskId + '/comments/add', 'POST', { content: content })
+        .then(function (res) {
+          if (res && res.comment) {
+            var commentsEl = document.getElementById('ch-task-modal-comments');
+            // Clear "no comments" placeholder
+            if (commentsEl.querySelector('p')) commentsEl.innerHTML = '';
+            commentsEl.appendChild(renderComment(res.comment));
+            commentsEl.scrollTop = commentsEl.scrollHeight;
+            input.value = '';
+          }
+        })
+        .catch(function (err) { notify(err.message || 'Erro ao comentar', 'error'); });
+    });
+  }
+
+  // ─── Card click handler ───
+  // Single click → modal (Trello-style). Double click no título → inline rename.
+  // Drag/drop preservado pelo dragstart handler acima. capture phase intercepta
+  // antes do <a href> navegar.
+  var _cardClickTimer = null;
+  var _cardClickTaskId = null;
+  board.addEventListener('click', function (e) {
+    var card = e.target.closest && e.target.closest('.ch-task-card[draggable="true"]');
+    if (!card) return;
+    var titleEl = e.target.closest && e.target.closest('.ch-task-card__title');
+    e.preventDefault();
+    e.stopPropagation();
+    if (_cardClickTimer) {
+      // Double click detected
+      clearTimeout(_cardClickTimer);
+      _cardClickTimer = null;
+      _cardClickTaskId = null;
+      if (!titleEl) return;
+      if (titleEl.querySelector('input')) return;
+      var taskId = card.getAttribute('data-task-id');
+      if (!taskId) return;
+      var original = titleEl.textContent.trim();
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = original;
+      input.className = 'ch-input';
+      input.style.cssText = 'width:100%;padding:2px 6px;font-weight:inherit;font-size:inherit;';
+      titleEl.innerHTML = '';
+      titleEl.appendChild(input);
+      input.focus();
+      input.select();
+      var done = false;
+      var restore = function (text) { if (done) return; done = true; titleEl.textContent = text; };
+      var save = function () {
+        if (done) return;
+        var next = input.value.trim();
+        if (!next || next === original) { restore(original); return; }
+        input.disabled = true;
+        postJson(prefix + '/tasks/api/' + taskId + '/update', 'PUT', { title: next })
+          .then(function () { restore(next); })
+          .catch(function (err) { restore(original); notify(err.message || 'Erro ao salvar', 'error'); });
+      };
+      input.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter')  { ev.preventDefault(); save(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); restore(original); }
+      });
+      input.addEventListener('blur', save);
+      return;
+    }
+    // Single click: aguarda 230ms; se outro click vier, vira double.
+    _cardClickTaskId = card.getAttribute('data-task-id');
+    _cardClickTimer = setTimeout(function () {
+      _cardClickTimer = null;
+      var taskId = _cardClickTaskId;
+      _cardClickTaskId = null;
+      if (taskId) openTaskModal(taskId);
+    }, 230);
+  }, true); // capture phase — intercepta antes do navigate
+
+  board.addEventListener('click', function (e) {
+    var rename = e.target.closest && e.target.closest('[data-column-rename]');
+    var remove = e.target.closest && e.target.closest('[data-column-delete]');
+    if (rename) {
+      var col = rename.closest('.ch-column');
+      var nameEl = col && col.querySelector('.ch-column__name');
+      if (!nameEl) return;
+      // Preserva o dot + remove text node pra editar só o nome
+      var current = nameEl.textContent.trim();
+      var colId = rename.getAttribute('data-column-rename');
+      startInlineRename(nameEl, colId, current, function () { window.location.reload(); });
+    }
+    if (remove) {
+      if (!confirm('Remover esta lista?')) return;
+      postJson(prefix + '/tasks/api/columns/' + remove.getAttribute('data-column-delete'), 'DELETE', {})
+        .then(function () { window.location.reload(); })
+        .catch(function (err) { notify(err.message, 'error'); });
+    }
+  });
+})();
+</script>
+{% endblock %}
