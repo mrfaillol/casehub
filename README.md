@@ -7,12 +7,13 @@
 ### A norma é código. O código é a norma.
 
 **O framework jurídico** — uma plataforma de gestão e operações jurídicas para escritórios
-de direito público e privado. Servidor MCP, SDK e CLI próprios estão em **construção ativa**
-sobre um núcleo já em produção.
+de direito público e privado. O app vivo está em produção controlada como CaseHub `2.0.0`;
+servidor MCP, SDK e CLI próprios estão em `0.1.0` de validação, mas ainda não são API pública
+estável neste snapshot.
 
 [![Licença: AGPL-3.0](https://img.shields.io/badge/licen%C3%A7a-AGPL--3.0-1E4890.svg)](LICENSE)
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-6FBE54.svg)](#status)
-[![LGPD](https://img.shields.io/badge/LGPD-conforme-001F3E.svg)](SECURITY.md)
+[![LGPD](https://img.shields.io/badge/LGPD-alinhado-001F3E.svg)](SECURITY.md)
 
 [casehub.legal](https://casehub.legal) · [Documentação](docs/) · [Segurança](SECURITY.md) · [Contribuir](CONTRIBUTING.md)
 
@@ -38,9 +39,9 @@ controle de prazos processuais, gestão de clientes e agenda — entregues como 
 configurável e auditável.
 
 > **Por que "framework"?** Porque a intenção do CaseHub é ser uma base composável, não só um
-> aplicativo. As superfícies de extensão — servidor MCP, SDK e CLI — estão **em construção** para
-> que qualquer escritório ou firma, de direito público ou privado, possa estender e automatizar a
-> própria operação sobre uma fundação comum, aberta e auditável.
+> aplicativo. As superfícies de extensão — servidor MCP, SDK e CLI — estão em **validação 0.1.0**
+> para que qualquer escritório ou firma, de direito público ou privado, possa estender e automatizar
+> a própria operação sobre uma fundação comum, aberta e auditável.
 
 ---
 
@@ -48,8 +49,10 @@ configurável e auditável.
 
 **Alpha — em produção controlada.** O CaseHub está em uso real por escritório cliente, com release
 público progressivo. O **núcleo** (gestão de casos, clientes, prazos, agenda, auditoria) está em
-operação. As **superfícies de extensão (servidor MCP, SDK, CLI) ainda não estão prontas — estão em
-construção ativa** e amadurecem junto com o produto. Interfaces podem mudar entre versões do alpha.
+operação como app `2.0.0` no ambiente vivo. As **superfícies de extensão (servidor MCP, SDK, CLI)**
+existem como implementação `0.1.0` em validação no repositório privado de produto, mas ainda não
+foram promovidas para este snapshot público nem devem ser tratadas como contrato estável. Interfaces
+podem mudar entre versões do alpha.
 
 O escopo atual concentra-se em quatro módulos integrados:
 
@@ -62,27 +65,43 @@ O escopo atual concentra-se em quatro módulos integrados:
 
 ---
 
-## As superfícies de plataforma (em construção)
+## Versionamento real
+
+O CaseHub separa versões de produto, snapshot público e ferramentas de plataforma:
+
+- **App vivo:** `/casehub/healthz` em `casehub.legal` e `vieirasalles.casehub.legal` reporta
+  `product=lite`, `version=2.0.0`.
+- **Snapshot público:** este repositório é o release público AGPL inicial; ele não é o mesmo branch
+  privado usado para deploy do alpha vivo.
+- **MCP, SDK e CLI:** implementações `0.1.0` em validação privada. Elas ainda não são contrato
+  público estável.
+
+---
+
+## As superfícies de plataforma (0.1.0 em validação)
 
 A intenção do CaseHub é oferecer não só uma aplicação, mas uma **superfície de plataforma** com
-pontos de entrada coerentes entre si. **Estes ainda estão sendo construídos** — descritos aqui
-como o desenho pretendido, não como recurso já disponível:
+pontos de entrada coerentes entre si. O estado honesto em 2026-06-03 é: há implementação `0.1.0`
+em validação, mas ela ainda não foi publicada neste repositório público.
 
-### 1. Servidor MCP &nbsp;`🚧 em construção`
+### 1. Servidor MCP &nbsp;`0.1.0 em validação`
 
-Um servidor [Model Context Protocol](https://modelcontextprotocol.io) que **exporá** as capacidades
-do CaseHub como ferramentas invocáveis — criar eventos, buscar documentos, listar prazos, gerar
-peças — de forma padronizada, governada por política e auditável.
+Um servidor [Model Context Protocol](https://modelcontextprotocol.io) read-only, tenant-scoped,
+stdio e default-off está em validação. Ele expõe consultas operacionais com autenticação,
+redação de argumentos e auditoria best-effort; não está montado no `app_factory` e não é dependência
+do app vivo.
 
-### 2. SDK &nbsp;`🚧 em construção`
+### 2. SDK &nbsp;`0.1.0 em validação`
 
-Uma biblioteca para consumir o CaseHub de forma tipada e segura, com limites claros entre domínios
-(clientes, casos, documentos, prazos, agenda), transformando a API REST em uma interface ergonômica.
+Há um exportador OpenAPI e um cliente Python fino para autenticação e GETs JSON autenticados em
+validação. SDKs gerados permanecem como artefato de CI/roadmap até a publicação de um contrato
+externo estável.
 
-### 3. CLI &nbsp;`🚧 em construção`
+### 3. CLI &nbsp;`0.1.0 em validação`
 
-Uma ferramenta de linha de comando, com apresentação própria, para operar o CaseHub direto do
-terminal: gerenciar clientes e casos, gerar documentos, acompanhar prazos e administrar a instância.
+Uma CLI Typer/Rich para fluxos operacionais restritos (`migrate`, `seed`, `deploy`) está em
+validação com `--dry-run` e testes. Ela embrulha caminhos existentes; não substitui o processo de
+deploy governado nem autoriza produção automaticamente.
 
 > Quando prontas, as três superfícies compartilharão o mesmo núcleo de domínio, as mesmas regras de
 > permissão (RBAC) e a mesma trilha de auditoria. Não há "porta dos fundos": toda capacidade exposta
@@ -130,7 +149,7 @@ que compõe a aplicação a partir de domínios bem delimitados.
 ```
 ┌───────────────────────────────────────────────────────────┐
 │                    Superfícies de acesso                    │
-│     Web (UI)  ·  API REST     [ SDK · CLI · MCP: 🚧 ]       │
+│     Web (UI)  ·  API REST     [ MCP · SDK · CLI: 0.1.0 ]    │
 └───────────────────────────────────────────────────────────┘
                               │
 ┌───────────────────────────────────────────────────────────┐
@@ -239,8 +258,8 @@ Os ativos de marca em `static/brand-kit/` seguem regras específicas de uso docu
 
 **CaseHub** is a multitenant legal operations platform — *the legal framework* — built for law firms
 in public and private practice. Its core (case management, clients, deadlines, calendar, audit) is in
-production; its own **MCP server, SDK, and CLI are under active construction**, all to share one
-audited core with tenant isolation and role-based access control.
+production as app **2.0.0**; its own **MCP server, SDK, and CLI have 0.1.0 implementations under validation**.
+They are not yet a stable public API in this snapshot.
 
 Currently in **alpha**, in controlled production, focused on the Brazilian legal market.
 
