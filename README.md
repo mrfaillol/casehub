@@ -2,8 +2,6 @@
 
 <img src="static/brand-kit/logo/casehub-logo-login-blue.svg" alt="CaseHub" width="180" />
 
-# CaseHub
-
 ### A norma é código. O código é a norma.
 
 **O framework jurídico** — uma plataforma de gestão e operações jurídicas para escritórios
