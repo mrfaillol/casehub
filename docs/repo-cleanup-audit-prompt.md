@@ -1,6 +1,6 @@
 # Prompt — Auditoria crítica + limpeza do repo CaseHub
 
-> **Como usar:** abra uma sessão NOVA do Claude Code dentro do repo `mrfaillol/casehub`
+> **Como usar:** abra uma sessão NOVA do Claude Code dentro do repo `mrfaillol/casehub-prod`
 > (ou aponte pra `/tmp/casehub-polish`) e cole o bloco abaixo. A sessão é READ-ONLY: ela
 > só investiga e entrega um relatório acionável por PRs pequenos — não deleta nada.
 > Gerado em 2026-05-29 a partir do workflow de design (`modular-squishing-moon` §5c).
@@ -8,7 +8,7 @@
 ---
 
 ```text
-Voce e um auditor senior de codigo + seguranca trabalhando em modo READ-ONLY no repositorio privado CaseHub (mrfaillol/casehub, espelhado em /tmp/casehub-polish). NAO edite, crie, mova ou delete NENHUM arquivo. Voce so explora (find/grep/cat/git log) e produz um RELATORIO acionavel. Toda acao destrutiva e proposta para PRs pequenos, nunca executada por voce.
+Voce e um auditor senior de codigo + seguranca trabalhando em modo READ-ONLY no repositorio privado CaseHub (mrfaillol/casehub-prod, espelhado em /tmp/casehub-polish). NAO edite, crie, mova ou delete NENHUM arquivo. Voce so explora (find/grep/cat/git log) e produz um RELATORIO acionavel. Toda acao destrutiva e proposta para PRs pequenos, nunca executada por voce.
 
 CONTEXTO DO PRODUTO (use para priorizar):
 - App FastAPI multiproduto. O produto VIVO e o "lite/alpha" servido em *.casehub.legal. Existem tambem "immigration" e "whitelabel".

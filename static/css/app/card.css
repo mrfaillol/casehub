@@ -1,11 +1,19 @@
-/* CaseHub App · Cards */
-
+/* CaseHub App · Cards
+ *
+ * T5 (2026-06-03) — polish "estilo Notion" uniformizado (Victor):
+ *   superfície branca, borda sutil (--line, reforçada para .14 em T3), --radius-md,
+ *   --shadow-card leve, padding consistente (--space-5). Hierarquia: título
+ *   --fs-md/700, subtítulo --fs-sm/--fg-muted. Hover só transform/opacity (GPU).
+ *   Lei de Jakob: cartões idênticos entre módulos = previsibilidade.
+ *   Lei de Miller: 1 cartão = 1 unidade de informação digerível. */
 .ch-card {
-  background: var(--surface-card);
+  /* Neu polish 2026-06-09: relevo soft do MESMO material (bone) + par de sombras
+     pareadas, sem borda dura — substitui o "flat Notion" (T5) por neumorfismo puro. */
+  background: var(--surface-app);
   border-radius: var(--radius-md);
   padding: var(--space-5);
-  box-shadow: var(--shadow-card);
-  border: 1px solid var(--line);
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+  border: none;
   contain: layout style;
   /* min-width: 0 prevents children with intrinsic min-content
      (long text, tables, code) from forcing parent grid/flex overflow */
@@ -14,7 +22,9 @@
               box-shadow var(--motion-fast) var(--ease-out);
 }
 .ch-card--interactive { cursor: pointer; }
-.ch-card--interactive:hover { transform: translateY(-2px); box-shadow: var(--shadow-pop); }
+@media (hover: hover) {
+  .ch-card--interactive:hover { transform: translateY(-2px); box-shadow: var(--shadow-pop); }
+}
 .ch-card--neu {
   background: var(--surface-app);
   border: none;
@@ -22,6 +32,12 @@
 }
 .ch-card--bleed { padding: 0; overflow: hidden; }
 .ch-card--compact { padding: var(--space-4); }
+
+/* Rails de cor por tipo de card operacional (Example User/Maria 02/06: "sistema cinza").
+ * Borda-topo colorida dá identidade sem alterar o layout interno. */
+.ch-card--rail-tasks     { border-top: 3px solid color-mix(in srgb, var(--c-blue) 55%, transparent); }
+.ch-card--rail-deadlines { border-top: 3px solid color-mix(in srgb, var(--c-danger) 55%, transparent); }
+.ch-card--rail-hearings  { border-top: 3px solid color-mix(in srgb, var(--c-warn) 55%, transparent); }
 
 .ch-card__header {
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -40,12 +56,14 @@
 }
 .ch-card__eyebrow {
   font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--c-green-d); font-weight: 700;
+  /* T5: --c-green-d (4.32:1, falha AA em texto 11px) → --accent-fg (6.64:1, AA). */
+  text-transform: uppercase; color: var(--accent-fg); font-weight: 700;
   margin-bottom: var(--space-2);
 }
 .ch-card__action {
   display: inline-flex; align-items: center; gap: var(--space-1);
-  color: var(--c-green-d); font-size: var(--fs-sm); font-weight: 600;
+  /* T5: accent-fg garante AA do link de ação sobre o cartão branco. */
+  color: var(--accent-fg); font-size: var(--fs-sm); font-weight: 600;
   text-decoration: none;
 }
 .ch-card__action:hover { text-decoration: underline; }
@@ -66,12 +84,10 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-4);
-  border: 1px solid color-mix(in srgb, var(--c-green-d) 24%, var(--line));
+  border: none;
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--c-green) 12%, transparent), transparent 44%),
-    var(--surface-card);
-  box-shadow: var(--shadow-card);
+  background: var(--surface-app);
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
 }
 .ch-md-invite__icon {
   width: 50px;

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="{% if product == 'lite' %}pt-BR{% else %}en{% endif %}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if product == "lite" %}Escolher Plano - CaseHub Setup{% else %}Choose Plan - CaseHub Setup{% endif %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: rgba(26, 26, 26, 0.7);
+            --border: rgba(255,255,255,0.08);
+            --text-primary: #e0e0e0;
+            --text-muted: #888;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--bg-primary);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .wizard-wrapper { width: 100%; max-width: 900px; }
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .step-indicator {
+            display: flex; justify-content: center; gap: 0.5rem; margin-bottom: 2rem;
+        }
+        .step-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--border-color, #333); transition: all 0.3s;
+        }
+        .step-dot.active { background: var(--accent, #fff); transform: scale(1.2); }
+        .step-dot.done { background: var(--color-success, #44bb44); }
+        .step-title {
+            font-size: 1.4rem; font-weight: 700; color: var(--accent, #fff);
+            margin-bottom: 0.25rem; text-align: center;
+        }
+        .step-subtitle {
+            text-align: center; color: var(--text-muted);
+            margin-bottom: 2rem; font-size: 0.9rem;
+        }
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .plan-card {
+            background: rgba(255,255,255,0.03);
+            border: 2px solid rgba(255,255,255,0.06);
+            border-radius: 14px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .plan-card:hover {
+            border-color: rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.05);
+        }
+        .plan-card.selected {
+            border-color: var(--accent, #fff);
+            background: rgba(255,255,255,0.07);
+        }
+        .plan-card.recommended {
+            border-color: rgba(255,255,255,0.2);
+        }
+        .plan-badge {
+            position: absolute;
+            top: -10px;
+            right: 16px;
+            background: var(--accent, #fff);
+            color: var(--bg-primary);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .plan-card h3 {
+            font-size: 1.1rem; color: var(--accent, #fff); margin-bottom: 0.5rem;
+        }
+        .plan-price {
+            font-size: 2rem; font-weight: 700; color: var(--accent, #fff);
+            margin-bottom: 0.25rem;
+        }
+        .plan-price span { font-size: 0.9rem; font-weight: 400; color: var(--text-muted); }
+        .plan-features {
+            list-style: none; padding: 0; margin: 1rem 0 0;
+        }
+        .plan-features li {
+            padding: 0.3rem 0; font-size: 0.85rem; color: var(--text-primary);
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .plan-features li i { color: var(--color-success, #44bb44); font-size: 0.75rem; width: 14px; }
+        .plan-card input[type="radio"] { display: none; }
+        .plan-limits {
+            font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;
+            padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .btn-row {
+            display: flex; gap: 0.75rem; justify-content: center;
+        }
+        .btn-next {
+            background: var(--accent, #fff); color: var(--bg-primary); border: none; border-radius: 10px;
+            padding: 0.7rem 2.5rem; font-weight: 600; font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .btn-next:hover { background: var(--text-primary); transform: translateY(-1px); }
+    </style>
+</head>
+<body>
+    <div class="wizard-wrapper">
+        <div class="glass-card">
+            <div class="step-indicator">
+                {% for i in range(1, total_steps + 1) %}
+                <div class="step-dot {% if i == step %}active{% elif i < step %}done{% endif %}"></div>
+                {% endfor %}
+            </div>
+
+            <h2 class="step-title"><i class="fas fa-crown me-2"></i>{% if product == "lite" %}Escolher um Plano{% else %}Choose Your Plan{% endif %}</h2>
+            <p class="step-subtitle">{% if product == "lite" %}Todos os planos incluem 14 dias de teste gratis. Cancele quando quiser.{% else %}All plans include a 14-day free trial. Cancel anytime.{% endif %}</p>
+
+            <form method="POST" action="{{ PREFIX }}/setup/plan" id="planForm">
+                <input type="hidden" name="plan" id="selectedPlan" value="{{ org.plan or 'starter' }}">
+
+                <div class="plans-grid">
+                    {% for key, plan in plans.items() %}
+                    <div class="plan-card {% if key == 'professional' %}recommended{% endif %} {% if (org.plan or 'starter') == key %}selected{% endif %}"
+                         onclick="selectPlan('{{ key }}', this)">
+                        {% if key == 'professional' %}
+                        <div class="plan-badge">{% if product == "lite" %}Mais Popular{% else %}Most Popular{% endif %}</div>
+                        {% endif %}
+                        <h3>{{ plan.name }}</h3>
+                        <div class="plan-price">
+                            {% if product == "lite" %}R$ {{ plan.price }}<span>/mes</span>{% else %}${{ plan.price }}<span>/mo</span>{% endif %}
+                        </div>
+                        <ul class="plan-features">
+                            {% for feature in plan.features %}
+                            <li><i class="fas fa-check"></i> {{ feature }}</li>
+                            {% endfor %}
+                        </ul>
+                        <div class="plan-limits">
+                            {% if product == "lite" %}{{ plan.max_users }} usuarios &middot;
+                            {{ plan.max_clients }} clientes &middot;
+                            {{ plan.max_storage_gb }}GB armazenamento{% else %}{{ plan.max_users }} users &middot;
+                            {{ plan.max_clients }} clients &middot;
+                            {{ plan.max_storage_gb }}GB storage{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="btn-row">
+                    <button type="submit" class="btn-next">
+                        {% if product == "lite" %}Continuar{% else %}Continue{% endif %} <i class="fas fa-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function selectPlan(key, el) {
+        document.getElementById('selectedPlan').value = key;
+        document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+    }
+    </script>
+</body>
+</html>

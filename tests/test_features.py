@@ -85,12 +85,12 @@ class TestGetOrgFeatures:
         assert "audit" in features
         assert "api_access" in features
 
-    def test_unknown_plan_falls_back_to_starter(self):
-        """An unknown plan name should fall back to starter features."""
+    def test_unknown_plan_falls_back_to_office(self):
+        """An unknown plan name should fall back to canonical office features."""
         request = _mock_request_with_org(plan="nonexistent_plan", features=None)
         db = _mock_db_no_plans_table()
         features = _get_org_features(request, db)
-        assert features == _PLAN_FEATURES_FALLBACK["starter"]
+        assert features == _PLAN_FEATURES_FALLBACK["office"]
 
     def test_org_as_object_with_attrs(self):
         """Should also work when org is an object (not a dict) with attributes."""

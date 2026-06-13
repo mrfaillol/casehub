@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 if (!process.env.CASEHUB_TEST_EMAIL || !process.env.CASEHUB_TEST_PASSWORD) { throw new Error('Defina CASEHUB_TEST_EMAIL e CASEHUB_TEST_PASSWORD (sem credencial hardcoded no repo)'); }
 
-const BASE = 'http://REDACTED-HOST:8002/casehub';
+const BASE = 'http://137.131.237.130:8002/casehub';
 const SCREENSHOT_DIR = path.join(__dirname, '..', 'test-results', 'final-audit');
 const REPORT_PATH = path.join(SCREENSHOT_DIR, 'audit-report.json');
 

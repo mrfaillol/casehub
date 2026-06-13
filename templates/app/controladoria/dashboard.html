@@ -3,11 +3,13 @@
 {% block title %}Controladoria · {{ org_name|default('CaseHub') }}{% endblock %}
 
 {% block extra_head %}
-<style>
-.ch-datajud{margin-bottom:var(--space-5);padding:0;overflow:hidden;border-left:3px solid var(--c-blue,#6D9EEB)}
+<style data-neu-rev="20260609-refino">
+/* controladoria · neu polish rev 20260609-refino — CSS inline (sem <link> p/ cache-bust;
+ * servido junto do HTML, nunca stale). index.css base é versionado via asset_url. */
+.ch-datajud{margin-bottom:var(--space-5);padding:0;overflow:hidden;border-left:3px solid var(--c-blue)}
 .ch-datajud__head{display:flex;align-items:center;gap:var(--space-3);width:100%;padding:var(--space-4) var(--space-5);background:none;border:0;cursor:pointer;text-align:left;color:var(--fg-default)}
 .ch-datajud__title{font-size:var(--fs-md);font-weight:700;white-space:nowrap}
-.ch-datajud__tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--c-blue,#6D9EEB) 16%,transparent);color:var(--c-blue,#6D9EEB);font-size:var(--fs-xs);font-weight:700}
+.ch-datajud__tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--c-blue) 16%,transparent);color:var(--c-blue);font-size:var(--fs-xs);font-weight:700}
 .ch-datajud__hint{flex:1 1 auto;min-width:0;color:var(--fg-muted);font-size:var(--fs-sm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ch-datajud__chevron{flex:0 0 auto;transition:transform .18s ease;font-size:18px;color:var(--fg-muted)}
 .ch-datajud[data-open] .ch-datajud__chevron{transform:rotate(180deg)}
@@ -21,28 +23,138 @@
 .ch-datajud__proc span{display:block;margin-top:3px;color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.4}
 .ch-datajud__msg{color:var(--fg-muted);font-size:var(--fs-sm);padding:6px 0}
 @media (max-width:520px){.ch-datajud__hint{display:none}}
-.ch-controladoria-productivity{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--space-3);margin-bottom:var(--space-5)}
-.ch-controladoria-sector{display:grid;gap:var(--space-3);padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-card);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs)}
+.ch-intimacoes-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--space-2);padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-app)}
+.ch-intimacoes-status__item small{display:block;color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.2}
+.ch-intimacoes-status__item strong,.ch-intimacoes-status__item span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-default);font-size:var(--fs-sm)}
+.ch-intimacoes-list{display:grid;gap:var(--space-2);max-height:360px;overflow:auto;padding-right:2px}
+.ch-intimacoes-item{display:grid;grid-template-columns:auto 1fr auto;gap:var(--space-2);align-items:start;padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-app)}
+.ch-intimacoes-item__main{min-width:0}
+.ch-intimacoes-item__main strong{display:block;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;color:var(--fg-default)}
+.ch-intimacoes-item__main span{display:block;margin-top:3px;color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.35}
+.ch-intimacoes-item__date{font-size:var(--fs-xs);font-weight:700;color:var(--fg-default);font-variant-numeric:tabular-nums}
+.ch-intimacoes-empty{padding:var(--space-4);border:1px dashed var(--line);border-radius:var(--radius-md);color:var(--fg-muted);font-size:var(--fs-sm);text-align:center}
+@media (max-width:760px){.ch-intimacoes-status{grid-template-columns:repeat(2,minmax(0,1fr))}.ch-intimacoes-item{grid-template-columns:auto 1fr}.ch-intimacoes-item__date{grid-column:2}}
+/* Produtividade (Victor 09/06): grid regular (auto-fill, trilho fixo) + align-items:stretch
+ * para os cards de responsável ficarem distribuídos por igual, sem o "esticão" do auto-fit. */
+.ch-controladoria-productivity{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:var(--space-3);align-items:stretch;margin-bottom:var(--space-5)}
+/* Neu raised: mesmo material do app (--surface-app), relevo por sombra dupla, sem borda dura. */
+.ch-controladoria-sector{display:grid;gap:var(--space-3);align-content:start;padding:var(--space-4);border-radius:var(--radius-md);background:var(--surface-app);box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm)}
 .ch-controladoria-sector__head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3)}
-.ch-controladoria-sector strong{display:block;color:var(--fg-default);font-size:var(--fs-sm)}
-.ch-controladoria-sector__badge{display:inline-flex;align-items:center;min-height:24px;padding:0 9px;border-radius:999px;background:color-mix(in srgb,var(--c-green) 14%,transparent);color:var(--c-green);font-size:var(--fs-xs);font-weight:700}
-.ch-controladoria-sector.is-danger .ch-controladoria-sector__badge{background:color-mix(in srgb,var(--c-danger) 14%,transparent);color:var(--c-danger)}
-.ch-controladoria-sector__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.ch-controladoria-sector__metric{padding:10px;border:1px solid color-mix(in srgb,var(--line) 80%,transparent);border-radius:var(--radius-sm);background:var(--surface-app)}
+.ch-controladoria-person{display:inline-flex;align-items:center;gap:9px;min-width:0}
+.ch-user-avatar{width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:inline-grid;place-items:center;overflow:hidden;background:var(--user-color,#1C2447);color:#fff;border:1px solid rgba(15,23,42,.18);box-shadow:0 2px 7px rgba(15,23,42,.26);font-size:10px;font-weight:800;line-height:1}
+.ch-user-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.ch-user-avatar--sm{width:24px;height:24px;flex-basis:24px;font-size:9px}
+.ch-user-label{display:inline-flex;align-items:center;gap:7px;min-width:0}
+.ch-user-label span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-controladoria-sector strong{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-default);font-size:var(--fs-sm)}
+/* T4 (2026-06-03): badge mais evidente (14%→18% tint) + texto on-token AA.
+ * --c-green (#6FBE54) como texto dava 1.99:1 (falha) → --accent-fg (#006B3A) AA.
+ * von Restorff: o badge de produtividade salta sem virar ruído. */
+.ch-controladoria-sector__badge{display:inline-flex;align-items:center;min-height:24px;padding:0 9px;border-radius:999px;background:color-mix(in srgb,var(--c-green) 18%,transparent);color:var(--accent-fg);font-size:var(--fs-xs);font-weight:700}
+.ch-controladoria-sector.is-danger .ch-controladoria-sector__badge{background:color-mix(in srgb,var(--c-danger) 18%,transparent);color:var(--c-danger)}
+.ch-controladoria-sector__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
+/* Poço neu: material --surface-card-2, relevo afundado (inset), sem borda dura. */
+.ch-controladoria-sector__metric{display:flex;flex-direction:column;justify-content:center;padding:10px;border-radius:var(--radius-sm);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs)}
 .ch-controladoria-sector__metric b{display:block;color:var(--fg-default);font-size:var(--fs-lg);line-height:1}
 .ch-controladoria-sector__metric span{display:block;margin-top:6px;color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.25}
 .ch-controladoria-sector__foot{display:flex;justify-content:space-between;gap:var(--space-2);color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.5}
-.ch-prazo-actions{display:inline-flex;gap:6px;justify-content:flex-end}
-.ch-prazo-actions button{width:32px;height:32px;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-app);color:var(--fg-muted);cursor:pointer}
-.ch-prazo-actions button:hover{color:var(--fg-default);border-color:color-mix(in srgb,var(--c-navy) 30%,var(--line))}
+.ch-prazo-actions{display:inline-flex;gap:6px;justify-content:flex-end;padding-right:8px}
+/* Neu mini-botão: relevo leve (-xs), sem borda dura; hover ganha mais relevo. */
+.ch-prazo-actions button{width:32px;height:32px;display:inline-grid;place-items:center;border:0;border-radius:var(--radius-sm);background:var(--surface-app);color:var(--fg-muted);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs);cursor:pointer;transition:box-shadow var(--motion-fast,.16s) ease,color var(--motion-fast,.16s) ease}
+.ch-prazo-actions button:hover{color:var(--fg-default);box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm)}
+.ch-prazo-actions button:active{color:var(--fg-default);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs)}
 .ch-table tr[data-prazo-row]{cursor:default}
+/* Urgência: a cor pinta o <td> (rgba), nunca o <tr> — evita clipping de border-radius
+ * e mantém a coerência com as regras .ch-table--cfix abaixo. */
+.ch-prazo-row--verde td{background:rgba(0,140,77,0.50)}
+.ch-prazo-row--verde:hover td{background:rgba(0,140,77,0.60)}
+.ch-prazo-row--amarelo td{background:rgba(217,119,6,0.55)}
+.ch-prazo-row--amarelo:hover td{background:rgba(217,119,6,0.65)}
+.ch-prazo-row--fatal td,.ch-prazo-row--vencido td{background:rgba(185,28,28,0.58)}
+.ch-prazo-row--fatal:hover td,.ch-prazo-row--vencido:hover td{background:rgba(185,28,28,0.68)}
+.ch-prazo-row--concluido td{background:rgba(0,140,77,0.12)}
 .ch-table tr.is-dragging{opacity:.52}
 .ch-table tr.is-drop-target{outline:2px solid color-mix(in srgb,var(--c-green) 70%,transparent);outline-offset:-2px}
-.ch-row-grip-col{width:44px;text-align:center}
-.ch-row-grip-cell{width:44px;text-align:center;vertical-align:middle}
-.ch-row-grip{width:32px;height:32px;display:inline-grid;place-items:center;border:1px solid transparent;border-radius:var(--radius-sm);background:transparent;color:var(--fg-muted);cursor:grab}
-.ch-row-grip:hover,.ch-row-grip:focus-visible{color:var(--fg-default);border-color:color-mix(in srgb,var(--c-navy) 28%,var(--line));background:var(--surface-app)}
+.ch-row-grip-col{width:30px;text-align:center}
+.ch-row-grip-cell{width:30px;text-align:center;vertical-align:middle}
+.ch-row-grip{width:32px;height:32px;display:inline-grid;place-items:center;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--fg-muted);cursor:grab;transition:box-shadow var(--motion-fast,.16s) ease,color var(--motion-fast,.16s) ease}
+/* Neu: hover/focus ganha relevo leve em vez de borda dura. */
+.ch-row-grip:hover,.ch-row-grip:focus-visible{color:var(--fg-default);background:var(--surface-app);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs)}
 .ch-row-grip:active{cursor:grabbing}
+/* C8 — Observação: célula truncada + botão expandir → modal */
+.ch-obs-open{display:flex;align-items:center;gap:6px;width:100%;max-width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.ch-obs-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-obs-expand{flex:0 0 auto;color:var(--fg-muted);opacity:.55;transition:opacity .16s ease,transform .16s ease}
+.ch-obs-open:hover .ch-obs-expand,.ch-obs-open:focus-visible .ch-obs-expand{opacity:1;transform:scale(1.08)}
+.ch-obs-open:focus-visible{outline:2px solid color-mix(in srgb,var(--c-navy) 40%,var(--line));outline-offset:2px;border-radius:var(--radius-sm)}
+/* C5 — cabeçalhos ordenáveis */
+.ch-table thead th.ch-th-sort{cursor:pointer;user-select:none;white-space:nowrap}
+.ch-table thead th.ch-th-sort:hover{color:var(--fg-default)}
+.ch-th-sort__arrow{display:inline-block;margin-left:4px;font-size:10px;opacity:0;transition:opacity .16s ease}
+.ch-table thead th.ch-th-sort.is-sorted .ch-th-sort__arrow{opacity:.85}
+/* === Lista controladoria: layout FIXO (mata quebra de linha interna) +
+   min-width para scroll horizontal em viewports menores (< ~920px) em vez
+   de esmagar colunas a ponto de cortar botões. Victor/Example User 11/06. === */
+.ch-table--cfix{table-layout:fixed;width:100%;min-width:920px}
+.ch-table--cfix th,.ch-table--cfix td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-table--cfix tbody td{padding-top:7px;padding-bottom:7px;vertical-align:middle}
+.ch-table--cfix td[data-edit-field="tipo"] strong{display:inline}
+.ch-table--cfix td[data-edit-field="tipo"] span{margin-left:4px}
+.ch-table--cfix .ch-cell-resp .ch-resp{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+.ch-table--cfix .ch-cell-resp .ch-resp__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* Responsável só-avatar (reunião Ricardo/Example User 10/06 — estilo STF, economiza espaço; nome no hover/title) */
+.ch-cell-resp--avatar .ch-user-label{justify-content:center}
+.ch-cell-resp--avatar .ch-user-label>span:last-child{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.ch-table--cfix td[data-label="Dia de Início"]{white-space:nowrap}
+/* Coluna Prazo: só um número de 1-2 dígitos — encolhe ao conteúdo (não rouba espaço de Resp./Ações) */
+.ch-table--cfix th.ch-col-prazo,.ch-table--cfix td.ch-col-prazo{white-space:nowrap;text-align:center;padding-left:4px;padding-right:4px}
+.ch-table--cfix th:nth-child(2),.ch-table--cfix td:nth-child(2),.ch-table--cfix th:nth-child(3),.ch-table--cfix td:nth-child(3),.ch-table--cfix th:nth-child(9),.ch-table--cfix td:nth-child(9){padding-left:6px;padding-right:6px}
+.ch-table--cfix th:nth-child(4),.ch-table--cfix td:nth-child(4),.ch-table--cfix th:nth-child(10),.ch-table--cfix td:nth-child(10){padding-left:6px}
+.ch-table--cfix .ch-prazo-actions button{width:26px;height:26px;border-radius:7px}
+.ch-table--cfix .ch-prazo-actions button [data-icon],.ch-table--cfix .ch-prazo-actions button svg{width:14px;height:14px}
+.ch-table--cfix td[data-label="Status"] .ch-select{width:100%;min-width:0;padding:3px 8px;min-height:0;height:auto;line-height:1.25;font-size:var(--fs-xs);border-radius:8px;box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs)}
+.ch-table--cfix .ch-obs-open{max-width:100%}
+.ch-table--cfix td[data-label="Status"] .ch-select{width:100%;min-width:0}
+.ch-table--cfix .ch-prazo-actions{display:inline-flex;gap:4px;justify-content:flex-end}
+/* Urgência: tom-padrão = o que antes só aparecia no hover; hover fica AINDA mais escuro */
+.ch-table--cfix tbody tr.ch-prazo-row--vencido td{background:rgba(185,28,28,0.52)}
+.ch-table--cfix tbody tr.ch-prazo-row--vencido:hover td{background:rgba(185,28,28,0.62)}
+.ch-table--cfix tbody tr.ch-prazo-row--fatal td{background:rgba(185,28,28,0.66)}
+.ch-table--cfix tbody tr.ch-prazo-row--fatal:hover td{background:rgba(185,28,28,0.76)}
+.ch-table--cfix tbody tr.ch-prazo-row--amarelo td{background:rgba(217,119,6,0.55)}
+.ch-table--cfix tbody tr.ch-prazo-row--amarelo:hover td{background:rgba(217,119,6,0.65)}
+.ch-table--cfix tbody tr.ch-prazo-row--verde td{background:rgba(0,140,77,0.50)}
+.ch-table--cfix tbody tr.ch-prazo-row--verde:hover td{background:rgba(0,140,77,0.60)}
+.ch-table--cfix tbody tr.ch-prazo-row--concluido td{background:rgba(0,140,77,0.12)}
+.ch-table--cfix tbody tr.ch-prazo-row--concluido:hover td{background:rgba(0,140,77,0.20)}
+/* Pills: sem bolinhas na controladoria (só ocupam espaço); tribunal pills mais compactos. Victor 11/06. */
+.ch-table--cfix .ch-pill .dot{display:none}
+.ch-table--cfix td[data-label="Tribunal"] .ch-pill{padding:2px 6px;font-size:9px;letter-spacing:0.06em}
+/* Responsável — avatar (display) + dropdown custom com fotinha (Victor 03/06). Fitts: alvos ≥40px. Hick: lista enxuta de membros. */
+.ch-resp{display:inline-flex;align-items:center;gap:8px;min-height:24px}
+.ch-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;font-size:10px;font-weight:700;line-height:1;text-transform:uppercase;color:#fff;background:var(--c-navy);overflow:hidden}
+.ch-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.ch-avatar--empty{background:var(--surface-card-2,rgba(127,127,127,.18));color:var(--fg-muted)}
+.ch-resp__name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-resp-menu{position:absolute;z-index:60;min-width:200px;max-height:280px;overflow-y:auto;padding:4px;margin:0;list-style:none;background:var(--surface-card,#fff);border:1px solid var(--line);border-radius:var(--radius-md);box-shadow:0 16px 48px rgba(0,31,62,.22);transform-origin:top left;animation:ch-resp-pop .14s cubic-bezier(.2,.8,.2,1)}
+@keyframes ch-resp-pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+.ch-resp-menu__item{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 10px;border:0;border-radius:var(--radius-sm);background:none;color:var(--fg-default);font:inherit;text-align:left;cursor:pointer}
+.ch-resp-menu__item:hover,.ch-resp-menu__item:focus-visible{background:color-mix(in srgb,var(--c-navy) 12%,transparent);outline:none}
+.ch-resp-menu__item[aria-selected="true"]{font-weight:700}
+/* C8 — observação multilinha no modal */
+/* Campo neu: poço afundado (inset), sem borda dura. */
+#ch-obs-textarea{width:100%;min-height:200px;resize:vertical;font:inherit;line-height:1.5;padding:var(--space-3);border:0;border-radius:var(--radius-sm);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);color:var(--fg-default);box-sizing:border-box}
+#ch-obs-textarea:focus-visible{outline:2px solid color-mix(in srgb,var(--c-navy) 40%,var(--line));outline-offset:1px}
+/* === Tabs Ativos / Arquivados === */
+.ch-ctrl-tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);margin-bottom:var(--space-4)}
+.ch-ctrl-tab{padding:8px 18px 10px;border:0;border-bottom:2px solid transparent;margin-bottom:-2px;background:none;color:var(--fg-muted);font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;border-radius:var(--radius-sm) var(--radius-sm) 0 0;transition:color .14s,border-color .14s}
+.ch-ctrl-tab:hover{color:var(--fg-default)}
+.ch-ctrl-tab[aria-selected="true"]{color:var(--fg-default);border-bottom-color:var(--c-blue)}
+.ch-ctrl-tab__count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 6px;margin-left:6px;border-radius:999px;background:color-mix(in srgb,var(--c-navy) 12%,transparent);color:var(--fg-muted);font-size:var(--fs-xs);font-weight:700;vertical-align:middle}
+.ch-ctrl-tab[aria-selected="true"] .ch-ctrl-tab__count{background:color-mix(in srgb,var(--c-blue) 18%,transparent);color:var(--c-blue)}
+/* Arquivados: linha muda (sem urgência colorida — já está feito, tudo concluido) */
+#ctrlTabArquivados .ch-prazo-row td{background:rgba(0,140,77,0.07);color:var(--fg-muted)}
+#ctrlTabArquivados .ch-prazo-row:hover td{background:rgba(0,140,77,0.14)}
 .ch-dialog{width:min(720px,calc(100vw - 32px));border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-card);color:var(--fg-default);box-shadow:0 24px 80px rgba(0,0,0,.22);padding:0}
 .ch-dialog::backdrop{background:rgba(0,31,62,.28);backdrop-filter:blur(3px)}
 .ch-dialog__head,.ch-dialog__foot{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);border-bottom:1px solid var(--line)}
@@ -50,20 +162,224 @@
 .ch-dialog__body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);padding:var(--space-4)}
 .ch-dialog__body .is-full{grid-column:1/-1}
 @media(max-width:720px){.ch-dialog__body{grid-template-columns:1fr}.ch-table--responsive td[data-label="Observação"]{white-space:normal}}
-/* Produtividade Mensal — pie (conic-gradient, sem lib) + meta. Portado da VS-prod ([parceiro] 29/05) */
-.ch-prod-mensal{margin-bottom:var(--space-5)}
-.ch-prod-mensal__head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-3)}
-.ch-prod-mensal__controls{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
-.ch-prod-meta{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:var(--radius-pill);font-size:var(--fs-sm);font-weight:600;background:color-mix(in srgb,var(--c-warn,#d97706) 16%,transparent);color:var(--c-warn,#92400e)}
-.ch-prod-meta.is-hit{background:color-mix(in srgb,var(--c-green,#059669) 18%,transparent);color:var(--c-green-d)}
-.ch-prod-mensal__body{display:flex;gap:var(--space-5);align-items:center;flex-wrap:wrap}
-.ch-prod-pie{width:156px;height:156px;border-radius:50%;flex:0 0 156px;box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm);background:var(--surface-card-2,#ececec)}
-.ch-prod-legend{flex:1 1 200px;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;min-width:170px}
-.ch-prod-legend li{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm)}
-.ch-prod-legend b{margin-left:auto}
-.ch-prod-dot{width:12px;height:12px;border-radius:3px;flex:0 0 12px}
-.ch-prod-legend__empty{color:var(--fg-muted)}
-@media(max-width:520px){.ch-prod-pie{width:120px;height:120px;flex-basis:120px}}
+/* ============================================================================
+ * Produtividade da controladoria — REDESENHO v2 (09/06, frontend-design).
+ * v1 reprovado: (1) header espalhado (3 selects + meta + lápis + form soltos,
+ * desalinhados); (2) "Por responsável" com 1 item reservava meia tela vazia.
+ * v2 cirúrgico:
+ *   HEADER — uma linha: título à esquerda; à direita um cluster compacto de
+ *   controles (selects de altura única, alinhados) + meta como chip DISCRETO
+ *   que troca IN-PLACE por um mini-form de edição (sem faixa gigante). O sort
+ *   ("Maior volume") só aparece no eixo "tipo" — nos outros era no-op ocupando
+ *   espaço.
+ *   CORPO — sem vão: com barras, donut+legenda à esquerda (largura natural) e
+ *   barras fluidas à direita; SEM barras, o donut vira herói centralizado e a
+ *   legenda flui em 2 colunas equilibradas preenchendo a largura. A barra "por
+ *   responsável" só renderiza, com largura proporcional, quando há dados.
+ * Ritmo único: gap macro = --space-5; sub-painéis = --space-4 / --space-3.
+ * ========================================================================== */
+
+/* Foto do todo: KPIs holísticos da carteira no topo do painel (Victor 03/06). Lei de Miller: 6 chunks. */
+.ch-prod-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:var(--space-2);align-items:stretch;margin-bottom:var(--space-5)}
+/* Poço neu: afundado no material --surface-card-2, sem borda dura. Hover sutil (transform GPU). */
+.ch-prod-kpi{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;padding:10px 12px;border-radius:var(--radius-sm);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);transition:transform var(--motion-fast,150ms) var(--ease-out,ease)}
+.ch-prod-kpi:hover{transform:translateY(-1px)}
+.ch-prod-kpi b{display:block;color:var(--fg-default);font-family:var(--display);font-size:var(--fs-xl);font-weight:600;line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.ch-prod-kpi span{display:block;color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.2;letter-spacing:.01em}
+/* Spark de accent à esquerda do valor para os estados (von Restorff sem ruído). */
+.ch-prod-kpi.is-danger b{color:var(--c-danger)}
+.ch-prod-kpi.is-warn b{color:var(--c-warn)}
+.ch-prod-kpi.is-ok b{color:var(--accent-fg)}
+.ch-prod-kpi.is-danger::before,.ch-prod-kpi.is-warn::before,.ch-prod-kpi.is-ok::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:54%;border-radius:var(--radius-pill)}
+.ch-prod-kpi.is-danger::before{background:color-mix(in srgb,var(--c-danger) 55%,transparent)}
+.ch-prod-kpi.is-warn::before{background:color-mix(in srgb,var(--c-warn) 55%,transparent)}
+.ch-prod-kpi.is-ok::before{background:color-mix(in srgb,var(--accent-fg) 55%,transparent)}
+/* Neu raised: material --surface-app, relevo por sombra dupla, sem borda dura.
+ * Accent delicado preservado via ::before (linha gradiente arredondada no topo). */
+.ch-prod-mensal{position:relative;overflow:hidden;margin-bottom:var(--space-5);padding:var(--space-5);border-radius:var(--radius-md);background:var(--surface-app);box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm)}
+.ch-prod-mensal::before{content:"";position:absolute;inset:0 0 auto;height:2px;border-radius:var(--radius-pill);background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--c-blue) 44%,transparent),transparent);pointer-events:none}
+
+/* HEADER — uma linha. Título não encolhe; cluster de controles fica à direita e
+ * só quebra (wrap) em telas estreitas. Alinhamento por altura única de 34px. */
+.ch-prod-mensal__head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);flex-wrap:wrap;margin-bottom:var(--space-5)}
+.ch-prod-mensal__head>.ch-card__title{flex:0 0 auto;margin:0}
+/* Cluster: selects + meta-chip + edição, todos com a MESMA altura (34px) e
+ * alinhados -> rigor visual. gap único, sem itens órfãos full-width. */
+.ch-prod-mensal__controls{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;justify-content:flex-end}
+.ch-prod-mensal__controls .ch-select{height:34px;min-height:34px;padding-top:0;padding-bottom:0}
+/* Sort ("Maior volume"/"Tipo A-Z"): relevante só no eixo "tipo". JS adiciona
+ * .is-hidden nos demais -> some do cluster, sem reservar largura. */
+#prodSortSelect.is-hidden{display:none}
+
+/* META — chip discreto. Vira "botão" clicável quando editável (cursor + hover de
+ * relevo); o lápis fica DENTRO do chip (micro-detalhe), não solto ao lado. */
+.ch-prod-meta{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:var(--radius-pill);font-size:var(--fs-sm);font-weight:700;background:color-mix(in srgb,var(--c-warn) 15%,var(--surface-app));color:var(--c-warn);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs);border:0;font-family:inherit;line-height:1;white-space:nowrap;transition:box-shadow var(--motion-fast,150ms) var(--ease-out,ease),transform var(--motion-fast,150ms) var(--ease-out,ease)}
+.ch-prod-meta.is-hit{background:color-mix(in srgb,var(--c-green) 18%,var(--surface-app));color:var(--accent-fg)}
+.ch-prod-meta b{font-variant-numeric:tabular-nums}
+.ch-prod-meta__sep{opacity:.45;font-weight:600}
+/* Lápis embutido: aparece só quando o chip é editável (.is-editable via JS). */
+.ch-prod-meta__edit{display:none;margin-left:1px;opacity:.7;color:inherit}
+.ch-prod-meta.is-editable{cursor:pointer}
+.ch-prod-meta.is-editable .ch-prod-meta__edit{display:inline-flex}
+.ch-prod-meta.is-editable:hover{box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm);transform:translateY(-1px)}
+.ch-prod-meta.is-editable:hover .ch-prod-meta__edit{opacity:1}
+.ch-prod-meta.is-editable:active{box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);transform:translateY(0)}
+.ch-prod-meta:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+/* Mini-form de edição: ocupa o MESMO slot do chip (in-place), altura única 34px.
+ * Poço neu no input; sem hint solto empurrando layout (vira title/aria). */
+.ch-prod-meta-edit{display:inline-flex;align-items:center;gap:6px;height:34px}
+.ch-prod-meta-edit__input{width:78px;height:34px;padding:0 10px;border:0;border-radius:var(--radius-sm);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);color:var(--fg-default);font:inherit;font-weight:700;font-variant-numeric:tabular-nums;text-align:center}
+.ch-prod-meta-edit__input:focus-visible{outline:none;box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs),var(--focus-ring)}
+.ch-prod-meta-edit__btn{height:34px;display:inline-grid;place-items:center;padding:0 12px;border:0;border-radius:var(--radius-sm);background:var(--surface-app);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs);color:var(--fg-default);font:inherit;font-weight:700;font-size:var(--fs-sm);cursor:pointer;transition:box-shadow var(--motion-fast,150ms) var(--ease-out,ease)}
+.ch-prod-meta-edit__btn:hover{box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm)}
+.ch-prod-meta-edit__btn:active{box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs)}
+.ch-prod-meta-edit__btn--save{background:color-mix(in srgb,var(--c-green) 20%,var(--surface-app));color:var(--accent-fg)}
+.ch-prod-meta-edit__btn--ghost{width:34px;padding:0;color:var(--fg-muted)}
+.ch-prod-meta-edit__btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+.ch-prod-meta-edit.is-error .ch-prod-meta-edit__input{box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs),0 0 0 2px color-mix(in srgb,var(--c-danger) 60%,transparent)}
+
+/* CORPO — grid de 2 trilhos quando HÁ barras: donut+legenda à esquerda (largura
+ * de conteúdo) | barras fluidas à direita. align-items:START -> topos alinham,
+ * nada centra verticalmente, sem vão. Quando NÃO há barras (.is-empty via JS,
+ * fallback :has), vira 1 trilho e o cluster do donut vira herói centralizado. */
+.ch-prod-mensal__body{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:var(--space-5);align-items:start}
+.ch-prod-mensal__body:has(.ch-prod-bars.is-empty){grid-template-columns:minmax(0,1fr)}
+
+/* CHART CLUSTER: donut + legenda, sub-painel coeso afundado no material. */
+.ch-prod-pie-wrap{display:flex;gap:var(--space-4);align-items:center;padding:var(--space-4);border-radius:var(--radius-sm);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs)}
+/* Neu (theme-aware): disco em relevo via sombras-token; furo central afundado (inset). */
+.ch-prod-pie{position:relative;display:grid;place-items:center;width:156px;height:156px;border-radius:50%;flex:0 0 156px;box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm);background:conic-gradient(color-mix(in srgb,var(--line) 65%,transparent) 0 100%)}
+.ch-prod-pie::before{content:"";position:absolute;inset:17px;border-radius:50%;background:var(--surface-app);box-shadow:inset var(--shadow-dark-sm),inset var(--shadow-light-sm)}
+.ch-prod-legend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1 1 auto}
+.ch-prod-legend li{display:flex;align-items:center;gap:9px;min-height:32px;padding:6px 10px;border-radius:var(--radius-xs);background:var(--surface-app);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs);font-size:var(--fs-sm);color:var(--fg-default)}
+.ch-prod-legend b{margin-left:auto;font-variant-numeric:tabular-nums}
+.ch-prod-dot{width:10px;height:10px;border-radius:3px;flex:0 0 10px;box-shadow:0 0 0 2px color-mix(in srgb,var(--surface-card) 82%,transparent)}
+.ch-prod-legend__empty{color:var(--fg-muted);font-size:var(--fs-sm)}
+
+/* HERÓI (barras colapsadas): donut MAIOR e centralizado, legenda em 2 colunas
+ * equilibradas preenchendo a largura -> sem meia tela vazia. Coluna empilha
+ * (donut em cima, legenda embaixo) e tudo centra horizontalmente. */
+.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-pie-wrap{flex-direction:column;align-items:center;gap:var(--space-5);padding:var(--space-5) var(--space-4)}
+.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-pie{width:200px;height:200px;flex-basis:200px}
+.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-pie::before{inset:22px}
+.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-legend{flex:0 1 auto;width:100%;max-width:560px;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px}
+/* Legenda solitária de 1 item (ex.: só "Sem responsável"): centra, sem esticar. */
+.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-legend:has(li:only-child){grid-template-columns:minmax(180px,260px);justify-content:center}
+
+/* BARRAS por responsável: sub-painel afundado, mesmo material do chart cluster
+ * -> par visual equilibrado. Colapsa por completo via .is-empty (JS / fallback). */
+.ch-prod-bars{display:flex;flex-direction:column;gap:var(--space-3);min-width:0;padding:var(--space-4);border-radius:var(--radius-sm);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs)}
+.ch-prod-bars.is-empty{display:none}
+.ch-prod-bars__title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-muted)}
+.ch-prod-bars__list{display:flex;flex-direction:column;gap:9px}
+.ch-prod-bars__row{display:grid;grid-template-columns:minmax(72px,132px) 1fr 1.9em;align-items:center;gap:10px;font-size:var(--fs-sm)}
+.ch-prod-bars__name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg-default)}
+.ch-prod-bars__track{height:14px;border-radius:var(--radius-pill);background:var(--surface-app);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);overflow:hidden}
+.ch-prod-bars__fill{height:100%;border-radius:var(--radius-pill);background:linear-gradient(90deg,var(--c-blue),var(--c-green-d));min-width:4px;width:0;transition:width var(--motion-slow,320ms) var(--ease-out,cubic-bezier(.22,1,.36,1))}
+.ch-prod-bars__val{font-weight:700;color:var(--fg-default);text-align:right;font-variant-numeric:tabular-nums}
+
+/* Barra de progresso da meta (full width) — transforma o texto "0/100" em barra visual. Lei de Doherty: feedback <400ms. */
+.ch-prod-progress{margin-top:var(--space-5);padding-top:var(--space-5);border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.ch-prod-progress__head{display:flex;justify-content:space-between;align-items:baseline;font-size:var(--fs-sm);margin-bottom:7px}
+.ch-prod-progress__head b{font-weight:700;font-variant-numeric:tabular-nums}
+.ch-prod-progress__track{height:10px;border-radius:var(--radius-pill);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);overflow:hidden}
+.ch-prod-progress__fill{height:100%;border-radius:var(--radius-pill);background:var(--c-warn);width:0;transition:width var(--motion-slow,320ms) var(--ease-out,cubic-bezier(.22,1,.36,1))}
+.ch-prod-progress.is-hit .ch-prod-progress__fill{background:var(--c-green-d)}
+.ch-prod-progress__foot{font-size:var(--fs-xs);color:var(--fg-muted);margin-top:6px}
+
+/* Responsivo: <860px o grid empilha (chart em cima, barras embaixo) sem reservar
+ * trilho lateral; ritmo de gap mantido. <640px o cluster de controles ocupa a
+ * linha inteira e os selects esticam. <520px encolhe o donut. */
+@media(max-width:860px){.ch-prod-mensal__body,.ch-prod-mensal__body:has(.ch-prod-bars.is-empty){grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){.ch-prod-mensal__head{flex-direction:column;align-items:stretch}.ch-prod-mensal__controls{justify-content:flex-start}.ch-prod-mensal__controls .ch-select{flex:1 1 auto}}
+@media(max-width:520px){.ch-prod-pie,.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-pie{width:140px;height:140px;flex-basis:140px}.ch-prod-pie-wrap{flex-direction:column;align-items:center}.ch-prod-legend,.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-legend{min-width:0;width:100%;grid-template-columns:minmax(0,1fr)}}
+
+/* Sem :has() (engines antigas): degrada para 1 coluna empilhada — nunca vão morto. */
+@supports not selector(:has(*)){.ch-prod-mensal__body{grid-template-columns:minmax(0,1fr)}.ch-prod-pie-wrap{flex-wrap:wrap}}
+
+/* ── Controladoria mobile: card Notion-inspired (≤ 720 px) ──────────
+   Substitui o fallback genérico .ch-table--responsive (13 linhas
+   ilegíveis por row) por um card com 5 linhas:
+     l1: urgência · tribunal ·············· data-final · ações
+     l2: nº processo (destaque, mono, bold)
+     l3: cliente
+     l4: parte-contrária (largura total)
+     l5: status select ············ responsável avatar
+   Ocultos no mobile: alça reordenar, dia de início, prazo (dias),
+   observação — info não-crítica para consulta rápida.
+   Cores de urgência migram para o card container; tds ficam
+   transparentes (evita 13 backgrounds sobrepostos). ────────────── */
+@media (max-width: 720px) {
+  /* table e tbody: block (thead já oculto pelo breakpoint genérico) */
+  .ch-table--cfix.ch-table--responsive        { display: block; min-width: 0; }
+  .ch-table--cfix.ch-table--responsive tbody  { display: block; }
+
+  /* card container — grid 5 colunas */
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto;
+    grid-template-areas:
+      "urg   tri   .      data   acoes"
+      "proc  proc  proc   proc   proc"
+      "cli   cli   cli    cli    cli"
+      "parte parte parte  parte  parte"
+      "st    st    st     .      resp";
+    column-gap: var(--space-2);
+    row-gap: 4px;
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+    width: 100%; box-sizing: border-box; min-width: 0;
+  }
+
+  /* urgência: pinta o card; td fica transparente */
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row--verde    { background: rgba(0,140,77,.44); }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row--amarelo  { background: rgba(217,119,6,.50); }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row--fatal,
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row--vencido  { background: rgba(185,28,28,.52); }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row--concluido{ background: rgba(0,140,77,.10); }
+
+  /* reset td — remove overflow hidden, labels ::before e backgrounds */
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td {
+    display: block; padding: 0; border: none;
+    overflow: visible; text-overflow: clip; white-space: normal;
+    background: transparent !important; min-width: 0;
+  }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td::before { content: none; }
+
+  /* grid areas — mapeamento célula → área */
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Reordenar"]      { display: none; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Urgência"]        { grid-area: urg;   align-self: center; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Tribunal"]        { grid-area: tri;   align-self: center; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Nº Processo"]     { grid-area: proc;  font-size: var(--fs-sm); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Cliente"]         { grid-area: cli;   font-size: var(--fs-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Parte Contrária"] { grid-area: parte; font-size: var(--fs-xs); color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Dia de Início"]   { display: none; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Prazo"]           { display: none; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Data final"]      { grid-area: data;  align-self: center; font-size: var(--fs-xs); color: var(--fg-muted); white-space: nowrap; text-align: right; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Observação"]      { display: none; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Status"]          { grid-area: st;    align-self: center; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Responsável"]     { grid-area: resp;  align-self: center; justify-self: end; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Ações"]           { grid-area: acoes; align-self: center; justify-self: end; }
+
+  /* Status select compacto no card */
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row td[data-label="Status"] .ch-select {
+    width: 100%; min-width: 0;
+    padding: 4px 8px; font-size: var(--fs-xs); height: 32px; min-height: 0;
+  }
+
+  /* Botões de ação: touch-friendly (Fitts ≥ 36 px) */
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row .ch-prazo-actions { gap: 6px; }
+  .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row .ch-prazo-actions button {
+    width: 36px; height: 36px;
+  }
+
+  /* Arquivados: sem urgência colorida, superfície neutra */
+  #ctrlTabArquivados .ch-table--cfix.ch-table--responsive tbody tr.ch-prazo-row {
+    background: var(--surface-card-2);
+  }
+}
 </style>
 {% endblock %}
 
@@ -75,14 +391,16 @@
     <p class="ch-page-head__sub">Todos os prazos com urgência calculada — fatal hoje, vencidos, próximos 7 dias.</p>
   </div>
   <div class="ch-page-head__actions">
+    <button type="button" class="ch-btn" data-intimacoes-open>
+      <span data-icon="search"></span> Buscar CNJ
+    </button>
     <button type="button" class="ch-btn ch-btn--primary" data-prazo-open>
       <span data-icon="plus"></span> Novo prazo
     </button>
   </div>
 </section>
 
-{# DataJud / Consulta CNJ removido ([parceiro] 02/06: "não funciona, não puxa prazos" → retirado a pedido).
-   Reativar via PDPJ quando a integração estiver pronta. JS inline abaixo dá early-return (guarda null). #}
+{# Busca CNJ reativada via PDPJ/ComunicaAPI tenant-scoped. DataJud segue apenas fallback interno. #}
 
 {# KPI stats #}
 {% set s = stats|default({}) %}
@@ -122,7 +440,16 @@
   {% for item in produtividade_setores %}
   <article class="ch-controladoria-sector {% if item.vencidos > 0 %}is-danger{% endif %}">
     <div class="ch-controladoria-sector__head">
-      <strong>{{ item.setor }}</strong>
+      <div class="ch-controladoria-person">
+        <span class="ch-user-avatar" style="--user-color: {{ item.color }};" aria-hidden="true">
+          {% if item.photo_url %}
+          <img src="{{ item.photo_url }}" alt="">
+          {% else %}
+          {{ item.initials }}
+          {% endif %}
+        </span>
+        <strong>{{ item.setor }}</strong>
+      </div>
       <span class="ch-controladoria-sector__badge">{{ item.status_label }}</span>
     </div>
     <div class="ch-controladoria-sector__grid" aria-label="Resumo de prazos de {{ item.setor }}">
@@ -142,24 +469,68 @@
 </section>
 {% endif %}
 
-{# Produtividade Mensal: petições concluídas por TIPO no mês + meta. O endpoint
-   /api/produtividade já existia; widget portado da VS-prod a pedido do [parceiro] (29/05). #}
-<section class="ch-card ch-card--compact ch-prod-mensal" aria-label="Produtividade mensal da controladoria">
+{# Painel holístico da controladoria (Victor 03/06): "foto do todo" (KPIs da carteira) + donut
+   por eixo escolhido (urgência/status/responsável/tipo) usando dados que EXISTEM, + meta + barras
+   por responsável. Antes o donut só agrupava por TIPO (NULL em ~100%) e parecia morto. #}
+<section class="ch-card ch-card--compact ch-prod-mensal" aria-label="Painel de produtividade da controladoria">
   <div class="ch-prod-mensal__head">
-    <h3 class="ch-card__title" style="margin:0;">Produtividade Mensal</h3>
+    <h3 class="ch-card__title" style="margin:0;">Produtividade da controladoria</h3>
     <div class="ch-prod-mensal__controls">
+      {# Lei de Hick: poucas opções de eixo, rótulo claro. Default urgência = dado sempre preenchido. #}
+      <select class="ch-select" id="prodGroupSelect" aria-label="Agrupar o gráfico por" style="width:auto">
+        <option value="urgencia">Por urgência</option>
+        <option value="status">Por status</option>
+        <option value="responsavel">Por responsável</option>
+        <option value="tipo">Por tipo (mês)</option>
+      </select>
       <select class="ch-select" id="prodMesSelect" aria-label="Mês" style="width:auto">
         {% set meses_prod = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'] %}
         {% for m in range(1, 13) %}
         <option value="2026-{{ '%02d'|format(m) }}">{{ meses_prod[m-1] }} 2026</option>
         {% endfor %}
       </select>
-      <span class="ch-prod-meta is-miss" id="prodMetaBadge"><b id="prodTotal">0</b>/<span id="prodMetaTarget">100</span> · <span id="prodMetaText">meta</span></span>
+      {# Sort ("Maior volume"/"Tipo A-Z"): relevante só no eixo "tipo". JS revela/oculta via .is-hidden — fora dele era no-op ocupando largura. #}
+      <select class="ch-select is-hidden" id="prodSortSelect" aria-label="Ordenação do gráfico">
+        <option value="count">Maior volume</option>
+        <option value="tipo">Tipo A-Z</option>
+      </select>
+      {# META — chip discreto. Quando editável (gestor/super_admin; Example User 02/06, ruling 2026-06-03),
+         o próprio chip vira botão (cursor + lápis embutido) e troca IN-PLACE pelo mini-form. Sem faixa gigante. #}
+      <button type="button" class="ch-prod-meta is-miss" id="prodMetaBadge" aria-label="Meta mensal"><b id="prodTotal">0</b><span class="ch-prod-meta__sep" aria-hidden="true">/</span><span id="prodMetaTarget">100</span> · <span id="prodMetaText">meta</span><span class="ch-prod-meta__edit" data-icon="edit" data-icon-size="13" aria-hidden="true"></span></button>
+      <span class="ch-prod-meta-edit" id="prodMetaBox" hidden>
+        <input type="number" id="prodMetaInput" min="1" max="100000" class="ch-prod-meta-edit__input" aria-label="Nova meta mensal" />
+        <button type="button" class="ch-prod-meta-edit__btn ch-prod-meta-edit__btn--save" id="prodMetaSave">Salvar</button>
+        <button type="button" class="ch-prod-meta-edit__btn ch-prod-meta-edit__btn--ghost" id="prodMetaCancel" title="Cancelar" aria-label="Cancelar"><span data-icon="x" data-icon-size="14" aria-hidden="true"></span></button>
+        <small id="prodMetaHint" hidden></small>
+      </span>
     </div>
   </div>
+  {# A FOTO DO TODO: KPIs da carteira inteira (não só do mês). Preenchidos via JS a partir de `carteira`. #}
+  <div class="ch-prod-kpis" id="prodKpis" aria-label="Resumo geral da controladoria">
+    <div class="ch-prod-kpi"><b id="kpiTotal">—</b><span>Total de prazos</span></div>
+    <div class="ch-prod-kpi"><b id="kpiPendentes">—</b><span>Pendentes</span></div>
+    <div class="ch-prod-kpi is-ok"><b id="kpiConcluidos">—</b><span>Concluídos (mês)</span></div>
+    <div class="ch-prod-kpi is-danger"><b id="kpiVencidos">—</b><span>Vencidos</span></div>
+    <div class="ch-prod-kpi is-warn"><b id="kpiProximos">—</b><span>Próx. 7 dias</span></div>
+    <div class="ch-prod-kpi"><b id="kpiEficiencia">—</b><span>Eficiência geral</span></div>
+  </div>
   <div class="ch-prod-mensal__body">
-    <div class="ch-prod-pie" id="prodPie" role="img" aria-label="Distribuição de petições concluídas por tipo"></div>
-    <ul class="ch-prod-legend" id="prodLegend"><li class="ch-prod-legend__empty">Carregando…</li></ul>
+    <div class="ch-prod-pie-wrap">
+      <div class="ch-prod-pie" id="prodPie" role="img" aria-label="Distribuição da carteira por urgência"></div>
+      <ul class="ch-prod-legend" id="prodLegend"><li class="ch-prod-legend__empty">Carregando…</li></ul>
+    </div>
+    {# Gráfico 2 (Victor 03/06): barras horizontais "por responsável". Onda2 09/06:
+       colapsa de vez quando vazio (.is-empty via JS) — sem reservar trilho/vão morto. #}
+    <div class="ch-prod-bars is-empty" id="prodBars" role="img" aria-label="Petições concluídas por responsável no mês">
+      <div class="ch-prod-bars__title">Por responsável</div>
+      <div class="ch-prod-bars__list" id="prodBarsList"></div>
+    </div>
+  </div>
+  {# Barra de progresso da meta — visualiza o "total/meta" que antes era só texto. #}
+  <div class="ch-prod-progress" id="prodProgress" aria-label="Progresso da meta mensal">
+    <div class="ch-prod-progress__head"><span>Progresso da meta</span><span><b id="prodProgTotal">0</b> / <span id="prodProgMeta">100</span></span></div>
+    <div class="ch-prod-progress__track"><div class="ch-prod-progress__fill" id="prodProgFill"></div></div>
+    <div class="ch-prod-progress__foot" id="prodProgFoot"></div>
   </div>
 </section>
 
@@ -172,6 +543,16 @@
 </div>
 {% endif %}
 
+<div class="ch-ctrl-tabs" role="tablist" aria-label="Visualização">
+  <button class="ch-ctrl-tab" role="tab" data-ctrl-tab="ativos" aria-selected="true" aria-controls="ctrlTabAtivos">
+    Ativos <span class="ch-ctrl-tab__count" id="tabCountAtivos">{{ prazos|length }}</span>
+  </button>
+  <button class="ch-ctrl-tab" role="tab" data-ctrl-tab="arquivados" aria-selected="false" aria-controls="ctrlTabArquivados">
+    Arquivados <span class="ch-ctrl-tab__count" id="tabCountArquivados">{{ prazos_concluidos|length }}</span>
+  </button>
+</div>
+
+<div id="ctrlTabAtivos" role="tabpanel">
 {# Filtros #}
 <form class="ch-card ch-card--compact" method="get" action="{{ PREFIX }}/controladoria" style="display:flex; gap: var(--space-3); align-items:flex-end; flex-wrap: wrap; margin-bottom: var(--space-5);">
   <div class="ch-field" style="flex: 1 1 240px; margin-bottom: 0;">
@@ -184,6 +565,7 @@
       <option value="">Ativos</option>
       <option value="pendente" {% if status_filter == 'pendente' %}selected{% endif %}>Pendente</option>
       <option value="em_andamento" {% if status_filter == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+      <option value="aguarda_correcao" {% if status_filter == 'aguarda_correcao' %}selected{% endif %}>Aguarda Correção</option>
       <option value="concluido" {% if status_filter == 'concluido' %}selected{% endif %}>Concluído</option>
       <option value="perdido" {% if status_filter == 'perdido' %}selected{% endif %}>Perdido</option>
     </select>
@@ -205,18 +587,27 @@
 {% if prazos and prazos|length > 0 %}
 <section class="ch-card ch-card--bleed">
   <div class="ch-table-wrap">
-    <table class="ch-table ch-table--responsive">
+    <table class="ch-table ch-table--responsive ch-table--cfix">
+      {# 13 colunas (table-layout:fixed). Prazo = só um numero -> a mais estreita.
+         Urgencia/Tribunal/Data final ficam compactas; Cliente/Parte/Observacao
+         sem width = flexiveis (absorvem a folga). #}
+      <colgroup>
+        <col style="width:28px"><col style="width:56px"><col style="width:54px"><col><col><col style="width:136px"><col style="width:74px"><col style="width:46px"><col style="width:70px"><col><col style="width:86px"><col style="width:50px"><col style="width:72px">
+      </colgroup>
       <thead>
         <tr>
           <th class="ch-row-grip-col"><span class="sr-only">Reordenar</span></th>
           <th>Urgência</th>
-          <th>Processo</th>
-          <th>Cliente</th>
-          <th>Tipo</th>
-          <th>Observação</th>
-          <th>Vencimento</th>
-          <th>Responsável</th>
-          <th>Status</th>
+          <th class="ch-th-sort" data-sort-key="tribunal" data-sort-type="text" aria-sort="none">Tribunal<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          <th class="ch-th-sort" data-sort-key="cliente" data-sort-type="text" aria-sort="none">Cliente<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          <th class="ch-th-sort" data-sort-key="parte_contraria" data-sort-type="text" aria-sort="none">Parte Contrária<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          <th class="ch-th-sort" data-sort-key="processo" data-sort-type="text" aria-sort="none">Nº Processo<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          <th class="ch-th-sort" data-sort-key="inicio" data-sort-type="date" aria-sort="none">Dia de Início<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          <th class="ch-th-sort ch-col-prazo" data-sort-key="dias" data-sort-type="number" aria-sort="none">Prazo<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          <th class="ch-th-sort is-sorted" data-sort-key="vencimento" data-sort-type="date" aria-sort="ascending">Data final<span class="ch-th-sort__arrow" aria-hidden="true">↑</span></th>
+          <th class="ch-th-sort" data-sort-key="observacao" data-sort-type="text" aria-sort="none">Observação<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          <th class="ch-th-sort" data-sort-key="status" data-sort-type="text" aria-sort="none">Status<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          <th class="ch-th-sort" data-sort-key="responsavel" data-sort-type="text" aria-sort="none">Responsável<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
           <th>Ações</th>
         </tr>
       </thead>
@@ -224,17 +615,23 @@
         {% for p in prazos %}
         <tr data-prazo-row="{{ p.id }}"
             class="ch-prazo-row ch-prazo-row--{{ p.urgencia }}"
+            data-prazo-id="{{ p.id }}"
             data-id="{{ p.id }}"
             data-tipo="{{ p.tipo|e }}"
             data-processo="{{ p.processo|e }}"
             data-cliente="{{ p.cliente|e if p.cliente != '—' else '' }}"
+            data-tribunal="{{ p.tribunal|e }}"
             data-data="{{ p.data_intimacao.isoformat() if p.data_intimacao else '' }}"
+            data-vencimento="{{ p.data_vencimento_efetiva.isoformat() if p.data_vencimento_efetiva else (p.data_vencimento.isoformat() if p.data_vencimento else '') }}"
+            data-hora="{{ p.hora_vencimento }}"
             data-dias="{{ p.dias_prazo or '' }}"
             data-responsavel="{{ p.responsavel|e if p.responsavel != '—' else '' }}"
+            data-responsavel-user-id="{{ p.responsavel_user_id or '' }}"
             data-uf="{{ p.uf or 'MG' }}"
             data-dobro="{{ '1' if p.dobro else '0' }}"
             data-descricao="{{ p.descricao|e }}"
-            data-status="{{ p.status }}">
+            data-status="{{ p.status }}"
+            data-urgencia="{{ p.urgencia }}">
           <td class="ch-row-grip-cell" data-label="Reordenar">
             <button class="ch-row-grip" type="button" draggable="true" data-prazo-handle aria-label="Arrastar prazo para reordenar">
               <span data-icon="grip" data-icon-size="16"></span>
@@ -242,42 +639,61 @@
           </td>
           <td data-label="Urgência">
             {% if p.urgencia == 'fatal' %}
-              <span class="ch-pill ch-pill--danger"><span class="dot"></span>FATAL</span>
+              <span class="ch-pill ch-pill--danger">FATAL</span>
             {% elif p.urgencia == 'vencido' %}
-              <span class="ch-pill ch-pill--danger"><span class="dot"></span>Vencido</span>
+              <span class="ch-pill ch-pill--danger">Vencido</span>
             {% elif p.urgencia == 'amarelo' %}
-              <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ p.dias_restantes }}d</span>
+              <span class="ch-pill ch-pill--warn">{{ p.dias_restantes }}d</span>
             {% elif p.urgencia == 'verde' %}
-              <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ p.dias_restantes }}d</span>
+              <span class="ch-pill ch-pill--ok">{{ p.dias_restantes }}d</span>
             {% else %}
-              <span class="ch-pill"><span class="dot"></span>{{ p.urgencia }}</span>
+              <span class="ch-pill">{{ p.urgencia }}</span>
             {% endif %}
           </td>
-          <td data-label="Processo" class="ch-mono ch-cell-edit" data-edit-field="processo" data-edit-id="{{ p.id }}" data-edit-current="{{ p.processo|e }}" title="Clique para editar" style="font-size: var(--fs-xs); cursor: text;">{{ p.processo }}</td>
-          <td data-label="Cliente" class="ch-cell-edit" data-edit-field="cliente" data-edit-id="{{ p.id }}" data-edit-current="{{ p.cliente|e }}" title="Clique para editar" style="cursor: text;">{{ p.cliente }}</td>
-          <td data-label="Tipo" class="ch-cell-edit" data-edit-field="tipo" data-edit-id="{{ p.id }}" data-edit-current="{{ p.tipo|e }}" title="Clique para editar" style="cursor: text;">
-            <strong style="display: block; color: var(--fg-default); font-size: var(--fs-sm);">{{ p.tipo or '—' }}</strong>
-            {% if p.tipo_peticao %}<span style="color: var(--fg-muted); font-size: var(--fs-xs);">{{ p.tipo_peticao }}</span>{% endif %}
+          <td data-label="Tribunal">
+            <span class="ch-pill">{{ p.tribunal }}</span>
           </td>
-          <td data-label="Observação" class="ch-cell-edit" data-edit-field="descricao" data-edit-id="{{ p.id }}" data-edit-current="{{ p.descricao|e }}" title="Clique para editar" style="font-size: var(--fs-xs); color: var(--fg-muted); max-width: 260px; cursor: text;">
-            {{ p.descricao or '—' }}
+          <td data-label="Cliente" class="ch-cell-edit" data-edit-field="cliente" data-edit-id="{{ p.id }}" data-edit-current="{{ p.cliente|e if p.cliente != '—' else '' }}" title="Clique para editar (digite p/ buscar)" style="cursor: text;">{% if p.cliente and p.cliente != '—' %}{{ p.cliente }}{% else %}<span style="color: var(--fg-muted);">—</span>{% endif %}</td>
+          <td data-label="Parte Contrária" class="ch-cell-edit" data-edit-field="parte_contraria" data-edit-id="{{ p.id }}" data-edit-current="{{ p.parte_contraria|e if p.parte_contraria != '—' else '' }}" title="Clique para editar" style="cursor: text; font-size: var(--fs-sm);">{% if p.parte_contraria and p.parte_contraria != '—' %}{{ p.parte_contraria }}{% else %}<span style="color: var(--fg-muted);">—</span>{% endif %}</td>
+          <td data-label="Nº Processo" class="ch-mono ch-cell-edit" data-edit-field="processo" data-edit-id="{{ p.id }}" data-edit-current="{{ p.processo|e if p.processo != '—' else '' }}" title="Clique para editar (digite p/ buscar)" style="font-size: var(--fs-xs); cursor: text;">{{ p.processo }}</td>
+          <td data-label="Dia de Início" class="ch-mono ch-cell-edit" data-edit-field="data_intimacao" data-edit-id="{{ p.id }}" data-edit-current="{{ p.data_intimacao.isoformat() if p.data_intimacao else '' }}" title="Clique para editar o dia de início" style="font-size: var(--fs-xs); cursor: pointer;">{{ p.data_intimacao.strftime('%d/%m/%y') if p.data_intimacao else '—' }}</td>
+          <td data-label="Prazo" class="ch-mono ch-cell-edit ch-col-prazo" data-edit-field="dias_prazo" data-edit-id="{{ p.id }}" data-edit-current="{{ p.dias_prazo or '' }}" title="Clique para editar os dias do prazo" style="font-size: var(--fs-xs); cursor: pointer;">{% if p.dias_prazo %}{{ p.dias_prazo }}{% if p.dias_corridos %}<span style="color:var(--fg-muted);"> corr.</span>{% endif %}{% else %}—{% endif %}</td>
+          <td data-label="Data final" class="ch-mono" data-vencimento-cell="{{ p.id }}" style="font-size: var(--fs-xs);">
+            {{ p.data_vencimento_efetiva.strftime('%d/%m/%y') if p.data_vencimento_efetiva else '—' }}
+            {% if p.prazo_suspenso and p.data_vencimento %}
+            <span style="display:block;color:var(--fg-muted);font-size:var(--fs-xs);font-family:var(--font-family-sans);">orig. {{ p.data_vencimento.strftime('%d/%m') }}</span>
+            {% endif %}
           </td>
-          <td data-label="Vencimento" class="ch-mono" style="font-size: var(--fs-xs);">
-            {{ p.data_vencimento.strftime('%d/%m/%Y') if p.data_vencimento else '—' }}
+          <td data-label="Observação" class="ch-obs-cell" data-obs-id="{{ p.id }}" data-obs-text="{{ p.descricao|e }}" style="font-size: var(--fs-xs); color: var(--fg-muted); max-width: 260px;">
+            <button type="button" class="ch-obs-open" data-obs-open="{{ p.id }}" title="Ver / editar observação">
+              <span class="ch-obs-text">{{ p.descricao or '—' }}</span>
+              {% if p.descricao %}<span class="ch-obs-expand" aria-label="Expandir">⤢</span>{% endif %}
+            </button>
           </td>
-          <td data-label="Responsável" class="ch-cell-edit" data-edit-field="responsavel" data-edit-id="{{ p.id }}" data-edit-current="{{ p.responsavel|e }}" title="Clique para editar" style="font-size: var(--fs-sm); cursor: text;">{{ p.responsavel }}</td>
           <td data-label="Status">
-            <select class="ch-select" data-prazo-status="{{ p.id }}" aria-label="Status do prazo" style="min-width:132px;">
+            <select class="ch-select" data-prazo-status="{{ p.id }}" aria-label="Status do prazo" style="width:100%;min-width:0;">
               <option value="pendente" {% if p.status == 'pendente' %}selected{% endif %}>Pendente</option>
               <option value="em_andamento" {% if p.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+              <option value="aguarda_correcao" {% if p.status == 'aguarda_correcao' %}selected{% endif %}>Aguarda Correção</option>
               <option value="concluido" {% if p.status == 'concluido' %}selected{% endif %}>Concluído</option>
               <option value="perdido" {% if p.status == 'perdido' %}selected{% endif %}>Perdido</option>
             </select>
           </td>
+          <td data-label="Responsável" class="ch-cell-edit ch-cell-resp ch-cell-resp--avatar" data-edit-field="responsavel" data-edit-id="{{ p.id }}" data-edit-current="{{ p.responsavel|e if p.responsavel != '—' else '' }}" data-edit-user-id="{{ p.responsavel_user_id or '' }}" title="{{ p.responsavel if p.responsavel != '—' else 'Clique para escolher responsável' }}" style="cursor: pointer; text-align:center;">
+            <span class="ch-user-label">
+              <span class="ch-user-avatar ch-user-avatar--sm" style="--user-color: {{ p.responsavel_user.color if p.responsavel_user else '#1C2447' }};" aria-hidden="true">
+                {% if p.responsavel_user and p.responsavel_user.photo_url %}
+                <img src="{{ p.responsavel_user.photo_url }}" alt="">
+                {% else %}
+                {{ p.responsavel_user.initials if p.responsavel_user else '?' }}
+                {% endif %}
+              </span>
+              <span>{{ p.responsavel }}</span>
+            </span>
+          </td>
           <td data-label="Ações" style="text-align: right;">
             <span class="ch-prazo-actions">
               <button type="button" data-prazo-done="{{ p.id }}" aria-label="Concluir"><span data-icon="check"></span></button>
-              <button type="button" data-prazo-edit="{{ p.id }}" aria-label="Editar"><span data-icon="edit"></span></button>
               <button type="button" data-prazo-delete="{{ p.id }}" aria-label="Excluir"><span data-icon="trash"></span></button>
             </span>
           </td>
@@ -305,6 +721,79 @@
   </div>
 </div>
 {% endif %}
+</div>{# /ctrlTabAtivos #}
+
+<div id="ctrlTabArquivados" role="tabpanel" hidden>
+{% if prazos_concluidos and prazos_concluidos|length > 0 %}
+<section class="ch-card ch-card--bleed">
+  <div class="ch-table-wrap">
+    <table class="ch-table ch-table--responsive ch-table--cfix">
+      <colgroup>
+        <col style="width:28px"><col style="width:72px"><col style="width:54px"><col><col><col style="width:136px"><col style="width:74px"><col style="width:46px"><col style="width:70px"><col><col style="width:86px"><col style="width:50px"><col style="width:72px">
+      </colgroup>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Conclusão</th>
+          <th>Tribunal</th>
+          <th>Cliente</th>
+          <th>Parte Contrária</th>
+          <th>Nº Processo</th>
+          <th>Dia de Início</th>
+          <th>Prazo</th>
+          <th>Data final</th>
+          <th>Observação</th>
+          <th>Tipo de petição</th>
+          <th>Responsável</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="arquivadosTbody">
+        {% for p in prazos_concluidos %}
+        <tr data-prazo-row="{{ p.id }}"
+            class="ch-prazo-row ch-prazo-row--concluido"
+            data-prazo-id="{{ p.id }}"
+            data-id="{{ p.id }}"
+            data-status="concluido"
+            data-archived="1">
+          <td></td>
+          <td data-label="Conclusão">
+            <span class="ch-pill ch-pill--ok"><span class="dot"></span>Concluído</span>
+          </td>
+          <td data-label="Tribunal">
+            <span class="ch-pill"><span class="dot"></span>{{ p.tribunal }}</span>
+          </td>
+          <td data-label="Cliente" style="font-size:var(--fs-sm);">{{ p.cliente if p.cliente and p.cliente != '—' else '—' }}</td>
+          <td data-label="Parte Contrária" style="font-size:var(--fs-sm);">{{ p.parte_contraria if p.parte_contraria and p.parte_contraria != '—' else '—' }}</td>
+          <td data-label="Nº Processo" class="ch-mono" style="font-size:var(--fs-xs);">{{ p.processo }}</td>
+          <td data-label="Dia de Início" class="ch-mono" style="font-size:var(--fs-xs);">{{ p.data_intimacao.strftime('%d/%m/%y') if p.data_intimacao else '—' }}</td>
+          <td data-label="Prazo" class="ch-mono ch-col-prazo" style="font-size:var(--fs-xs);">{{ p.dias_prazo or '—' }}</td>
+          <td data-label="Data final" class="ch-mono" style="font-size:var(--fs-xs);">{{ p.data_vencimento_efetiva.strftime('%d/%m/%y') if p.data_vencimento_efetiva else '—' }}</td>
+          <td data-label="Observação" style="font-size:var(--fs-xs);color:var(--fg-muted);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ p.descricao or '—' }}</td>
+          <td data-label="Tipo de petição" style="font-size:var(--fs-xs);">{{ p.tipo_peticao or '—' }}</td>
+          <td data-label="Responsável" style="font-size:var(--fs-sm);">{{ p.responsavel }}</td>
+          <td data-label="Ações" style="text-align:right;">
+            <span class="ch-prazo-actions">
+              <button type="button" data-prazo-reopen="{{ p.id }}" aria-label="Reabrir" title="Reabrir prazo"><span data-icon="rotate-ccw"></span></button>
+              <button type="button" data-prazo-delete="{{ p.id }}" aria-label="Excluir"><span data-icon="trash"></span></button>
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<div class="ch-card">
+  <div class="ch-empty">
+    <span class="ch-empty__icon" aria-hidden="true"><span data-icon="check-circle"></span></span>
+    <h3>Nenhum prazo arquivado</h3>
+    <p>Prazos marcados como Concluído aparecem aqui.</p>
+  </div>
+</div>
+{% endif %}
+</div>{# /ctrlTabArquivados #}
 
 <div class="ch-overlay" id="ch-prazo-modal" hidden>
   <div class="ch-modal" role="dialog" aria-labelledby="ch-prazo-title" aria-modal="true">
@@ -335,6 +824,17 @@
         </div>
       </div>
 
+      <div class="ch-grid ch-grid--2" id="prazo-partes-manuais" hidden>
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-cliente-manual">Cliente / parte</label>
+          <input class="ch-input" id="prazo-cliente-manual" name="cliente_manual" placeholder="Nome do cliente ou parte ativa" disabled />
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="prazo-parte-contraria-manual">Parte contrária</label>
+          <input class="ch-input" id="prazo-parte-contraria-manual" name="parte_contraria_manual" placeholder="Nome da parte contrária" disabled />
+        </div>
+      </div>
+
       <div class="ch-grid ch-grid--2">
         <div class="ch-field">
           <label class="ch-field__label" for="prazo-tipo">Tipo <span style="color: var(--c-danger);">*</span></label>
@@ -344,7 +844,9 @@
             <option value="{{ key }}" data-dias="{{ p.dias }}">{{ p.descricao }} ({{ p.dias }} dias)</option>
             {% endfor %}
             <option value="Prazo manual">Prazo manual</option>
+            <option value="__custom__">➕ Personalizado…</option>
           </select>
+          <input class="ch-input" id="prazo-tipo-custom" name="tipo_custom" placeholder="Digite o tipo deste prazo" hidden style="margin-top: var(--space-2);" />
         </div>
         <div class="ch-field">
           <label class="ch-field__label" for="prazo-dias">Dias do prazo</label>
@@ -367,18 +869,52 @@
         </div>
         <div class="ch-field">
           <label class="ch-field__label" for="prazo-responsavel">Responsável</label>
-          <select class="ch-select" id="prazo-responsavel" name="responsavel">
+          <select class="ch-select" id="prazo-responsavel" name="responsavel_user_id">
             <option value="">A definir</option>
             {% for person in org_users %}
-            <option value="{{ person.name }}">{{ person.name }}</option>
+            <option value="{{ person.id }}">{{ person.name }}</option>
             {% endfor %}
           </select>
         </div>
       </div>
 
+      {# Reunião 10/06 — tribunal explícito (UF sozinha é ambígua: MG -> TJMG/TRT3/TRF6).
+         O horário foi removido: irrelevante p/ a contagem (sempre conta do dia seguinte). #}
+      <div class="ch-field" style="max-width: 260px;">
+        <label class="ch-field__label" for="prazo-tribunal">Tribunal</label>
+        <select class="ch-select" id="prazo-tribunal" name="tribunal">
+          <option value="">Detectar pelo número/UF</option>
+          <option value="TJMG">TJMG</option>
+          <option value="TJSP">TJSP</option>
+          <option value="TJRJ">TJRJ</option>
+          <option value="TRT3">TRT3 (MG)</option>
+          <option value="TRT1">TRT1</option>
+          <option value="TRT2">TRT2</option>
+          <option value="TRF6">TRF6 (MG)</option>
+          <option value="TRF1">TRF1</option>
+          <option value="TRF2">TRF2</option>
+          <option value="TRF3">TRF3</option>
+          <option value="STJ">STJ</option>
+          <option value="STF">STF</option>
+        </select>
+      </div>
+
       <label class="ch-chip" style="align-self: flex-start; cursor: pointer;">
         <input type="checkbox" name="dobro" style="accent-color: var(--c-green-d); margin-right: 6px;" />
         Prazo em dobro
+      </label>
+
+      {# Reunião 10/06 (Ricardo/Example User) — prazo administrativo em dias corridos (INSS etc):
+         conta dias de calendário, sem dia útil/feriado/tribunal. #}
+      <label class="ch-chip" style="align-self: flex-start; cursor: pointer;">
+        <input type="checkbox" name="dias_corridos" style="accent-color: var(--c-green-d); margin-right: 6px;" />
+        Dias corridos (administrativo)
+      </label>
+
+      {# C11 (Example User 02/06) — opcao desativavel: avisa a equipe no chat + sininho ao salvar. #}
+      <label class="ch-chip" style="align-self: flex-start; cursor: pointer;">
+        <input type="checkbox" name="notificar_chat" style="accent-color: var(--c-green-d); margin-right: 6px;" />
+        Avisar a equipe no chat
       </label>
 
       <div class="ch-field">
@@ -390,6 +926,113 @@
       <button type="button" class="ch-btn ch-btn--ghost" data-prazo-close>Cancelar</button>
       <button type="submit" form="ch-prazo-form" class="ch-btn ch-btn--primary">
         <span data-icon="check"></span> Salvar prazo
+      </button>
+    </footer>
+  </div>
+</div>
+
+<div class="ch-overlay" id="ch-intimacoes-modal" hidden>
+  <div class="ch-modal" role="dialog" aria-labelledby="ch-intimacoes-title" aria-modal="true" style="width:min(880px,calc(100vw - 32px));">
+    <header class="ch-modal__header">
+      <div>
+        <span class="ch-card__eyebrow">PDPJ · CNJ</span>
+        <h2 class="ch-card__title" id="ch-intimacoes-title">Buscar intimações por OAB</h2>
+      </div>
+      <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" data-intimacoes-close aria-label="Fechar">
+        <span data-icon="x"></span>
+      </button>
+    </header>
+    <div class="ch-modal__body" style="display:grid;gap:var(--space-3);">
+      <section class="ch-intimacoes-status" aria-label="Status da consulta CNJ">
+        <div class="ch-intimacoes-status__item">
+          <small>API</small>
+          <strong id="ch-int-provider">Aguardando</strong>
+        </div>
+        <div class="ch-intimacoes-status__item">
+          <small>Status</small>
+          <span id="ch-int-status">idle</span>
+        </div>
+        <div class="ch-intimacoes-status__item">
+          <small>Grant</small>
+          <span id="ch-int-grant">—</span>
+        </div>
+        <div class="ch-intimacoes-status__item">
+          <small>Resultado</small>
+          <span id="ch-int-count">—</span>
+        </div>
+      </section>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:var(--space-2);align-items:end;">
+        <div class="ch-field" style="margin-bottom:0;">
+          <label class="ch-field__label" for="ch-int-oab-select">Advogado</label>
+          <select class="ch-select" id="ch-int-oab-select">
+            <option value="">Digitar OAB</option>
+            {% for adv in oab_options %}
+            <option value="{{ adv.user_id }}" data-numero="{{ adv.numero }}" data-uf="{{ adv.uf }}">{{ adv.name }} · OAB/{{ adv.uf }} {{ adv.numero }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ch-field" style="margin-bottom:0;">
+          <label class="ch-field__label" for="ch-int-oab-numero">Número OAB</label>
+          <input class="ch-input" id="ch-int-oab-numero" inputmode="numeric" placeholder="123456" />
+        </div>
+        <div class="ch-field" style="margin-bottom:0;">
+          <label class="ch-field__label" for="ch-int-oab-uf">UF</label>
+          <select class="ch-select" id="ch-int-oab-uf">
+            {% for uf in ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
+            <option value="{{ uf }}" {% if uf == 'MG' %}selected{% endif %}>{{ uf }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ch-field" style="margin-bottom:0;">
+          <label class="ch-field__label" for="ch-int-data-inicio">Início</label>
+          <input class="ch-input" id="ch-int-data-inicio" type="date" />
+        </div>
+        <div class="ch-field" style="margin-bottom:0;">
+          <label class="ch-field__label" for="ch-int-data-fim">Fim</label>
+          <input class="ch-input" id="ch-int-data-fim" type="date" />
+        </div>
+        <button type="button" class="ch-btn ch-btn--primary" id="ch-int-buscar">
+          <span data-icon="search"></span> Buscar
+        </button>
+      </div>
+
+      <div id="ch-int-message" class="ch-intimacoes-empty">Nenhuma busca executada.</div>
+      <div id="ch-int-list" class="ch-intimacoes-list" hidden></div>
+    </div>
+    <footer class="ch-modal__footer" style="display:flex;justify-content:space-between;gap:var(--space-2);align-items:center;">
+      <span id="ch-int-selected" style="color:var(--fg-muted);font-size:var(--fs-sm);">0 selecionadas</span>
+      <div style="display:flex;gap:var(--space-2);">
+        <button type="button" class="ch-btn ch-btn--ghost" data-intimacoes-close>Fechar</button>
+        <button type="button" class="ch-btn ch-btn--primary" id="ch-int-importar" disabled>
+          <span data-icon="download"></span> Importar prazos
+        </button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+{# C8 — Modal de Observação (design system: .ch-overlay/.ch-modal). Substitui o window.prompt nativo. #}
+<div class="ch-overlay" id="ch-obs-modal" hidden>
+  <div class="ch-modal" role="dialog" aria-labelledby="ch-obs-title" aria-modal="true">
+    <header class="ch-modal__header">
+      <div>
+        <span class="ch-card__eyebrow">Controladoria</span>
+        <h2 class="ch-card__title" id="ch-obs-title">Observação do prazo</h2>
+      </div>
+      <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" data-obs-close aria-label="Fechar">
+        <span data-icon="x"></span>
+      </button>
+    </header>
+    <div class="ch-modal__body">
+      <input type="hidden" id="ch-obs-id" value="" />
+      <label class="ch-field__label" for="ch-obs-textarea">Anotação completa</label>
+      <textarea id="ch-obs-textarea" rows="8" placeholder="Despacho, publicação, origem ou anotação interna"></textarea>
+    </div>
+    <footer class="ch-modal__footer" style="display: flex; justify-content: flex-end; gap: var(--space-2);">
+      <button type="button" class="ch-btn ch-btn--ghost" data-obs-close>Cancelar</button>
+      <button type="button" class="ch-btn ch-btn--primary" id="ch-obs-save">
+        <span data-icon="check"></span> Salvar observação
       </button>
     </footer>
   </div>
@@ -414,6 +1057,7 @@
     var modal = document.getElementById('ch-prazo-modal');
     var dateInput = document.getElementById('prazo-intimacao');
     if (dateInput && !dateInput.value) dateInput.value = todayIso();
+    togglePrazoPartesManuais();
     if (modal) {
       modal.hidden = false;
       modal.setAttribute('data-open', 'true');
@@ -428,9 +1072,42 @@
       modal.removeAttribute('data-open');
       modal.hidden = true;
     }
+    // C9 — reseta o estado do tipo personalizado ao fechar.
+    var sel = document.getElementById('prazo-tipo');
+    var custom = document.getElementById('prazo-tipo-custom');
+    if (custom && custom.name === 'tipo') {
+      custom.value = '';
+      custom.hidden = true;
+      custom.required = false;
+      custom.removeAttribute('name');
+      custom.name = 'tipo_custom';
+      if (sel) sel.name = 'tipo';
+    }
+  }
+
+  function togglePrazoPartesManuais() {
+    var sel = document.getElementById('prazo-case');
+    var box = document.getElementById('prazo-partes-manuais');
+    var inputs = box ? box.querySelectorAll('input') : [];
+    var isManual = !!sel && sel.value === '__manual__';
+    if (box) box.hidden = !isManual;
+    inputs.forEach(function (input) {
+      input.disabled = !isManual;
+      if (!isManual) input.value = '';
+    });
   }
 
   document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-intimacoes-open]')) {
+      event.preventDefault();
+      openIntimacoesModal();
+      return;
+    }
+    if (event.target.closest('[data-intimacoes-close]')) {
+      event.preventDefault();
+      closeIntimacoesModal();
+      return;
+    }
     if (event.target.closest('[data-prazo-open]')) {
       event.preventDefault();
       openPrazoModal();
@@ -443,50 +1120,251 @@
     }
     var modal = document.getElementById('ch-prazo-modal');
     if (modal && event.target === modal) closePrazoModal();
+    var intModal = document.getElementById('ch-intimacoes-modal');
+    if (intModal && event.target === intModal) closeIntimacoesModal();
   });
 
   document.addEventListener('change', function (event) {
+    if (event.target.matches('#prazo-case')) {
+      togglePrazoPartesManuais();
+      return;
+    }
     if (!event.target.matches('#prazo-tipo')) return;
-    var selected = event.target.options[event.target.selectedIndex];
+    var sel = event.target;
+    var selected = sel.options[sel.selectedIndex];
     var days = selected && selected.getAttribute('data-dias');
     var daysInput = document.getElementById('prazo-dias');
     if (days && daysInput) daysInput.value = days;
+
+    // C9 — Tipo personalizado ad-hoc: revela input livre e faz só ele postar como `tipo`.
+    var custom = document.getElementById('prazo-tipo-custom');
+    if (!custom) return;
+    if (sel.value === '__custom__') {
+      custom.hidden = false;
+      custom.required = true;
+      sel.removeAttribute('name');   // select deixa de postar; o input livre vira `tipo`
+      custom.name = 'tipo';
+      try { custom.focus(); } catch (e) {}
+    } else if (custom.name === 'tipo') {
+      custom.hidden = true;
+      custom.required = false;
+      custom.removeAttribute('name');
+      custom.name = 'tipo_custom';
+      sel.name = 'tipo';
+    }
   });
+
+  // --- Tab Ativos / Arquivados ---
+  (function () {
+    var tabs = document.querySelectorAll('[data-ctrl-tab]');
+    var panels = { ativos: document.getElementById('ctrlTabAtivos'), arquivados: document.getElementById('ctrlTabArquivados') };
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        var target = tab.getAttribute('data-ctrl-tab');
+        tabs.forEach(function (t) { t.setAttribute('aria-selected', t === tab ? 'true' : 'false'); });
+        Object.keys(panels).forEach(function (k) { if (panels[k]) panels[k].hidden = (k !== target); });
+      });
+    });
+  })();
+
+  function updateTabCounts() {
+    var ativosCount = document.querySelectorAll('#ctrlTabAtivos tbody tr[data-prazo-row]').length;
+    var arquivadosCount = document.querySelectorAll('#ctrlTabArquivados tbody tr[data-prazo-row]').length;
+    var c1 = document.getElementById('tabCountAtivos');
+    var c2 = document.getElementById('tabCountArquivados');
+    if (c1) c1.textContent = ativosCount;
+    if (c2) c2.textContent = arquivadosCount;
+  }
+
+  function moveToArquivados(row) {
+    var tbody = document.getElementById('arquivadosTbody');
+    if (!tbody || !row) return;
+    var id = row.getAttribute('data-prazo-id');
+    // Rebuild cells for archived view: blank grip, Concluído pill, keep tribunal/cliente/parte/processo/datas/obs, tipo_peticao placeholder, responsavel, new actions
+    var tds = row.querySelectorAll('td');
+    if (tds.length >= 13) {
+      tds[0].innerHTML = '';
+      tds[1].innerHTML = '<span class="ch-pill ch-pill--ok"><span class="dot"></span>Concluído</span>';
+      // tds[2] tribunal — keep
+      // tds[3] cliente — keep
+      // tds[4] parte — keep
+      // tds[5] processo — keep
+      // tds[6] inicio — keep
+      // tds[7] dias — keep
+      // tds[8] vencimento — keep
+      // tds[9] obs — simplify (remove interactive button)
+      var obsTd = tds[9];
+      var obsText = row.getAttribute('data-descricao') || (obsTd.querySelector('.ch-obs-text') ? obsTd.querySelector('.ch-obs-text').textContent : '') || '—';
+      obsTd.innerHTML = '<span style="font-size:var(--fs-xs);color:var(--fg-muted);">' + escHtml(obsText) + '</span>';
+      tds[10].innerHTML = row.getAttribute('data-tipo') || '—';
+      // tds[11] responsavel — keep
+      tds[12].innerHTML = '<span class="ch-prazo-actions"><button type="button" data-prazo-reopen="' + escHtml(id) + '" aria-label="Reabrir" title="Reabrir prazo"><span data-icon="rotate-ccw"></span></button><button type="button" data-prazo-delete="' + escHtml(id) + '" aria-label="Excluir"><span data-icon="trash"></span></button></span>';
+    }
+    row.setAttribute('data-archived', '1');
+    row.setAttribute('data-status', 'concluido');
+    row.className = 'ch-prazo-row ch-prazo-row--concluido';
+    tbody.prepend(row);
+    if (window.CHIcon) window.CHIcon.mount();
+    // Show the empty-state card if it was showing; hide if tbody now has rows
+    var emptyCard = document.querySelector('#ctrlTabArquivados .ch-empty');
+    if (emptyCard) emptyCard.closest('.ch-card').hidden = true;
+    updateTabCounts();
+  }
 
   // --- Ações de linha: concluir / status / excluir / editar (backlog 2026-05-28) ---
   // Antes os botões data-prazo-* não tinham handler — cliques eram no-op.
   var PREFIX = "{{ PREFIX }}";
-  // --- Produtividade Mensal (pizza por tipo + meta) — usa /controladoria/api/produtividade ([parceiro] 29/05) ---
+  function escHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function renderUserLabel(user, fallbackName) {
+    var name = (user && user.name) || fallbackName || '—';
+    var initials = (user && user.initials) || '?';
+    var color = (user && user.color) || '#1C2447';
+    var photo = user && user.photo_url;
+    return '<span class="ch-user-label"><span class="ch-user-avatar ch-user-avatar--sm" style="--user-color:'+escHtml(color)+'" aria-hidden="true">' +
+      (photo ? '<img src="'+escHtml(photo)+'" alt="">' : escHtml(initials)) +
+      '</span><span>'+escHtml(name)+'</span></span>';
+  }
+  function setRowStatus(row, status) {
+    if (!row) return;
+    row.setAttribute('data-status', status);
+    ['ch-prazo-row--verde','ch-prazo-row--amarelo','ch-prazo-row--fatal','ch-prazo-row--vencido','ch-prazo-row--concluido'].forEach(function (cls) {
+      row.classList.remove(cls);
+    });
+    row.classList.add(status === 'concluido' ? 'ch-prazo-row--concluido' : (status === 'perdido' ? 'ch-prazo-row--vencido' : (status === 'aguarda_correcao' ? 'ch-prazo-row--amarelo' : 'ch-prazo-row--verde')));
+    var select = row.querySelector('[data-prazo-status]');
+    if (select) select.value = status;
+  }
+  // Atualiza a célula "Data final" quando o backend recalcula o vencimento
+  // (ao editar Dia de Início ou Prazo). Reunião 10/06.
+  function chUpdateVencimentoCell(id, iso) {
+    var c = document.querySelector('[data-vencimento-cell="' + id + '"]');
+    if (!c || !iso) return;
+    c.textContent = String(iso).slice(0, 10).split('-').reverse().join('/');
+  }
+  // Concluir um prazo: na visão padrão (que não mostra concluídos) a linha some na
+  // hora; se a visão inclui concluídos (status=concluido|todos) só restila. Reunião
+  // 10/06 — antes a linha só saía após F5 (bug relatado pelo Ricardo).
+  function chConcluiUpdate(row, status) {
+    if (status === 'concluido') {
+      moveToArquivados(row);
+    } else {
+      setRowStatus(row, status);
+      updateTabCounts();
+    }
+  }
+  // --- Painel da controladoria (donut por eixo + KPIs do todo + meta) — /controladoria/api/produtividade ---
   var PROD_COLORS = ['#1C2447','#6D9EEB','#059669','#d97706','#dc2626','#7c3aed','#db2777','#0891b2','#65a30d','#94a3b8'];
+  // Cores semânticas por urgência (mesma paleta das linhas da tabela). Tokens via var() com fallback hex.
+  var PROD_URGENCIA_COLOR={'Fatal hoje':'var(--c-danger,#dc2626)','Vencidos':'var(--c-danger,#dc2626)','Próx. 7 dias':'var(--c-warn,#d97706)','Em dia':'var(--c-green,#059669)','Concluídos':'var(--c-blue,#6D9EEB)'};
+  var PROD_STATUS_COLOR={'Pendente':'var(--c-warn,#d97706)','Concluído':'var(--c-green,#059669)','Perdido':'var(--c-danger,#dc2626)','Em andamento':'var(--c-blue,#6D9EEB)'};
   function _escProd(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function _nf(n){return (typeof n==='number'?n:parseInt(n||0,10)||0).toLocaleString('pt-BR');}
   async function loadProdutividade(mes){
     var pie=document.getElementById('prodPie'),legend=document.getElementById('prodLegend');
     if(!pie||!legend)return;
+    var gbSel=document.getElementById('prodGroupSelect');
+    var gb=gbSel?gbSel.value:'urgencia';
     try{
-      var resp=await fetch(PREFIX+'/controladoria/api/produtividade?mes='+encodeURIComponent(mes),{credentials:'same-origin'});
+      var resp=await fetch(PREFIX+'/controladoria/api/produtividade?mes='+encodeURIComponent(mes)+'&groupby='+encodeURIComponent(gb),{credentials:'same-origin'});
       if(!resp.ok)throw new Error('http '+resp.status);
       var data=await resp.json();
+      // KPIs da carteira inteira (a "foto do todo"). Org-scoped no backend.
+      var ct=data.carteira||{};
+      function _setK(id,v){var el=document.getElementById(id);if(el)el.textContent=v;}
+      _setK('kpiTotal',_nf(ct.total)); _setK('kpiPendentes',_nf(ct.pendentes));
+      _setK('kpiConcluidos',_nf(ct.concluidos_mes)); _setK('kpiVencidos',_nf(ct.vencidos));
+      _setK('kpiProximos',_nf(ct.proximos)); _setK('kpiEficiencia',(ct.eficiencia_geral||0)+'%');
       var totalEl=document.getElementById('prodTotal');if(totalEl)totalEl.textContent=data.total||0;
       var tgtEl=document.getElementById('prodMetaTarget');if(tgtEl)tgtEl.textContent=data.meta||100;
+      window._prodMeta=data.meta||100; window._prodMetaSugerida=data.meta_sugerida||100;
+      // Sort só faz sentido no eixo "tipo" — revela/oculta o select (fora dele era no-op ocupando largura).
+      var _sortSel=document.getElementById('prodSortSelect'); if(_sortSel) _sortSel.classList.toggle('is-hidden',gb!=='tipo');
       var badge=document.getElementById('prodMetaBadge'),txt=document.getElementById('prodMetaText');
-      if(badge){badge.classList.toggle('is-hit',!!data.meta_batida);badge.classList.toggle('is-miss',!data.meta_batida);}
+      // Meta editável (gestor/super_admin): o próprio chip vira botão (.is-editable -> cursor + lápis embutido).
+      window._prodPodeEditarMeta=!!data.pode_editar_meta;
+      if(badge){badge.classList.toggle('is-editable',!!data.pode_editar_meta);badge.classList.toggle('is-hit',!!data.meta_batida);badge.classList.toggle('is-miss',!data.meta_batida);}
       if(txt)txt.textContent=data.meta_batida?'meta batida ✓':'meta';
-      var tipos=data.tipos||{},labels=Object.keys(tipos),values=labels.map(function(k){return tipos[k]||0;});
-      if(!labels.length){pie.style.background='var(--surface-card-2,#ececec)';legend.innerHTML='<li class="ch-prod-legend__empty">Nenhuma petição concluída neste mês.</li>';return;}
+      // Gráfico 2 + barra de progresso da meta (Victor 03/06). Renderiza SEMPRE, antes do early-return do donut vazio.
+      (function renderExtras(){
+        var metaVal=data.meta||100, totalVal=data.total||0;
+        var prog=document.getElementById('prodProgress'),pf=document.getElementById('prodProgFill'),
+            pt=document.getElementById('prodProgTotal'),pm=document.getElementById('prodProgMeta'),
+            pfoot=document.getElementById('prodProgFoot');
+        if(pt)pt.textContent=totalVal; if(pm)pm.textContent=metaVal;
+        if(prog)prog.classList.toggle('is-hit',totalVal>=metaVal);
+        if(pf){var pctMeta=metaVal>0?Math.min(totalVal/metaVal*100,100):0;requestAnimationFrame(function(){pf.style.width=pctMeta.toFixed(1)+'%';});}
+        if(pfoot){var falta=metaVal-totalVal;pfoot.textContent=totalVal>=metaVal?('Meta batida'+(totalVal>metaVal?(' · '+(totalVal-metaVal)+' acima'):' · no alvo')):('Faltam '+falta+' '+(falta===1?'petição':'petições')+' para a meta');}
+        var bl=document.getElementById('prodBarsList'),barsBox=document.getElementById('prodBars');
+        if(bl){var resp=data.por_responsavel||[];
+          // Onda2 09/06: colapsa o trilho inteiro quando vazio (.is-empty) — sem vão morto.
+          if(!resp.length){bl.innerHTML='';if(barsBox)barsBox.classList.add('is-empty');}
+          else{if(barsBox)barsBox.classList.remove('is-empty');var maxq=resp.reduce(function(a,b){return Math.max(a,b.qtd||0);},0)||1;
+            bl.innerHTML=resp.map(function(r){var w=Math.max((r.qtd||0)/maxq*100,4);return '<div class="ch-prod-bars__row"><span class="ch-prod-bars__name" title="'+_escProd(r.nome)+'">'+_escProd(r.nome)+'</span><span class="ch-prod-bars__track"><span class="ch-prod-bars__fill" data-w="'+w.toFixed(1)+'"></span></span><span class="ch-prod-bars__val">'+(r.qtd||0)+'</span></div>';}).join('');
+            requestAnimationFrame(function(){Array.prototype.forEach.call(bl.querySelectorAll('.ch-prod-bars__fill'),function(el){el.style.width=el.getAttribute('data-w')+'%';});});}
+        }
+      })();
+      // Donut por EIXO escolhido (dist/dist_order vêm do backend já ordenados).
+      var dist=data.dist||{}, labels=(data.dist_order&&data.dist_order.length)?data.dist_order:Object.keys(dist);
+      var sortSel=document.getElementById('prodSortSelect'),sortMode=sortSel?sortSel.value:'count';
+      if(gb==='tipo' && labels.length){
+        labels=labels.slice().sort(function(a,b){
+          if(sortMode==='tipo')return String(a).localeCompare(String(b),'pt-BR',{numeric:true,sensitivity:'base'});
+          return (dist[b]||0)-(dist[a]||0) || String(a).localeCompare(String(b),'pt-BR',{numeric:true,sensitivity:'base'});
+        });
+      }
+      var values=labels.map(function(k){return dist[k]||0;});
+      pie.setAttribute('aria-label',(data.dist_label||'Distribuição')+' da controladoria');
+      if(!labels.length){pie.style.background='var(--surface-card-2,#ececec)';legend.innerHTML='<li class="ch-prod-legend__empty">'+(gb==='tipo'?'Nenhuma petição concluída neste mês.':'Sem prazos para exibir.')+'</li>';return;}
+      // Cor: urgência/status usam paleta semântica (alinhada à tabela); demais usam a paleta neutra.
+      function _colorFor(label,i){
+        if(gb==='urgencia'&&PROD_URGENCIA_COLOR[label])return PROD_URGENCIA_COLOR[label];
+        if(gb==='status'&&PROD_STATUS_COLOR[label])return PROD_STATUS_COLOR[label];
+        return PROD_COLORS[i%PROD_COLORS.length];
+      }
       var total=values.reduce(function(a,b){return a+b;},0)||1,acc=0,stops=[],leg='';
-      labels.forEach(function(l,i){var c=PROD_COLORS[i%PROD_COLORS.length],pct=values[i]/total*100;stops.push(c+' '+acc.toFixed(2)+'% '+(acc+pct).toFixed(2)+'%');acc+=pct;leg+='<li><span class="ch-prod-dot" style="background:'+c+'"></span>'+_escProd(l)+' <b>'+values[i]+'</b></li>';});
+      labels.forEach(function(l,i){var c=_colorFor(l,i),pct=values[i]/total*100;stops.push(c+' '+acc.toFixed(2)+'% '+(acc+pct).toFixed(2)+'%');acc+=pct;leg+='<li><span class="ch-prod-dot" style="background:'+c+'"></span>'+_escProd(l)+' <b>'+_nf(values[i])+'</b></li>';});
       pie.style.background='conic-gradient('+stops.join(',')+')';
       legend.innerHTML=leg;
-    }catch(e){if(legend)legend.innerHTML='<li class="ch-prod-legend__empty">Não foi possível carregar.</li>';}
+    }catch(e){if(legend)legend.innerHTML='<li class="ch-prod-legend__empty">Não foi possível carregar.</li>';var _bl=document.getElementById('prodBarsList'),_bx=document.getElementById('prodBars');if(_bl)_bl.innerHTML='';if(_bx)_bx.classList.add('is-empty');}
   }
+  // Edição da meta (gestor/super_admin): o CHIP da meta é o gatilho — clicar troca
+  // IN-PLACE pelo mini-form (input + Salvar + cancelar). Sugestão/erro viram title/aria
+  // + estado .is-error (sem hint solto empurrando o layout). POST /controladoria/meta.
+  (function wireMetaEdit(){
+    var badge=document.getElementById('prodMetaBadge'),box=document.getElementById('prodMetaBox'),
+        inp=document.getElementById('prodMetaInput'),
+        save=document.getElementById('prodMetaSave'),cancel=document.getElementById('prodMetaCancel');
+    if(!badge||!box||!inp)return;
+    function setErr(msg){ box.classList.toggle('is-error',!!msg); inp.setAttribute('title',msg||('sugestão: '+(window._prodMetaSugerida||100))); }
+    function open(){ if(!window._prodPodeEditarMeta)return; inp.value=window._prodMeta||100; box.classList.remove('is-error'); inp.setAttribute('title','sugestão: '+(window._prodMetaSugerida||100)); inp.setAttribute('placeholder',String(window._prodMetaSugerida||100)); badge.hidden=true; box.hidden=false; inp.focus(); inp.select(); }
+    function close(){ box.hidden=true; box.classList.remove('is-error'); badge.hidden=false; }
+    badge.addEventListener('click',open);
+    inp.addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();save&&save.click();} else if(e.key==='Escape'){e.preventDefault();close();} });
+    if(cancel)cancel.addEventListener('click',close);
+    if(save)save.addEventListener('click',async function(){
+      var v=parseInt(inp.value,10);
+      if(!(v>=1&&v<=100000)){ setErr('valor inválido (1 a 100000)'); inp.focus(); inp.select(); return; }
+      save.disabled=true;
+      try{
+        var r=await fetch(PREFIX+'/controladoria/meta',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({meta:v})});
+        var d=await r.json().catch(function(){return {};});
+        if(r.ok&&d.success){ window._prodMeta=d.meta; var t=document.getElementById('prodMetaTarget'); if(t)t.textContent=d.meta; close(); var s=document.getElementById('prodMesSelect'); if(s)loadProdutividade(s.value); }
+        else { setErr((d&&d.error)||'falha ao salvar'); }
+      }catch(e){ setErr('erro de rede'); }
+      finally{ save.disabled=false; }
+    });
+  })();
   (function initProd(){
-    var sel=document.getElementById('prodMesSelect');if(!sel)return;
+    var sel=document.getElementById('prodMesSelect'),sortSel=document.getElementById('prodSortSelect');if(!sel)return;
     var now=new Date(),cur=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
     if(Array.prototype.some.call(sel.options,function(o){return o.value===cur;}))sel.value=cur;
     loadProdutividade(sel.value);
     sel.addEventListener('change',function(){loadProdutividade(sel.value);});
+    var gbSel=document.getElementById('prodGroupSelect');
+    if(gbSel)gbSel.addEventListener('change',function(){loadProdutividade(sel.value);});
+    if(sortSel)sortSel.addEventListener('change',function(){loadProdutividade(sel.value);});
   })();
-  // --- DataJud embutido: painel retrátil + busca pública no CNJ ([parceiro] 29/05) ---
+  // --- DataJud embutido: painel retrátil + busca pública no CNJ (Example User 29/05) ---
   (function initDataJud(){
     var root=document.querySelector('[data-datajud]');if(!root)return;
     var toggle=root.querySelector('[data-datajud-toggle]');
@@ -526,6 +1404,7 @@
     return fetch(PREFIX + '/controladoria/' + id + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: body ? JSON.stringify(body) : '{}'
     });
   }
@@ -533,114 +1412,890 @@
     var done = ev.target.closest('[data-prazo-done]');
     if (done) {
       ev.preventDefault();
+      var doneRow = done.closest('tr');
       postPrazo(done.getAttribute('data-prazo-done'), '/update', { field: 'status', value: 'concluido' })
-        .then(function (r) { r.ok ? location.reload() : alert('Falha ao concluir prazo'); });
+        .then(function (r) { if (r.ok) { chConcluiUpdate(doneRow, 'concluido'); } else { alert('Falha ao concluir prazo'); } });
+      return;
+    }
+    var reopen = ev.target.closest('[data-prazo-reopen]');
+    if (reopen) {
+      ev.preventDefault();
+      var reopenRow = reopen.closest('tr');
+      postPrazo(reopen.getAttribute('data-prazo-reopen'), '/update', { field: 'status', value: 'pendente' })
+        .then(function (r) {
+          if (r.ok) {
+            if (reopenRow) reopenRow.remove();
+            updateTabCounts();
+            if (typeof notify === 'function') notify('Prazo reaberto — aparecerá na lista Ativos', 'success');
+          } else { alert('Falha ao reabrir prazo'); }
+        });
       return;
     }
     var del = ev.target.closest('[data-prazo-delete]');
     if (del) {
       ev.preventDefault();
       if (!confirm('Excluir este prazo?')) return;
+      var delRow = del.closest('tr');
       postPrazo(del.getAttribute('data-prazo-delete'), '/excluir')
-        .then(function (r) { r.ok ? location.reload() : alert('Falha ao excluir prazo'); });
-      return;
-    }
-    var edit = ev.target.closest('[data-prazo-edit]');
-    if (edit) {
-      ev.preventDefault();
-      var row = edit.closest('tr');
-      var atual = row ? (row.getAttribute('data-descricao') || '') : '';
-      var novo = prompt('Editar observação do prazo:', atual);
-      if (novo === null) return;
-      postPrazo(edit.getAttribute('data-prazo-edit'), '/update', { field: 'descricao', value: novo })
-        .then(function (r) { r.ok ? location.reload() : alert('Falha ao editar prazo'); });
+        .then(function (r) { if (r.ok && delRow) { delRow.remove(); updateTabCounts(); } else if (!r.ok) { alert('Falha ao excluir prazo'); } });
       return;
     }
   });
   document.addEventListener('change', function (ev) {
     var sel = ev.target.closest('[data-prazo-status]');
     if (!sel) return;
+    var row = sel.closest('tr');
     postPrazo(sel.getAttribute('data-prazo-status'), '/update', { field: 'status', value: sel.value })
-      .then(function (r) { if (r.ok) { location.reload(); } else { alert('Falha ao mudar status'); } });
+      .then(function (r) { if (r.ok) { chConcluiUpdate(row, sel.value); } else { alert('Falha ao mudar status'); } });
   });
 
   // Opções dos dropdowns Cliente/Processo (inline-edit) — tenant-isoladas, vindas do route.
   var CH_PREFIX = '{{ PREFIX }}';
   var CH_CLIENTES = {{ clientes_opc | tojson }};
   var CH_PROCESSOS = {{ processos_opc | tojson }};
+  // Membros da org (id, name, initials, photo_url) p/ avatar + dropdown de responsável (Victor 03/06).
+  var CH_USERS = {{ org_users | tojson }};
+  var CH_OAB_OPTIONS = {{ oab_options | tojson }};
+  // Tipos de prazo comuns — prazos_comuns é dict {key:{dias,descricao}}; usamos o rótulo (descricao).
+  var CH_TIPOS = {{ (prazos_comuns.values() | map(attribute='descricao') | list) | tojson }};
+
+  var chIntimacoesData = [];
+
+  function setDateOffset(inputId, daysBack) {
+    var el = document.getElementById(inputId);
+    if (!el || el.value) return;
+    var d = new Date();
+    d.setDate(d.getDate() - daysBack);
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    el.value = d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  function applySelectedOab() {
+    var sel = document.getElementById('ch-int-oab-select');
+    if (!sel) return;
+    var opt = sel.options[sel.selectedIndex];
+    var numero = opt && opt.getAttribute('data-numero');
+    var uf = opt && opt.getAttribute('data-uf');
+    var numeroEl = document.getElementById('ch-int-oab-numero');
+    var ufEl = document.getElementById('ch-int-oab-uf');
+    if (numero && numeroEl) numeroEl.value = numero;
+    if (uf && ufEl) ufEl.value = uf;
+  }
+
+  function resetIntimacoesUi() {
+    chIntimacoesData = [];
+    var list = document.getElementById('ch-int-list');
+    var msg = document.getElementById('ch-int-message');
+    var btn = document.getElementById('ch-int-importar');
+    if (list) { list.innerHTML = ''; list.hidden = true; }
+    if (msg) { msg.hidden = false; msg.textContent = 'Nenhuma busca executada.'; }
+    if (btn) btn.disabled = true;
+    updateIntimacoesSelected();
+  }
+
+  function setIntimacoesStatus(data) {
+    data = data || {};
+    var provider = document.getElementById('ch-int-provider');
+    var status = document.getElementById('ch-int-status');
+    var grant = document.getElementById('ch-int-grant');
+    var count = document.getElementById('ch-int-count');
+    if (provider) provider.textContent = data.provider || data.source || 'ComunicaAPI PJE/CNJ';
+    if (status) status.textContent = data.provider_status || data.status || 'idle';
+    if (grant) grant.textContent = data.grant_attempted || '—';
+    if (count) count.textContent = data.total != null ? String(data.total) : '—';
+  }
+
+  function updateIntimacoesSelected() {
+    var selected = document.querySelectorAll('.ch-int-check:checked:not(:disabled)').length;
+    var enabled = document.querySelectorAll('.ch-int-check:not(:disabled)').length;
+    var label = document.getElementById('ch-int-selected');
+    var btn = document.getElementById('ch-int-importar');
+    if (label) label.textContent = selected + ' de ' + enabled + ' selecionada(s)';
+    if (btn) btn.disabled = selected === 0;
+  }
+
+  function renderIntimacoes(items) {
+    var list = document.getElementById('ch-int-list');
+    var msg = document.getElementById('ch-int-message');
+    chIntimacoesData = Array.isArray(items) ? items : [];
+    if (!list || !msg) return;
+    list.innerHTML = '';
+    if (!chIntimacoesData.length) {
+      list.hidden = true;
+      msg.hidden = false;
+      msg.textContent = 'Consulta executada sem intimações importáveis no período.';
+      updateIntimacoesSelected();
+      return;
+    }
+    msg.hidden = true;
+    list.hidden = false;
+    chIntimacoesData.forEach(function (item, idx) {
+      var importable = item.importable !== false;
+      var row = document.createElement('label');
+      row.className = 'ch-intimacoes-item';
+      row.innerHTML =
+        '<input class="ch-int-check" type="checkbox" data-idx="' + idx + '"' + (importable ? ' checked' : ' disabled') + '>' +
+        '<span class="ch-intimacoes-item__main">' +
+          '<strong>' + escHtml(item.numero_processo || '—') + '</strong>' +
+          '<span>' + escHtml(item.tipo_comunicacao || 'Intimação') + (item.source ? ' · ' + escHtml(item.source) : '') + '</span>' +
+          (item.orgao || item.tribunal ? '<span>' + escHtml(item.orgao || item.tribunal) + '</span>' : '') +
+          (item.texto ? '<span>' + escHtml(String(item.texto).slice(0, 180)) + (String(item.texto).length > 180 ? '...' : '') + '</span>' : '') +
+        '</span>' +
+        '<span class="ch-intimacoes-item__date">' + escHtml(item.data_disponibilizacao || '—') + '</span>';
+      list.appendChild(row);
+    });
+    updateIntimacoesSelected();
+  }
+
+  function openIntimacoesModal() {
+    var modal = document.getElementById('ch-intimacoes-modal');
+    setDateOffset('ch-int-data-inicio', 30);
+    setDateOffset('ch-int-data-fim', 0);
+    if (CH_OAB_OPTIONS && CH_OAB_OPTIONS.length === 1) {
+      var sel = document.getElementById('ch-int-oab-select');
+      if (sel && !sel.value) {
+        sel.selectedIndex = 1;
+        applySelectedOab();
+      }
+    }
+    if (modal) {
+      modal.hidden = false;
+      modal.setAttribute('data-open', 'true');
+    }
+    var first = document.getElementById('ch-int-oab-select') || document.getElementById('ch-int-oab-numero');
+    if (first) first.focus();
+  }
+
+  function closeIntimacoesModal() {
+    var modal = document.getElementById('ch-intimacoes-modal');
+    if (modal) {
+      modal.removeAttribute('data-open');
+      modal.hidden = true;
+    }
+  }
+
+  async function buscarIntimacoesCnJ() {
+    var numeroEl = document.getElementById('ch-int-oab-numero');
+    var ufEl = document.getElementById('ch-int-oab-uf');
+    var inicioEl = document.getElementById('ch-int-data-inicio');
+    var fimEl = document.getElementById('ch-int-data-fim');
+    var msg = document.getElementById('ch-int-message');
+    var buscarBtn = document.getElementById('ch-int-buscar');
+    var numero = (numeroEl && numeroEl.value || '').replace(/\D+/g, '');
+    if (!numero) {
+      if (msg) { msg.hidden = false; msg.textContent = 'Informe a OAB.'; }
+      if (numeroEl) numeroEl.focus();
+      return;
+    }
+    resetIntimacoesUi();
+    setIntimacoesStatus({ provider: 'ComunicaAPI PJE/CNJ', status: 'consultando', grant_attempted: 'client_credentials', total: '—' });
+    if (msg) { msg.hidden = false; msg.textContent = 'Consultando CNJ/PDPJ...'; }
+    if (buscarBtn) buscarBtn.disabled = true;
+    try {
+      var resp = await fetch(PREFIX + '/controladoria/buscar-comunicaapi', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numero_oab: numero,
+          uf_oab: ufEl ? ufEl.value : 'MG',
+          data_inicio: inicioEl ? inicioEl.value : '',
+          data_fim: fimEl ? fimEl.value : ''
+        })
+      });
+      var data = await resp.json();
+      setIntimacoesStatus(data);
+      if (!resp.ok || data.success === false || data.error) {
+        if (msg) { msg.hidden = false; msg.textContent = data.message || data.error || 'Falha ao consultar CNJ/PDPJ.'; }
+        chIntimacoesData = [];
+        var list = document.getElementById('ch-int-list');
+        if (list) { list.innerHTML = ''; list.hidden = true; }
+        updateIntimacoesSelected();
+        return;
+      }
+      renderIntimacoes(data.intimacoes || []);
+      if (msg && !(data.intimacoes || []).length) {
+        msg.textContent = data.reason || data.message || 'Consulta executada sem intimações no período.';
+      }
+    } catch (e) {
+      setIntimacoesStatus({ provider: 'Controladoria', status: 'failed', grant_attempted: 'unknown', total: 0 });
+      if (msg) { msg.hidden = false; msg.textContent = 'Erro de rede ao consultar CNJ/PDPJ.'; }
+    } finally {
+      if (buscarBtn) buscarBtn.disabled = false;
+    }
+  }
+
+  async function importarIntimacoesCnJ() {
+    var checked = document.querySelectorAll('.ch-int-check:checked:not(:disabled)');
+    var selected = [];
+    checked.forEach(function (cb) {
+      var idx = parseInt(cb.getAttribute('data-idx'), 10);
+      if (chIntimacoesData[idx]) selected.push(chIntimacoesData[idx]);
+    });
+    if (!selected.length) return;
+    var btn = document.getElementById('ch-int-importar');
+    if (btn) btn.disabled = true;
+    try {
+      var resp = await fetch(PREFIX + '/controladoria/importar-intimacoes', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intimacoes: selected })
+      });
+      var result = await resp.json();
+      if (!resp.ok || !result.success) {
+        alert(result.error || 'Falha na importação.');
+        updateIntimacoesSelected();
+        return;
+      }
+      closeIntimacoesModal();
+      window.location.reload();
+    } catch (e) {
+      alert('Erro de rede na importação.');
+      updateIntimacoesSelected();
+    }
+  }
+
+  document.addEventListener('change', function (event) {
+    if (event.target && event.target.id === 'ch-int-oab-select') applySelectedOab();
+    if (event.target && event.target.classList && event.target.classList.contains('ch-int-check')) updateIntimacoesSelected();
+  });
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('#ch-int-buscar')) {
+      event.preventDefault();
+      buscarIntimacoesCnJ();
+    }
+    if (event.target.closest('#ch-int-importar')) {
+      event.preventDefault();
+      importarIntimacoesCnJ();
+    }
+  });
+
+  // Helper: monta o avatar (foto ou iniciais) de um membro buscado por nome em CH_USERS.
+  function chFindUser(name) {
+    if (!name) return null;
+    var n = String(name).trim().toLowerCase();
+    for (var i = 0; i < (CH_USERS || []).length; i++) {
+      if (String(CH_USERS[i].name || '').trim().toLowerCase() === n) return CH_USERS[i];
+    }
+    return null;
+  }
+  function chInitials(name) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+  function chAvatarEl(name) {
+    var u = chFindUser(name);
+    var av = document.createElement('span');
+    if (!name) {
+      av.className = 'ch-avatar ch-avatar--empty';
+      av.textContent = '—';
+      return av;
+    }
+    if (u && u.photo_url) {
+      av.className = 'ch-avatar';
+      var img = document.createElement('img');
+      img.src = u.photo_url; img.alt = ''; img.loading = 'lazy';
+      av.appendChild(img);
+    } else {
+      av.className = 'ch-avatar';
+      av.textContent = (u && u.initials) ? u.initials : chInitials(name);
+    }
+    return av;
+  }
+
+  // C-resp display: pinta avatar à esquerda do nome em cada célula de responsável (no load).
+  (function paintRespAvatars() {
+    document.querySelectorAll('.ch-cell-resp .ch-resp[data-resp-display]').forEach(function (wrap) {
+      if (wrap.querySelector('.ch-avatar')) return;
+      var name = wrap.getAttribute('data-resp-display') || '';
+      wrap.insertBefore(chAvatarEl(name), wrap.firstChild);
+    });
+  })();
 
   // --- Inline-edit de célula na LISTA (29/05 Victor): clicar célula → editar ali, sem popup ---
   document.addEventListener('click', function (ev) {
     var cell = ev.target.closest('.ch-cell-edit');
-    if (!cell || cell.querySelector('input.ch-inline-input')) return;
+    // FIX (Victor 03/06): o guard antes só detectava input.ch-inline-input; um <select>
+    // aberto NÃO era detectado, então clicar no select reentrava aqui e RECRIAVA o select
+    // — o popup fechava na hora ("abre e fecha sem dar pra selecionar"). Agora qualquer
+    // editor ativo na célula (.ch-inline-input ou o menu de responsável) bloqueia a recriação.
+    if (!cell || cell.querySelector('.ch-inline-input') || cell.querySelector('.ch-resp-menu')) return;
     var field = cell.getAttribute('data-edit-field');
     var id = cell.getAttribute('data-edit-id');
     var cur = cell.getAttribute('data-edit-current') || '';
     var orig = cell.innerHTML;
 
-    // Cliente/Processo: dropdown de seleção (existentes, tenant-isolado) + "cadastrar
-    // novo" → vai pra database de clientes/processos (29/05 Victor). Demais campos = texto.
+    if (field === 'responsavel') {
+      var rowResp = cell.closest('tr');
+      var currentUserId = cell.getAttribute('data-edit-user-id') || (rowResp ? rowResp.getAttribute('data-responsavel-user-id') : '') || '';
+      var userSel = document.createElement('select');
+      userSel.className = 'ch-inline-input';
+      userSel.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f);cursor:pointer';
+      var none = document.createElement('option');
+      none.value = '';
+      none.textContent = 'A definir';
+      userSel.appendChild(none);
+      (CH_USERS || []).forEach(function (u) {
+        var op = document.createElement('option');
+        op.value = String(u.id);
+        op.textContent = u.name;
+        if (String(u.id) === String(currentUserId)) op.selected = true;
+        userSel.appendChild(op);
+      });
+      cell.innerHTML = '';
+      cell.appendChild(userSel);
+      try { userSel.focus(); } catch (e) {}
+      var userDone = false;
+      function finishUser(commit) {
+        if (userDone) return;
+        var v = userSel.value || '';
+        if (!commit || String(v) === String(currentUserId || '')) { userDone = true; cell.innerHTML = orig; return; }
+        userDone = true;
+        postPrazo(id, '/update', { field: 'responsavel_user_id', value: v })
+          .then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            if (!res.ok) { alert(res.data.error || 'Falha ao salvar'); cell.innerHTML = orig; return; }
+            var userData = res.data.responsavel_user;
+            var label = res.data.responsavel || '—';
+            cell.innerHTML = renderUserLabel(userData, label);
+            cell.setAttribute('data-edit-current', label === '—' ? '' : label);
+            cell.setAttribute('data-edit-user-id', v);
+            cell.title = (label === '—') ? 'Clique para escolher responsável' : label;
+            if (rowResp) {
+              rowResp.setAttribute('data-responsavel', label === '—' ? '' : label);
+              rowResp.setAttribute('data-responsavel-user-id', v);
+            }
+          })
+          .catch(function () { alert('Falha ao salvar'); cell.innerHTML = orig; });
+      }
+      userSel.addEventListener('change', function () { finishUser(true); });
+      userSel.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); finishUser(false); } });
+      userSel.addEventListener('blur', function () { finishUser(true); });
+      ev.stopPropagation();
+      return;
+    }
+
+    // Cliente/Processo (reunião 10/06): typeahead — digita e o navegador sugere dos
+    // cadastros (datalist). Evita criar processo/cliente duplicado por erro de digitação,
+    // sem abrir um dropdown gigante.
     if (field === 'cliente' || field === 'processo') {
-      var opts = (field === 'cliente') ? (CH_CLIENTES || []) : (CH_PROCESSOS || []);
+      ev.stopPropagation();
+      var listId = 'dl-' + field + '-' + id;
+      var dl = document.createElement('datalist');
+      dl.id = listId;
+      var src = (field === 'cliente')
+        ? (CH_CLIENTES || []).map(function (o) { return o.name; })
+        : (CH_PROCESSOS || []).map(function (o) { return o.label; });
+      src.forEach(function (label) { if (!label) return; var op = document.createElement('option'); op.value = label; dl.appendChild(op); });
+      var ai = document.createElement('input');
+      ai.type = 'text'; ai.className = 'ch-inline-input'; ai.value = cur;
+      ai.setAttribute('list', listId); ai.setAttribute('autocomplete', 'off');
+      ai.placeholder = (field === 'cliente') ? 'Digite o nome do cliente…' : 'Digite o nº do processo…';
+      ai.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f)';
+      cell.innerHTML = ''; cell.appendChild(ai); cell.appendChild(dl);
+      var aDone = false;
+      function aFinish(save) {
+        if (aDone) return; aDone = true;
+        var v = (ai.value || '').trim();
+        if (!save || v === cur) { cell.innerHTML = orig; return; }
+        postPrazo(id, '/update', { field: field, value: v })
+          .then(function (r) {
+            if (r.ok) {
+              cell.textContent = v || '—';
+              cell.setAttribute('data-edit-current', v);
+              var row = cell.closest('tr');
+              if (row) { if (field === 'cliente') row.setAttribute('data-cliente', v); if (field === 'processo') row.setAttribute('data-processo', v); }
+            } else { alert('Falha ao salvar'); cell.innerHTML = orig; }
+          })
+          .catch(function () { alert('Falha ao salvar'); cell.innerHTML = orig; });
+      }
+      ai.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); aFinish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); aFinish(false); }
+      });
+      requestAnimationFrame(function () { try { ai.focus(); ai.select(); } catch (e) {} ai.addEventListener('blur', function () { setTimeout(function () { aFinish(true); }, 150); }); });
+      return;
+    }
+
+    // Dia de Início (data_intimacao): input date; backend recalcula vencimento + início.
+    if (field === 'data_intimacao' || field === 'data_inicio') {
+      ev.stopPropagation();
+      var di = document.createElement('input');
+      di.type = 'date'; di.className = 'ch-inline-input'; di.value = cur;
+      di.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f)';
+      cell.innerHTML = ''; cell.appendChild(di);
+      var diDone = false;
+      function diFinish(save) {
+        if (diDone) return; diDone = true;
+        if (!save || di.value === cur) { cell.innerHTML = orig; return; }
+        postPrazo(id, '/update', { field: field, value: di.value })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok) { alert((res.d && res.d.error) || 'Falha ao salvar'); cell.innerHTML = orig; return; }
+            var iso = di.value || '';
+            cell.textContent = iso ? iso.split('-').reverse().join('/') : '—';
+            cell.setAttribute('data-edit-current', iso);
+            var row = cell.closest('tr');
+            if (row && iso) row.setAttribute('data-data', iso);
+            if (res.d && res.d.new_vencimento) chUpdateVencimentoCell(id, res.d.new_vencimento);
+          })
+          .catch(function () { alert('Falha ao salvar'); cell.innerHTML = orig; });
+      }
+      di.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); diFinish(true); } else if (e.key === 'Escape') { e.preventDefault(); diFinish(false); } });
+      di.addEventListener('change', function () { diFinish(true); });
+      requestAnimationFrame(function () { try { di.focus(); } catch (e) {} di.addEventListener('blur', function () { setTimeout(function () { diFinish(false); }, 150); }); });
+      return;
+    }
+
+    // Prazo (dias_prazo): input number; backend recalcula o vencimento.
+    if (field === 'dias_prazo') {
+      ev.stopPropagation();
+      var ni = document.createElement('input');
+      ni.type = 'number'; ni.min = '1'; ni.max = '365'; ni.className = 'ch-inline-input'; ni.value = cur;
+      ni.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f);text-align:center';
+      cell.innerHTML = ''; cell.appendChild(ni);
+      var niDone = false;
+      function niFinish(save) {
+        if (niDone) return; niDone = true;
+        if (!save || ni.value === cur || !ni.value) { cell.innerHTML = orig; return; }
+        postPrazo(id, '/update', { field: 'dias_prazo', value: ni.value })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok) { alert((res.d && res.d.error) || 'Falha ao salvar'); cell.innerHTML = orig; return; }
+            cell.textContent = ni.value;
+            cell.setAttribute('data-edit-current', ni.value);
+            var row = cell.closest('tr');
+            if (row) row.setAttribute('data-dias', ni.value);
+            if (res.d && res.d.new_vencimento) chUpdateVencimentoCell(id, res.d.new_vencimento);
+          })
+          .catch(function () { alert('Falha ao salvar'); cell.innerHTML = orig; });
+      }
+      ni.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); niFinish(true); } else if (e.key === 'Escape') { e.preventDefault(); niFinish(false); } });
+      requestAnimationFrame(function () { try { ni.focus(); ni.select(); } catch (e) {} ni.addEventListener('blur', function () { setTimeout(function () { niFinish(true); }, 150); }); });
+      return;
+    }
+
+    // Tipo: dropdown (tipos comuns ∪ tipos já na tabela) + "Outro (digitar)" efêmero
+    // (Victor 03/06). Mantido p/ compatibilidade; "Tipo" não é mais coluna na lista
+    // (reunião 10/06 — só no cadastro). Demais campos = texto livre.
+    if (field === 'tipo') {
+      var opts;
+      if (field === 'cliente') opts = (CH_CLIENTES || []).map(function (o) { return o.name; });
+      else if (field === 'processo') opts = (CH_PROCESSOS || []).map(function (o) { return o.label; });
+      else {
+        // Tipo: união de CH_TIPOS + tipos distintos já renderizados na tabela.
+        var seen = {};
+        opts = [];
+        (CH_TIPOS || []).forEach(function (t) { var k = String(t || '').trim(); if (k && !seen[k.toLowerCase()]) { seen[k.toLowerCase()] = 1; opts.push(k); } });
+        document.querySelectorAll('[data-edit-field="tipo"]').forEach(function (c) {
+          var t = String(c.getAttribute('data-edit-current') || '').trim();
+          if (t && !seen[t.toLowerCase()]) { seen[t.toLowerCase()] = 1; opts.push(t); }
+        });
+      }
       var sel = document.createElement('select');
       sel.className = 'ch-inline-input';
       sel.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f);cursor:pointer';
       var ph = document.createElement('option');
       ph.value = '__keep__'; ph.textContent = cur ? (cur + ' (manter)') : '— selecionar —';
       sel.appendChild(ph);
-      opts.forEach(function (o) {
-        var label = (field === 'cliente') ? o.name : o.label;
+      opts.forEach(function (label) {
         if (!label) return;
         var op = document.createElement('option');
         op.value = label; op.textContent = label;
         if (label === cur) op.selected = true;
         sel.appendChild(op);
       });
-      var novo = document.createElement('option');
-      novo.value = '__novo__';
-      novo.textContent = (field === 'cliente') ? '➕ Cadastrar novo cliente…' : '➕ Cadastrar novo processo…';
-      sel.appendChild(novo);
+      if (field === 'tipo') {
+        var outro = document.createElement('option');
+        outro.value = '__outro__';
+        outro.textContent = '➕ Outro (digitar)…';
+        sel.appendChild(outro);
+      } else {
+        var novo = document.createElement('option');
+        novo.value = '__novo__';
+        novo.textContent = (field === 'cliente') ? '➕ Cadastrar novo cliente…' : '➕ Cadastrar novo processo…';
+        sel.appendChild(novo);
+      }
       cell.innerHTML = ''; cell.appendChild(sel);
-      try { sel.focus(); } catch (e) {}
       var selDone = false;
-      function finishSel(commit) {
+      function revertSel() { if (selDone) return; selDone = true; cell.innerHTML = orig; }
+      // "Outro": troca o select por input livre; valor é salvo só NESTE prazo (efêmero, não vira lista).
+	      function openOutro() {
+	        selDone = true; // neutraliza o blur do <select> para não reverter o input recém-criado
+        var ti = document.createElement('input');
+        ti.type = 'text'; ti.className = 'ch-inline-input';
+        ti.value = (cur && opts.indexOf(cur) === -1) ? cur : '';
+        ti.placeholder = 'Digite o tipo deste prazo';
+        ti.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f)';
+        cell.innerHTML = ''; cell.appendChild(ti);
+	        var tDone = false;
+	        function tFinish(save) {
+	          if (tDone) return; tDone = true;
+	          var val = ti.value.trim();
+	          if (!save || !val || val === cur) { cell.innerHTML = orig; return; }
+	          postPrazo(id, '/update', { field: 'tipo', value: val })
+	            .then(function (r) {
+	              if (r.ok) {
+	                cell.innerHTML = '<strong style="color: var(--fg-default); font-size: var(--fs-sm);">'+escHtml(val)+'</strong>';
+	                cell.setAttribute('data-edit-current', val);
+	                var row = cell.closest('tr');
+	                if (row) row.setAttribute('data-tipo', val);
+	              } else {
+	                alert('Falha ao salvar'); cell.innerHTML = orig;
+	              }
+	            });
+	        }
+        ti.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); tFinish(true); }
+          else if (e.key === 'Escape') { e.preventDefault(); tFinish(false); }
+        });
+        requestAnimationFrame(function () { ti.focus(); ti.select(); ti.addEventListener('blur', function () { tFinish(true); }); });
+      }
+      // C-resp/C-cliente fix (Victor 03/06): commit SÓ no 'change' (seleção feita); Escape reverte.
+      // Removido o commit-no-blur — em <select> nativo o blur dispara ao abrir o popup e revertia
+      // a edição prematuramente ("clico e some"). No blur só reverte se nada foi escolhido.
+      sel.addEventListener('change', function () {
         if (selDone) return;
         var v = sel.value;
-        if (v === '__novo__') {
-          selDone = true;
-          window.location.href = CH_PREFIX + (field === 'cliente' ? '/clients/new' : '/cases/new');
-          return;
-        }
-        if (!commit || v === '__keep__' || v === cur) { selDone = true; cell.innerHTML = orig; return; }
-        selDone = true;
-        postPrazo(id, '/update', { field: field, value: v })
-          .then(function (r) { if (r.ok) { location.reload(); } else { alert('Falha ao salvar'); cell.innerHTML = orig; } });
-      }
-      sel.addEventListener('change', function () { finishSel(true); });
-      sel.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); finishSel(false); } });
-      sel.addEventListener('blur', function () { finishSel(true); });
+	        if (v === '__keep__') { return; }
+	        if (v === '__novo__') { selDone = true; window.location.href = CH_PREFIX + (field === 'cliente' ? '/clients/new' : '/cases/new'); return; }
+	        if (v === '__outro__') { openOutro(); return; }
+	        if (v === cur) { revertSel(); return; }
+	        selDone = true;
+	        postPrazo(id, '/update', { field: field, value: v })
+	          .then(function (r) {
+	            if (r.ok) {
+	              if (field === 'tipo') {
+	                cell.innerHTML = '<strong style="color: var(--fg-default); font-size: var(--fs-sm);">'+escHtml(v || '—')+'</strong>';
+	              } else {
+	                cell.textContent = v || '—';
+	              }
+	              cell.setAttribute('data-edit-current', v || '');
+	              var row = cell.closest('tr');
+	              if (row) {
+	                if (field === 'cliente') row.setAttribute('data-cliente', v || '');
+	                if (field === 'processo') row.setAttribute('data-processo', v || '');
+	                if (field === 'tipo') row.setAttribute('data-tipo', v || '');
+	              }
+	            } else {
+	              alert('Falha ao salvar'); cell.innerHTML = orig;
+	            }
+	          });
+	      });
+	      sel.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); revertSel(); } });
       ev.stopPropagation();
+      requestAnimationFrame(function () {
+        try { sel.focus(); } catch (e) {}
+        // blur só reverte (nunca comita): se o usuário clicou fora sem escolher, volta ao texto.
+        sel.addEventListener('blur', function () { setTimeout(revertSel, 0); });
+      });
+      return;
+    }
+
+    // Vencimento → horário (Example User 03/06): clicar na célula abre <input type="time">.
+    // A DATA não muda aqui (continua sendo a chave de sort); só edita a hora opcional.
+    if (field === 'hora_vencimento') {
+      ev.stopPropagation();
+      var ti = document.createElement('input');
+      ti.type = 'time'; ti.className = 'ch-inline-input'; ti.value = cur;
+      ti.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f)';
+      cell.innerHTML = ''; cell.appendChild(ti);
+      var tDone = false;
+	      function tFinish(save) {
+	        if (tDone) return; tDone = true;
+	        if (!save || ti.value === cur) { cell.innerHTML = orig; return; }
+	        postPrazo(id, '/update', { field: 'hora_vencimento', value: ti.value })
+	          .then(function (r) {
+	            if (r.ok) {
+	              var newHour = ti.value || '';
+	              cell.setAttribute('data-edit-current', newHour);
+	              var row = cell.closest('tr');
+	              if (row) row.setAttribute('data-hora', newHour);
+	              var base = '';
+	              if (row) {
+	                var iso = row.getAttribute('data-vencimento') || '';
+	                if (iso) {
+	                  var parts = iso.split('-');
+	                  base = parts.length === 3 ? (parts[2]+'/'+parts[1]+'/'+parts[0]) : iso;
+	                }
+	              }
+	              cell.innerHTML = escHtml(base || '—') + (newHour ? '<span style="display:block;color:var(--fg-default);font-size:var(--fs-xs);font-family:var(--font-family-sans);">'+escHtml(newHour)+'</span>' : '');
+	            } else {
+	              alert('Falha ao salvar'); cell.innerHTML = orig;
+	            }
+	          });
+	      }
+      ti.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); tFinish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); tFinish(false); }
+      });
+      ti.addEventListener('change', function () { tFinish(true); });
+      requestAnimationFrame(function () { try { ti.focus(); } catch (e) {} ti.addEventListener('blur', function () { setTimeout(function () { tFinish(false); }, 150); }); });
       return;
     }
 
     var inp = document.createElement('input');
     inp.type = 'text'; inp.className = 'ch-inline-input'; inp.value = cur;
     inp.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;padding:4px 6px;border:1px solid var(--accent,#1E4890);border-radius:6px;background:var(--bg-surface,#fff);color:var(--fg-default,#15233f)';
-    cell.innerHTML = ''; cell.appendChild(inp); inp.focus(); inp.select();
+    cell.innerHTML = ''; cell.appendChild(inp);
     var done = false;
     function finish(save) {
       if (done) return; done = true;
       if (!save || inp.value === cur) { cell.innerHTML = orig; return; }
       postPrazo(id, '/update', { field: field, value: inp.value })
-        .then(function (r) { if (r.ok) { location.reload(); } else { alert('Falha ao salvar'); cell.innerHTML = orig; } });
+        .then(function (r) {
+          if (r.ok) {
+            var value = inp.value || '—';
+            if (field === 'tipo') {
+              cell.innerHTML = '<strong style="display: block; color: var(--fg-default); font-size: var(--fs-sm);">'+escHtml(value)+'</strong>';
+            } else {
+              cell.textContent = value;
+            }
+            cell.setAttribute('data-edit-current', inp.value || '');
+            var row = cell.closest('tr');
+            if (row) {
+              if (field === 'descricao') row.setAttribute('data-descricao', inp.value || '');
+              if (field === 'tipo') row.setAttribute('data-tipo', inp.value || '');
+            }
+          } else { alert('Falha ao salvar'); cell.innerHTML = orig; }
+        });
     }
     inp.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); finish(true); }
       else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
     });
-    inp.addEventListener('blur', function () { finish(true); });
+    // C4 fix: foca e ativa o blur SÓ no próximo frame. Focar dentro do mesmo
+    // ciclo do clique faz o navegador resolver o foco do ponteiro DEPOIS e
+    // disparar blur imediato ("sai rápido"). Adiar garante foco estável.
     ev.stopPropagation();
+    requestAnimationFrame(function () {
+      inp.focus(); inp.select();
+      inp.addEventListener('blur', function () { finish(true); });
+    });
   });
+
+  // ── C8 — Modal de Observação (substitui window.prompt) ──────────────────────
+  (function initObsModal() {
+    var overlay = document.getElementById('ch-obs-modal');
+    if (!overlay) return;
+    var idInput = document.getElementById('ch-obs-id');
+    var textarea = document.getElementById('ch-obs-textarea');
+    var saveBtn = document.getElementById('ch-obs-save');
+
+    function openObs(id) {
+      var cell = document.querySelector('.ch-obs-cell[data-obs-id="' + id + '"]');
+      var raw = cell ? (cell.getAttribute('data-obs-text') || '') : '';
+      // Fallback: se a célula não tiver o atributo (defensivo), usa data-descricao da linha.
+      if (!cell) {
+        var row = document.querySelector('tr[data-prazo-row="' + id + '"]') || document.querySelector('tr[data-id="' + id + '"]');
+        if (row) raw = row.getAttribute('data-descricao') || '';
+      }
+      idInput.value = id;
+      textarea.value = raw;
+      overlay.hidden = false;
+      overlay.setAttribute('data-open', 'true');
+      // Foca no próximo frame para o foco do ponteiro não roubar o textarea.
+      requestAnimationFrame(function () { try { textarea.focus(); } catch (e) {} });
+    }
+	    window.__chObsOpen = openObs;
+    function closeObs() {
+      overlay.removeAttribute('data-open');
+      overlay.hidden = true;
+    }
+
+    document.addEventListener('click', function (ev) {
+      var opener = ev.target.closest('[data-obs-open]');
+      if (opener) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openObs(opener.getAttribute('data-obs-open'));
+        return;
+      }
+      if (ev.target.closest('[data-obs-close]')) { ev.preventDefault(); closeObs(); return; }
+      if (ev.target === overlay) closeObs();
+    });
+
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && overlay.hasAttribute('data-open')) closeObs();
+    });
+
+    saveBtn.addEventListener('click', function () {
+      var id = idInput.value;
+      var texto = textarea.value;
+      saveBtn.disabled = true;
+      // Salva via o MESMO endpoint da edição inline (campo descricao).
+      postPrazo(id, '/update', { field: 'descricao', value: texto })
+        .then(function (r) {
+          if (!r.ok) { alert('Falha ao salvar observação'); saveBtn.disabled = false; return; }
+          // Atualiza a célula in-place sem reload.
+          var cell = document.querySelector('.ch-obs-cell[data-obs-id="' + id + '"]');
+          if (cell) {
+            cell.setAttribute('data-obs-text', texto);
+            var btn = cell.querySelector('[data-obs-open]');
+            var txtSpan = cell.querySelector('.ch-obs-text');
+            if (txtSpan) txtSpan.textContent = texto || '—';
+            var expand = cell.querySelector('.ch-obs-expand');
+            if (texto && !expand && btn) {
+              expand = document.createElement('span');
+              expand.className = 'ch-obs-expand';
+              expand.setAttribute('aria-label', 'Expandir');
+              expand.textContent = '⤢'; // ⤢
+              btn.appendChild(expand);
+            } else if (!texto && expand) {
+              expand.remove();
+            }
+          }
+	          // Sincroniza o atributo da linha para ordenação e edições posteriores.
+          var row = cell ? cell.closest('tr') : null;
+          if (row) row.setAttribute('data-descricao', texto);
+          closeObs();
+          saveBtn.disabled = false;
+        })
+        .catch(function () { alert('Erro de conexão'); saveBtn.disabled = false; });
+    });
+  })();
+
+  // ── C5 — Ordenação por cabeçalho (Processo / Cliente / Tipo / Observação / Responsável / Vencimento / Status) ─────
+  (function initSort() {
+    var table = document.querySelector('.ch-table');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    if (!tbody) return;
+
+	    function rowValue(row, key) {
+	      switch (key) {
+	        case 'tribunal':   return (row.getAttribute('data-tribunal') || '').toLowerCase();
+	        case 'processo':   return (row.getAttribute('data-processo') || '').toLowerCase();
+        case 'cliente':    return (row.getAttribute('data-cliente') || '').toLowerCase();
+        case 'tipo':       return (row.getAttribute('data-tipo') || '').toLowerCase();
+        case 'observacao': return (row.getAttribute('data-descricao') || '').toLowerCase();
+        case 'responsavel':return (row.getAttribute('data-responsavel') || '').toLowerCase();
+        case 'status':     return (row.getAttribute('data-status') || '').toLowerCase();
+        case 'vencimento': return row.getAttribute('data-vencimento') || '';
+        default:           return '';
+      }
+    }
+
+    function applySort(th) {
+      var key = th.getAttribute('data-sort-key');
+      var type = th.getAttribute('data-sort-type') || 'text';
+      var current = th.getAttribute('aria-sort');
+      var asc = current !== 'ascending'; // toggle; se não estava asc, vira asc
+
+      // Reseta estado visual de todos os cabeçalhos.
+      table.querySelectorAll('thead th.ch-th-sort').forEach(function (h) {
+        h.setAttribute('aria-sort', 'none');
+        h.classList.remove('is-sorted');
+        var ar = h.querySelector('.ch-th-sort__arrow');
+        if (ar) ar.textContent = '↕';
+      });
+      th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+      th.classList.add('is-sorted');
+      var arrow = th.querySelector('.ch-th-sort__arrow');
+      if (arrow) arrow.textContent = asc ? '↑' : '↓';
+
+      var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-prazo-row]'));
+      rows.sort(function (a, b) {
+        var va = rowValue(a, key);
+        var vb = rowValue(b, key);
+        // Vazios sempre ao fim, independente da direção.
+        if (va === '' && vb !== '') return 1;
+        if (vb === '' && va !== '') return -1;
+        var cmp;
+        if (type === 'date') {
+          cmp = va < vb ? -1 : (va > vb ? 1 : 0); // ISO YYYY-MM-DD compara como string
+        } else {
+          cmp = va.localeCompare(vb, 'pt-BR', { numeric: true, sensitivity: 'base' });
+        }
+        return asc ? cmp : -cmp;
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    }
+
+    table.querySelectorAll('thead th.ch-th-sort').forEach(function (th) {
+      th.addEventListener('click', function () { applySort(th); });
+    });
+  })();
+
+  // ── C3 — Drag-and-drop de reordenação (pelo grip) + persistência ────────────
+  (function initRowDrag() {
+    var table = document.querySelector('.ch-table');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    if (!tbody) return;
+
+    var draggingRow = null;
+
+    function clearDropTargets() {
+      tbody.querySelectorAll('tr.is-drop-target').forEach(function (r) {
+        r.classList.remove('is-drop-target');
+      });
+    }
+
+    function persistOrder() {
+      var ids = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-prazo-row]'))
+        .map(function (r) { return parseInt(r.getAttribute('data-id'), 10); })
+        .filter(function (n) { return !isNaN(n); });
+      if (!ids.length) return;
+      fetch(PREFIX + '/controladoria/reordenar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ ids: ids })
+      })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+        .catch(function () { alert('Falha ao salvar a nova ordem dos prazos.'); });
+    }
+
+    // O grip é o único elemento [draggable]; a linha recebe o efeito visual.
+    tbody.addEventListener('dragstart', function (ev) {
+      var handle = ev.target.closest('[data-prazo-handle]');
+      if (!handle) return;
+      draggingRow = handle.closest('tr[data-prazo-row]');
+      if (!draggingRow) return;
+      ev.dataTransfer.effectAllowed = 'move';
+      // Firefox exige setData pra iniciar o drag.
+      try { ev.dataTransfer.setData('text/plain', draggingRow.getAttribute('data-id') || ''); } catch (e) {}
+      // Atraso para a classe não cancelar o snapshot de arraste.
+      requestAnimationFrame(function () {
+        if (draggingRow) draggingRow.classList.add('is-dragging');
+      });
+    });
+
+    tbody.addEventListener('dragover', function (ev) {
+      if (!draggingRow) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'move';
+      var overRow = ev.target.closest('tr[data-prazo-row]');
+      if (!overRow || overRow === draggingRow) return;
+      clearDropTargets();
+      overRow.classList.add('is-drop-target');
+      // Insere antes ou depois conforme a metade do alvo (estável visualmente).
+      var rect = overRow.getBoundingClientRect();
+      var after = (ev.clientY - rect.top) > rect.height / 2;
+      if (after) {
+        if (overRow.nextSibling !== draggingRow) tbody.insertBefore(draggingRow, overRow.nextSibling);
+      } else {
+        if (overRow.previousSibling !== draggingRow) tbody.insertBefore(draggingRow, overRow);
+      }
+    });
+
+    tbody.addEventListener('dragend', function () {
+      if (draggingRow) draggingRow.classList.remove('is-dragging');
+      clearDropTargets();
+      if (draggingRow) persistOrder();
+      draggingRow = null;
+    });
+
+    tbody.addEventListener('drop', function (ev) {
+      if (!draggingRow) return;
+      ev.preventDefault();
+      clearDropTargets();
+    });
+  })();
 })();
 </script>
 {% endblock %}

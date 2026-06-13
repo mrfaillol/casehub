@@ -1,17 +1,15 @@
 {% extends "base.html" %}
-
-{% block title %}{% if product == "lite" %}E-mails{% else %}Emails{% endif %} - {{ org_name|default('CaseHub') }}{% endblock %}
-
+{% set active_module = 'settings' %}
+{% block title %}Emails · List · {{ org_name|default('CaseHub') }}{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="/static/css/templates/emails-list.css">
+  <link rel="stylesheet" href="/static/css/templates/emails-list.css?v=2">
 {% endblock %}
-
 {% block content %}
 <main class="el-list-main" aria-labelledby="el-list-title">
     <header class="el-list-header">
         <div class="el-list-heading">
             <h1 id="el-list-title" class="el-list-title">
-                <i class="fas fa-envelope el-list-title-icon" aria-hidden="true"></i>
+                <i data-lucide="mail" class="el-list-title-icon" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}E-mails{% else %}Emails{% endif %}</span>
             </h1>
             <p class="el-list-subtitle">
@@ -21,31 +19,31 @@
         </div>
         <div class="el-list-toolbar" role="toolbar" aria-label="{% if product == 'lite' %}Ações de e-mails{% else %}Email actions{% endif %}">
             <button type="button" class="el-list-btn el-list-btn--warning" id="autoLinkBtn" onclick="runAutoLink()">
-                <i class="fas fa-robot" id="autoLinkIcon" aria-hidden="true"></i>
+                <i data-lucide="bot" id="autoLinkIcon" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Auto-Vincular{% else %}Auto-Link{% endif %}</span>
             </button>
-            <div class="dropdown">
-                <button class="el-list-btn el-list-btn--ghost dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{% if product == 'lite' %}Sincronizar pasta{% else %}Sync folder{% endif %}">
-                    <i class="fas fa-sync-alt" id="syncIcon" aria-hidden="true"></i>
+            <div class="el-list-menu-wrap">
+                <button class="el-list-btn el-list-btn--ghost" type="button" data-menu-toggle="el-sync-menu" aria-haspopup="true" aria-expanded="false" aria-label="{% if product == 'lite' %}Sincronizar pasta{% else %}Sync folder{% endif %}">
+                    <i data-lucide="refresh-cw" id="syncIcon" aria-hidden="true"></i>
                     <span>{% if product == "lite" %}Sincronizar{% else %}Sync{% endif %}</span>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    <li><h6 class="dropdown-header">{% if product == "lite" %}Sincronizar Pasta{% else %}Sync Folder{% endif %}</h6></li>
-                    <li><a class="dropdown-item" href="#" onclick="syncFolder('INBOX'); return false;"><i class="fas fa-inbox me-2" aria-hidden="true"></i>{% if product == "lite" %}Caixa de Entrada{% else %}INBOX{% endif %}</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="syncFolder('[Gmail]/Sent Mail'); return false;"><i class="fas fa-paper-plane me-2" aria-hidden="true"></i>{% if product == "lite" %}Enviados{% else %}Sent Mail{% endif %}</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="syncFolder('[Gmail]/All Mail'); return false;"><i class="fas fa-envelope-open me-2" aria-hidden="true"></i>{% if product == "lite" %}Todos os E-mails{% else %}All Mail{% endif %}</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="syncFolder('[Gmail]/Drafts'); return false;"><i class="fas fa-edit me-2" aria-hidden="true"></i>{% if product == "lite" %}Rascunhos{% else %}Drafts{% endif %}</a></li>
-                    <li><a class="dropdown-item" href="#" onclick="syncFolder('[Gmail]/Trash'); return false;"><i class="fas fa-trash me-2" aria-hidden="true"></i>{% if product == "lite" %}Lixeira{% else %}Trash{% endif %}</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="#" onclick="showFolderPicker(); return false;"><i class="fas fa-folder-open me-2" aria-hidden="true"></i>{% if product == "lite" %}Outra pasta...{% else %}Other folder...{% endif %}</a></li>
-                </ul>
+                <div id="el-sync-menu" class="ch-menu" role="menu">
+                    <div class="ch-menu__header"><strong>{% if product == "lite" %}Sincronizar Pasta{% else %}Sync Folder{% endif %}</strong></div>
+                    <button type="button" class="ch-menu__item" role="menuitem" onclick="syncFolder('INBOX'); return false;"><i data-lucide="inbox"></i>{% if product == "lite" %}Caixa de Entrada{% else %}INBOX{% endif %}</button>
+                    <button type="button" class="ch-menu__item" role="menuitem" onclick="syncFolder('[Gmail]/Sent Mail'); return false;"><i data-lucide="send"></i>{% if product == "lite" %}Enviados{% else %}Sent Mail{% endif %}</button>
+                    <button type="button" class="ch-menu__item" role="menuitem" onclick="syncFolder('[Gmail]/All Mail'); return false;"><i data-lucide="mail-open"></i>{% if product == "lite" %}Todos os E-mails{% else %}All Mail{% endif %}</button>
+                    <button type="button" class="ch-menu__item" role="menuitem" onclick="syncFolder('[Gmail]/Drafts'); return false;"><i data-lucide="file-edit"></i>{% if product == "lite" %}Rascunhos{% else %}Drafts{% endif %}</button>
+                    <button type="button" class="ch-menu__item" role="menuitem" onclick="syncFolder('[Gmail]/Trash'); return false;"><i data-lucide="trash-2"></i>{% if product == "lite" %}Lixeira{% else %}Trash{% endif %}</button>
+                    <div class="ch-menu__divider" role="separator"></div>
+                    <button type="button" class="ch-menu__item" role="menuitem" onclick="showFolderPicker(); return false;"><i data-lucide="folder-open"></i>{% if product == "lite" %}Outra pasta...{% else %}Other folder...{% endif %}</button>
+                </div>
             </div>
             <a href="{{ PREFIX }}/emails/compose-v2" class="el-list-btn el-list-btn--primary">
-                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                <i data-lucide="send" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Compor{% else %}Compose{% endif %}</span>
             </a>
             <a href="{{ PREFIX }}/emails/accounts" class="el-list-btn el-list-btn--ghost">
-                <i class="fas fa-cog" aria-hidden="true"></i>
+                <i data-lucide="settings" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Contas{% else %}Accounts{% endif %}</span>
             </a>
         </div>
@@ -54,37 +52,37 @@
     <nav class="el-list-folders" aria-label="{% if product == 'lite' %}Navegação de pastas{% else %}Folder navigation{% endif %}">
         <div class="el-list-tabs" role="tablist">
             <a href="{{ PREFIX }}/emails" class="el-list-tab" role="tab" {% if not folder and not show_archived and not show_autoreplies %}aria-current="page"{% endif %}>
-                <i class="fas fa-inbox" aria-hidden="true"></i>
+                <i data-lucide="inbox" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Ativos{% else %}Active{% endif %}</span>
             </a>
             <a href="{{ PREFIX }}/emails?show_archived=true" class="el-list-tab el-list-tab--archived" role="tab" {% if show_archived %}aria-current="page"{% endif %}>
-                <i class="fas fa-archive" aria-hidden="true"></i>
+                <i data-lucide="archive" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Arquivados{% else %}Archived{% endif %}</span>
             </a>
             <a href="{{ PREFIX }}/emails?show_autoreplies=true" class="el-list-tab el-list-tab--auto" role="tab" {% if show_autoreplies %}aria-current="page"{% endif %}>
-                <i class="fas fa-robot" aria-hidden="true"></i>
+                <i data-lucide="bot" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Respostas Automáticas{% else %}Auto-replies{% endif %}</span>
             </a>
             {% for f in synced_folders %}
             <a href="{{ PREFIX }}/emails?folder={{ f|urlencode }}" class="el-list-tab" role="tab" {% if folder == f %}aria-current="page"{% endif %}>
-                {% if 'Sent' in f %}<i class="fas fa-paper-plane" aria-hidden="true"></i>
-                {% elif 'Draft' in f %}<i class="fas fa-edit" aria-hidden="true"></i>
-                {% elif 'Trash' in f %}<i class="fas fa-trash" aria-hidden="true"></i>
-                {% elif 'All Mail' in f %}<i class="fas fa-envelope-open" aria-hidden="true"></i>
-                {% elif 'Spam' in f %}<i class="fas fa-ban" aria-hidden="true"></i>
-                {% else %}<i class="fas fa-folder" aria-hidden="true"></i>{% endif %}
+                {% if 'Sent' in f %}<i data-lucide="send" aria-hidden="true"></i>
+                {% elif 'Draft' in f %}<i data-lucide="file-edit" aria-hidden="true"></i>
+                {% elif 'Trash' in f %}<i data-lucide="trash-2" aria-hidden="true"></i>
+                {% elif 'All Mail' in f %}<i data-lucide="mail-open" aria-hidden="true"></i>
+                {% elif 'Spam' in f %}<i data-lucide="ban" aria-hidden="true"></i>
+                {% else %}<i data-lucide="folder" aria-hidden="true"></i>{% endif %}
                 <span>{{ f.replace('[Gmail]/', '') }}</span>
             </a>
             {% endfor %}
         </div>
-        <div class="dropdown">
-            <button class="el-list-btn el-list-btn--ghost el-list-btn--sm dropdown-toggle" type="button" id="folderPickerBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="fas fa-folder-open" aria-hidden="true"></i>
+        <div class="el-list-menu-wrap">
+            <button class="el-list-btn el-list-btn--ghost el-list-btn--sm" type="button" id="folderPickerBtn" data-menu-toggle="el-folder-menu" aria-haspopup="true" aria-expanded="false">
+                <i data-lucide="folder-open" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Mais Pastas{% else %}More Folders{% endif %}</span>
             </button>
-            <ul class="dropdown-menu" id="folderDropdown" role="menu">
-                <li><span class="dropdown-item-text">{% if product == "lite" %}Carregando pastas...{% else %}Loading folders...{% endif %}</span></li>
-            </ul>
+            <div class="ch-menu" id="folderDropdown" role="menu">
+                <span class="ch-menu__note">{% if product == "lite" %}Carregando pastas...{% else %}Loading folders...{% endif %}</span>
+            </div>
         </div>
     </nav>
 
@@ -96,20 +94,20 @@
         <span class="el-list-legend-item"><span class="el-list-swatch el-list-swatch--danielle" aria-hidden="true"></span> Danielle</span>
         <span class="el-list-legend-item"><span class="el-list-swatch el-list-swatch--daniel" aria-hidden="true"></span> Daniel</span>
         <span class="el-list-legend-divider" aria-hidden="true"></span>
-        <span class="el-list-legend-item"><i class="fas fa-check-circle el-list-notion el-list-notion--created" aria-hidden="true"></i>Notion task criada</span>
-        <span class="el-list-legend-item"><i class="fas fa-clock el-list-notion el-list-notion--pending" aria-hidden="true"></i>Aguardando processamento</span>
-        <span class="el-list-legend-item"><i class="fas fa-minus el-list-notion el-list-notion--none" aria-hidden="true"></i>Sem cliente vinculado</span>
+        <span class="el-list-legend-item"><i data-lucide="check-circle" class="el-list-notion el-list-notion--created" aria-hidden="true"></i>Notion task criada</span>
+        <span class="el-list-legend-item"><i data-lucide="clock" class="el-list-notion el-list-notion--pending" aria-hidden="true"></i>Aguardando processamento</span>
+        <span class="el-list-legend-item"><i data-lucide="minus" class="el-list-notion el-list-notion--none" aria-hidden="true"></i>Sem cliente vinculado</span>
     </div>
     {% else %}
     <div class="el-list-legend" aria-label="Legenda">
         <span class="el-list-legend-label">Legenda</span>
-        <span class="el-list-legend-item"><i class="fas fa-minus el-list-notion el-list-notion--none" aria-hidden="true"></i>Sem cliente vinculado</span>
+        <span class="el-list-legend-item"><i data-lucide="minus" class="el-list-notion el-list-notion--none" aria-hidden="true"></i>Sem cliente vinculado</span>
     </div>
     {% endif %}
 
     <div class="el-list-filters">
         <div class="el-list-search">
-            <i class="fas fa-search el-list-search-icon" aria-hidden="true"></i>
+            <i data-lucide="search" class="el-list-search-icon" aria-hidden="true"></i>
             <label for="emailSearch" class="visually-hidden">{% if product == "lite" %}Buscar e-mails{% else %}Search emails{% endif %}</label>
             <input type="search" class="el-list-input" id="emailSearch" placeholder="{% if product == 'lite' %}Buscar e-mails... (Enter = busca completa){% else %}Search emails... (Enter = full search){% endif %}" value="{{ search }}" onkeyup="if(event.key==='Enter'){window.location.href='{{ PREFIX }}/emails?search='+encodeURIComponent(this.value)}else{filterEmails()}">
         </div>
@@ -132,20 +130,20 @@
 
     {% if request.query_params.get('sent') %}
     <div class="el-list-alert" role="status">
-        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <i data-lucide="check-circle" aria-hidden="true"></i>
         <span>{% if product == "lite" %}E-mail enviado com sucesso!{% else %}Email sent successfully!{% endif %}</span>
         <button type="button" class="el-list-alert-close" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}" onclick="this.closest('.el-list-alert').remove()">
-            <i class="fas fa-times" aria-hidden="true"></i>
+            <i data-lucide="x" aria-hidden="true"></i>
         </button>
     </div>
     {% endif %}
 
     {% if request.query_params.get('bulk_success') %}
     <div class="el-list-alert" role="status">
-        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <i data-lucide="check-circle" aria-hidden="true"></i>
         <span>{{ request.query_params.get('bulk_success') }} {% if product == "lite" %}e-mails processados!{% else %}emails processed!{% endif %}</span>
         <button type="button" class="el-list-alert-close" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}" onclick="this.closest('.el-list-alert').remove()">
-            <i class="fas fa-times" aria-hidden="true"></i>
+            <i data-lucide="x" aria-hidden="true"></i>
         </button>
     </div>
     {% endif %}
@@ -154,7 +152,7 @@
         <form method="POST" action="{{ PREFIX }}/emails/bulk" id="bulkForm" class="el-list-modal-form" style="flex-direction: row; flex-wrap: wrap; align-items: center;">
             <input type="hidden" name="email_ids" id="bulkEmailIds" value="[]">
             <span class="el-list-bulk-count">
-                <i class="fas fa-check-square" aria-hidden="true"></i>
+                <i data-lucide="check-square" aria-hidden="true"></i>
                 <strong id="selectedCount">0</strong>
                 <span>{% if product == "lite" %}selecionados{% else %}selected{% endif %}</span>
             </span>
@@ -176,46 +174,40 @@
                 {% endfor %}
             </select>
             <button type="submit" class="el-list-btn el-list-btn--primary el-list-btn--sm" id="bulkExecuteBtn" disabled>
-                <i class="fas fa-play" aria-hidden="true"></i>
+                <i data-lucide="play" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Executar{% else %}Execute{% endif %}</span>
             </button>
             <button type="button" class="el-list-btn el-list-btn--ghost el-list-btn--sm" onclick="clearSelection()">
-                <i class="fas fa-times" aria-hidden="true"></i>
+                <i data-lucide="x" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</span>
             </button>
         </form>
     </section>
 
     {% if emails %}
-    <div class="el-list-card">
-        <div class="el-list-table-wrap">
-            <table class="el-list-table" id="emailsTable">
-                <thead>
-                    <tr>
-                        <th scope="col" style="width:34px"><span class="visually-hidden">{% if product == "lite" %}Arquivar{% else %}Archive{% endif %}</span></th>
-                        <th scope="col" style="width:32px">
-                            <label for="checkAll" class="visually-hidden">{% if product == "lite" %}Selecionar todos{% else %}Select all{% endif %}</label>
-                            <input type="checkbox" class="el-list-checkbox" id="checkAll" onchange="toggleAll()">
-                        </th>
-                        <th scope="col" style="width:22px"><span class="visually-hidden">{% if product == "lite" %}Status de leitura{% else %}Read status{% endif %}</span></th>
-                        <th scope="col" style="width:18%">{% if product == "lite" %}De{% else %}From{% endif %}</th>
-                        <th scope="col">{% if product == "lite" %}Assunto{% else %}Subject{% endif %}</th>
-                        <th scope="col" style="width:90px">{% if product == "lite" %}Data{% else %}Date{% endif %}</th>
-                        <th scope="col" style="width:160px">{% if product == "lite" %}Vinculado a{% else %}Linked To{% endif %}</th>
-                        <th scope="col" style="width:46px">Notion</th>
-                        <th scope="col" style="width:110px">{% if product == "lite" %}Ações{% else %}Actions{% endif %}</th>
-                    </tr>
-                </thead>
-                <tbody id="emailsBody">
+    <div class="el-list-card neumorphic-card">
+        <div class="el-list-header-row">
+            <div class="el-list-col-drag"></div>
+            <div class="el-list-col-check">
+                <label for="checkAll" class="visually-hidden">{% if product == "lite" %}Selecionar todos{% else %}Select all{% endif %}</label>
+                <input type="checkbox" class="el-list-checkbox neumorphic-checkbox" id="checkAll" onchange="toggleAll()">
+            </div>
+            <div class="el-list-col-sender">{% if product == "lite" %}Remetente{% else %}Sender{% endif %}</div>
+            <div class="el-list-col-subject">{% if product == "lite" %}Assunto{% else %}Subject{% endif %}</div>
+            <div class="el-list-col-linked">{% if product == "lite" %}Vínculos{% else %}Linked To{% endif %}</div>
+            <div class="el-list-col-date">{% if product == "lite" %}Data{% else %}Date{% endif %}</div>
+        </div>
+        <ul class="el-list-body" id="emailsBody">
                     {% for email in emails %}
                     {% set pl = (email.client_paralegal or '')|lower %}
                     {% set dtag = get_domain_tag(email.sender) %}
-                    <tr class="el-list-row{% if not email.is_read %} el-list-row--unread{% endif %}{% if 'juliana' in pl %} el-list-row--paralegal-juliana{% elif 'ana' in pl %} el-list-row--paralegal-ana{% elif 'danielle' in pl %} el-list-row--paralegal-danielle{% elif 'daniel' in pl %} el-list-row--paralegal-daniel{% endif %}{% if dtag %} el-list-row--domain-{{ dtag }}{% endif %}"
+                    {% set safe_sender = email.sender if email.sender else 'Desconhecido' %}
+                    <li class="el-list-row neumorphic-row{% if not email.is_read %} el-list-row--unread{% endif %}{% if 'juliana' in pl %} el-list-row--paralegal-juliana{% elif 'ana' in pl %} el-list-row--paralegal-ana{% elif 'danielle' in pl %} el-list-row--paralegal-danielle{% elif 'daniel' in pl %} el-list-row--paralegal-daniel{% endif %}{% if dtag %} el-list-row--domain-{{ dtag }}{% endif %}"
                         tabindex="0"
                         role="link"
-                        aria-label="{{ email.subject or '(No subject)' }} — {{ email.sender }}"
+                        aria-label="{{ email.subject or '(No subject)' }} — {{ safe_sender }}"
                         data-id="{{ email.id }}"
-                        data-sender="{{ email.sender|lower }}"
+                        data-sender="{{ safe_sender|lower }}"
                         data-subject="{{ email.subject|lower if email.subject else '' }}"
                         data-linked="{{ 'yes' if email.client_id or email.case_id else 'no' }}"
                         data-paralegal="{{ email.client_paralegal or '' }}"
@@ -225,181 +217,178 @@
                         data-reply-subject="{{ (email.subject or '')|e }}"
                         onclick="viewEmail({{ email.id }})"
                         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();viewEmail({{ email.id }});}">
-                        <td class="el-list-cell--center" onclick="event.stopPropagation()">
-                            <button type="button" class="el-list-action el-list-action--archive" onclick="archiveSingle({{ email.id }}); event.stopPropagation();" aria-label="{% if show_archived %}{% if product == 'lite' %}Desarquivar{% else %}Unarchive{% endif %}{% else %}{% if product == 'lite' %}Arquivar{% else %}Archive{% endif %}{% endif %}">
-                                <i class="fas fa-{% if show_archived %}undo{% else %}archive{% endif %}" aria-hidden="true"></i>
-                            </button>
-                        </td>
-                        <td class="el-list-cell--center" onclick="event.stopPropagation()">
-                            <label class="visually-hidden" for="check-email-{{ email.id }}">{% if product == "lite" %}Selecionar e-mail{% else %}Select email{% endif %}</label>
-                            <input type="checkbox" class="el-list-checkbox email-checkbox" id="check-email-{{ email.id }}" value="{{ email.id }}" onchange="updateSelection()">
-                        </td>
-                        <td class="el-list-cell--center">
-                            {% if not email.is_read %}
-                            <span class="el-list-unread-dot" aria-label="{% if product == 'lite' %}Não lido{% else %}Unread{% endif %}"></span>
-                            {% endif %}
-                        </td>
-                        <td class="el-list-cell-sender">
-                            <span>{{ email.sender[:35] }}{% if email.sender|length > 35 %}…{% endif %}</span>
-                        </td>
-                        <td class="el-list-cell-subject">
-                            {{ email.subject or '(No subject)' }}
-                        </td>
-                        <td class="el-list-cell-date">
-                            {{ email.received_at.strftime('%m/%d %H:%M') if email.received_at else '—' }}
-                        </td>
-                        <td onclick="event.stopPropagation()">
-                            {% if dtag == "ias" %}<span class="el-list-badge el-list-badge--domain">IAS</span>{% elif dtag == "ashoori" %}<span class="el-list-badge el-list-badge--domain">Ashoori</span>{% endif %}
-                            {% if email.client_id %}
-                            <a href="{{ PREFIX }}/clients/{{ email.client_id }}" class="el-list-badge el-list-badge--client" title="{% if product == 'lite' %}Ver cliente{% else %}View client{% endif %}">
-                                <i class="fas fa-user" aria-hidden="true"></i>
-                                <span>{{ email.client_first_name }} {{ email.client_last_name }}</span>
-                            </a>
-                            {% endif %}
-                            {% if email.case_id %}
-                            <a href="{{ PREFIX }}/cases/{{ email.case_id }}" class="el-list-badge el-list-badge--case" title="{% if product == 'lite' %}Ver caso{% else %}View case{% endif %}">
-                                <i class="fas fa-folder" aria-hidden="true"></i>
-                                <span>#{{ email.case_number or email.case_id }}</span>
-                            </a>
-                            {% endif %}
-                            {% if not email.client_id and not email.case_id %}
-                            <span aria-hidden="true">—</span>
-                            {% endif %}
-                        </td>
-                        <td class="el-list-cell--center">
-                            {% if email.notion_task_id and email.notion_task_id != 'NO_PARALEGAL' %}
-                            <i class="fas fa-check-circle el-list-notion el-list-notion--created" title="{% if product == 'lite' %}Task criada no Notion{% else %}Notion task created{% endif %}" aria-label="{% if product == 'lite' %}Task criada no Notion{% else %}Notion task created{% endif %}"></i>
-                            {% elif email.client_id %}
-                            <i class="fas fa-clock el-list-notion el-list-notion--pending" title="{% if product == 'lite' %}Aguardando processamento{% else %}Awaiting processing{% endif %}" aria-label="{% if product == 'lite' %}Aguardando processamento{% else %}Awaiting processing{% endif %}"></i>
-                            {% else %}
-                            <i class="fas fa-minus el-list-notion el-list-notion--none" title="{% if product == 'lite' %}Sem cliente vinculado{% else %}No linked client{% endif %}" aria-label="{% if product == 'lite' %}Sem cliente vinculado{% else %}No linked client{% endif %}"></i>
-                            {% endif %}
-                        </td>
-                        <td class="el-list-cell--actions" onclick="event.stopPropagation()">
-                            <div class="el-list-actions" role="group" aria-label="{% if product == 'lite' %}Ações da linha{% else %}Row actions{% endif %}">
-                                <button type="button" class="el-list-action el-list-action--reply" data-action="reply" aria-label="{% if product == 'lite' %}Responder{% else %}Reply{% endif %}">
-                                    <i class="fas fa-reply" aria-hidden="true"></i>
-                                </button>
-                                <button type="button" class="el-list-action el-list-action--forward" data-action="forward" aria-label="{% if product == 'lite' %}Encaminhar{% else %}Forward{% endif %}">
-                                    <i class="fas fa-share" aria-hidden="true"></i>
-                                </button>
-                                <button type="button" class="el-list-action el-list-action--link" data-action="link" aria-label="{% if product == 'lite' %}Vincular{% else %}Link{% endif %}">
-                                    <i class="fas fa-link" aria-hidden="true"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="el-list-row-drag">
+            <i data-lucide="grip-vertical" aria-hidden="true"></i>
         </div>
+        <div class="el-list-row-check" onclick="event.stopPropagation()">
+            <label class="visually-hidden" for="check-email-{{ email.id }}">Selecionar e-mail</label>
+            <input type="checkbox" class="el-list-checkbox neumorphic-checkbox email-checkbox" id="check-email-{{ email.id }}" value="{{ email.id }}" onchange="updateSelection()">
+        </div>
+        
+        <div class="el-list-row-sender">
+            {% if not email.is_read %}
+            <span class="el-list-unread-dot" aria-label="{% if product == 'lite' %}Não lido{% else %}Unread{% endif %}"></span>
+            {% endif %}
+            <span class="sender-name">{{ safe_sender[:35] }}{% if safe_sender|length > 35 %}…{% endif %}</span>
+        </div>
+        
+        <div class="el-list-row-subject">
+            <span class="subject-text">{{ email.subject or '(Sem Assunto)' }}</span>
+            <span class="subject-snippet">{{ email.body_text[:80] if email.body_text else '' }}</span>
+        </div>
+        
+        <div class="el-list-row-badges" onclick="event.stopPropagation()">
+            {% if dtag == "ias" %}<span class="el-list-badge el-list-badge--domain">IAS</span>{% elif dtag == "ashoori" %}<span class="el-list-badge el-list-badge--domain">Ashoori</span>{% endif %}
+            {% if email.client_id %}
+            <a href="{{ PREFIX }}/clients/{{ email.client_id }}" class="el-list-badge el-list-badge--client" title="{% if product == 'lite' %}Ver cliente{% else %}View client{% endif %}">
+                <i data-lucide="user" aria-hidden="true"></i>
+                <span>{{ email.client_first_name }} {{ email.client_last_name }}</span>
+            </a>
+            {% endif %}
+            {% if email.case_id %}
+            <a href="{{ PREFIX }}/cases/{{ email.case_id }}" class="el-list-badge el-list-badge--case" title="{% if product == 'lite' %}Ver caso{% else %}View case{% endif %}">
+                <i data-lucide="folder" aria-hidden="true"></i>
+                <span>#{{ email.case_number or email.case_id }}</span>
+            </a>
+            {% endif %}
+            
+            {% if email.notion_task_id and email.notion_task_id != 'NO_PARALEGAL' %}
+            <i data-lucide="check-circle" class="el-list-notion el-list-notion--created" title="{% if product == 'lite' %}Task criada no Notion{% else %}Notion task created{% endif %}"></i>
+            {% elif email.client_id %}
+            <i data-lucide="clock" class="el-list-notion el-list-notion--pending" title="{% if product == 'lite' %}Aguardando processamento{% else %}Awaiting processing{% endif %}"></i>
+            {% endif %}
+        </div>
+        
+        <div class="el-list-row-date">
+            {{ email.received_at.strftime('%d %b') if email.received_at else '—' }}
+        </div>
+        
+        <div class="el-list-row-actions neumorphic-actions" onclick="event.stopPropagation()">
+            <button type="button" class="el-list-action el-list-action--archive" onclick="archiveSingle({{ email.id }});" aria-label="Arquivar/Desarquivar">
+                <i data-lucide="{% if show_archived %}undo-2{% else %}archive{% endif %}" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="el-list-action el-list-action--reply" data-action="reply" aria-label="Responder">
+                <i data-lucide="reply" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="el-list-action el-list-action--link" data-action="link" aria-label="Vincular">
+                <i data-lucide="link" aria-hidden="true"></i>
+            </button>
+        </div>
+    </li>
+                    {% endfor %}
+        </ul>
     </div>
 
     {% if has_more %}
     <button type="button" class="el-list-btn el-list-btn--ghost el-list-load-more" onclick="loadMore()">
-        <i class="fas fa-arrow-down" aria-hidden="true"></i>
+        <i data-lucide="arrow-down" aria-hidden="true"></i>
         <span>{% if product == "lite" %}Carregar Mais E-mails{% else %}Load More Emails{% endif %}</span>
     </button>
     {% endif %}
 
     <div class="el-list-footer">
-        <span><i class="fas fa-info-circle" aria-hidden="true"></i> {% if product == "lite" %}Exibindo{% else %}Showing{% endif %} <span id="visibleCount">{{ emails|length }}</span> {% if product == "lite" %}e-mails{% else %}emails{% endif %}</span>
+        <span><i data-lucide="info" aria-hidden="true"></i> {% if product == "lite" %}Exibindo{% else %}Showing{% endif %} <span id="visibleCount">{{ emails|length }}</span> {% if product == "lite" %}e-mails{% else %}emails{% endif %}</span>
         <span>{% if product == "lite" %}Clique para ver, use os botões para ações{% else %}Click to view, use buttons for actions{% endif %}</span>
     </div>
 
     {% else %}
     <div class="el-list-empty" role="status">
-        <i class="fas fa-inbox el-list-empty-icon" aria-hidden="true"></i>
+        {% if gmail_consent_needed %}
+        <i data-lucide="mail-warning" class="el-list-empty-icon" aria-hidden="true"></i>
+        <h2 class="el-list-empty-title">{% if product == "lite" %}Falta liberar a leitura dos e-mails{% else %}Email reading not authorized yet{% endif %}</h2>
+        <p class="el-list-empty-text">{% if product == "lite" %}A conta Google do escritório está conectada, mas ainda não autorizou o CaseHub a ler a caixa de entrada. Reconecte a conta e aceite a permissão de e-mail para ver as mensagens aqui.{% else %}The office Google account is connected, but hasn't authorized CaseHub to read the inbox yet. Reconnect the account and accept the email permission to see messages here.{% endif %}</p>
+        <a href="{{ PREFIX }}/google-calendar/connect/{{ gmail_connect_account }}" class="el-list-btn el-list-btn--primary">
+            <i data-lucide="refresh-cw" aria-hidden="true"></i>
+            <span>{% if product == "lite" %}Reconectar conta Google{% else %}Reconnect Google account{% endif %}</span>
+        </a>
+        {% else %}
+        <i data-lucide="inbox" class="el-list-empty-icon" aria-hidden="true"></i>
         <h2 class="el-list-empty-title">{% if product == "lite" %}Nenhum e-mail sincronizado{% else %}No emails synced yet{% endif %}</h2>
         <p class="el-list-empty-text">{% if product == "lite" %}Configure uma conta de e-mail e sincronize para ver os e-mails aqui{% else %}Configure an email account and sync to see emails here{% endif %}</p>
         <a href="{{ PREFIX }}/emails/accounts" class="el-list-btn el-list-btn--primary">
-            <i class="fas fa-cog" aria-hidden="true"></i>
+            <i data-lucide="settings" aria-hidden="true"></i>
             <span>{% if product == "lite" %}Configurar Conta de E-mail{% else %}Configure Email Account{% endif %}</span>
         </a>
+        {% endif %}
     </div>
     {% endif %}
 </main>
 
-<div class="modal fade" id="linkModal" tabindex="-1" aria-labelledby="linkModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title h5" id="linkModalTitle"><i class="fas fa-user-plus me-2" aria-hidden="true"></i>{% if product == "lite" %}Vincular E-mail ao Perfil do Cliente{% else %}Link Email to Client Profile{% endif %}</h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}"></button>
+<div class="ch-overlay" id="linkModal" hidden aria-hidden="true">
+    <div class="ch-modal ch-modal--lg" role="dialog" aria-modal="true" aria-labelledby="linkModalTitle">
+        <header class="ch-modal__header">
+            <h2 class="ch-modal__title" id="linkModalTitle">{% if product == "lite" %}Vincular E-mail ao Perfil do Cliente{% else %}Link Email to Client Profile{% endif %}</h2>
+            <button type="button" class="ch-modal__close" data-link-modal-close aria-label="{% if product == 'lite' %}Fechar{% else %}Close{% endif %}">
+                <i data-lucide="x" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="ch-modal__body">
+            <p class="el-list-modal-meta">{% if product == "lite" %}E-mail de{% else %}Email from{% endif %}: <strong id="linkEmailSender"></strong></p>
+            <input type="hidden" id="linkEmailId">
+
+            <div class="el-list-modal-tabs" role="tablist">
+                <button class="el-list-modal-tab is-active" id="existing-tab" data-tab-target="existing-client" type="button" role="tab" aria-selected="true" aria-controls="existing-client">
+                    <i data-lucide="search" aria-hidden="true"></i>{% if product == "lite" %}Selecionar Cliente Existente{% else %}Select Existing Client{% endif %}
+                </button>
+                <button class="el-list-modal-tab" id="new-tab" data-tab-target="new-client" type="button" role="tab" aria-selected="false" aria-controls="new-client">
+                    <i data-lucide="plus" aria-hidden="true"></i>{% if product == "lite" %}Criar Novo Cliente{% else %}Create New Client{% endif %}
+                </button>
             </div>
-            <div class="modal-body">
-                <p class="el-list-modal-meta">{% if product == "lite" %}E-mail de{% else %}Email from{% endif %}: <strong id="linkEmailSender"></strong></p>
-                <input type="hidden" id="linkEmailId">
 
-                <ul class="nav nav-tabs mb-3" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="existing-tab" data-bs-toggle="tab" data-bs-target="#existing-client" type="button" role="tab" aria-selected="true" aria-controls="existing-client">
-                            <i class="fas fa-search me-1" aria-hidden="true"></i>{% if product == "lite" %}Selecionar Cliente Existente{% else %}Select Existing Client{% endif %}
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="new-tab" data-bs-toggle="tab" data-bs-target="#new-client" type="button" role="tab" aria-selected="false" aria-controls="new-client">
-                            <i class="fas fa-plus me-1" aria-hidden="true"></i>{% if product == "lite" %}Criar Novo Cliente{% else %}Create New Client{% endif %}
-                        </button>
-                    </li>
-                </ul>
+            <div class="el-list-tab-content">
+                <div class="el-list-tab-pane active" id="existing-client" role="tabpanel" aria-labelledby="existing-tab">
+                    <div class="el-list-form-field">
+                        <label class="el-list-form-label" for="clientSearchInput">{% if product == "lite" %}Buscar e Selecionar Cliente{% else %}Search and Select Client{% endif %}</label>
+                        <input type="search" class="el-list-input" id="clientSearchInput" placeholder="{% if product == 'lite' %}Digite para buscar clientes...{% else %}Type to search clients...{% endif %}" onkeyup="filterClientOptions()">
+                        <select class="el-list-modal-select" id="linkClientSelect" size="6" aria-label="{% if product == 'lite' %}Lista de clientes{% else %}Client list{% endif %}">
+                            <option value="">-- {% if product == "lite" %}Selecione um Cliente{% else %}Select a Client{% endif %} --</option>
+                            {% for client in clients %}
+                            <option value="{{ client.id }}" data-search="{{ client.first_name|lower }} {{ client.last_name|lower }} {{ client.email|lower if client.email else '' }}">
+                                {{ client.first_name }} {{ client.last_name }} {% if client.email %}({{ client.email }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
 
-                <div class="tab-content">
-                    <div class="tab-pane fade show active" id="existing-client" role="tabpanel" aria-labelledby="existing-tab">
+                <div class="el-list-tab-pane" id="new-client" role="tabpanel" aria-labelledby="new-tab" hidden>
+                    <div class="el-list-form-row">
                         <div class="el-list-form-field">
-                            <label class="el-list-form-label" for="clientSearchInput">{% if product == "lite" %}Buscar e Selecionar Cliente{% else %}Search and Select Client{% endif %}</label>
-                            <input type="search" class="el-list-input" id="clientSearchInput" placeholder="{% if product == 'lite' %}Digite para buscar clientes...{% else %}Type to search clients...{% endif %}" onkeyup="filterClientOptions()">
-                            <select class="el-list-modal-select" id="linkClientSelect" size="6" aria-label="{% if product == 'lite' %}Lista de clientes{% else %}Client list{% endif %}">
-                                <option value="">-- {% if product == "lite" %}Selecione um Cliente{% else %}Select a Client{% endif %} --</option>
-                                {% for client in clients %}
-                                <option value="{{ client.id }}" data-search="{{ client.first_name|lower }} {{ client.last_name|lower }} {{ client.email|lower if client.email else '' }}">
-                                    {{ client.first_name }} {{ client.last_name }} {% if client.email %}({{ client.email }}){% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
+                            <label class="el-list-form-label" for="newClientFirstName">{% if product == "lite" %}Nome{% else %}First Name{% endif %} <span class="el-list-form-required" aria-hidden="true">*</span></label>
+                            <input type="text" class="el-list-input" id="newClientFirstName" required>
+                        </div>
+                        <div class="el-list-form-field">
+                            <label class="el-list-form-label" for="newClientLastName">{% if product == "lite" %}Sobrenome{% else %}Last Name{% endif %} <span class="el-list-form-required" aria-hidden="true">*</span></label>
+                            <input type="text" class="el-list-input" id="newClientLastName" required>
                         </div>
                     </div>
-
-                    <div class="tab-pane fade" id="new-client" role="tabpanel" aria-labelledby="new-tab">
-                        <div class="el-list-form-row">
-                            <div class="el-list-form-field">
-                                <label class="el-list-form-label" for="newClientFirstName">{% if product == "lite" %}Nome{% else %}First Name{% endif %} <span class="el-list-form-required" aria-hidden="true">*</span></label>
-                                <input type="text" class="el-list-input" id="newClientFirstName" required>
-                            </div>
-                            <div class="el-list-form-field">
-                                <label class="el-list-form-label" for="newClientLastName">{% if product == "lite" %}Sobrenome{% else %}Last Name{% endif %} <span class="el-list-form-required" aria-hidden="true">*</span></label>
-                                <input type="text" class="el-list-input" id="newClientLastName" required>
-                            </div>
-                        </div>
-                        <div class="el-list-form-row">
-                            <div class="el-list-form-field">
-                                <label class="el-list-form-label" for="newClientEmail">{% if product == "lite" %}E-mail{% else %}Email{% endif %}</label>
-                                <input type="email" class="el-list-input" id="newClientEmail">
-                            </div>
-                            <div class="el-list-form-field">
-                                <label class="el-list-form-label" for="newClientPhone">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</label>
-                                <input type="text" class="el-list-input" id="newClientPhone">
-                            </div>
+                    <div class="el-list-form-row">
+                        <div class="el-list-form-field">
+                            <label class="el-list-form-label" for="newClientEmail">{% if product == "lite" %}E-mail{% else %}Email{% endif %}</label>
+                            <input type="email" class="el-list-input" id="newClientEmail">
                         </div>
                         <div class="el-list-form-field">
-                            <label class="el-list-form-label" for="newClientCountry">{% if product == "lite" %}País de Origem{% else %}Country of Origin{% endif %}</label>
-                            <input type="text" class="el-list-input" id="newClientCountry">
+                            <label class="el-list-form-label" for="newClientPhone">{% if product == "lite" %}Telefone{% else %}Phone{% endif %}</label>
+                            <input type="text" class="el-list-input" id="newClientPhone">
                         </div>
+                    </div>
+                    <div class="el-list-form-field">
+                        <label class="el-list-form-label" for="newClientCountry">{% if product == "lite" %}País de Origem{% else %}Country of Origin{% endif %}</label>
+                        <input type="text" class="el-list-input" id="newClientCountry">
                     </div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="el-list-btn el-list-btn--ghost" data-bs-dismiss="modal">{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</button>
-                <button type="button" class="el-list-btn el-list-btn--primary" id="linkSaveBtn" onclick="saveEmailLink()">
-                    <i class="fas fa-link" aria-hidden="true"></i>
-                    <span>{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</span>
-                </button>
-            </div>
         </div>
+        <footer class="ch-modal__footer">
+            <button type="button" class="el-list-btn el-list-btn--ghost" data-link-modal-close>{% if product == "lite" %}Cancelar{% else %}Cancel{% endif %}</button>
+            <button type="button" class="el-list-btn el-list-btn--primary" id="linkSaveBtn" onclick="saveEmailLink()">
+                <i data-lucide="link" aria-hidden="true"></i>
+                <span>{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</span>
+            </button>
+        </footer>
     </div>
 </div>
 {% endblock %}
-
 {% block extra_js %}
 <script>
 const PREFIX = '{{ PREFIX }}';
@@ -442,60 +431,62 @@ function loadFolderDropdown() {
         .then(data => {
             const dropdown = document.getElementById('folderDropdown');
             if (data.error) {
-                dropdown.innerHTML = '<li><span class="dropdown-item-text">Erro: ' + data.error + '</span></li>';
+                dropdown.innerHTML = '<span class="ch-menu__note">Erro: ' + data.error + '</span>';
                 return;
             }
             const folders = data.folders || [];
             if (folders.length === 0) {
-                dropdown.innerHTML = '<li><span class="dropdown-item-text">Nenhuma pasta encontrada</span></li>';
+                dropdown.innerHTML = '<span class="ch-menu__note">Nenhuma pasta encontrada</span>';
                 return;
             }
 
-            let html = '<li><h6 class="dropdown-header">' + folders.length + ' pastas disponíveis</h6></li>';
+            let html = '<div class="ch-menu__header"><strong>' + folders.length + ' pastas disponíveis</strong></div>';
 
             const gmailFolders = folders.filter(f => f.startsWith('[Gmail]'));
             const clientFolders = folders.filter(f => f.includes('CLIENT') || f.includes('Client'));
             const otherFolders = folders.filter(f => !f.startsWith('[Gmail]') && !f.includes('CLIENT') && !f.includes('Client'));
 
             const safe = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const lucideSvg = (name) => '<i data-lucide="' + name + '" aria-hidden="true"></i>';
 
             if (gmailFolders.length > 0) {
-                html += '<li><h6 class="dropdown-header">Gmail</h6></li>';
+                html += '<div class="ch-menu__label">Gmail</div>';
                 gmailFolders.forEach(f => {
-                    html += '<li><a class="dropdown-item" href="#" data-folder="' + safe(f) + '">' +
-                        '<i class="fas fa-folder me-2" aria-hidden="true"></i>' + safe(f.replace('[Gmail]/', '')) + '</a></li>';
+                    html += '<button type="button" class="ch-menu__item" role="menuitem" data-folder="' + safe(f) + '">' +
+                        lucideSvg('folder') + safe(f.replace('[Gmail]/', '')) + '</button>';
                 });
             }
 
             if (clientFolders.length > 0) {
-                html += '<li><hr class="dropdown-divider"></li>';
-                html += '<li><h6 class="dropdown-header">Clients</h6></li>';
+                html += '<div class="ch-menu__divider" role="separator"></div>';
+                html += '<div class="ch-menu__label">Clients</div>';
                 clientFolders.forEach(f => {
-                    html += '<li><a class="dropdown-item" href="#" data-folder="' + safe(f) + '">' +
-                        '<i class="fas fa-user me-2" aria-hidden="true"></i>' + safe(f) + '</a></li>';
+                    html += '<button type="button" class="ch-menu__item" role="menuitem" data-folder="' + safe(f) + '">' +
+                        lucideSvg('user') + safe(f) + '</button>';
                 });
             }
 
             if (otherFolders.length > 0) {
-                html += '<li><hr class="dropdown-divider"></li>';
-                html += '<li><h6 class="dropdown-header">Outras</h6></li>';
+                html += '<div class="ch-menu__divider" role="separator"></div>';
+                html += '<div class="ch-menu__label">Outras</div>';
                 otherFolders.forEach(f => {
-                    html += '<li><a class="dropdown-item" href="#" data-folder="' + safe(f) + '">' +
-                        '<i class="fas fa-folder me-2" aria-hidden="true"></i>' + safe(f) + '</a></li>';
+                    html += '<button type="button" class="ch-menu__item" role="menuitem" data-folder="' + safe(f) + '">' +
+                        lucideSvg('folder') + safe(f) + '</button>';
                 });
             }
 
             dropdown.innerHTML = html;
-            dropdown.querySelectorAll('a[data-folder]').forEach(a => {
+            dropdown.querySelectorAll('[data-folder]').forEach(a => {
                 a.addEventListener('click', function(e) {
                     e.preventDefault();
                     syncFolder(a.dataset.folder);
                 });
             });
+            if (window.CHLucide) window.CHLucide.mount();
             foldersLoaded = true;
         })
         .catch(err => {
-            document.getElementById('folderDropdown').innerHTML = '<li><span class="dropdown-item-text">Erro: ' + err + '</span></li>';
+            document.getElementById('folderDropdown').innerHTML = '<span class="ch-menu__note">Erro: ' + err + '</span>';
         });
 }
 
@@ -513,7 +504,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.el-list-actions [data-action]').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
-            const row = btn.closest('tr');
+            const row = btn.closest('li.el-list-row');
             if (!row) return;
             const id = parseInt(row.dataset.id, 10);
             const sender = row.dataset.replySender || '';
@@ -545,7 +536,7 @@ function forwardEmail(id, subject) {
 function filterEmails() {
     const search = (document.getElementById('emailSearch')?.value || '').toLowerCase();
     const filterLinked = document.getElementById('filterLinked')?.value || '';
-    const rows = document.querySelectorAll('#emailsBody tr');
+    const rows = document.querySelectorAll('#emailsBody li.el-list-row');
     let visible = 0;
 
     rows.forEach(row => {
@@ -652,12 +643,13 @@ function showNewEmailNotification(count) {
     notification.style.zIndex = '9999';
     notification.style.minWidth = '300px';
     notification.innerHTML = `
-        <i class="fas fa-envelope" aria-hidden="true"></i>
+        <i data-lucide="mail" aria-hidden="true"></i>
         <span><strong>${count} novo${count > 1 ? 's' : ''} email${count > 1 ? 's' : ''}</strong> recebido${count > 1 ? 's' : ''}!</span>
-        <button type="button" class="el-list-alert-close" aria-label="Close"><i class="fas fa-times" aria-hidden="true"></i></button>
+        <button type="button" class="el-list-alert-close" aria-label="Close"><i data-lucide="x" aria-hidden="true"></i></button>
     `;
     notification.querySelector('.el-list-alert-close').addEventListener('click', () => notification.remove());
     document.body.appendChild(notification);
+    if (window.CHLucide) window.CHLucide.mount();
     setTimeout(() => notification.remove(), 5000);
 }
 
@@ -709,13 +701,71 @@ function openLinkModal(emailId, sender) {
     }
     filterClientOptions();
 
-    const existingTab = document.querySelector('#existing-tab');
-    if (existingTab) bootstrap.Tab.getOrCreateInstance(existingTab).show();
-    // Guard against missing element / bundle — see #207.
+    // Reset to the "existing client" tab every time the modal opens.
+    activateLinkTab('existing-client');
+    // Guard against missing element — see #207.
     const linkModalEl = document.getElementById('linkModal');
-    if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !linkModalEl) return;
-    bootstrap.Modal.getOrCreateInstance(linkModalEl).show();
+    if (!linkModalEl) return;
+    openLinkModalEl();
 }
+
+// ── DS modal + tab helpers (port of Bootstrap Modal/Tab) ───────────
+// Mirrors the open/close contract used by the kanban task modal:
+// toggle hidden + data-open + aria-hidden and lock body scroll.
+function openLinkModalEl() {
+    const el = document.getElementById('linkModal');
+    if (!el) return;
+    el.hidden = false;
+    el.setAttribute('data-open', 'true');
+    el.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeLinkModalEl() {
+    const el = document.getElementById('linkModal');
+    if (!el) return;
+    el.hidden = true;
+    el.removeAttribute('data-open');
+    el.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+}
+
+// Vanilla tab toggle. Keeps the `active` class on the target pane so the
+// existing `document.querySelector('#new-client.active')` check still works.
+function activateLinkTab(paneId) {
+    document.querySelectorAll('.el-list-tab-pane').forEach(pane => {
+        const on = pane.id === paneId;
+        pane.classList.toggle('active', on);
+        if (on) pane.removeAttribute('hidden');
+        else pane.setAttribute('hidden', '');
+    });
+    document.querySelectorAll('.el-list-modal-tab').forEach(tab => {
+        const on = tab.getAttribute('data-tab-target') === paneId;
+        tab.classList.toggle('is-active', on);
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Tab switching inside the link modal.
+    document.querySelectorAll('.el-list-modal-tab[data-tab-target]').forEach(tab => {
+        tab.addEventListener('click', function() {
+            activateLinkTab(tab.getAttribute('data-tab-target'));
+        });
+    });
+    // Close handlers: close button(s), backdrop click, Escape.
+    const linkModalEl = document.getElementById('linkModal');
+    if (linkModalEl) {
+        linkModalEl.addEventListener('click', function(e) {
+            if (e.target === linkModalEl) { closeLinkModalEl(); return; } // backdrop
+            const closeBtn = e.target.closest && e.target.closest('[data-link-modal-close]');
+            if (closeBtn) { e.preventDefault(); closeLinkModalEl(); }
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !linkModalEl.hidden) closeLinkModalEl();
+        });
+    }
+});
 
 function filterClientOptions() {
     const search = document.getElementById('clientSearchInput').value.toLowerCase();
@@ -734,7 +784,8 @@ async function saveEmailLink() {
     btn.disabled = true;
     btn.setAttribute('aria-busy', 'true');
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner el-list-spin" aria-hidden="true"></i> <span>Saving…</span>';
+    btn.innerHTML = '<i data-lucide="loader-2" class="el-list-spin" aria-hidden="true"></i> <span>Saving…</span>';
+    if (window.CHLucide) window.CHLucide.mount();
 
     const newClientTab = document.querySelector('#new-client.active');
     let clientId = null;
@@ -780,9 +831,7 @@ async function saveEmailLink() {
         const result = await linkResp.json();
 
         if (result.success) {
-            const linkModalEl = document.getElementById('linkModal');
-            const linkModalInst = (typeof bootstrap !== 'undefined' && bootstrap.Modal && linkModalEl) ? bootstrap.Modal.getInstance(linkModalEl) : null;
-            if (linkModalInst) linkModalInst.hide();
+            closeLinkModalEl();
             window.location.href = `${PREFIX}/clients/${clientId}`;
         } else {
             if (window.toast) toast.error('Error linking email: ' + (result.error || 'Unknown error'));
@@ -793,20 +842,22 @@ async function saveEmailLink() {
         btn.disabled = false;
         btn.removeAttribute('aria-busy');
         btn.innerHTML = originalHtml;
+        // Re-mount: restoring innerHTML re-inserts the raw <i data-lucide="link">.
+        if (window.CHLucide) window.CHLucide.mount();
     }
 }
 
 // Auto-Link
 async function runAutoLink() {
     const btn = document.getElementById('autoLinkBtn');
-    const icon = document.getElementById('autoLinkIcon');
 
     btn.disabled = true;
     btn.setAttribute('aria-busy', 'true');
-    icon.classList.remove('fa-robot');
-    icon.classList.add('fa-spinner', 'el-list-spin');
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner el-list-spin" aria-hidden="true"></i> <span>Linking…</span>';
+    // Spinner = a Lucide loader icon with the CSS spin class. el-list-spin
+    // rotates any element, so it works equally on the SVG Lucide renders.
+    btn.innerHTML = '<i data-lucide="loader-2" class="el-list-spin" aria-hidden="true"></i> <span>Linking…</span>';
+    if (window.CHLucide) window.CHLucide.mount();
 
     try {
         const response = await fetch(`${PREFIX}/emails/auto-link`, { method: 'POST' });
@@ -824,8 +875,8 @@ async function runAutoLink() {
         btn.disabled = false;
         btn.removeAttribute('aria-busy');
         btn.innerHTML = originalHtml;
-        icon?.classList.remove('fa-spinner', 'el-list-spin');
-        icon?.classList.add('fa-robot');
+        // Re-mount: restoring innerHTML re-inserts the raw <i data-lucide="bot">.
+        if (window.CHLucide) window.CHLucide.mount();
     }
 }
 
@@ -855,7 +906,7 @@ function updateSelection() {
 function toggleAll() {
     const checked = document.getElementById('checkAll').checked;
     document.querySelectorAll('.email-checkbox').forEach(cb => {
-        if (cb.closest('tr').style.display !== 'none') cb.checked = checked;
+        if (cb.closest('li.el-list-row').style.display !== 'none') cb.checked = checked;
     });
     updateSelection();
 }
@@ -926,7 +977,7 @@ function normalizeSubject(subj) {
 }
 
 function groupConversations() {
-    const rows = Array.from(document.querySelectorAll('#emailsBody tr.el-list-row'));
+    const rows = Array.from(document.querySelectorAll('#emailsBody li.el-list-row.el-list-row'));
     if (rows.length === 0) return;
 
     const threads = {};
@@ -1008,7 +1059,7 @@ function groupConversations() {
                             tr.tabIndex = 0;
                             tr.addEventListener('click', () => viewEmail(em.id));
                             const archived = em.archived ? '<span class="el-list-badge el-list-badge--archived">archived</span>' : '';
-                            const clientBadge = em.client_name ? `<a href="${PREFIX}/clients/${em.client_id}" class="el-list-badge el-list-badge--client"><i class="fas fa-user" aria-hidden="true"></i> ${safe(em.client_name)}</a>` : '';
+                            const clientBadge = em.client_name ? `<a href="${PREFIX}/clients/${em.client_id}" class="el-list-badge el-list-badge--client"><i data-lucide="user" aria-hidden="true"></i> ${safe(em.client_name)}</a>` : '';
                             const sentBadge = em.folder && em.folder.includes('Sent') ? '<span class="el-list-badge el-list-badge--sent">Sent</span>' : '';
                             tr.innerHTML = `
                                 <td></td><td></td>
@@ -1024,6 +1075,7 @@ function groupConversations() {
                         });
                         const badge = header.querySelector('.el-list-thread-count');
                         if (badge) badge.textContent = group.length;
+                        if (window.CHLucide) window.CHLucide.mount();
                     })
                     .catch(() => {});
             } else {
@@ -1039,27 +1091,37 @@ function groupConversations() {
 
 document.addEventListener('DOMContentLoaded', groupConversations);
 
-// Auto-Link Results Modal
+// Auto-Link Results Modal (DS .ch-overlay/.ch-modal port)
+function closeAutoLinkResultsModal() {
+    const el = document.getElementById('autoLinkResultsModal');
+    if (!el) return;
+    el.hidden = true;
+    el.removeAttribute('data-open');
+    el.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+}
+
 function showAutoLinkResults(data) {
     const safe = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const lucideSvg = (name) => '<i data-lucide="' + name + '" aria-hidden="true"></i>';
     const linkedItems = (data.linked || []).slice(0, 10).map(e => {
         const matchIcon = {
-            'email_match': 'fa-envelope',
-            'name_match': 'fa-user',
-            'phone_match': 'fa-phone',
-            'ai_match': 'fa-robot'
-        }[e.match_type] || 'fa-link';
-        return `<li class="list-group-item">
-            <i class="fas ${matchIcon}" aria-hidden="true"></i>
+            'email_match': 'mail',
+            'name_match': 'user',
+            'phone_match': 'phone',
+            'ai_match': 'bot'
+        }[e.match_type] || 'link';
+        return `<li class="el-list-result-item">
+            ${lucideSvg(matchIcon)}
             <small>${safe(e.sender.substring(0, 35))}</small>
-            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+            ${lucideSvg('arrow-right')}
             <small>${safe(e.client_name)}</small>
         </li>`;
     }).join('');
 
-    const moreCount = (data.linked?.length || 0) > 10 ? `<li class="list-group-item">… e mais ${data.linked.length - 10}</li>` : '';
+    const moreCount = (data.linked?.length || 0) > 10 ? `<li class="el-list-result-item">… e mais ${data.linked.length - 10}</li>` : '';
     const errorSection = (data.errors && data.errors.length > 0) ?
-        `<div class="el-list-alert" style="margin-top: var(--space-3);"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i><span>Erros: ${data.errors.length}</span></div>` : '';
+        `<div class="el-list-alert" style="margin-top: var(--space-3);">${lucideSvg('alert-triangle')}<span>Erros: ${data.errors.length}</span></div>` : '';
 
     const modalBody = `
         <div class="el-list-modal-form">
@@ -1073,7 +1135,7 @@ function showAutoLinkResults(data) {
                     <strong style="font-family: var(--font-family-mono); font-size: var(--font-size-2xl); color: var(--status-success);">${data.linked_count}</strong>
                 </div>
             </div>
-            ${linkedItems ? `<div><h6 class="el-list-form-label">Emails linkados:</h6><ul class="list-group">${linkedItems}${moreCount}</ul></div>` : ''}
+            ${linkedItems ? `<div><h6 class="el-list-form-label">Emails linkados:</h6><ul class="el-list-result-list">${linkedItems}${moreCount}</ul></div>` : ''}
             ${errorSection}
         </div>
     `;
@@ -1083,30 +1145,40 @@ function showAutoLinkResults(data) {
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = modalId;
-        modalEl.className = 'modal fade';
-        modalEl.setAttribute('tabindex', '-1');
-        modalEl.setAttribute('aria-labelledby', 'autoLinkResultsTitle');
+        modalEl.className = 'ch-overlay';
+        modalEl.hidden = true;
+        modalEl.setAttribute('aria-hidden', 'true');
         modalEl.innerHTML = `
-            <div class="modal-dialog modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2 class="modal-title h5" id="autoLinkResultsTitle"><i class="fas fa-robot me-2" aria-hidden="true"></i>Auto-Link Concluído</h2>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body" id="autoLinkModalBody"></div>
-                    <div class="modal-footer">
-                        <button type="button" class="el-list-btn el-list-btn--ghost" data-bs-dismiss="modal">Fechar</button>
-                    </div>
-                </div>
+            <div class="ch-modal ch-modal--lg" role="dialog" aria-modal="true" aria-labelledby="autoLinkResultsTitle">
+                <header class="ch-modal__header">
+                    <h2 class="ch-modal__title" id="autoLinkResultsTitle"><i data-lucide="bot" aria-hidden="true"></i> Auto-Link Concluído</h2>
+                    <button type="button" class="ch-modal__close" data-autolink-modal-close aria-label="Close"><i data-lucide="x" aria-hidden="true"></i></button>
+                </header>
+                <div class="ch-modal__body" id="autoLinkModalBody"></div>
+                <footer class="ch-modal__footer">
+                    <button type="button" class="el-list-btn el-list-btn--ghost" data-autolink-modal-close>Fechar</button>
+                </footer>
             </div>
         `;
         document.body.appendChild(modalEl);
+        modalEl.addEventListener('click', function(e) {
+            if (e.target === modalEl) { closeAutoLinkResultsModal(); return; } // backdrop
+            const closeBtn = e.target.closest && e.target.closest('[data-autolink-modal-close]');
+            if (closeBtn) { e.preventDefault(); closeAutoLinkResultsModal(); }
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !modalEl.hidden) closeAutoLinkResultsModal();
+        });
     }
 
     document.getElementById('autoLinkModalBody').innerHTML = modalBody;
-    // Guard against missing bundle — see #207.
-    if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !modalEl) return;
-    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    // Guard against missing element — see #207.
+    if (!modalEl) return;
+    modalEl.hidden = false;
+    modalEl.setAttribute('data-open', 'true');
+    modalEl.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    if (window.CHLucide) window.CHLucide.mount();
 }
 </script>
 {% endblock %}

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     uuid            UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
     name            VARCHAR(255) NOT NULL,
     slug            VARCHAR(100) NOT NULL UNIQUE,       -- URL-safe identifier (e.g., "immigrant-law-center")
-    domain          VARCHAR(255),                        -- Custom domain (e.g., "casehub.legacy.example")
+    domain          VARCHAR(255),                        -- Custom domain (e.g., "casehub.immigrant.law")
     logo_url        VARCHAR(500),
     favicon_url     VARCHAR(500),
     primary_color   VARCHAR(7) DEFAULT '#1a56db',        -- Hex color for branding

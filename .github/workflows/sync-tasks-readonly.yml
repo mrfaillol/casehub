@@ -1,0 +1,65 @@
+---
+name: Sync tasks.md readonly from Issues
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+env:
+  WORKFLOW_TIMEOUT_SECONDS: 300
+  LOG_MAX_LINES: 500
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: vars.ARMY_GITOPS_ENABLED == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate tasks.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          {
+            echo "# Tasks — casehub (READONLY)"
+            echo ""
+            echo "> ⚠️ READONLY MIRROR. Fonte canônica: GitHub Issues."
+            echo "> Atualizado em $(date -u +%Y-%m-%dT%H:%M:%SZ)."
+            echo ""
+            echo "## Open issues por módulo"
+            echo ""
+            for M in controladoria agenda tarefas crm; do
+              echo "### module/${M}"
+              gh issue list --label "module/${M}" --state open --json number,title --jq '.[] | "- [ ] \(.title) (#\(.number))"' || echo "_no issues_"
+              echo ""
+            done
+          } > tasks.md
+
+      - name: Commit + PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          if git diff --quiet -- tasks.md; then
+            EXIT=0
+          else
+            BR="bot/sync-tasks-$(date -u +%Y%m%d)"
+            git config user.name "sync-tasks[bot]"
+            git config user.email "bot@users.noreply.github.com"
+            git checkout -b "${BR}"
+            git add tasks.md
+            git commit -m "chore(tasks): regenerate readonly from issues"
+            git push origin "${BR}"
+            EXIT=$?
+            [ $EXIT -eq 0 ] && gh pr create --title "[bot] Sync tasks.md $(date -u +%Y-%m-%d)" --body "Auto-regen.\n\ncc @openai-code-agent" --base main --head "${BR}" --label "tasks-md-sync"
+          fi
+          exit "${EXIT}"

@@ -65,7 +65,7 @@ def _seed_client(db, org_id=_ORG_ID, first="Maria", last="Silva"):
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------

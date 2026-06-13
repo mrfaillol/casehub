@@ -158,8 +158,10 @@ class CaseNotesService:
             SELECT n.*, u.name as author_name
             FROM case_notes n
             LEFT JOIN users u ON n.user_id = u.id
+            JOIN cases cas ON n.case_id = cas.id
             WHERE n.id = :note_id
-        """), {"note_id": note_id}).fetchone()
+              AND (:org_id IS NULL OR cas.org_id = :org_id)
+        """), {"note_id": note_id, "org_id": self.org_id}).fetchone()
 
         if not note:
             return None

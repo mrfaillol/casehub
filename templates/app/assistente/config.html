@@ -274,7 +274,7 @@
             <div class="assistente-config-field">
                 <label for="customContext" class="assistente-config-sr-only">Contexto customizado</label>
                 <textarea id="customContext" class="assistente-config-textarea"
-                    placeholder="Ex: O escritório o cliente é especializado em Direito Civil e Trabalhista. Os sócios são Dr. [parceiro] Salles e Dr. [usuário] Fontainha...">{{ custom_context or '' }}</textarea>
+                    placeholder="Ex: O escritório Example Legal é especializado em Direito Civil e Trabalhista. Os sócios são Dr. Example User Salles e Dr. Ricardo Fontainha...">{{ custom_context or '' }}</textarea>
             </div>
             <div>
                 <button type="button" class="assistente-config-btn assistente-config-btn--primary" onclick="saveContext()">
@@ -557,23 +557,13 @@
         btn.disabled = true;
         btn.setAttribute('aria-busy', 'true');
         btn.innerHTML = '<i class="fas fa-spinner assistente-config-spin" aria-hidden="true"></i><span>Puxando...</span>';
-        showToast('Iniciando download de ' + model + '...', 'success');
-
-        try {
-            const resp = await fetch('http://localhost:11434/api/pull', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: model, stream: false })
-            });
-            if (resp.ok) {
-                showToast('Modelo ' + model + ' baixado com sucesso!', 'success');
-                refreshStatus();
-            } else {
-                showToast('Erro ao baixar modelo', 'error');
-            }
-        } catch(e) {
-            showToast('Erro de conexão com Ollama', 'error');
-        }
+        // SEGURANCA: o fetch direto para http://localhost:11434/api/pull foi DESABILITADO.
+        // Ele rodava no BROWSER do usuario: falha em qualquer deploy remoto (localhost = maquina
+        // do cliente, nao o servidor) e expoe a porta do Ollama. Nao ha rota proxy de backend
+        // (/assistente/config/pull-model) hoje, entao NAO disparamos a chamada daqui.
+        // TODO(backend): criar POST {{ PREFIX }}/assistente/config/pull-model que faca o
+        // ollama pull no servidor e, entao, religar este botao apontando para ela.
+        showToast('Download de modelos so pode ser feito no servidor (Ollama). Acao indisponivel por aqui.', 'error');
         btn.disabled = false;
         btn.removeAttribute('aria-busy');
         btn.innerHTML = '<i class="fas fa-download" aria-hidden="true"></i><span>Puxar Novo Modelo</span>';
@@ -813,7 +803,7 @@
     window.saveContext = saveContext;
 
     const PRESETS = {
-        formal: 'Você é um assistente jurídico formal e técnico. Responda sempre em português brasileiro, citando artigos de lei, jurisprudência e doutrina quando relevante. Use linguagem formal e precisa. Estruture as respostas com fundamentação legal.',
+        formal: 'Você é um assistente jurídico formal e técnico. Responda sempre em português brasileiro, com linguagem formal e precisa, estruturando as respostas com fundamentação legal. Cite a legislação aplicável por tema (lei e artigo apenas quando tiver certeza), mas NUNCA invente números de acórdãos, súmulas ou ementas: sem fonte de jurisprudência conectada, oriente o usuário a conferir as bases oficiais dos tribunais.',
         direto: 'Você é um assistente jurídico objetivo e conciso. Responda em português brasileiro de forma breve e direta. Use bullet points. Foque no essencial sem rodeios. Seja prático nas sugestões.',
         didatico: 'Você é um assistente jurídico didático e acessível. Explique conceitos jurídicos de forma simples em português brasileiro. Use exemplos práticos e analogias do cotidiano. Evite jargão técnico desnecessário. Quando usar termos técnicos, explique-os.'
     };
@@ -847,7 +837,7 @@
 
     async function loadHistory() {
         try {
-            const resp = await fetch(`${PREFIX}/assistente/config/histórico`);
+            const resp = await fetch(`${PREFIX}/assistente/config/historico`);
             const data = await resp.json();
             const tbody = document.getElementById('historyBody');
 
@@ -935,7 +925,7 @@
     async function clearHistory() {
         if (!confirm('Tem certeza que deseja limpar todo o histórico de conversas? Esta ação não pode ser desfeita.')) return;
         try {
-            const resp = await fetch(`${PREFIX}/assistente/config/histórico`, { method: 'DELETE' });
+            const resp = await fetch(`${PREFIX}/assistente/config/historico`, { method: 'DELETE' });
             const data = await resp.json();
             if (data.success) {
                 showToast('Histórico limpo!', 'success');

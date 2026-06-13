@@ -39,7 +39,22 @@ def asset_url(path: str) -> str:
         if version:
             return f"/static/{file_path}?v={version}"
         return f"/static/{file_path}"
+    # Fallback cache-bust (2026-06-09): assets fora do manifest (js/app/*.js,
+    # css/app/*) saiam sem ?v=, entao o browser servia JS/CSS velho apos cada
+    # deploy — correcoes de front nao chegavam ao usuario. Versiona por mtime
+    # (muda a cada deploy -> URL nova -> fetch fresco).
+    version = _file_mtime_version(normalized)
+    if version:
+        return f"/static/{normalized}?v={version}"
     return f"/static/{normalized}"
+
+
+def _file_mtime_version(normalized: str) -> str:
+    try:
+        full = os.path.join(settings.BASE_DIR, "static", normalized)
+        return str(int(os.path.getmtime(full)))
+    except OSError:
+        return ""
 
 
 @lru_cache(maxsize=1)

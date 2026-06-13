@@ -9,16 +9,16 @@
     <header class="emails-accounts-header">
         <div class="emails-accounts-heading">
             <a href="{{ PREFIX }}/emails" class="emails-accounts-back">
-                <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                <i data-lucide="arrow-left" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Voltar aos E-mails{% else %}Back to Emails{% endif %}</span>
             </a>
             <h1 id="emails-accounts-title" class="emails-accounts-title">
-                <i class="fas fa-at emails-accounts-title-icon" aria-hidden="true"></i>
+                <i data-lucide="at-sign" class="emails-accounts-title-icon" aria-hidden="true"></i>
                 <span>{% if product == "lite" %}Contas de E-mail{% else %}Email Accounts{% endif %}</span>
             </h1>
         </div>
         <a href="{{ PREFIX }}/emails/accounts/new" class="emails-accounts-btn emails-accounts-btn--primary">
-            <i class="fas fa-plus" aria-hidden="true"></i>
+            <i data-lucide="plus" aria-hidden="true"></i>
             <span>{% if product == "lite" %}Adicionar Conta{% else %}Add Account{% endif %}</span>
         </a>
     </header>
@@ -66,14 +66,14 @@
                                 data-action="sync"
                                 data-account-id="{{ account.id }}"
                                 data-account-name="{{ account.name }}">
-                            <i class="fas fa-sync" aria-hidden="true" data-role="icon"></i>
+                            <i data-lucide="refresh-cw" aria-hidden="true" data-role="icon"></i>
                             <span data-role="label">{% if product == "lite" %}Sincronizar Agora{% else %}Sync Now{% endif %}</span>
                         </button>
                         <form method="post"
                               action="{{ PREFIX }}/emails/accounts/{{ account.id }}/delete"
                               data-confirm="{% if product == 'lite' %}Excluir esta conta?{% else %}Delete this account?{% endif %}">
                             <button type="submit" class="emails-accounts-btn emails-accounts-btn--danger">
-                                <i class="fas fa-trash" aria-hidden="true"></i>
+                                <i data-lucide="trash-2" aria-hidden="true"></i>
                                 <span>{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</span>
                             </button>
                         </form>
@@ -85,7 +85,7 @@
     </ul>
     {% else %}
     <section class="emails-accounts-empty" aria-labelledby="emails-accounts-empty-title">
-        <i class="fas fa-at emails-accounts-empty-icon" aria-hidden="true"></i>
+        <i data-lucide="at-sign" class="emails-accounts-empty-icon" aria-hidden="true"></i>
         <h2 id="emails-accounts-empty-title" class="emails-accounts-empty-title">
             {% if product == "lite" %}Nenhuma conta de e-mail configurada{% else %}No email accounts configured{% endif %}
         </h2>
@@ -93,7 +93,7 @@
             {% if product == "lite" %}Adicione uma conta de e-mail IMAP para começar a sincronizar e-mails.{% else %}Add an IMAP email account to start syncing emails.{% endif %}
         </p>
         <a href="{{ PREFIX }}/emails/accounts/new" class="emails-accounts-btn emails-accounts-btn--primary">
-            <i class="fas fa-plus" aria-hidden="true"></i>
+            <i data-lucide="plus" aria-hidden="true"></i>
             <span>{% if product == "lite" %}Adicionar Conta{% else %}Add Account{% endif %}</span>
         </a>
     </section>
@@ -112,14 +112,17 @@
 
         function syncAccount(btn) {
             var id = btn.getAttribute('data-account-id');
+            // Lucide replaces the source <i data-role="icon"> with an <svg> that
+            // keeps the data-role attribute, so this selector still resolves.
             var icon = btn.querySelector('[data-role="icon"]');
             var label = btn.querySelector('[data-role="label"]');
-            var originalIcon = icon ? icon.className : '';
             var originalLabel = label ? label.textContent : '';
 
             btn.disabled = true;
             btn.setAttribute('aria-busy', 'true');
-            if (icon) icon.className = 'fas fa-spinner emails-accounts-spin';
+            // Spin the existing Lucide icon (CSS class) instead of swapping the
+            // glyph — the refresh-cw icon rotating is the "syncing" indicator.
+            if (icon) icon.classList.add('emails-accounts-spin');
             if (label) label.textContent = I18N.syncing;
 
             fetch(SYNC_URL + encodeURIComponent(id) + '/sync', { method: 'POST' })

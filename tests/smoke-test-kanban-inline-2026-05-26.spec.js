@@ -1,5 +1,5 @@
 /**
- * Kanban — smoke das melhorias Trello-like (B5 + B6, sessão [parceiro] 26/05)
+ * Kanban — smoke das melhorias Trello-like (B5 + B6, sessão Example User 26/05)
  *
  * Valida em /tasks/kanban (template servido: templates/app/tasks/kanban.html
  * via override em core/app_factory.py:1346, com classes .ch-column/.ch-task-card):
@@ -9,10 +9,10 @@
  *       só valida fluxo.
  *   B6: dblclick no .ch-task-card__title vira input editável; Enter salva via
  *       PUT /tasks/api/{id}/update; Esc restaura. Single click navega pro
- *       detail (preserva UX existente). [parceiro]: "burocrático" ([01:09:27]).
+ *       detail (preserva UX existente). Example User: "burocrático" ([01:09:27]).
  *
  * Roda:
- *   CASEHUB_SMOKE_BASE_URL=https://cliente.example.com/casehub \
+ *   CASEHUB_SMOKE_BASE_URL=https://sampletenant.casehub.legal/casehub \
  *   CASEHUB_ALLOW_NON_PROD_SMOKE=1 \
  *   CASEHUB_AUDIT_EMAIL=... CASEHUB_AUDIT_PASSWORD=... \
  *   npx playwright test tests/smoke-test-kanban-inline-2026-05-26.spec.js
@@ -64,7 +64,7 @@ test("Kanban — Nova lista (B5) + dblclick rename de card (B6)", async ({ page 
   await expect(createdColumn).toBeVisible({ timeout: 5_000 });
   await screenshot(page, config, "kanban-b5-column-created");
 
-  // Cleanup (FR-4 pré-[parceiro] 30/05): smoke não pode poluir prod DB com Smoke-XXXX
+  // Cleanup (FR-4 pré-Example User 30/05): smoke não pode poluir prod DB com Smoke-XXXX
   // columns visíveis no kanban do escritório. Captura column_id do data attr e
   // dispara DELETE /tasks/api/columns/{id} via fetch autenticado (cookies do
   // page context). Falha silenciosa NÃO quebra o test — flag para inspeção.

@@ -46,6 +46,14 @@
     flame:         'M12 21c-4 0-7-3-7-7 0-3 2-5 3-7 0 2 1 3 2 3 1-2-1-4 2-7 2 2 4 4 4 8 1 1 2 2 2 4 0 4-3 6-6 6Z',
     target:        'M12 5a7 7 0 1 1 0 14 7 7 0 0 1 0-14Zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z',
     chart:         'M4 20V10M10 20V4M16 20v-7M22 20v-4',
+    /* feedback / actions / integrations */
+    alert_triangle:'M12 3 2 20h20L12 3ZM12 10v5M12 18h.01',
+    arrow_left:    'M19 12H5M11 6l-6 6 6 6',
+    expand:        'M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5',
+    external_link: 'M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
+    mail:          'M3 6h18v12H3zM3 7l9 6 9-6',
+    send:          'M21 3 3 11l7 3 3 7 8-18ZM10 14l11-11',
+    shield:        'M12 3 5 6v5c0 4 3 7 7 9 4-2 7-5 7-9V6l-7-3Z',
     /* brand cube (special; not from icon set) — used as logo mark */
     cube:          'M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 0v20M3 7l9 5 9-5'
   };

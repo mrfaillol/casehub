@@ -533,7 +533,7 @@ async def verify_email(
     # Sentinela T1: scope the JWT cookie to the tenant's host instead of the
     # apex domain. A cookie set with domain='.casehub.legal' was shared across
     # every subdomain, so a session opened under default.casehub.legal could
-    # be reused on cliente.example.com (which the spoofed X-Org-Id
+    # be reused on sampletenant.casehub.legal (which the spoofed X-Org-Id
     # path used to abuse). domain=None makes the cookie host-locked.
     response.set_cookie(
         key=settings.COOKIE_NAME,
@@ -628,9 +628,10 @@ async def setup_subdomain_save(
     db: Session = Depends(get_db),
 ):
     """Persist the chosen subdomain after defense-in-depth re-validation."""
-    org_id = _get_setup_org_id(request)
-    if not org_id:
+    user = get_current_user(request, db)
+    if not user:
         return RedirectResponse(url=f"{PREFIX}/signup", status_code=302)
+    org_id = user.org_id
 
     result = validate_subdomain(db, slug)
     if not result.available:
@@ -693,9 +694,10 @@ async def setup_branding_save(
     db: Session = Depends(get_db),
 ):
     """Save branding during setup."""
-    org_id = _get_setup_org_id(request)
-    if not org_id:
+    user = get_current_user(request, db)
+    if not user:
         return RedirectResponse(url=f"{PREFIX}/signup", status_code=302)
+    org_id = user.org_id
 
     try:
         db.execute(
@@ -772,11 +774,15 @@ async def setup_team_invite(
     db: Session = Depends(get_db),
 ):
     """Send team invitation emails."""
-    org_id = _get_setup_org_id(request)
-    if not org_id:
+    user = get_current_user(request, db)
+    if not user:
         return RedirectResponse(url=f"{PREFIX}/signup", status_code=302)
+    org_id = user.org_id
 
-    org = _get_setup_org(db, request)
+    org_row = db.execute(
+        text("SELECT * FROM organizations WHERE id = :id"), {"id": org_id}
+    ).mappings().first()
+    org = dict(org_row) if org_row else None
     if not org:
         return RedirectResponse(url=f"{PREFIX}/signup", status_code=302)
 
@@ -887,9 +893,10 @@ async def setup_plan_save(
     db: Session = Depends(get_db),
 ):
     """Save selected plan (and create Stripe checkout session if configured)."""
-    org_id = _get_setup_org_id(request)
-    if not org_id:
+    user = get_current_user(request, db)
+    if not user:
         return RedirectResponse(url=f"{PREFIX}/signup", status_code=302)
+    org_id = user.org_id
 
     if plan not in PLAN_TIERS:
         plan = DEFAULT_PLAN

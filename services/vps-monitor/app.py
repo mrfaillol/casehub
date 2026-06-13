@@ -2181,7 +2181,7 @@ async def get_alerts_config():
             "disk_critical": 90,
             "whatsapp_enabled": True,
             "email_enabled": True,
-            "admin_phone": "REDACTED-PHONE"
+            "admin_phone": "5532991513405"
         }
 
         # Try to load from config file if exists

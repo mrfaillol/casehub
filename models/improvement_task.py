@@ -2,7 +2,7 @@
 CaseHub - Improvement Task Model
 
 Receives improvement tasks pushed by the external Command Center
-(`app.example.com` ingest endpoints) after intake-triage classified them via
+(`cmd.vingren.me` ingest endpoints) after intake-triage classified them via
 the runtime-routing-matrix.
 
 Authority: ruling 2026-05-06-cmd-control-center-activation

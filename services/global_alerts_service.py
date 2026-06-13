@@ -125,7 +125,7 @@ class GlobalAlertsService:
                 filtered.append(alert)
 
         # Sort by priority (higher first) then by created date (newer first)
-        filtered.sort(key=lambda x: (-x.get("priority", 0), x.get("created_at", datetime.now())), reverse=True)
+        filtered.sort(key=lambda x: (x.get("priority", 0), x.get("created_at", datetime.min)), reverse=True)
 
         return filtered
 

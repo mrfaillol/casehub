@@ -2,7 +2,7 @@
 {% set active_module = 'agenda' %}
 {% block title %}Calendar · Agenda_Lista · {{ org_name|default('CaseHub') }}{% endblock %}
 {% block extra_head %}
-  <link rel="stylesheet" href="/static/css/templates/calendar-agenda-lista.css?v=20260525-touch">
+  <link rel="stylesheet" href="/static/css/templates/calendar-agenda-lista.css?v=20260609-neu">
 {% endblock %}
 {% block content %}
 <main class="agenda-main" aria-labelledby="agenda-title">
@@ -18,8 +18,11 @@
         <div class="agenda-toolbar">
             <div class="agenda-views" role="tablist" aria-label="Visualização">
                 <button type="button" class="agenda-view agenda-view--active"
+                        id="btnViewBoth" data-agenda-view="both"
+                        role="tab" aria-pressed="true">Ambos</button>
+                <button type="button" class="agenda-view"
                         id="btnViewLista" data-agenda-view="lista"
-                        role="tab" aria-pressed="true">Lista</button>
+                        role="tab" aria-pressed="false">Lista</button>
                 <button type="button" class="agenda-view"
                         id="btnViewCalendario" data-agenda-view="calendario"
                         role="tab" aria-pressed="false">Calendário</button>
@@ -44,6 +47,13 @@
                 {% endif %}
             </nav>
 
+            <div class="agenda-actions">
+            <button type="button" class="agenda-action agenda-action--ghost" id="btnSyncGoogle" data-sync-google
+                    title="Importar eventos do Google Calendar para a agenda">
+                <i data-lucide="refresh-cw" aria-hidden="true"></i>
+                <span>Sincronizar agora</span>
+            </button>
+
             <a href="{{ PREFIX }}/google-calendar/settings" class="agenda-action agenda-action--ghost">
                 <i data-lucide="calendar-sync" aria-hidden="true"></i>
                 <span>Google Calendar</span>
@@ -53,6 +63,7 @@
                 <i data-lucide="plus" aria-hidden="true"></i>
                 <span>Novo Compromisso</span>
             </button>
+            </div>
         </div>
     </header>
 
@@ -96,7 +107,72 @@
                 <i data-lucide="users"></i>
             </div>
         </article>
+
+        <article class="agenda-stat">
+            <div class="agenda-stat-content">
+                <div class="agenda-stat-value">{{ stats_pericia_semana }}</div>
+                <div class="agenda-stat-label">Perícias semana</div>
+            </div>
+            <div class="agenda-stat-icon agenda-stat-icon--warning" aria-hidden="true">
+                <i data-lucide="microscope"></i>
+            </div>
+        </article>
     </section>
+
+    {# Mini-dashboard "Perícias próximas" (estilo aba Pe-Das1 da planilha VS).
+       Miller: lista enxuta (<=8) com a info essencial — data, dias restantes,
+       responsável e local. Só aparece quando há perícias futuras. #}
+    {% if pericias_proximas %}
+    <section class="agenda-pericias" aria-label="Perícias próximas">
+        <header class="agenda-pericias__header">
+            <span class="ch-card__eyebrow"><i data-lucide="microscope" aria-hidden="true"></i> Perícias próximas</span>
+        </header>
+        <div class="agenda-pericias__list">
+            {% for p in pericias_proximas %}
+            <button type="button" class="agenda-pericia-card"
+                    data-appt-id="{{ p.id }}"
+                    data-appt-title="{{ p.title|e }}"
+                    data-appt-type="pericia"
+                    data-appt-assigned="{{ p.assigned_to or '' }}"
+                    data-appt-assigned-ids="{{ appt_assignee_ids.get(p.id, [p.assigned_to] if p.assigned_to else [])|join(',') }}"
+                    data-appt-client="{{ p.client_name|e if p.client_name else '' }}"
+                    data-appt-date="{{ p.date.isoformat() }}"
+                    data-appt-time-start="{{ p.time_start.strftime('%H:%M') if p.time_start else '' }}"
+                    data-appt-time-end="{{ p.time_end.strftime('%H:%M') if p.time_end else '' }}"
+                    data-appt-virtual="{{ '1' if p.is_virtual else '0' }}"
+                    data-appt-notes="{{ p.notes|e if p.notes else '' }}"
+                    data-appt-checklist="{{ p.checklist|e if p.checklist else '' }}"
+                    data-appt-attachments="{{ p.attachments|e if p.attachments else '' }}"
+                    data-appt-files='{{ appt_files.get(p.id, [])|tojson|e }}'
+                    data-appt-local="{{ p.local|e if p.local else '' }}"
+                    data-appt-pericia-status="{{ p.pericia_status|e if p.pericia_status else '' }}"
+                    data-appt-outcome="{{ p.outcome|e if p.outcome else '' }}">
+                <span class="agenda-pericia-card__dias">
+                    {% if p.dias_ate == 0 %}Hoje{% elif p.dias_ate == 1 %}Amanhã{% else %}{{ p.dias_ate }} dias{% endif %}
+                </span>
+                <span class="agenda-pericia-card__date">{{ p.date.strftime('%d/%m') }}{% if p.time_start %} · {{ p.time_start.strftime('%H:%M') }}{% endif %}</span>
+                <strong class="agenda-pericia-card__title">{{ p.title }}</strong>
+                {% if p.client_name %}<span class="agenda-pericia-card__client">{{ p.client_name }}</span>{% endif %}
+                {% set p_people = appt_assignees.get(p.id) if appt_assignees else [] %}
+                {% if p_people %}
+                <span class="agenda-pericia-card__people">
+                    <span class="agenda-avatar-stack agenda-avatar-stack--mini" aria-hidden="true">
+                        {% for person in p_people[:3] %}
+                        <span class="agenda-user-avatar agenda-user-avatar--mini" style="--appt-color: {{ person.color }};">
+                            {% if person.photo_url %}<img src="{{ person.photo_url }}" alt="">{% else %}{{ person.initials }}{% endif %}
+                        </span>
+                        {% endfor %}
+                    </span>
+                    {{ p_people[0].short_name }}{% if p_people|length > 1 %} +{{ p_people|length - 1 }}{% endif %}
+                </span>
+                {% endif %}
+                {% if p.local %}<span class="agenda-pericia-card__local"><i data-lucide="map-pin" aria-hidden="true"></i> {{ p.local }}</span>{% endif %}
+                {% if p.pericia_status %}<span class="agenda-pericia-card__status">{{ p.pericia_status }}</span>{% endif %}
+            </button>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 
     <section class="agenda-grid" aria-label="Compromissos da semana">
         {% for day in days %}
@@ -118,10 +194,42 @@
                             data-appt-time-end="{{ appt.time_end.strftime('%H:%M') if appt.time_end else '' }}"
                             data-appt-virtual="{{ '1' if appt.is_virtual else '0' }}"
                             data-appt-notes="{{ appt.notes|e if appt.notes else '' }}"
+                            data-appt-checklist="{{ appt.checklist|e if appt.checklist else '' }}"
+                            data-appt-attachments="{{ appt.attachments|e if appt.attachments else '' }}"
+                            data-appt-files='{{ appt_files.get(appt.id, [])|tojson|e }}'
+                            data-appt-local="{{ appt.local|e if appt.local else '' }}"
+                            data-appt-pericia-status="{{ appt.pericia_status|e if appt.pericia_status else '' }}"
+                            data-appt-outcome="{{ appt.outcome|e if appt.outcome else '' }}"
+                            data-appt-assigned-ids="{{ appt_assignee_ids.get(appt.id, [appt.assigned_to] if appt.assigned_to else [])|join(',') }}"
                             {% if appt.user_color %}style="--appt-color: {{ appt.user_color }};"{% endif %}>
-                        {% if appt.user_name %}
-                        <span class="agenda-appt-responsavel">
-                            {{ appt.user_name.replace('Dr. ', '').replace('Dra. ', '').split(' ')[0] }}
+                        {% set appt_people = appt_assignees.get(appt.id) if appt_assignees else [] %}
+                        {% if appt_people %}
+                        <span class="agenda-appt-users">
+                            <span class="agenda-avatar-stack" aria-hidden="true">
+                                {% for person in appt_people[:3] %}
+                                <span class="agenda-user-avatar" style="--appt-color: {{ person.color }};">
+                                    {% if person.photo_url %}<img src="{{ person.photo_url }}" alt="">{% else %}{{ person.initials }}{% endif %}
+                                </span>
+                                {% endfor %}
+                            </span>
+                            <span class="agenda-appt-responsavel">
+                                {{ appt_people[0].short_name }}{% if appt_people|length > 1 %} +{{ appt_people|length - 1 }}{% endif %}
+                            </span>
+                        </span>
+                        {% elif appt.user_name %}
+                        {% set appt_name = appt.user_name.replace('Dr. ', '').replace('Dra. ', '') %}
+                        {% set appt_parts = appt_name.split(' ') %}
+                        <span class="agenda-appt-user">
+                            <span class="agenda-user-avatar" aria-hidden="true">
+                                {% if appt.user_photo_url %}
+                                <img src="{{ appt.user_photo_url }}" alt="">
+                                {% else %}
+                                {{ appt_parts[0][0]|upper }}{{ appt_parts[1][0]|upper if appt_parts|length > 1 else '' }}
+                                {% endif %}
+                            </span>
+                            <span class="agenda-appt-responsavel">
+                                {{ appt_parts[0] }}
+                            </span>
                         </span>
                         {% endif %}
                         {% if appt.time_start %}
@@ -164,7 +272,7 @@
                     <span class="agenda-month-eyebrow">Calendario mensal</span>
                     <h2>{{ month_label }}</h2>
                 </div>
-                <span class="agenda-month-note">Clique em "Adicionar" na lista semanal para criar novos compromissos.</span>
+                <span class="agenda-month-note">Passe o mouse sobre um dia e clique no "+" para criar um compromisso naquela data.</span>
             </header>
             <div class="agenda-month-weekdays" aria-hidden="true">
                 <span>Seg</span>
@@ -178,12 +286,27 @@
             <div class="agenda-month-grid">
                 {% for week in month_weeks %}
                     {% for day in week %}
-                    <article class="agenda-month-day{% if not day.in_month %} is-muted{% endif %}{% if day.is_today %} is-today{% endif %}">
+                    {# Fitts: a célula inteira do dia vira alvo grande p/ abrir a
+                       Visão do Dia (timeline). role/tabindex/Enter p/ teclado; o "+"
+                       (data-agenda-month-add) faz stopPropagation e segue criando. #}
+                    <article class="agenda-month-day{% if not day.in_month %} is-muted{% endif %}{% if day.is_today %} is-today{% endif %}"
+                             data-agenda-open-day="{{ day.date.isoformat() }}"
+                             role="button" tabindex="0"
+                             aria-label="Ver dia {{ day.date.strftime('%d/%m/%Y') }}">
                         <header>
                             <span>{{ day.day }}</span>
                             {% if day.appointments %}
                             <strong>{{ day.appointments|length }}</strong>
                             {% endif %}
+                            {# Fitts: alvo de toque grande (>=28px) no canto do dia; reusa o
+                               mesmo fluxo [data-agenda-new-date] da lista semanal (mesmo modal,
+                               mesmo backend). data-agenda-month-add marca-o p/ stopPropagation. #}
+                            <button type="button" class="agenda-month-add"
+                                    data-agenda-new-date="{{ day.date.isoformat() }}"
+                                    data-agenda-month-add
+                                    aria-label="Adicionar compromisso em {{ day.date.strftime('%d/%m') }}">
+                                <i data-lucide="plus" aria-hidden="true"></i>
+                            </button>
                         </header>
                         <div class="agenda-month-events">
                             {% if day.appointments %}
@@ -198,8 +321,39 @@
                                         data-appt-time-start="{{ appt.time_start.strftime('%H:%M') if appt.time_start else '' }}"
                                         data-appt-time-end="{{ appt.time_end.strftime('%H:%M') if appt.time_end else '' }}"
                                         data-appt-virtual="{{ '1' if appt.is_virtual else '0' }}"
-                                        data-appt-notes="{{ appt.notes|e if appt.notes else '' }}">
-                                    {% if appt.time_start %}<span>{{ appt.time_start.strftime('%H:%M') }}</span>{% endif %}
+                                        data-appt-notes="{{ appt.notes|e if appt.notes else '' }}"
+                                        data-appt-checklist="{{ appt.checklist|e if appt.checklist else '' }}"
+                                        data-appt-attachments="{{ appt.attachments|e if appt.attachments else '' }}"
+                                        data-appt-files='{{ appt_files.get(appt.id, [])|tojson|e }}'
+                                        data-appt-local="{{ appt.local|e if appt.local else '' }}"
+                                        data-appt-pericia-status="{{ appt.pericia_status|e if appt.pericia_status else '' }}"
+                                        data-appt-outcome="{{ appt.outcome|e if appt.outcome else '' }}"
+                                        data-appt-assigned-ids="{{ appt_assignee_ids.get(appt.id, [appt.assigned_to] if appt.assigned_to else [])|join(',') }}">
+                                    {% set month_people = appt_assignees.get(appt.id) if appt_assignees else [] %}
+                                    {% if month_people %}
+                                    <span class="agenda-avatar-stack agenda-avatar-stack--mini" aria-hidden="true">
+                                        {% for person in month_people[:2] %}
+                                        <span class="agenda-user-avatar agenda-user-avatar--mini" style="--appt-color: {{ person.color }};">
+                                            {% if person.photo_url %}<img src="{{ person.photo_url }}" alt="">{% else %}{{ person.initials }}{% endif %}
+                                        </span>
+                                        {% endfor %}
+                                        {% if month_people|length > 2 %}
+                                        <span class="agenda-avatar-stack__more">+{{ month_people|length - 2 }}</span>
+                                        {% endif %}
+                                    </span>
+                                    {% elif appt.user_name %}
+                                    {% set month_name = appt.user_name.replace('Dr. ', '').replace('Dra. ', '') %}
+                                    {% set month_parts = month_name.split(' ') %}
+                                    <span class="agenda-user-avatar agenda-user-avatar--mini" style="--appt-color: {{ appt.user_color or '#1C2447' }};" aria-hidden="true">
+                                        {% if appt.user_photo_url %}
+                                        <img src="{{ appt.user_photo_url }}" alt="">
+                                        {% else %}
+                                        {{ month_parts[0][0]|upper }}{{ month_parts[1][0]|upper if month_parts|length > 1 else '' }}
+                                        {% endif %}
+                                    </span>
+                                    {% elif appt.time_start %}
+                                    <span>{{ appt.time_start.strftime('%H:%M') }}</span>
+                                    {% endif %}
                                     <strong>{{ appt.title }}</strong>
                                 </button>
                                 {% endfor %}
@@ -250,13 +404,38 @@
                     </select>
                 </div>
                 <div class="ch-field">
-                    <label class="ch-field__label" for="appt_assigned">Responsável</label>
-                    <select id="appt_assigned" class="ch-select">
-                        <option value="">— Selecionar —</option>
+                    <label class="ch-field__label" for="appt_assigned_button">Responsáveis</label>
+                    <div class="agenda-people-select" data-people-select>
+                    <select id="appt_assigned" class="ch-select agenda-people-select__native" multiple size="4" aria-hidden="true" tabindex="-1">
                         {% for u in org_users %}
                         <option value="{{ u.id }}">{{ u.name }}</option>
                         {% endfor %}
                     </select>
+                    <button type="button" class="agenda-people-select__button" id="appt_assigned_button"
+                            data-people-select-toggle aria-haspopup="listbox" aria-expanded="false">
+                        <span class="agenda-people-select__label" data-people-select-label>Selecionar responsáveis</span>
+                        <span class="agenda-people-select__count" data-people-select-count hidden></span>
+                        <i data-lucide="chevron-down" aria-hidden="true"></i>
+                    </button>
+                    <div class="agenda-people-select__menu" data-people-select-menu role="listbox"
+                         aria-multiselectable="true" hidden>
+                        {% for u in org_users %}
+                        {% set u_name = u.name.replace('Dr. ', '').replace('Dra. ', '') %}
+                        {% set u_parts = u_name.split(' ') %}
+                        <label class="agenda-people-select__option" role="option" aria-selected="false" data-people-select-row>
+                            <input type="checkbox" value="{{ u.id }}" data-people-select-option>
+                            <span class="agenda-user-avatar agenda-user-avatar--mini" style="--appt-color: {{ u.color or '#1C2447' }};" aria-hidden="true">
+                                {% if u.photo_url %}
+                                <img src="{{ u.photo_url }}" alt="">
+                                {% else %}
+                                {{ u_parts[0][0]|upper }}{{ u_parts[1][0]|upper if u_parts|length > 1 else '' }}
+                                {% endif %}
+                            </span>
+                            <span class="agenda-people-select__name">{{ u.name }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    </div>
                 </div>
             </div>
 
@@ -288,9 +467,55 @@
                 </div>
             </div>
 
-            <div class="ch-field" style="margin-bottom: 0;">
+            <div class="ch-field">
+                <label class="ch-field__label" for="appt_outcome">Resultado</label>
+                <select id="appt_outcome" class="ch-select">
+                    <option value="">— Sem resultado —</option>
+                    <option value="contrato_fechado">Contrato Fechado</option>
+                    <option value="sem_direito">Sem Direito</option>
+                    <option value="follow_up">Follow-up</option>
+                    <option value="cancelado">Cancelado</option>
+                </select>
+            </div>
+
+            <div class="ch-field">
                 <label class="ch-field__label" for="appt_notes">Observações</label>
                 <textarea id="appt_notes" class="ch-textarea" rows="2" placeholder="Detalhes adicionais…"></textarea>
+            </div>
+
+            <div class="ch-grid ch-grid--2">
+                <div class="ch-field">
+                    <label class="ch-field__label" for="appt_checklist">Checklist</label>
+                    <textarea id="appt_checklist" class="ch-textarea" rows="3" placeholder="Uma tarefa por linha…"></textarea>
+                </div>
+                <div class="ch-field">
+                    <label class="ch-field__label" for="appt_attachments">Anexos e links</label>
+                    <textarea id="appt_attachments" class="ch-textarea" rows="3" placeholder="Cole links, nomes de arquivos ou referências…"></textarea>
+                    <input id="appt_files" class="ch-input" type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip">
+                    <div id="appt_existing_files" class="ch-muted" hidden></div>
+                </div>
+            </div>
+
+            {# Campos extras de Perícia (aba Peric da planilha VS). Só ficam
+               visíveis quando Tipo = Perícia — Hick: não polui o formulário dos
+               demais tipos. data-pericia-fields é alternado por toggleApptType(). #}
+            <div class="ch-grid ch-grid--2" data-pericia-fields hidden style="margin-bottom: 0;">
+                <div class="ch-field">
+                    <label class="ch-field__label" for="appt_local">Local da perícia</label>
+                    <input type="text" id="appt_local" class="ch-input" placeholder="Ex: IML, clínica, online">
+                </div>
+                <div class="ch-field">
+                    <label class="ch-field__label" for="appt_pericia_status">Status da perícia</label>
+                    <select id="appt_pericia_status" class="ch-select">
+                        <option value="">— Selecionar —</option>
+                        <option value="agendada">Agendada</option>
+                        <option value="confirmada">Confirmada</option>
+                        <option value="realizada">Realizada</option>
+                        <option value="laudo_pendente">Laudo pendente</option>
+                        <option value="concluida">Concluída</option>
+                        <option value="cancelada">Cancelada</option>
+                    </select>
+                </div>
             </div>
         </form>
 
@@ -305,6 +530,38 @@
                 </button>
             </div>
         </footer>
+    </div>
+</div>
+
+<!-- Visão do Dia (timeline estilo Google Calendar) — drawer overlay, 03/06 Example User.
+     Hick: uma só coluna de horas, leitura linear do dia. Fitts: blocos grandes
+     clicáveis reabrem o editor existente. Conteúdo (cabeçalho/horas/blocos) é
+     montado client-side a partir de GET /calendar/events. -->
+<div class="ch-overlay agenda-dayview" id="agendaDayView" hidden aria-hidden="true">
+    <div class="agenda-dayview__panel" role="dialog" aria-modal="true" aria-labelledby="agendaDayViewTitle">
+        <header class="agenda-dayview__header">
+            <div class="agenda-dayview__nav">
+                <button type="button" class="agenda-dayview__navbtn" data-dayview-prev aria-label="Dia anterior">
+                    <i data-lucide="chevron-left"></i>
+                </button>
+                <h2 class="agenda-dayview__title" id="agendaDayViewTitle">—</h2>
+                <button type="button" class="agenda-dayview__navbtn" data-dayview-next aria-label="Próximo dia">
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+            <div class="agenda-dayview__actions">
+                <button type="button" class="ch-btn ch-btn--primary ch-btn--sm" data-dayview-new aria-label="Novo compromisso neste dia">
+                    <i data-lucide="plus"></i> <span>Novo</span>
+                </button>
+                <button type="button" class="ch-modal__close" data-dayview-close aria-label="Fechar">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+        </header>
+        <div class="agenda-dayview__allday" data-dayview-allday hidden aria-label="Dia inteiro"></div>
+        <div class="agenda-dayview__body" data-dayview-body>
+            <div class="agenda-dayview__loading" data-dayview-loading>Carregando…</div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -326,6 +583,7 @@
     const modalIcon = $('[data-modal-icon]', modalEl);
     const modalLabel = $('[data-modal-label]', modalEl);
     const btnDelete = $('#btnDeleteAppt');
+    const peopleSelectEl = $('[data-people-select]');
 
     function mountIcons() {
         if (window.CHLucide && typeof window.CHLucide.mount === 'function') window.CHLucide.mount();
@@ -352,59 +610,82 @@
         document.body.style.overflow = '';
     }
 
+    // Item 2 (Example User 03/06): 3 visualizações da Agenda.
+    //   both       → Lista (stats + nav + grid semanal) E o calendário logo
+    //                abaixo, mostrando os MESMOS compromissos. É o DEFAULT.
+    //   lista      → só a lista semanal (sem o calendário embaixo).
+    //   calendario → só o calendário.
+    // A escolha persiste em localStorage (chave 'agendaView') para sobreviver
+    // a reloads (save/delete fazem reload fresco) e a navegações entre páginas.
+    // Chave v2 (03/06): a v1 herdava 'lista' do sessionStorage legado (agenda antiga
+    // era só-lista), o que sobrescrevia o default e abria em "Só lista". Bumpando a
+    // chave + sem migração legada, todo mundo volta ao default 'both' (Lista + Calendário).
+    const AGENDA_VIEW_KEY = 'agendaView_v2';
+    const AGENDA_VIEWS = ['both', 'lista', 'calendario'];
+
+    function ensureInlineCalendar() {
+        // No alpha (product 'lite') o FullCalendar não é carregado: o calendário
+        // é o grid mensal renderizado pelo servidor (data-server-month="1").
+        // Nesse caso não há nada a montar — só exibir a seção.
+        const target = $('#inlineCalendar');
+        if (target && target.dataset.serverMonth === '1') return;
+        if (typeof FullCalendar === 'undefined') return;
+        if (inlineCalendar) { inlineCalendar.refetchEvents(); return; }
+        inlineCalendar = new FullCalendar.Calendar(target, {
+            initialView: 'dayGridMonth',
+            locale: 'pt-br',
+            headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
+            buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana' },
+            events: function (info, success, failure) {
+                // Sobrepõe eventos do CaseHub + Google Calendar no MESMO grid.
+                // A rota do Google retorna [] (200) quando nada está conectado
+                // ou se a integração falhar — o calendário nunca quebra.
+                var qs = '?start=' + encodeURIComponent(info.startStr) +
+                         '&end=' + encodeURIComponent(info.endStr);
+                var casehub = fetch(PREFIX + '/calendar/events' + qs)
+                    .then(function (r) { return r.ok ? r.json() : []; })
+                    .catch(function () { return []; });
+                var google = fetch(PREFIX + '/google-calendar/events' + qs)
+                    .then(function (r) { return r.ok ? r.json() : []; })
+                    .catch(function () { return []; });
+                Promise.all([casehub, google])
+                    .then(function (lists) { success((lists[0] || []).concat(lists[1] || [])); })
+                    .catch(failure);
+            },
+            height: 'auto'
+        });
+        inlineCalendar.render();
+    }
+
     function showView(view) {
+        if (AGENDA_VIEWS.indexOf(view) === -1) view = 'both';
         const grid = $('.agenda-grid');
         const cal = $('#calendarInlineView');
         const nav = $('.agenda-nav');
+        const stats = $('.agenda-stats');
+        const btnBoth = $('#btnViewBoth');
         const btnLista = $('#btnViewLista');
         const btnCal = $('#btnViewCalendario');
 
-        if (view === 'calendario') {
-            if (grid) grid.hidden = true;
-            if (nav) nav.hidden = true;
-            if (cal) cal.hidden = false;
-            btnLista.classList.remove('agenda-view--active');
-            btnLista.setAttribute('aria-pressed', 'false');
-            btnCal.classList.add('agenda-view--active');
-            btnCal.setAttribute('aria-pressed', 'true');
-            const target = $('#inlineCalendar');
-            if (target && target.dataset.serverMonth === '1') {
-                return;
-            }
-            if (typeof FullCalendar === 'undefined') {
-                return;
-            }
-            if (!inlineCalendar) {
-                inlineCalendar = new FullCalendar.Calendar($('#inlineCalendar'), {
-                    initialView: 'dayGridMonth',
-                    locale: 'pt-br',
-                    headerToolbar: {
-                        left: 'prev,next today',
-                        center: 'title',
-                        right: 'dayGridMonth,timeGridWeek'
-                    },
-                    buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana' },
-                    events: function (info, success, failure) {
-                        fetch(PREFIX + '/calendar/events?start=' + info.startStr + '&end=' + info.endStr)
-                            .then(r => r.json())
-                            .then(success)
-                            .catch(failure);
-                    },
-                    height: 'auto'
-                });
-                inlineCalendar.render();
-            } else {
-                inlineCalendar.refetchEvents();
-            }
-        } else {
-            if (grid) grid.hidden = false;
-            if (nav) nav.hidden = false;
-            if (cal) cal.hidden = true;
-            btnLista.classList.add('agenda-view--active');
-            btnLista.setAttribute('aria-pressed', 'true');
-            btnCal.classList.remove('agenda-view--active');
-            btnCal.setAttribute('aria-pressed', 'false');
-        }
+        const showList = (view === 'both' || view === 'lista');
+        const showCal = (view === 'both' || view === 'calendario');
+
+        // [hidden] + regra CSS [hidden]{display:none !important} garante que
+        // esconder de fato remova o bloco do fluxo (sem espaço vazio/quebra).
+        if (grid) grid.hidden = !showList;
+        if (nav) nav.hidden = !showList;
+        if (stats) stats.hidden = !showList;
+        if (cal) cal.hidden = !showCal;
+
+        const map = [[btnBoth, 'both'], [btnLista, 'lista'], [btnCal, 'calendario']];
+        map.forEach(function (pair) {
+            const btn = pair[0]; if (!btn) return;
+            const active = pair[1] === view;
+            btn.classList.toggle('agenda-view--active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+
+        if (showCal) ensureInlineCalendar();
     }
 
     function setModalMode(mode) {
@@ -415,34 +696,343 @@
         mountIcons();
     }
 
+    // Mostra/esconde os campos de Perícia (Local + Status) conforme o Tipo.
+    // Chamado no abrir (new/edit) e no change do select de tipo.
+    function toggleApptType() {
+        const block = $('[data-pericia-fields]');
+        if (!block) return;
+        block.hidden = ($('#appt_type').value !== 'pericia');
+    }
+
+    function assignedSelect() {
+        return $('#appt_assigned');
+    }
+
+    function selectedAssignedIds() {
+        const select = assignedSelect();
+        return select ? Array.from(select.selectedOptions).map(function (o) { return o.value; }) : [];
+    }
+
+    function syncPeopleSelect() {
+        if (!peopleSelectEl) return;
+        const select = assignedSelect();
+        const selectedIds = selectedAssignedIds();
+        $$('[data-people-select-option]', peopleSelectEl).forEach(function (input) {
+            input.checked = selectedIds.indexOf(input.value) >= 0;
+            const row = input.closest('[data-people-select-row]');
+            if (row) row.setAttribute('aria-selected', input.checked ? 'true' : 'false');
+        });
+        const label = $('[data-people-select-label]', peopleSelectEl);
+        const count = $('[data-people-select-count]', peopleSelectEl);
+        const selected = select ? Array.from(select.selectedOptions) : [];
+        if (label) {
+            if (!selected.length) label.textContent = 'Selecionar responsáveis';
+            else if (selected.length === 1) label.textContent = selected[0].textContent.trim();
+            else label.textContent = selected.length + ' responsáveis';
+        }
+        if (count) {
+            count.hidden = !selected.length;
+            count.textContent = selected.length ? String(selected.length) : '';
+        }
+    }
+
+    function setAssignedSelection(ids) {
+        const select = assignedSelect();
+        if (!select) return;
+        const selected = (ids || []).map(String);
+        Array.from(select.options).forEach(function (o) { o.selected = selected.indexOf(o.value) >= 0; });
+        syncPeopleSelect();
+    }
+
+    function closePeopleSelect() {
+        if (!peopleSelectEl) return;
+        peopleSelectEl.removeAttribute('data-open');
+        const menu = $('[data-people-select-menu]', peopleSelectEl);
+        const btn = $('[data-people-select-toggle]', peopleSelectEl);
+        if (menu) menu.hidden = true;
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+
+    function togglePeopleSelect() {
+        if (!peopleSelectEl) return;
+        const isOpen = peopleSelectEl.getAttribute('data-open') === 'true';
+        const menu = $('[data-people-select-menu]', peopleSelectEl);
+        const btn = $('[data-people-select-toggle]', peopleSelectEl);
+        if (isOpen) {
+            closePeopleSelect();
+            return;
+        }
+        peopleSelectEl.setAttribute('data-open', 'true');
+        if (menu) menu.hidden = false;
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+    }
+
     function openNewAppt(dateStr) {
         editingApptId = null;
         $('#appt_title').value = '';
         $('#appt_type').value = 'atendimento';
-        $('#appt_assigned').value = '';
+        setAssignedSelection([]);
         $('#appt_client').value = '';
         $('#appt_time_start').value = '09:00';
         $('#appt_time_end').value = '10:00';
         $('#appt_virtual').checked = false;
         $('#appt_notes').value = '';
+        $('#appt_checklist').value = '';
+        $('#appt_attachments').value = '';
+        $('#appt_files').value = '';
+        renderApptFiles([]);
+        $('#appt_local').value = '';
+        $('#appt_pericia_status').value = '';
+        if ($('#appt_outcome')) $('#appt_outcome').value = '';
         if (dateStr) $('#appt_date').value = dateStr;
+        toggleApptType();
         setModalMode('new');
         openModal();
+    }
+
+    function normalizeApptOutcome(outcome) {
+        return outcome === 'no_show' ? 'follow_up' : (outcome || '');
     }
 
     function openEditAppt(data) {
         editingApptId = data.apptId;
         $('#appt_title').value = data.apptTitle || '';
         $('#appt_type').value = data.apptType || 'atendimento';
-        $('#appt_assigned').value = data.apptAssigned || '';
+        var assignedIds = (data.apptAssignedIds || data.apptAssigned || '').split(',').filter(Boolean);
+        setAssignedSelection(assignedIds);
         $('#appt_client').value = data.apptClient || '';
         $('#appt_date').value = data.apptDate || '';
         $('#appt_time_start').value = data.apptTimeStart || '';
         $('#appt_time_end').value = data.apptTimeEnd || '';
         $('#appt_virtual').checked = data.apptVirtual === '1';
         $('#appt_notes').value = data.apptNotes || '';
+        $('#appt_checklist').value = data.apptChecklist || '';
+        $('#appt_attachments').value = data.apptAttachments || '';
+        $('#appt_files').value = '';
+        renderApptFiles(parseApptFiles(data.apptFiles));
+        $('#appt_local').value = data.apptLocal || '';
+        $('#appt_pericia_status').value = data.apptPericiaStatus || '';
+        if ($('#appt_outcome')) $('#appt_outcome').value = normalizeApptOutcome(data.apptOutcome);
+        toggleApptType();
         setModalMode('edit');
         openModal();
+    }
+
+    // ====================================================================
+    // Visão do Dia (timeline) — 03/06 Example User.
+    // Clicar numa célula do dia abre um drawer com a linha do tempo daquele
+    // dia (horas no eixo vertical, compromissos como blocos posicionados por
+    // horário). Reusa GET /calendar/events (org-scoped) e o editor existente
+    // (openEditAppt). NÃO cria endpoint novo.
+    // ====================================================================
+    const dayViewEl = $('#agendaDayView');
+    const PX_PER_HOUR = 56;     // altura de 1h na timeline
+    let dayViewDate = null;     // 'YYYY-MM-DD' atualmente aberto
+
+    function fmtDayTitle(dStr) {
+        // "Quarta, 03/06/2026" — date-only, sem fuso (evita -1 dia).
+        var p = dStr.split('-');
+        var d = new Date(+p[0], +p[1] - 1, +p[2]);
+        var wd = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][d.getDay()];
+        var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+        return wd + ', ' + pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
+    }
+    function shiftDay(dStr, delta) {
+        var p = dStr.split('-');
+        var d = new Date(+p[0], +p[1] - 1, +p[2]);
+        d.setDate(d.getDate() + delta);
+        var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+    function minutesOf(hhmm) {
+        if (!hhmm) return null;
+        var p = hhmm.split(':');
+        return (+p[0]) * 60 + (+p[1]);
+    }
+    // Compromisso (extendedProps do /calendar/events) → dataset compatível com
+    // openEditAppt (reusa o MESMO modal de edição/exclusão).
+    function apptDatasetFrom(ep, id) {
+        return {
+            apptId: id,
+            apptTitle: ep.title || '',
+            apptType: ep.apptType || 'atendimento',
+            apptAssigned: ep.assignedTo != null ? String(ep.assignedTo) : '',
+            apptAssignedIds: ep.assignedToIds ? ep.assignedToIds.join(',') : (ep.assignedTo != null ? String(ep.assignedTo) : ''),
+            apptClient: ep.clientName || '',
+            apptDate: ep.date || dayViewDate,
+            apptTimeStart: ep.timeStart || '',
+            apptTimeEnd: ep.timeEnd || '',
+            apptVirtual: ep.isVirtual || '0',
+            apptNotes: ep.notes || '',
+            apptChecklist: ep.checklist || '',
+            apptAttachments: ep.attachments || '',
+            apptFiles: JSON.stringify(ep.attachmentFiles || []),
+            apptLocal: ep.local || '',
+            apptPericiaStatus: ep.periciaStatus || '',
+            apptOutcome: normalizeApptOutcome(ep.outcome)
+        };
+    }
+    // Layout simples de sobreposição: agrupa blocos que se cruzam no tempo e
+    // divide a largura igualmente (lado a lado). Suficiente p/ o alpha.
+    function layoutColumns(timed) {
+        timed.sort(function (a, b) { return a.startMin - b.startMin || a.endMin - b.endMin; });
+        var clusters = [], cur = [], curEnd = -1;
+        timed.forEach(function (b) {
+            if (cur.length && b.startMin >= curEnd) { clusters.push(cur); cur = []; curEnd = -1; }
+            cur.push(b); curEnd = Math.max(curEnd, b.endMin);
+        });
+        if (cur.length) clusters.push(cur);
+        clusters.forEach(function (cluster) {
+            var cols = [];
+            cluster.forEach(function (b) {
+                var placed = false;
+                for (var i = 0; i < cols.length; i++) {
+                    if (b.startMin >= cols[i]) { b.col = i; cols[i] = b.endMin; placed = true; break; }
+                }
+                if (!placed) { b.col = cols.length; cols.push(b.endMin); }
+            });
+            cluster.forEach(function (b) { b.cols = cols.length; });
+        });
+    }
+    function renderDayView(dStr) {
+        dayViewDate = dStr;
+        var title = $('#agendaDayViewTitle'); if (title) title.textContent = fmtDayTitle(dStr);
+        var body = $('[data-dayview-body]', dayViewEl);
+        var allday = $('[data-dayview-allday]', dayViewEl);
+        if (!body) return;
+        body.innerHTML = '<div class="agenda-dayview__loading" data-dayview-loading>Carregando…</div>';
+        if (allday) { allday.hidden = true; allday.innerHTML = ''; }
+
+        var qs = '?start=' + encodeURIComponent(dStr) + '&end=' + encodeURIComponent(dStr) +
+                 '&filter_type=appointments';
+        fetch(PREFIX + '/calendar/events' + qs)
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .catch(function () { return []; })
+            .then(function (events) {
+                var appts = (events || []).filter(function (e) {
+                    var ep = e.extendedProps || {};
+                    if (ep.type !== 'appointment') return false;
+                    return (ep.date || (e.start || '').slice(0, 10)) === dStr;
+                });
+                var timed = [], allDayItems = [];
+                appts.forEach(function (e) {
+                    var ep = e.extendedProps || {};
+                    var item = { id: e.id, ep: ep, color: e.color || ep.userColor || 'var(--text-muted)' };
+                    var s = minutesOf(ep.timeStart);
+                    if (s == null) { allDayItems.push(item); return; }
+                    var en = minutesOf(ep.timeEnd);
+                    if (en == null || en <= s) en = s + 60; // duração mínima 1h p/ legibilidade
+                    item.startMin = s; item.endMin = en; timed.push(item);
+                });
+
+                // Faixa de horas: 07–20 por default, expandida p/ cobrir os blocos.
+                var hStart = 7, hEnd = 20;
+                timed.forEach(function (b) {
+                    hStart = Math.min(hStart, Math.floor(b.startMin / 60));
+                    hEnd = Math.max(hEnd, Math.ceil(b.endMin / 60));
+                });
+                if (hEnd <= hStart) hEnd = hStart + 1;
+
+                // All-day no topo.
+                if (allday) {
+                    if (allDayItems.length) {
+                        allDayItems.forEach(function (it) {
+                            var b = document.createElement('button');
+                            b.type = 'button';
+                            b.className = 'agenda-dayview__allday-item';
+                            b.style.setProperty('--appt-color', it.color);
+                            b.textContent = it.ep.title || 'Compromisso';
+                            b.addEventListener('click', function () { openEditAppt(apptDatasetFrom(it.ep, it.id)); });
+                            allday.appendChild(b);
+                        });
+                        allday.hidden = false;
+                    } else { allday.hidden = true; }
+                }
+
+                layoutColumns(timed);
+
+                var html = '<div class="agenda-dayview__grid" style="height:' +
+                    ((hEnd - hStart) * PX_PER_HOUR) + 'px">';
+                for (var h = hStart; h <= hEnd; h++) {
+                    var top = (h - hStart) * PX_PER_HOUR;
+                    html += '<div class="agenda-dayview__hourline" style="top:' + top + 'px"></div>';
+                    html += '<div class="agenda-dayview__hourlabel" style="top:' + top + 'px">' +
+                        (h < 10 ? '0' : '') + h + ':00</div>';
+                }
+                // Linha do "agora" se o dia aberto for hoje.
+                var now = new Date();
+                var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
+                var todayStr = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+                if (dStr === todayStr) {
+                    var nowMin = now.getHours() * 60 + now.getMinutes();
+                    if (nowMin >= hStart * 60 && nowMin <= hEnd * 60) {
+                        html += '<div class="agenda-dayview__now" style="top:' +
+                            ((nowMin - hStart * 60) / 60 * PX_PER_HOUR) + 'px"></div>';
+                    }
+                }
+                html += '</div>';
+                body.innerHTML = html;
+                var grid = $('.agenda-dayview__grid', body);
+
+                timed.forEach(function (it) {
+                    var top = (it.startMin - hStart * 60) / 60 * PX_PER_HOUR;
+                    var height = Math.max(22, (it.endMin - it.startMin) / 60 * PX_PER_HOUR - 2);
+                    // Blocos posicionados DENTRO do grid (que já tem margin-left
+                    // = gutter dos rótulos). left/width em % das colunas do cluster.
+                    var widthPct = 100 / (it.cols || 1);
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'agenda-dayview__block';
+                    b.style.cssText = 'top:' + top + 'px;height:' + height + 'px;left:' +
+                        (it.col * widthPct) + '%;width:calc(' + widthPct + '% - 3px)';
+                    b.style.setProperty('--appt-color', it.color);
+                    var t = it.ep.timeStart + (it.ep.timeEnd ? ('–' + it.ep.timeEnd) : '');
+                    b.innerHTML = '<span class="agenda-dayview__block-time">' + t + '</span>' +
+                        '<span class="agenda-dayview__block-title"></span>';
+                    b.querySelector('.agenda-dayview__block-title').textContent = it.ep.title || 'Compromisso';
+                    b.addEventListener('click', function () { openEditAppt(apptDatasetFrom(it.ep, it.id)); });
+                    if (grid) grid.appendChild(b);
+                });
+
+                // Clique numa hora vazia → novo compromisso já naquele dia (Fitts):
+                // pré-preenche a hora aproximada do clique.
+                if (grid) {
+                    grid.addEventListener('click', function (e) {
+                        if (e.target.closest('.agenda-dayview__block')) return;
+                        var rect = grid.getBoundingClientRect();
+                        var hourFloat = hStart + (e.clientY - rect.top) / PX_PER_HOUR;
+                        var hh = Math.max(0, Math.min(23, Math.floor(hourFloat)));
+                        openDayNew(pad2(hh) + ':00');
+                    });
+                }
+                mountIcons();
+            });
+    }
+    function openDayView(dStr) {
+        if (!dayViewEl || !dStr) return;
+        dayViewEl.hidden = false;
+        dayViewEl.setAttribute('data-open', 'true');
+        dayViewEl.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        renderDayView(dStr);
+        mountIcons();
+    }
+    function closeDayView() {
+        if (!dayViewEl) return;
+        dayViewEl.removeAttribute('data-open');
+        dayViewEl.hidden = true;
+        dayViewEl.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+    }
+    function openDayNew(timeStr) {
+        // Abre o editor "novo" já na data do dia aberto (e hora opcional).
+        var d = dayViewDate;
+        openNewAppt(d);
+        if (timeStr) {
+            var s = $('#appt_time_start'); if (s) s.value = timeStr;
+            var e2 = $('#appt_time_end');
+            if (e2) { var hh = parseInt(timeStr.split(':')[0], 10) + 1; e2.value = (hh < 10 ? '0' : '') + (hh % 24) + ':00'; }
+        }
     }
 
     function notifyGoogleSync(result) {
@@ -450,9 +1040,73 @@
         notify(result.message, 'warning');
     }
 
+    function notifyApptConflicts(conflicts) {
+        if (!conflicts || !conflicts.length) return false;
+        var c = conflicts[0] || {};
+        var when = c.time_start ? (' (' + c.time_start + (c.time_end ? '–' + c.time_end : '') + ')') : '';
+        notify('Salvo. Atenção: já existe compromisso no mesmo horário: ' + (c.title || 'compromisso') + when + '.', 'warning');
+        return true;
+    }
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function (ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+        });
+    }
+
+    function parseApptFiles(raw) {
+        if (!raw) return [];
+        if (Array.isArray(raw)) return raw;
+        try {
+            var parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function renderApptFiles(files) {
+        var box = $('#appt_existing_files');
+        if (!box) return;
+        var list = parseApptFiles(files);
+        if (!list.length) {
+            box.hidden = true;
+            box.innerHTML = '';
+            return;
+        }
+        box.hidden = false;
+        box.innerHTML = list.map(function (file) {
+            var url = escapeHtml(file.url || '#');
+            var name = escapeHtml(file.name || 'Anexo');
+            return '<a class="ch-link" href="' + url + '" download="' + name + '">Baixar ' + name + '</a>';
+        }).join('<br>');
+    }
+
+    function uploadApptFiles(apptId) {
+        var input = $('#appt_files');
+        var files = input && input.files ? Array.from(input.files) : [];
+        if (!files.length) return Promise.resolve([]);
+        if (!apptId) return Promise.reject(new Error('Compromisso salvo, mas sem identificador para anexar arquivo.'));
+        return Promise.all(files.map(function (file) {
+            var form = new FormData();
+            form.append('file', file);
+            return fetch(PREFIX + '/calendar/appointments/' + apptId + '/attachments', {
+                method: 'POST',
+                body: form
+            }).then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok || !data.success) {
+                        throw new Error((data && data.error) || 'Falha ao anexar arquivo.');
+                    }
+                    return data;
+                });
+            });
+        }));
+    }
+
     // Apos criar/editar/excluir, navega FRESCO pra semana do compromisso com
     // cache-bust (URL unica) — senao o item recem-salvo pode nao aparecer ate
-    // F5 manual (o browser servia HTML do cache no location.reload). Bug [parceiro] 29/05.
+    // F5 manual (o browser servia HTML do cache no location.reload). Bug Example User 29/05.
     function apptReloadTo(savedDate) {
         var url = new URL(window.location.href);
         if (savedDate) {
@@ -467,17 +1121,61 @@
         window.location.href = url.toString();
     }
 
+    // "Sincronizar agora": pull incremental Google → CaseHub sob demanda.
+    // Após importar, recarrega a agenda (apptReloadTo) p/ que os compromissos
+    // do Google apareçam na lista + calendário + timeline. Best-effort no back.
+    let syncing = false;
+    function syncGoogleNow(btn) {
+        if (syncing) return;
+        syncing = true;
+        if (btn) btn.setAttribute('disabled', 'true');
+        fetch(PREFIX + '/calendar/sync-google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        })
+            .then(function (r) { return r.ok ? r.json() : { success: false }; })
+            .then(function (data) {
+                if (data && data.success && data.connected) {
+                    notify(data.message || 'Agenda sincronizada com o Google.', 'success');
+                    apptReloadTo(null);
+                } else {
+                    notify((data && data.message) || 'Google Calendar nao conectado.', 'info');
+                    syncing = false;
+                    if (btn) btn.removeAttribute('disabled');
+                }
+            })
+            .catch(function () {
+                notify('Falha ao sincronizar com o Google Calendar.', 'error');
+                syncing = false;
+                if (btn) btn.removeAttribute('disabled');
+            });
+    }
+
+    function apptErrorMessage(data) {
+        if (data && data.conflicts && data.conflicts.length) {
+            var c = data.conflicts[0];
+            var when = c.time_start ? (' (' + c.time_start + (c.time_end ? '–' + c.time_end : '') + ')') : '';
+            return 'Conflito de agenda: ' + (c.title || 'compromisso existente') + when + '.';
+        }
+        return 'Erro: ' + ((data && data.error) || 'falha');
+    }
+
     function saveAppt() {
         const body = {
             title: $('#appt_title').value.trim(),
             type: $('#appt_type').value,
-            assigned_to: $('#appt_assigned').value || null,
+            assigned_to_ids: Array.from($('#appt_assigned').selectedOptions).map(function(o) { return parseInt(o.value); }),
             client_name: $('#appt_client').value.trim(),
             date: $('#appt_date').value,
             time_start: $('#appt_time_start').value,
             time_end: $('#appt_time_end').value,
             is_virtual: $('#appt_virtual').checked,
-            notes: $('#appt_notes').value.trim()
+            notes: $('#appt_notes').value.trim(),
+            checklist: $('#appt_checklist').value.trim(),
+            attachments: $('#appt_attachments').value.trim(),
+            local: $('#appt_local').value.trim(),
+            pericia_status: $('#appt_pericia_status').value,
+            outcome: $('#appt_outcome').value
         };
         if (!body.title || !body.date) { notify('Título e data são obrigatórios', 'warning'); return; }
 
@@ -493,9 +1191,16 @@
         }).then(r => r.json()).then(d => {
             if (d.success) {
                 notifyGoogleSync(d.google_calendar);
-                apptReloadTo(body.date);
+                uploadApptFiles(d.id || editingApptId).then(function (uploaded) {
+                    if (uploaded.length) notify(uploaded.length + ' anexo(s) salvo(s).', 'success');
+                    var warned = notifyApptConflicts(d.conflicts);
+                    if (warned) window.setTimeout(function () { apptReloadTo(body.date); }, 900);
+                    else apptReloadTo(body.date);
+                }).catch(function (err) {
+                    notify((err && err.message) || 'Compromisso salvo, mas não foi possível anexar arquivo.', 'error');
+                });
             }
-            else notify('Erro: ' + (d.error || 'falha'), 'error');
+            else notify(apptErrorMessage(d), 'error');
         }).catch(() => notify('Não foi possível salvar o compromisso.', 'error'));
     }
 
@@ -503,28 +1208,70 @@
         if (!editingApptId) return;
         if (!confirm('Excluir este compromisso?')) return;
         fetch(PREFIX + '/calendar/appointments/' + editingApptId, { method: 'DELETE' })
-            .then(r => r.json())
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
             .then(d => {
                 if (d.success) {
                     notifyGoogleSync(d.google_calendar);
                     apptReloadTo(null);
+                } else {
+                    notify('Erro ao excluir: ' + (d.error || 'falha'), 'error');
                 }
-            });
+            })
+            .catch(() => notify('Não foi possível excluir o compromisso.', 'error'));
     }
 
     // Event delegation
     document.addEventListener('click', function (e) {
+        if (peopleSelectEl && !e.target.closest('[data-people-select]')) closePeopleSelect();
+
+        const peopleToggle = e.target.closest('[data-people-select-toggle]');
+        if (peopleToggle) { e.preventDefault(); togglePeopleSelect(); return; }
+
         const viewBtn = e.target.closest('[data-agenda-view]');
-        if (viewBtn) { e.preventDefault(); showView(viewBtn.dataset.agendaView); return; }
+        if (viewBtn) {
+            e.preventDefault();
+            const v = viewBtn.dataset.agendaView;
+            showView(v);
+            // Persistir em localStorage: como salvar/excluir compromisso faz um
+            // reload fresco (apptReloadTo), sem isso o usuário voltava sempre
+            // pro default. localStorage (não session) mantém a escolha do Example User
+            // entre navegações E entre sessões/dispositivos do mesmo browser.
+            try { localStorage.setItem(AGENDA_VIEW_KEY, v); } catch (err) {}
+            return;
+        }
+
+        const syncBtn = e.target.closest('[data-sync-google]');
+        if (syncBtn) { e.preventDefault(); syncGoogleNow(syncBtn); return; }
 
         const newBtn = e.target.closest('[data-agenda-new]');
         if (newBtn) { e.preventDefault(); openNewAppt(); return; }
 
         const newDateBtn = e.target.closest('[data-agenda-new-date]');
-        if (newDateBtn) { e.preventDefault(); openNewAppt(newDateBtn.dataset.agendaNewDate); return; }
+        // stopPropagation: o "+" do calendário fica dentro da célula do dia; evita
+        // que o clique escale e dispare qualquer navegação/seleção do dia (item 4).
+        if (newDateBtn) { e.preventDefault(); e.stopPropagation(); openNewAppt(newDateBtn.dataset.agendaNewDate); return; }
 
-        const apptBtn = e.target.closest('.agenda-appt, .agenda-month-event');
+        const apptBtn = e.target.closest('.agenda-appt, .agenda-month-event, .agenda-pericia-card');
         if (apptBtn) { e.preventDefault(); openEditAppt(apptBtn.dataset); return; }
+
+        // Day View (timeline) controls — testar ANTES do open-day cell para que
+        // os botões do drawer não disparem a abertura de célula.
+        const dvClose = e.target.closest('[data-dayview-close]');
+        if (dvClose) { e.preventDefault(); closeDayView(); return; }
+        const dvPrev = e.target.closest('[data-dayview-prev]');
+        if (dvPrev) { e.preventDefault(); renderDayView(shiftDay(dayViewDate, -1)); return; }
+        const dvNext = e.target.closest('[data-dayview-next]');
+        if (dvNext) { e.preventDefault(); renderDayView(shiftDay(dayViewDate, 1)); return; }
+        const dvNew = e.target.closest('[data-dayview-new]');
+        if (dvNew) { e.preventDefault(); openDayNew(); return; }
+        // Clique-fora (no overlay, fora do painel) fecha a Visão do Dia.
+        if (e.target === dayViewEl) { closeDayView(); return; }
+
+        // Célula do dia (corpo) → abre a Visão do Dia. Vem por último: o "+"
+        // (data-agenda-new-date) e os eventos (.agenda-month-event) já deram
+        // return acima, então só o corpo livre da célula chega aqui (Fitts).
+        const dayCell = e.target.closest('[data-agenda-open-day]');
+        if (dayCell) { e.preventDefault(); openDayView(dayCell.dataset.agendaOpenDay); return; }
 
         const saveBtn = e.target.closest('[data-agenda-save]');
         if (saveBtn) { e.preventDefault(); saveAppt(); return; }
@@ -539,13 +1286,50 @@
         if (e.target === modalEl) { closeModal(); return; }
     });
 
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && modalEl && modalEl.getAttribute('data-open') === 'true') closeModal();
+    // Tipo = Perícia revela os campos Local/Status no editor (toggleApptType).
+    document.addEventListener('change', function (e) {
+        const peopleOption = e.target && e.target.closest && e.target.closest('[data-people-select-option]');
+        if (peopleOption) {
+            const select = assignedSelect();
+            if (select) {
+                Array.from(select.options).forEach(function (o) {
+                    if (o.value === peopleOption.value) o.selected = peopleOption.checked;
+                });
+            }
+            syncPeopleSelect();
+            return;
+        }
+        if (e.target && e.target.id === 'appt_type') toggleApptType();
     });
 
-    // Deep-link do calendário (grid): /calendar/agenda?appt=<id> abre o editor
-    // do compromisso direto, espelhando o clique em .agenda-appt. (29/05 Victor:
-    // clicar num compromisso no grid não abria nada — só dava refresh.)
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            if (peopleSelectEl && peopleSelectEl.getAttribute('data-open') === 'true') { closePeopleSelect(); return; }
+            // Esc fecha o que estiver aberto: o editor (se aberto sobre o dia)
+            // primeiro, senão a Visão do Dia.
+            if (modalEl && modalEl.getAttribute('data-open') === 'true') { closeModal(); return; }
+            if (dayViewEl && dayViewEl.getAttribute('data-open') === 'true') { closeDayView(); return; }
+        }
+        // Teclado: Enter/Espaço na célula focada abre a Visão do Dia.
+        if (e.key === 'Enter' || e.key === ' ') {
+            var cell = e.target.closest && e.target.closest('[data-agenda-open-day]');
+            if (cell) { e.preventDefault(); openDayView(cell.dataset.agendaOpenDay); }
+        }
+    });
+
+    // Restaura a visualização salva (both/lista/calendario). DEFAULT = 'both'
+    // (Lista + Calendário) — Example User 03/06 elogiou ver a lista com o calendário
+    // logo abaixo, mostrando os mesmos compromissos. Migra valores legados do
+    // sessionStorage para localStorage uma vez.
+    (function restoreView() {
+        var saved = null;
+        try { saved = localStorage.getItem(AGENDA_VIEW_KEY); } catch (err) {}
+        // Sem migração de valores legados: se o usuário nunca escolheu nesta v2,
+        // o default é 'both' (Lista + Calendário), independente de prefs antigas.
+        showView(AGENDA_VIEWS.indexOf(saved) !== -1 ? saved : 'both');
+    })();
+    syncPeopleSelect();
+
     (function openFromQuery() {
         var params = new URLSearchParams(window.location.search);
         var qid = params.get('appt');

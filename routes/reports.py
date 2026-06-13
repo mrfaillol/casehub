@@ -88,6 +88,15 @@ STANDARD_REPORTS = [
         "category": "clients"
     },
     {
+        "id": "carteira_clientes",
+        "name": "Client Portfolio",
+        "name_pt": "Carteira de Clientes",
+        "description": "Portfolio breakdown by state (UF), age range and segment",
+        "description_pt": "Distribuição da carteira por UF, faixa etária e segmento",
+        "icon": "fa-chart-pie",
+        "category": "clients"
+    },
+    {
         "id": "revenue_summary",
         "name": "Revenue Summary",
         "name_pt": "Resumo de Receita",
@@ -188,6 +197,15 @@ LITE_REPORTS = [
         "description": "New clients per month, active/inactive",
         "description_pt": "Novos clientes por mês, ativos e inativos",
         "icon": "fa-users",
+        "category": "clientes"
+    },
+    {
+        "id": "carteira_clientes",
+        "name": "Client Portfolio",
+        "name_pt": "Carteira de Clientes",
+        "description": "Portfolio breakdown by state (UF), age range and segment",
+        "description_pt": "Distribuição da carteira por UF, faixa etária e segmento",
+        "icon": "fa-chart-pie",
         "category": "clientes"
     },
 ]
@@ -473,6 +491,8 @@ def generate_report(db: Session, report_id: str, start: date, end: date, org_id:
         return generate_cases_timeline(db, start, end, org_id)
     elif report_id == "client_demographics":
         return generate_client_demographics(db, start, end, org_id)
+    elif report_id == "carteira_clientes":
+        return generate_carteira_clientes(db, start, end, org_id)
     elif report_id == "revenue_summary":
         return generate_revenue_summary(db, start, end, org_id)
     elif report_id == "time_entries":
@@ -502,7 +522,7 @@ def generate_report(db: Session, report_id: str, start: date, end: date, org_id:
 
 def generate_cases_by_status(db: Session, start: date, end: date, org_id: int = None) -> dict:
     """Cases grouped by status"""
-    query = db.query(
+    query = _scoped_query(db, Case, org_id).with_entities(
         Case.status,
         func.count(Case.id).label("count")
     ).filter(
@@ -561,7 +581,7 @@ def generate_cases_by_status(db: Session, start: date, end: date, org_id: int = 
 
 def generate_cases_by_visa_type(db: Session, start: date, end: date, org_id: int = None) -> dict:
     """Cases grouped by visa type"""
-    query = db.query(
+    query = _scoped_query(db, Case, org_id).with_entities(
         Case.visa_type,
         func.count(Case.id).label("count")
     ).filter(
@@ -596,7 +616,7 @@ def generate_cases_by_visa_type(db: Session, start: date, end: date, org_id: int
 
 def generate_cases_timeline(db: Session, start: date, end: date, org_id: int = None) -> dict:
     """Cases created over time"""
-    query = db.query(
+    query = _scoped_query(db, Case, org_id).with_entities(
         func.date_trunc('month', Case.created_at).label("month"),
         func.count(Case.id).label("count")
     ).filter(
@@ -629,8 +649,8 @@ def generate_cases_timeline(db: Session, start: date, end: date, org_id: int = N
 
 
 def generate_client_demographics(db: Session, start: date, end: date, org_id: int = None) -> dict:
-    """Client distribution by country of origin"""
-    query = db.query(
+    """Client distribution by country of origin (org-scoped)"""
+    query = _scoped_query(db, Client, org_id).with_entities(
         Client.country_of_origin,
         func.count(Client.id).label("count")
     ).filter(
@@ -771,7 +791,7 @@ def generate_time_entries_report(db: Session, start: date, end: date, org_id: in
 def generate_tasks_overview(db: Session, start: date, end: date, org_id: int = None) -> dict:
     """Task completion overview"""
     # By status
-    status_query = db.query(
+    status_query = _scoped_query(db, Task, org_id).with_entities(
         Task.status,
         func.count(Task.id).label("count")
     ).filter(
@@ -787,7 +807,7 @@ def generate_tasks_overview(db: Session, start: date, end: date, org_id: int = N
     total = completed + pending
 
     # By priority
-    priority_query = db.query(
+    priority_query = _scoped_query(db, Task, org_id).with_entities(
         Task.priority,
         func.count(Task.id).label("count")
     ).filter(
@@ -822,7 +842,7 @@ def generate_tasks_overview(db: Session, start: date, end: date, org_id: int = N
 
 def generate_document_status(db: Session, start: date, end: date, org_id: int = None) -> dict:
     """Document collection status"""
-    query = db.query(
+    query = _scoped_query(db, Document, org_id).with_entities(
         Document.status,
         func.count(Document.id).label("count")
     ).filter(
@@ -939,7 +959,8 @@ def generate_upcoming_deadlines(db: Session, start: date, end: date, org_id: int
 def generate_staff_productivity(db: Session, start: date, end: date, org_id: int = None) -> dict:
     """Staff productivity metrics"""
     try:
-        # Tasks completed per user
+        # Tasks completed per user (org-scoped on both the user dimension and the
+        # joined task rows, so no other org's tasks leak into the aggregation).
         tasks_query = db.query(
             User.name,
             func.count(Task.id).label("tasks")
@@ -947,7 +968,10 @@ def generate_staff_productivity(db: Session, start: date, end: date, org_id: int
             Task.completed_at >= start,
             Task.completed_at <= end,
             Task.status == "completed"
-        ).group_by(User.name).all()
+        )
+        if org_id is not None:
+            tasks_query = tasks_query.filter(User.org_id == org_id, Task.org_id == org_id)
+        tasks_query = tasks_query.group_by(User.name).all()
 
         # Time logged per user
         time_query = db.query(
@@ -956,7 +980,10 @@ def generate_staff_productivity(db: Session, start: date, end: date, org_id: int
         ).join(User, TimeEntry.user_id == User.id).filter(
             TimeEntry.date >= start,
             TimeEntry.date <= end
-        ).group_by(User.name).all()
+        )
+        if org_id is not None:
+            time_query = time_query.filter(User.org_id == org_id, TimeEntry.org_id == org_id)
+        time_query = time_query.group_by(User.name).all()
 
         # All tasks assigned per user (total workload)
         assigned_query = db.query(
@@ -965,7 +992,10 @@ def generate_staff_productivity(db: Session, start: date, end: date, org_id: int
         ).outerjoin(Task, Task.assigned_to == User.id).filter(
             Task.created_at >= start,
             Task.created_at <= end
-        ).group_by(User.name).all()
+        )
+        if org_id is not None:
+            assigned_query = assigned_query.filter(User.org_id == org_id, Task.org_id == org_id)
+        assigned_query = assigned_query.group_by(User.name).all()
 
         # Combine data
         staff_data = defaultdict(lambda: {"assigned": 0, "tasks": 0, "hours": 0})
@@ -1079,13 +1109,20 @@ def generate_produtividade(db: Session, start: date, end: date, org_id: int = No
             Task.completed_at >= start,
             Task.completed_at <= end,
             Task.status == "completed"
-        ).group_by(User.name).order_by(func.count(Task.id).desc()).all()
+        )
+        if org_id is not None:
+            tasks_query = tasks_query.filter(User.org_id == org_id, Task.org_id == org_id)
+        tasks_query = tasks_query.group_by(User.name).order_by(func.count(Task.id).desc()).all()
 
-        total_tasks = db.query(func.count(Task.id)).filter(
+        total_tasks = _scoped_query(db, Task, org_id).with_entities(
+            func.count(Task.id)
+        ).filter(
             Task.created_at >= start, Task.created_at <= end
         ).scalar() or 0
 
-        completed_total = db.query(func.count(Task.id)).filter(
+        completed_total = _scoped_query(db, Task, org_id).with_entities(
+            func.count(Task.id)
+        ).filter(
             Task.completed_at >= start, Task.completed_at <= end,
             Task.status == "completed"
         ).scalar() or 0
@@ -1244,9 +1281,9 @@ def generate_prazos(db: Session, start: date, end: date, org_id: int = None) -> 
 
 
 def generate_clientes(db: Session, start: date, end: date, org_id: int = None) -> dict:
-    """Relatório de clientes (Lite)"""
+    """Relatório de clientes (Lite) — org-scoped"""
     # Novos clientes por mês
-    monthly = db.query(
+    monthly = _scoped_query(db, Client, org_id).with_entities(
         func.date_trunc('month', Client.created_at).label("month"),
         func.count(Client.id).label("count")
     ).filter(
@@ -1254,10 +1291,14 @@ def generate_clientes(db: Session, start: date, end: date, org_id: int = None) -
         Client.created_at <= end
     ).group_by(func.date_trunc('month', Client.created_at)).order_by("month").all()
 
-    total_clients = db.query(func.count(Client.id)).scalar() or 0
+    total_clients = _scoped_query(db, Client, org_id).with_entities(
+        func.count(Client.id)
+    ).scalar() or 0
 
-    # Clientes com processos ativos
-    active_clients = db.query(func.count(func.distinct(Case.client_id))).filter(
+    # Clientes com processos ativos (escopado pela org via Case.org_id)
+    active_clients = _scoped_query(db, Case, org_id).with_entities(
+        func.count(func.distinct(Case.client_id))
+    ).filter(
         Case.status.notin_(["closed", "denied", "archived"])
     ).scalar() or 0
 
@@ -1285,4 +1326,151 @@ def generate_clientes(db: Session, start: date, end: date, org_id: int = None) -
         },
         "headers": ["Mês", "Novos Clientes"],
         "rows": [[i["mes"], i["novos"]] for i in items]
+    }
+
+
+# ---------------------------------------------------------------------------
+# Carteira de clientes — breakdowns por UF, faixa etária e segmento
+# ---------------------------------------------------------------------------
+
+# Rótulos legíveis para client_type (segmento). O default histórico do model é
+# "individual"; firmas Lite costumam usar PF/PJ. Mapeamos os valores conhecidos
+# e caímos em "Outro" para qualquer valor inesperado, "Não informado" p/ null.
+_SEGMENT_LABELS = {
+    "individual": "Pessoa Física",
+    "pf": "Pessoa Física",
+    "pessoa_fisica": "Pessoa Física",
+    "corporate": "Pessoa Jurídica",
+    "pj": "Pessoa Jurídica",
+    "pessoa_juridica": "Pessoa Jurídica",
+    "company": "Pessoa Jurídica",
+}
+
+# Faixas etárias (limite superior exclusivo; None = sem teto).
+_AGE_BUCKETS = [
+    ("< 25", 0, 25),
+    ("25–34", 25, 35),
+    ("35–44", 35, 45),
+    ("45–59", 45, 60),
+    ("60+", 60, None),
+]
+
+
+def _age_from_dob(dob, today: date) -> int:
+    """Idade em anos completos a partir de date_of_birth."""
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+
+def generate_carteira_clientes(db: Session, start: date, end: date, org_id: int = None) -> dict:
+    """Distribuição da carteira de clientes por UF, faixa etária e segmento.
+
+    TODAS as queries são org-scoped via _scoped_query (org_id vem do
+    request.state, server-side — nunca de input do usuário). Lida com dados
+    ausentes (state/date_of_birth/client_type nulos) com bucket
+    "Não informado", sem quebrar quando a carteira tem campos vazios.
+    """
+    today = date.today()
+
+    # --- Por UF (Client.state) --------------------------------------------
+    uf_rows = _scoped_query(db, Client, org_id).with_entities(
+        Client.state,
+        func.count(Client.id).label("count")
+    ).group_by(Client.state).order_by(func.count(Client.id).desc()).all()
+
+    uf_items = []
+    uf_nao_informado = 0
+    for state, count in uf_rows:
+        uf = (state or "").strip().upper()
+        if not uf:
+            uf_nao_informado += count
+            continue
+        uf_items.append({"uf": uf, "count": count})
+    # Reagrupa pois normalização (upper/strip) pode colidir chaves distintas.
+    if uf_items:
+        merged: dict[str, int] = defaultdict(int)
+        for it in uf_items:
+            merged[it["uf"]] += it["count"]
+        uf_items = [{"uf": k, "count": v} for k, v in merged.items()]
+        uf_items.sort(key=lambda x: (-x["count"], x["uf"]))
+    if uf_nao_informado:
+        uf_items.append({"uf": "Não informado", "count": uf_nao_informado})
+
+    # --- Por segmento (Client.client_type) --------------------------------
+    seg_rows = _scoped_query(db, Client, org_id).with_entities(
+        Client.client_type,
+        func.count(Client.id).label("count")
+    ).group_by(Client.client_type).all()
+
+    seg_merged: dict[str, int] = defaultdict(int)
+    for ctype, count in seg_rows:
+        key = (ctype or "").strip().lower()
+        if not key:
+            label = "Não informado"
+        else:
+            label = _SEGMENT_LABELS.get(key, "Outro")
+        seg_merged[label] += count
+    seg_items = [{"segmento": k, "count": v} for k, v in seg_merged.items()]
+    seg_items.sort(key=lambda x: (-x["count"], x["segmento"]))
+
+    # --- Por faixa etária (Client.date_of_birth) --------------------------
+    # Computado em Python a partir do birthdate (robusto e independente de
+    # dialeto SQL). Só carrega a coluna date_of_birth, org-scoped.
+    dob_rows = _scoped_query(db, Client, org_id).with_entities(
+        Client.date_of_birth
+    ).all()
+
+    age_counts = {label: 0 for label, _, _ in _AGE_BUCKETS}
+    age_nao_informado = 0
+    for (dob,) in dob_rows:
+        if not dob:
+            age_nao_informado += 1
+            continue
+        try:
+            age = _age_from_dob(dob, today)
+        except (AttributeError, TypeError):
+            age_nao_informado += 1
+            continue
+        if age < 0:
+            age_nao_informado += 1
+            continue
+        for label, lo, hi in _AGE_BUCKETS:
+            if age >= lo and (hi is None or age < hi):
+                age_counts[label] += 1
+                break
+    age_items = [{"faixa": label, "count": age_counts[label]} for label, _, _ in _AGE_BUCKETS]
+    if age_nao_informado:
+        age_items.append({"faixa": "Não informado", "count": age_nao_informado})
+
+    total_clients = _scoped_query(db, Client, org_id).with_entities(
+        func.count(Client.id)
+    ).scalar() or 0
+
+    # Chart default (canvas): distribuição por UF como barras.
+    chart_data = {
+        "labels": [i["uf"] for i in uf_items],
+        "values": [i["count"] for i in uf_items],
+    }
+
+    # Linhas planas para export CSV (uma seção após a outra).
+    rows = []
+    for i in uf_items:
+        rows.append(["UF", i["uf"], i["count"]])
+    for i in age_items:
+        rows.append(["Faixa etária", i["faixa"], i["count"]])
+    for i in seg_items:
+        rows.append(["Segmento", i["segmento"], i["count"]])
+
+    return {
+        "type": "carteira",
+        "chart_data": chart_data,
+        "breakdowns": {
+            "uf": uf_items,
+            "faixa_etaria": age_items,
+            "segmento": seg_items,
+        },
+        "summary": {
+            "total": total_clients,
+        },
+        "headers": ["Dimensão", "Valor", "Clientes"],
+        "rows": rows,
     }

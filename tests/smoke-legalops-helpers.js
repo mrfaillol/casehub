@@ -3,7 +3,7 @@ const os = require("os");
 const path = require("path");
 const { expect } = require("@playwright/test");
 
-const VS_PROD_HOST = "cliente.example.com";
+const VS_PROD_HOST = "casehub.sampletenantadvogados.com.br";
 
 function normalizePrefix(value) {
   const raw = value || "/casehub";
@@ -34,11 +34,11 @@ function buildSmokeConfig() {
   }
 
   const localHost = host === "localhost" || host === "0.0.0.0" || host === "::1" || host.startsWith("127.");
-  const approvedRemote = host === "app.example.com" || host === "app.example.com";
+  const approvedRemote = host === "dev.vingren.me" || host === "casehub.vingren.me";
   if (!localHost && !approvedRemote && !vsProdAllowed && process.env.CASEHUB_ALLOW_NON_PROD_SMOKE !== "1") {
     throw new Error(
       `Refusing smoke against unapproved host ${host}. ` +
-        "Use localhost, app.example.com, app.example.com, or set CASEHUB_ALLOW_NON_PROD_SMOKE=1 for another non-prod target."
+        "Use localhost, dev.vingren.me, casehub.vingren.me, or set CASEHUB_ALLOW_NON_PROD_SMOKE=1 for another non-prod target."
     );
   }
 

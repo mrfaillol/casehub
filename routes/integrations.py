@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from auth import get_current_user
 from config import settings
 from core.template_config import PREFIX, inject_org_context, templates
-from models import get_db
+from models import get_db, Organization
 from services.google_calendar import GoogleCalendarService
 from services.per_org_credentials import get_org_drive_token_path
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # conectado e o usuário conecta o Drive (ou vice-versa), o Google devolve o token com
 # a UNIÃO dos escopos (drive + calendar.*). Sem isto, oauthlib levanta "Scope has
 # changed" como erro e o callback caía em ?drive_error=oauth_callback_failed
-# ([parceiro], alpha 29/05). Process-wide → cobre Drive e Calendar.
+# (Example User, alpha 29/05). Process-wide → cobre Drive e Calendar.
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -79,12 +79,76 @@ def _google_drive_paths(org_id: int | None = None) -> tuple[Path, Path]:
     """
     from services.per_org_credentials import DEFAULT_ORG_ID
 
-    credentials = _resolve_app_path(
-        settings.GOOGLE_DRIVE_CREDENTIALS_PATH,
-        "credentials/google_drive_credentials.json",
-    )
+    credentials = _google_drive_credentials_path()
     token_path = get_org_drive_token_path(int(org_id) if org_id else DEFAULT_ORG_ID)
     return credentials, token_path
+
+
+def _google_drive_credentials_path() -> Path:
+    """Resolve the shared Google OAuth client file used by Drive.
+
+    Drive historically had ``google_drive_credentials.json`` while Calendar and
+    Gmail use the shared ``google_client_secret.json``. Try the Drive-specific
+    file first, then the shared Google client so an office that already has
+    Google OAuth configured can complete Drive consent without duplicating
+    credentials.
+    """
+    candidates = []
+    explicit_drive = (settings.GOOGLE_DRIVE_CREDENTIALS_PATH or "").strip()
+    if explicit_drive:
+        candidates.append(_resolve_app_path(explicit_drive, ""))
+    candidates.append(_resolve_app_path("", "credentials/google_drive_credentials.json"))
+
+    calendar_override = (
+        os.getenv("GOOGLE_CALENDAR_CREDENTIALS_PATH")
+        or getattr(settings, "GOOGLE_CALENDAR_CREDENTIALS_PATH", "")
+        or ""
+    ).strip()
+    if calendar_override:
+        candidates.append(_resolve_app_path(calendar_override, ""))
+    candidates.extend([
+        _resolve_app_path("", "credentials/google_client_secret.json"),
+        _resolve_app_path("", "credentials/google_calendar_credentials.json"),
+    ])
+
+    seen = set()
+    unique_candidates = []
+    for candidate in candidates:
+        key = str(candidate)
+        if key not in seen:
+            seen.add(key)
+            unique_candidates.append(candidate)
+
+    for candidate in unique_candidates:
+        if candidate.exists():
+            return candidate
+    return unique_candidates[0]
+
+
+def _google_drive_root_status(
+    db: Session | None,
+    org_id: int | None = None,
+) -> tuple[str, str]:
+    """Return (root_id, source) for the Drive explorer root."""
+    if db is not None and org_id is not None:
+        try:
+            org = db.query(Organization).filter(Organization.id == org_id).first()
+            if org is not None and getattr(org, "google_drive_root_id", None):
+                return org.google_drive_root_id, "org"
+        except Exception as exc:
+            logger.warning("Drive root probe failed for org %s: %s", org_id, exc)
+    if settings.GOOGLE_DRIVE_ROOT_ID:
+        return settings.GOOGLE_DRIVE_ROOT_ID, "global"
+    return "", "root-fallback"
+
+
+def _google_drive_root_id(db: Session | None, org_id: int | None = None) -> str:
+    """Return the tenant Drive root folder id, falling back to global settings."""
+    return _google_drive_root_status(db, org_id)[0]
+
+
+def _google_drive_root_source(db: Session | None, org_id: int | None = None) -> str:
+    return _google_drive_root_status(db, org_id)[1]
 
 
 def _b64url_encode(data: bytes) -> str:
@@ -245,11 +309,11 @@ def _status(
     }
 
 
-def _pdpj_status() -> dict:
+def _pdpj_status(org_id=None) -> dict:
     try:
         from services.comunicaapi import pdpj_auth
 
-        auth = pdpj_auth.public_status()
+        auth = pdpj_auth.public_status(org_id)
         if auth.get("token_cached"):
             return _status(
                 "PDPJ/CNJ",
@@ -304,7 +368,7 @@ def _pdpj_status() -> dict:
     )
 
 
-def _integration_cards(org_id: int | None = None) -> list[dict]:
+def _integration_cards(org_id: int | None = None, db: Session | None = None) -> list[dict]:
     calendar_count = 0
     calendar_has_client = False
     calendar_diag = "Google Calendar ainda nao validado."
@@ -347,11 +411,27 @@ def _integration_cards(org_id: int | None = None) -> list[dict]:
             )
         except Exception as exc:
             gmail_diag = f"Probe indisponivel: {type(exc).__name__}."
-    drive_root = bool(settings.GOOGLE_DRIVE_ROOT_ID)
+    drive_root_id, drive_root_source = _google_drive_root_status(db, org_id)
+    drive_root = bool(drive_root_id)
     drive_credentials_path, drive_token_path = _google_drive_paths(org_id)
     drive_token = drive_token_path.exists()
     drive_credentials = drive_credentials_path.exists()
     drive_state = "ok" if drive_root and drive_token else ("warn" if drive_token or drive_credentials else "down")
+    drive_action_url = f"{PREFIX}/documents" if drive_token else f"{PREFIX}/integrations/google-drive/connect"
+    drive_action_label = "Abrir documentos" if drive_token else "Conectar Drive"
+    drive_summary = (
+        "Drive pronto para arquivos."
+        if drive_root and drive_token
+        else "Drive conectado; Explorer abre Meu Drive." if drive_token
+        else "Drive ainda nao validado."
+    )
+    drive_detail = (
+        "Documentos locais continuam acessiveis; Explorer usa a pasta raiz do escritorio."
+        if drive_root and drive_token
+        else "Documentos locais continuam acessiveis; sem pasta raiz do escritorio, o Explorer abre Meu Drive e uploads organizados continuam pendentes."
+        if drive_token
+        else "Documentos locais continuam acessiveis; conecte o OAuth Drive para listar arquivos do Google Drive."
+    )
     whatsapp_ok, whatsapp_diag, whatsapp_payload = _json_probe(settings.WHATSAPP_BOT_URL, "/api/status")
     if not whatsapp_payload:
         whatsapp_ok, whatsapp_diag = _http_probe(settings.WHATSAPP_BOT_URL)
@@ -487,7 +567,7 @@ def _integration_cards(org_id: int | None = None) -> list[dict]:
             diagnostic=calendar_diag,
             lgpd_notice="Ao conectar, voce autoriza o CaseHub a ler eventos da agenda do escritorio (escopo calendar.events). Voce pode revogar a qualquer momento na pagina 'Configurar agenda'. Dados ficam isolados no escritorio (multi-tenant) e nada e compartilhado entre orgs. LGPD: ver Termos.",
         ),
-        _pdpj_status(),
+        _pdpj_status(org_id),
         _status(
             "DataJud",
             "ok",
@@ -539,28 +619,32 @@ def _integration_cards(org_id: int | None = None) -> list[dict]:
         _status(
             "Google Drive",
             drive_state,
-            "Drive pronto para arquivos." if drive_root and drive_token else "Drive ainda nao validado.",
-            "Documentos locais continuam acessiveis; sincronizacao Drive depende de credencial, token e pasta raiz.",
-            "Abrir arquivos" if drive_state == "ok" else "Conectar Drive",
-            f"{PREFIX}/files" if drive_state == "ok" else f"{PREFIX}/integrations/google-drive/connect",
+            drive_summary,
+            drive_detail,
+            drive_action_label,
+            drive_action_url,
             "folder-open",
             f"{PREFIX}/integrations/google-drive/connect",
             "OAuth Drive",
             [
                 "Ativar Google Drive API no Google Cloud.",
-                "Salvar credenciais OAuth web em credentials/google_drive_credentials.json.",
+                "Usar o OAuth client compartilhado em credentials/google_client_secret.json ou credentials/google_drive_credentials.json.",
                 "Entrar com a conta Google do escritorio pelo botao OAuth Drive.",
-                "Configurar GOOGLE_DRIVE_ROOT_ID para a pasta raiz do escritorio.",
+                "Configurar a pasta raiz do escritorio em GOOGLE_DRIVE_ROOT_ID ou organizations.google_drive_root_id para uploads organizados.",
             ],
-            diagnostic=f"root_id={'sim' if drive_root else 'nao'}; token={'sim' if drive_token else 'nao'}; credentials={'sim' if drive_credentials else 'nao'}; oauth_web=sim",
-            disconnect_url=(f"{PREFIX}/integrations/google-drive/disconnect" if drive_state == "ok" else ""),
-            lgpd_notice="Ao conectar, voce autoriza o CaseHub a acessar arquivos do Drive (escopo drive.file: apenas arquivos criados ou abertos pelo CaseHub). Voce pode revogar a qualquer momento clicando em Desconectar. Dados ficam isolados no escritorio (multi-tenant) e nada e compartilhado entre orgs. LGPD: ver Termos.",
+            diagnostic=(
+                f"org_id={org_id or 'default'}; root_id={'sim' if drive_root else 'nao'}; "
+                f"root_source={drive_root_source}; token={'sim' if drive_token else 'nao'}; "
+                f"credentials={'sim' if drive_credentials else 'nao'}; oauth_web=sim"
+            ),
+            disconnect_url=(f"{PREFIX}/integrations/google-drive/disconnect" if drive_token else ""),
+            lgpd_notice="Ao conectar, voce autoriza o CaseHub a acessar arquivos do Drive do escritorio. Voce pode revogar a qualquer momento clicando em Desconectar. Dados ficam isolados no escritorio (multi-tenant) e nada e compartilhado entre orgs. LGPD: ver Termos.",
         ),
         _status(
             "E-mail (SMTP/IMAP)",
             "ok" if settings.SMTP_USER and smtp_secret and smtp_reachable else ("warn" if settings.SMTP_USER and smtp_secret else "down"),
             "SMTP pronto para teste." if settings.SMTP_USER and smtp_secret and smtp_reachable else "Conecte sua conta de e-mail em 3 passos.",
-            "Suporta Gmail, Outlook, iCloud, Hostinger, IMAP/SMTP genericos. Use senha de app quando 2FA estiver ativo.",
+            "Suporta Gmail, Outlook, iCloud, Hosting Provider, IMAP/SMTP genericos. Use senha de app quando 2FA estiver ativo.",
             "Configurar SMTP",
             f"{PREFIX}/integrations/email/smtp-setup",
             "envelope",
@@ -636,7 +720,7 @@ def _integration_cards(org_id: int | None = None) -> list[dict]:
 # readable banner instead of exposing OAuth jargon to the end user.
 OAUTH_FRIENDLY_ERRORS = {
     "redirect_uri_mismatch": (
-        "URL de retorno nao autorizada. Suporte: contato@example.com"
+        "URL de retorno nao autorizada. Suporte: contato@vingren.me"
     ),
     "invalid_grant": "Token expirado. Tente reconectar.",
     "access_denied": (
@@ -647,7 +731,7 @@ OAUTH_FRIENDLY_ERRORS = {
     ),
     "credentials_missing": (
         "Credenciais OAuth do Google ainda nao configuradas neste servidor. "
-        "Suporte: contato@example.com"
+        "Suporte: contato@vingren.me"
     ),
     "oauth_start_failed": (
         "Nao foi possivel iniciar o login Google. Tente novamente em alguns segundos."
@@ -660,7 +744,7 @@ OAUTH_FRIENDLY_ERRORS = {
     ),
     "oauth_callback_failed": (
         "Algo deu errado ao receber a resposta do Google. Tente novamente; se persistir, "
-        "contato@example.com."
+        "contato@vingren.me."
     ),
     "disconnect_noop": (
         "Nada para desconectar — Drive ja estava desligado deste escritorio."
@@ -683,7 +767,7 @@ def _friendly_error(code: str | None) -> str:
         return ""
     return OAUTH_FRIENDLY_ERRORS.get(
         code,
-        f"Erro do Google: {code}. Suporte: contato@example.com",
+        f"Erro do Google: {code}. Suporte: contato@vingren.me",
     )
 
 
@@ -704,7 +788,7 @@ async def integrations_index(request: Request, db: Session = Depends(get_db)):
             "request": request,
             "user": user,
             "PREFIX": PREFIX,
-            "integrations": _integration_cards(getattr(request.state, "org_id", None)),
+            "integrations": _integration_cards(getattr(request.state, "org_id", None), db),
             "drive_error_friendly": drive_error_friendly,
             "drive_disconnected": bool(request.query_params.get("drive_disconnected")),
             "gmail_error_friendly": gmail_error_friendly,

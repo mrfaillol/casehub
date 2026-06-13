@@ -51,92 +51,29 @@ window.State = State;
 // Atualizado em: 2026-01-29
 // ============================================
 const TEMPLATES = [
-    // ===== GREETING (Primeiro Contato) =====
-    { id: 1, cat: 'Greeting', name: 'Clientes Novos (EN)', text: 'Hello.\n\nWe are glad to help.\n\nWe specialize in U.S. visas and immigration, providing clear and straightforward guidance. Could you please share your name and email? How can we assist you with your case? Feel free to send your questions.\n\nWe offer a free intro call with our team. This meeting does not include attorney time nor legal advice, case strategy, or analysis. It\'s an opportunity for you to meet our team without any initial costs, ask questions about our work, which visas we handle, our client reviews, timelines, common pitfalls, and general questions.\n\nWould you like to schedule this free intro call? Here is the link to book it:\nCALENDLY_FREE_URL\n\nFor specific case analysis and questions, the needed step is a consultation with one of our attorneys to define the best strategy ($99). Would you prefer to schedule a consultation? Here is the link to book it:\nCALENDLY_PAID_URL\n\nWarm Regards,' },
-
-    { id: 2, cat: 'Greeting', name: 'Clientes Novos (PT)', text: 'Olá,\n\nFicamos felizes em ajudar.\n\nSomos especializados em vistos e imigração para os Estados Unidos, oferecendo orientação clara e objetiva. Poderia, por favor, informar seu nome e e-mail? Como podemos ajudar no seu caso? Fique à vontade para enviar suas dúvidas.\n\nOferecemos uma ligação inicial gratuita com nossa equipe. Essa reunião não inclui tempo com advogado, nem aconselhamento jurídico, estratégia ou análise do caso. É uma oportunidade para você conhecer nossa equipe sem nenhum custo inicial, tirar dúvidas sobre nosso trabalho, quais vistos atendemos, avaliações de clientes, prazos, erros comuns e outras perguntas gerais.\n\nGostaria de agendar essa ligação inicial gratuita? Aqui está o link para marcar:\nCALENDLY_FREE_URL\n\nPara análise específica do caso e dúvidas personalizadas, o próximo passo é uma consulta com um de nossos advogados para definir a melhor estratégia ($99). Gostaria de agendar uma consulta? Aqui está o link para marcar:\nCALENDLY_PAID_URL\n\nAtenciosamente,' },
-
-    { id: 3, cat: 'Greeting', name: 'Free Intro Call Offer', text: 'Hello. We are glad to help.\n\nWe offer a free intro call with our team. This meeting does not include attorney time nor legal advice, case strategy or analysis.\n\nIt\'s an opportunity for you to meet our team without any initial costs, ask questions about our work, which visas we handle, our client reviews, timelines, common pitfalls, and general questions.\n\nWould you like to schedule this free intro call?\nCALENDLY_FREE_URL\n\nFor specific case analysis and questions, the needed step is a consultation with one of our attorneys to define the best strategy ($99).\nCALENDLY_PAID_URL\n\nWould you like to schedule a consultation?' },
-
-    { id: 4, cat: 'Greeting', name: 'Resposta Rápida', text: 'Dear [NAME],\n\nThank you very much for your response.\n\nShould you have any further questions or require additional information, please do not hesitate to reach out. We are always at your disposal and happy to assist you.\n\nThank you once again, and we remain available should you need any further support.\n\nWarm regards,' },
-
-    // ===== AGENDA (Reuniões) =====
-    { id: 5, cat: 'Agenda', name: 'Confirmação de Reunião (EN)', text: 'Hello,\n\nYour meeting with the Attorney has been confirmed for [DATE] at [TIME] [TIMEZONE].\n\nHere is your link to join:\n[MEETING_LINK]\n\nWe look forward to meeting with you!\n\nPlease don\'t hesitate to let us know in case you have any questions.\n\nWarm Regards,' },
-
-    { id: 6, cat: 'Agenda', name: 'Confirmação de Reunião (PT)', text: 'Prezado(a) [NAME],\n\nSua reunião com o advogado está confirmada para dia [DATE], às [TIME] (EST).\n\nSegue abaixo o link de acesso:\n[MEETING_LINK]\n\nCaso surja qualquer dúvida, não hesite em nos contatar. Estamos à disposição para auxiliá-lo no que for necessário!\n\nAtenciosamente,\nOur Team' },
-
-    { id: 7, cat: 'Agenda', name: 'Marcando Reunião (EN)', text: 'Hello!\n\nWe have availability for your meeting with Attorney on [DATE] at [TIME] EST.\n\nIf this time isn\'t convenient, feel free to suggest an alternative.\n\nOnce confirmed, I will send a calendar invite with all the details.\n\nWarm regards,\nOur Team.' },
-
-    { id: 8, cat: 'Agenda', name: 'Reagendando Reunião', text: 'Dear [NAME],\n\nSince we didn\'t receive a confirmation for the meeting, it was not added to our schedule. We would be glad to reschedule it at your earliest convenience.\n\nShall we reschedule your meeting with Attorney Daniel for [DATE] at [TIME] EST? If this time isn\'t convenient, feel free to share two or three alternatives. Once confirmed, I\'ll send a calendar invite with the details.\n\nWe appreciate your kind understanding.\n\nMost Sincerely,' },
-
-    // ===== PAGAMENTO =====
-    { id: 9, cat: 'Pagamento', name: 'Info Pagamento (EN)', text: 'Dear Client,\n\nWe would like to share the payment options available for your visa process. Please find the details below:\n\nAttorney Fees: USD $[VALOR]\n\nPayment Methods:\n• Bank Transfer - You may complete the payment via U.S. or international bank transfer to a US bank account. Bank details will be provided once you confirm this option.\n• Credit or Debit Card (via Stripe link) - You can make a secure payment through a Stripe link that we will send to you upon request.\n\nPayment Plans and Discounts:\n• 10% OFF – Full Payment Upfront\n• 5% OFF – Split Payment (50/50)\n• Regular Plan – Monthly Installments (half upfront, remaining in 5 monthly installments)\n\nPlease let us know which payment option and plan you prefer so we can provide the appropriate instructions and links.\n\nWarm regards,' },
-
-    { id: 10, cat: 'Pagamento', name: 'Cobrando Segunda Parcela', text: 'Hello!\n\nDear [NAME],\n\nWe hope you are doing well.\n\nPlease find below the payment link in the amount of $[VALOR], which corresponds to the second part of your legal fees under our retainer agreement.\n\nLink: [PAYMENT_LINK]\n\nKindly complete this payment at your earliest convenience so that we may proceed with the next steps in your immigration process.\n\nPlease let us know once the payment has been submitted or if you encounter any issues accessing the link.\n\nThank you very much for your prompt attention and cooperation.\n\nWarm regards,' },
-
-    { id: 11, cat: 'Pagamento', name: 'Confirmação Pagamento', text: 'Dear [NAME],\n\nWe are pleased to confirm that we have received your payment.\n\nThank you very much for your prompt attention and cooperation.\n\nPlease don\'t hesitate to let us know in case you have any questions.\n\nWarm Regards,' },
-
-    { id: 12, cat: 'Pagamento', name: 'Reembolso', text: 'Hello!\n\nWe process refunds via bank transfer. To proceed, please provide the following details:\n\n• Full account holder name\n• Bank name\n• Account number\n• Routing number\n• Full address\n\nThank you!\n\nPlease don\'t hesitate to let us know in case you have any questions.\n\nWarm regards,' },
-
-    // ===== ONBOARDING =====
-    { id: 13, cat: 'Onboarding', name: 'Onboarding Novo Cliente (EN)', text: 'Hello!\n\nThank you for choosing our firm to assist with your immigration matter. Nice to meet you. My name is [membro da equipe], and I am the attorney who will manage your case.\n\nQuick introduction: I am an Immigration Lawyer with years of experience, licensed in the US, and I have a master\'s degree in Immigration Law as well. I\'ll make sure to complete your case in the best and quickest way possible.\n\nTo get started, let\'s schedule an onboarding call to discuss your case in more detail. Please let me know a few times that you\'re available for a call. Would [DATE] at [TIME] EST work for you?\n\nHere are your credentials to log into your e-immigration account:\n[E-IMMIGRATION_PORTAL_URL]\n\nUsername: [USERNAME]\nPassword: [PASSWORD]\n\nYou can use this link to upload all documents as you gather them. In your e-immigration account you will also find the signed retainer agreement for your records, the list of documents we need from you, and two documents you must complete: expansion questionnaire and testimonial letter questionnaire.\n\nPlease don\'t hesitate to contact us via SMS, email or WhatsApp. All questions are important.\n\nMy goal is clear: making sure you have someone knowledgeable and trustworthy handling ALL immigration issues so you can focus on your family, work, and life as a whole. I\'ll do my best to grab your hand and walk you through every step until we file the case and get your visa. I\'m looking forward to working with you!\n\nWarm Regards,\nOur Team' },
-
-    { id: 14, cat: 'Onboarding', name: 'Onboarding Novo Cliente (PT)', text: 'Olá!\n\nObrigado por escolher nosso escritório para auxiliá-lo(a) com sua questão imigratória. É um prazer conhecê-lo(a). Meu nome é [membro da equipe], e serei o advogado responsável pela condução do seu caso.\n\nFazendo uma breve apresentação: sou advogado de imigração, com anos de experiência, licenciado nos Estados Unidos, e possuo também um mestrado em Direito de Imigração. Farei o possível para conduzir o seu caso da melhor e mais eficiente forma.\n\nPara darmos início, gostaríamos de agendar uma chamada de onboarding para discutir seu caso com mais detalhes. Por gentileza, informe alguns horários em que você estará disponível para essa conversa.\n\nAbaixo estão suas credenciais para acesso à sua conta na plataforma e-immigration:\n[E-IMMIGRATION_PORTAL_URL]\n\nUsuário: [USERNAME]\nSenha: [PASSWORD]\n\nVocê pode utilizar esse link para enviar todos os documentos à medida que for reunindo-os. Em sua conta na plataforma e-immigration, você também encontrará o contrato de prestação de serviços assinado para seus registros, a lista de documentos necessários, e dois documentos que precisam ser preenchidos: o questionário de expansão e o questionário da carta de testemunho.\n\nPor favor, não hesite em entrar em contato conosco por SMS, e-mail ou WhatsApp. Todas as perguntas são importantes.\n\nMeu objetivo é claro: garantir que você tenha um profissional experiente e confiável cuidando de todas as questões imigratórias, para que você possa focar em sua família, trabalho e qualidade de vida. Farei o possível para guiá-lo(a) em cada etapa do processo até o protocolo do caso e a obtenção do seu visto. Estou ansioso para trabalharmos juntos!\n\nAtenciosamente,\nOur Team' },
-
-    { id: 15, cat: 'Onboarding', name: 'Credenciais E-Immigration', text: 'Dear client,\n\nHere are your credentials to login to your eimmigration account which can be accessed at the following address:\n[E-IMMIGRATION_PORTAL_URL]\n\nUsername: [EMAIL]\nPassword: [PASSWORD]\n\nMost Sincerely,\nOur Team' },
-
-    // ===== VISTOS =====
-    { id: 16, cat: 'Vistos', name: 'Info EB-2 NIW', text: 'O visto EB-2 NIW (National Interest Waiver) é uma categoria de Green Card para profissionais com grau avançado ou habilidade excepcional.\n\nRequisitos principais:\n- Mestrado ou equivalente, OU\n- Graduação + 5 anos de experiência\n- Trabalho deve beneficiar os EUA\n\nVantagens:\n- Não precisa de oferta de emprego\n- Não precisa de Labor Certification\n- Pode trabalhar por conta própria\n\nTempo médio: 12-18 meses\n\nGostaria de agendar uma consulta para avaliar seu caso?\nCALENDLY_PAID_URL' },
-
-    { id: 17, cat: 'Vistos', name: 'Info EB-1A', text: 'O visto EB-1A (Extraordinary Ability) é para profissionais com habilidade extraordinária em sua área.\n\nCritérios (precisa de 3):\n- Prêmios/reconhecimento\n- Publicações\n- Contribuições originais\n- Participação como juiz\n- Salário alto\n- Artigos sobre você\n- Exposições (artes)\n- Liderança em organizações\n- Membros de associações\n- Trabalho comercial\n\nVantagens:\n- Prioridade máxima\n- Sem Labor Certification\n- Processo mais rápido\n\nGostaria de avaliar se você se qualifica?\nCALENDLY_PAID_URL' },
-
-    { id: 18, cat: 'Vistos', name: 'Processo NIW Detalhado', text: 'Gostaríamos de informar que, no processo NIW, nossa equipe cuidará de todas as etapas da aplicação, incluindo o preenchimento dos formulários necessários: G-1145, G-28, I-907 (caso opte pelo premium processing), I-140, ETA 9089, Appendix A e Final Determination.\n\nAlém disso, nossa equipe redige as cartas de recomendação, o personal statement ou proposed endeavor, revisa o business plan, redige o job offer, caso o cliente tenha um empregador em potencial, e prepara o legal brief. Também organizamos toda a documentação e preparamos o pacote final para envio.\n\nO cliente tem direito a suporte contínuo e reuniões ilimitadas com nossa equipe legal e advogados durante todo o processo.\n\nEstamos à disposição para esclarecer quaisquer dúvidas e garantir que o processo seja conduzido de forma completa e segura.' },
-
-    // ===== FOLLOW-UP =====
-    { id: 19, cat: 'Follow-up', name: 'Encaminhamento (EN)', text: 'Hello!\n\nYour message has been sent to our legal team for review. We will get back to you with an update as soon as possible.\n\nPlease don\'t hesitate to let us know in case you have any questions.\n\nWarm regards,\nOur Team.' },
-
-    { id: 20, cat: 'Follow-up', name: 'Encaminhamento (PT)', text: 'Olá!\n\nSua mensagem foi encaminhada para nossa equipe jurídica para análise. Entraremos em contato com você com uma atualização assim que possível.\n\nPor favor, não hesite em nos avisar caso tenha alguma dúvida.\n\nAtenciosamente,' },
-
-    { id: 21, cat: 'Follow-up', name: 'Follow-up 1 (4 dias)', text: 'Hello!\n\nWe haven\'t heard from you.\n\nWould you like to schedule a free intro meeting? Or maybe a consultation with our attorneys?\n\nWe are here to help!\n\nThank you!' },
-
-    { id: 22, cat: 'Follow-up', name: 'Follow-up 2 (7 dias)', text: 'Hello.\n\nWe haven\'t heard from you, so we will archive your contact for future needs.\n\nIf you would like to schedule a free initial meeting, just let us know. We are here to help.\n\nThank you very much!' },
-
-    { id: 23, cat: 'Follow-up', name: 'Aguardando Docs', text: 'Olá! Esperamos que esteja bem.\n\nGostaríamos de lembrar que ainda estamos aguardando os seguintes documentos:\n\n[LISTA DE DOCUMENTOS]\n\nAssim que recebermos, daremos continuidade ao processo.\n\nPrecisa de ajuda com algum documento específico?' },
-
-    // ===== CONSULTA =====
-    { id: 24, cat: 'Consulta', name: 'Confirmação Consulta (EN)', text: 'Dear [NAME],\n\nThank you for scheduling your consultation with us.\n\nMeeting Details:\n• Date: [DATE]\n• Time: [TIME] EST\n• Duration: [DURATION]\n\nImportant Information Before Your Consultation:\n\n1. Cancellation and Rescheduling Policy\nPlease note that any cancellations or rescheduling requests must be made at least 2 business days in advance.\n\n2. Intake Form (Required)\nTo help our attorney prepare for your consultation, please complete the intake form using the link below:\nhttps://docs.google.com/forms/d/19DozIZBJTpT_u3ahrWQpgllNlWdhFdQ6gdnDIxLxgh8/viewform?edit_requested=true\n\n3. Documents and Questions\nPlease send us any relevant documents related to your case, as well as any questions you may have in advance.\n\nA calendar invite with the meeting details will be sent to you shortly.\n\nIf you have any questions or concerns in the meantime, please don\'t hesitate to reach out.\n\nRespectfully,\nOur Team' },
-
-    { id: 25, cat: 'Consulta', name: 'Pós-Consulta', text: 'Olá! Obrigado pela consulta de hoje!\n\nResumo do que conversamos:\n- [PONTO 1]\n- [PONTO 2]\n- [PONTO 3]\n\nPróximos passos:\n1. [ACAO 1]\n2. [ACAO 2]\n\nO orçamento/proposta será enviado por email.\n\nQualquer dúvida, estamos à disposição!' },
-
-    // ===== HANDOFF =====
-    { id: 26, cat: 'Handoff', name: 'Assumindo Conversa', text: 'Olá! Meu nome é [NOME] e vou continuar seu atendimento a partir de agora.\n\nJá vi o histórico da sua conversa. Como posso ajudá-lo(a) hoje?' },
-
-    { id: 27, cat: 'Handoff', name: 'Voltando ao assistente', text: 'Obrigado pelo contato! A partir de agora, nossa equipe seguirá acompanhando a conversa com apoio de rascunhos do assistente.\n\nPara falar com um humano novamente, basta digitar "atendente" ou "humano".\n\nTenha um ótimo dia!' },
-
-    // ===== FINAL =====
-    { id: 28, cat: 'Final', name: 'Encerramento Padrão', text: 'Obrigado pelo contato!\n\nSe tiver mais dúvidas, estamos à disposição.\n\nTenha um ótimo dia!' },
-
-    // ===== INTERNO (Parceiros) =====
-    { id: 29, cat: 'Interno', name: 'Ashoori/IAS - Pergunta Cliente', text: 'Hello,\n\nThank you for reaching out. We appreciate your message and will promptly inform the client accordingly.\n\nPlease don\'t hesitate to contact us if any further details are needed.\n\nWarm Regards,' },
-
-    { id: 30, cat: 'Interno', name: 'Ashoori/IAS - Follow-up', text: 'Hello,\n\nThank you for your message. We will be reaching out to the client directly to follow up.\n\nWarm Regards,' },
-
-    { id: 31, cat: 'Interno', name: 'Ashoori/IAS - Caso Pronto', text: 'Hi [NAME],\n\nJust letting you know that this case is now ready for filing.\n\nFeel free to proceed with requesting the second payment installment.\n\nCordially,' },
-
-    // ===== NOVOS TEMPLATES (Adicionados 29/01/2026) =====
-    { id: 32, cat: 'Agenda', name: 'Marcando Reunião (PT)', text: 'Olá!\n\nTemos disponibilidade para sua reunião com o Advogado no dia [DATA] às [HORARIO] (horário de Brasília).\n\nSe esse horário não for conveniente, fique à vontade para sugerir uma alternativa.\n\nApós a confirmação, enviarei um convite com todos os detalhes.\n\nAtenciosamente,\nOur Team' },
-
-    { id: 33, cat: 'Pagamento', name: 'Valores NIW (PT)', text: 'Olá [NOME]!\n\nObrigado pelo interesse no processo EB-2 NIW.\n\nSobre valores:\n- Honorários advocatícios: a partir de $6,000\n- Taxas governamentais: ~$1,500 (USCIS)\n- Premium Processing (opcional): $2,805\n\nFormas de pagamento:\n• 10% desconto - Pagamento à vista\n• 5% desconto - Parcelado em 2x (50/50)\n• Parcelamento regular - 50% entrada + 5 parcelas mensais\n\nPara análise personalizada do seu caso e estratégia, o próximo passo é uma consulta ($99):\nCALENDLY_PAID_URL\n\nGostaria de agendar?' },
-
-    { id: 34, cat: 'Greeting', name: 'Credenciais/Legitimidade', text: 'Olá!\n\nObrigado pela pergunta - é muito importante verificar a legitimidade de qualquer escritório de imigração.\n\nSobre nós:\n✅ Escritório registrado nos EUA\n✅ Advogado [membro da equipe] - Licenciado em NY e CT\n✅ Membro da AILA (American Immigration Lawyers Association)\n✅ Mestrado em Direito de Imigração\n✅ Avaliações verificadas no Google\n\nVocê pode verificar a licença do advogado em:\n- NY: https://iapps.courts.state.ny.us/attorneyservices\n- CT: https://www.jud.ct.gov/attorneyfirminquiry\n\nFicamos à disposição para esclarecer qualquer dúvida!' },
-
-    { id: 35, cat: 'Follow-up', name: 'Suporte Técnico / Link Quebrado', text: 'Olá!\n\nPedimos desculpas pelo inconveniente com o link.\n\nAqui estão os links corretos:\n\n📅 Reunião Introdutória GRATUITA:\nCALENDLY_FREE_URL\n\n💼 Consulta com Advogado ($99):\nCALENDLY_PAID_URL\n\nPor favor, tente novamente. Se ainda tiver problemas, me avise!\n\nObrigado pela paciência!' },
-
-    { id: 36, cat: 'Follow-up', name: 'Caso Urgente (EN)', text: 'Hello [NAME],\n\nI understand you\'re in a time-sensitive situation.\n\nWe can prioritize your case. Here are your options:\n\n1️⃣ *Immediate Consultation* - Available this week\n   Schedule: CALENDLY_PAID_URL\n\n2️⃣ *Rush Processing* - For urgent timelines, we offer expedited service\n\nPlease share more details about your deadline so we can best assist you.\n\nWarm regards,\nOur Team' },
-
-    { id: 37, cat: 'Vistos', name: 'Visto Revogado / Caso Complexo', text: 'Olá [NOME]!\n\nEntendemos sua situação - casos de visto revogado são delicados, mas trabalhamos com eles regularmente.\n\nPara seu caso específico, recomendamos uma consulta com o advogado ($99) para:\n- Analisar o motivo da revogação\n- Avaliar suas opções\n- Definir a melhor estratégia\n\nTemos disponibilidade para [DATA] às [HORARIO]. Funciona para você?\n\nLink para agendar:\nCALENDLY_PAID_URL\n\nAtenciosamente,\nOur Team' },
-
-    { id: 38, cat: 'Follow-up', name: 'Desculpas Demora', text: 'Olá!\n\nPedimos desculpas pela demora em responder.\n\nEstamos aqui para ajudar! Como posso auxiliar você hoje?\n\nSe preferir, pode agendar uma conversa:\n\n📅 Reunião Introdutória GRATUITA:\nCALENDLY_FREE_URL\n\n💼 Consulta com Advogado ($99):\nCALENDLY_PAID_URL\n\nAguardo seu retorno!' }
+    // Templates Example Legal Advogados (advocacia BR) — PIX, horário de Brasília
+    { id: 1, cat: "Saudação", name: "Primeiro Contato", text: "Olá! Seja bem-vindo(a) ao escritório Example Legal Advogados. 👋\n\nObrigado pelo seu contato. Para que possamos te ajudar da melhor forma, poderia nos informar seu nome completo e um breve resumo da sua questão?\n\nAssim direcionamos seu atendimento ao advogado da área adequada (cível, trabalhista, família, empresarial, entre outras).\n\nEstamos à disposição!" },
+    { id: 2, cat: "Saudação", name: "Resposta Rápida", text: "Prezado(a) [NOME],\n\nMuito obrigado pelo seu retorno.\n\nCaso surja qualquer dúvida ou precise de informações adicionais, estamos à inteira disposição.\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 3, cat: "Agenda", name: "Confirmação de Reunião", text: "Prezado(a) [NOME],\n\nSua reunião com o(a) Dr.(a) [ADVOGADO] está confirmada para o dia [DATA], às [HORARIO] (horário de Brasília).\n\nLocal/link: [LOCAL]\n\nCaso precise remarcar, por gentileza nos avise com antecedência. Até lá!\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 4, cat: "Agenda", name: "Sugestão de Horário", text: "Olá, [NOME]!\n\nTemos disponibilidade para sua reunião com o(a) Dr.(a) [ADVOGADO] no dia [DATA], às [HORARIO] (horário de Brasília).\n\nEsse horário funciona para você? Se preferir, indique outras opções e nos ajustamos.\n\nApós a confirmação, enviaremos o convite com todos os detalhes." },
+    { id: 5, cat: "Agenda", name: "Lembrete de Audiência", text: "Prezado(a) [NOME],\n\nLembrete importante: sua audiência do processo [PROCESSO] está marcada para o dia [DATA], às [HORARIO] (horário de Brasília), na [VARA].\n\nOrientações:\n• Chegue com 30 min de antecedência (ou conecte-se ao link 10 min antes, se virtual);\n• Leve documento de identificação com foto;\n• Em caso de dúvida, fale conosco.\n\nEstamos à disposição." },
+    { id: 6, cat: "Agenda", name: "Reagendamento", text: "Prezado(a) [NOME],\n\nComo não recebemos a confirmação, a reunião não foi mantida na agenda. Teremos prazer em remarcar no melhor horário para você.\n\nPodemos reagendar para [DATA] às [HORARIO] (horário de Brasília)? Caso não seja conveniente, indique duas ou três alternativas.\n\nAgradecemos a compreensão." },
+    { id: 7, cat: "Honorários", name: "Proposta de Honorários", text: "Prezado(a) [NOME],\n\nConforme conversamos, segue a proposta de honorários para a sua demanda ([ASSUNTO]):\n\n• Valor: R$ [VALOR]\n• Forma de pagamento: à vista (com desconto) ou parcelado\n\nOs valores seguem os parâmetros da Tabela da OAB. Após o aceite, formalizamos o contrato de prestação de serviços.\n\nFico à disposição para esclarecer qualquer ponto." },
+    { id: 8, cat: "Honorários", name: "Dados para Pagamento (PIX)", text: "Prezado(a) [NOME],\n\nSegue abaixo os dados para pagamento dos honorários:\n\n💳 PIX\nChave: [CHAVE_PIX]\nFavorecido: Example Legal Advogados\nValor: R$ [VALOR]\n\nApós o pagamento, por gentileza envie o comprovante para darmos andamento.\n\nObrigado!" },
+    { id: 9, cat: "Honorários", name: "Confirmação de Pagamento", text: "Prezado(a) [NOME],\n\nConfirmamos o recebimento do seu pagamento. ✅\n\nMuito obrigado pela confiança. Seguimos cuidando do seu caso com toda a atenção.\n\nQualquer dúvida, estamos à disposição.\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 10, cat: "Honorários", name: "Lembrete de Parcela", text: "Olá, [NOME]!\n\nLembrete amigável: a parcela no valor de R$ [VALOR] referente aos honorários vence em [DATA].\n\nDados para pagamento (PIX):\nChave: [CHAVE_PIX]\nFavorecido: Example Legal Advogados\n\nAssim que efetuar, é só nos enviar o comprovante. Obrigado!" },
+    { id: 11, cat: "Documentos", name: "Solicitação de Documentos", text: "Olá, [NOME]! Esperamos que esteja bem.\n\nPara darmos andamento ao seu caso, precisamos dos seguintes documentos:\n\n[LISTA_DOCUMENTOS]\n\nVocê pode enviá-los aqui mesmo pelo WhatsApp (foto ou PDF). Se tiver dúvida sobre algum, é só perguntar!\n\nObrigado." },
+    { id: 12, cat: "Documentos", name: "Confirmação de Recebimento", text: "Prezado(a) [NOME],\n\nRecebemos os documentos enviados — muito obrigado. ✅\n\nNossa equipe fará a conferência e, havendo qualquer pendência, entraremos em contato.\n\nSeguimos à disposição." },
+    { id: 13, cat: "Processo", name: "Atualização de Andamento", text: "Prezado(a) [NOME],\n\nAtualização do seu processo [PROCESSO]:\n\n[ANDAMENTO]\n\nSeguiremos acompanhando e informaremos qualquer novidade relevante. Caso tenha dúvidas, estamos à disposição.\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 14, cat: "Processo", name: "Decisão Publicada", text: "Prezado(a) [NOME],\n\nInformamos que houve uma nova decisão no processo [PROCESSO]:\n\n[RESUMO_DECISAO]\n\nJá estamos analisando os próximos passos e em breve traremos nossa recomendação. Qualquer dúvida, conte conosco." },
+    { id: 15, cat: "Processo", name: "Providência / Prazo", text: "Prezado(a) [NOME],\n\nPrecisamos de uma providência sua para cumprir um prazo do processo [PROCESSO]:\n\n[PROVIDENCIA]\n\nPrazo para nos retornar: até [DATA].\n\nÉ importante para mantermos tudo em dia. Qualquer dúvida, estamos aqui!" },
+    { id: 16, cat: "Follow-up", name: "Sem Retorno", text: "Olá, [NOME]!\n\nAinda não tivemos seu retorno e gostaríamos de saber se podemos ajudar em algo.\n\nSe preferir, podemos agendar uma conversa com um de nossos advogados. É só nos dizer o melhor horário.\n\nEstamos à disposição!" },
+    { id: 17, cat: "Follow-up", name: "Encaminhado ao Jurídico", text: "Olá!\n\nSua mensagem foi encaminhada à nossa equipe jurídica para análise. Retornaremos com um posicionamento o mais breve possível.\n\nAgradecemos o contato e a confiança.\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 18, cat: "Atendimento", name: "Assumindo Conversa", text: "Olá! Meu nome é [ADVOGADO] e darei sequência ao seu atendimento a partir de agora.\n\nJá revisei o histórico da conversa. Como posso ajudá-lo(a) hoje?" },
+    { id: 19, cat: "Atendimento", name: "Fora do Horário", text: "Olá! Obrigado pelo seu contato. 🙏\n\nNosso horário de atendimento é de segunda a sexta, das 9h às 18h (horário de Brasília).\n\nSua mensagem foi registrada e retornaremos no próximo dia útil. Em caso de urgência, deixe o assunto detalhado que daremos prioridade.\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 20, cat: "Consulta", name: "Confirmação de Consulta", text: "Prezado(a) [NOME],\n\nSua consulta está confirmada:\n• Data: [DATA]\n• Horário: [HORARIO] (horário de Brasília)\n• Com: Dr.(a) [ADVOGADO]\n\nPara aproveitarmos melhor o tempo, se possível envie com antecedência os documentos e um resumo do que deseja tratar.\n\nAté lá!" },
+    { id: 21, cat: "Consulta", name: "Pós-Consulta", text: "Olá, [NOME]! Obrigado pela consulta de hoje.\n\nResumo do que conversamos:\n• [PONTO_1]\n• [PONTO_2]\n\nPróximos passos:\n1. [ACAO_1]\n2. [ACAO_2]\n\nQualquer dúvida, estamos à disposição!" },
+    { id: 22, cat: "Encerramento", name: "Padrão", text: "Obrigado pelo contato! 🙏\n\nSe tiver mais dúvidas, estaremos à disposição.\n\nTenha um excelente dia!\nExample Legal Advogados" }
 ];
 
 const CATEGORIES = ['Greeting', 'Agenda', 'Pagamento', 'Onboarding', 'Vistos', 'Follow-up', 'Consulta', 'Handoff', 'Final', 'Interno'];
@@ -152,7 +89,10 @@ const API_TIMEOUTS = {
     media: 60000,         // 60s for media uploads
     pairing: 60000        // 60s for pairing code
 };
-const WHATSAPP_API_BASE = (typeof CASEHUB_PREFIX !== 'undefined' ? CASEHUB_PREFIX : '/casehub') + '/whatsapp-chat';
+const WHATSAPP_API_BASE =
+    (typeof window !== 'undefined' && window.WA_API_BASE) ||
+    (typeof WA_API_BASE !== 'undefined' && WA_API_BASE) ||
+    ((typeof CASEHUB_PREFIX !== 'undefined' ? CASEHUB_PREFIX : '/casehub') + '/whatsapp-chat');
 
 async function fetchAPI(url, options = {}, timeoutMs = API_TIMEOUTS.default) {
     // Route /api/* calls to the WhatsApp page router (the complete API)
@@ -207,12 +147,17 @@ async function checkStatus() {
             stopMessagesSSE();
             stopMessagesPolling();
             startQRPolling();
+            // #5 — durante o boot da sessao (connecting/loading), antes de
+            // qualquer fetch bem-sucedido, mostra o aviso de carregamento na
+            // lista em vez de deixar o "Carregando..." generico do template.
+            if (!conversationsLoaded && isBotLoading()) renderConversations();
         }
     } catch (error) {
         console.error('[Status] Error:', error.message);
         State.status = 'timeout';
         State.setConnected(false);
         State.backoff = Math.min(State.backoff * 2, State.maxBackoff);
+        if (!conversationsLoaded && isBotLoading()) renderConversations();
     }
 
     // Schedule next check
@@ -223,7 +168,10 @@ async function checkStatus() {
 async function forceReconnect() {
     console.log("[RECONNECT] Forcing reconnect...");
     const btn = document.getElementById("reconnectBtn");
-    if (btn) btn.textContent = "Reconectando...";
+    if (btn) {
+        btn.textContent = "Reconectando...";
+        btn.disabled = true;
+    }
     
     // Clear state
     State.isConnected = false;
@@ -238,16 +186,38 @@ async function forceReconnect() {
     stopQRPolling();
     if (State.statusPoller) clearTimeout(State.statusPoller);
     
-    // Wait a moment
-    await new Promise(r => setTimeout(r, 500));
-    
-    // Restart status check
-    await checkStatus();
-    
-    if (btn) btn.textContent = "Reconectar";
-    console.log("[RECONNECT] Done, connected:", State.isConnected);
+    try {
+        const data = await fetchAPI('/api/reconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        }, API_TIMEOUTS.send);
+        State.status = data.status || 'reconnecting';
+    } catch (error) {
+        console.error("[RECONNECT] Error:", error.message);
+        State.status = 'timeout';
+    } finally {
+        await checkStatus();
+        if (btn) {
+            btn.textContent = "Reconectar";
+            btn.disabled = false;
+        }
+        console.log("[RECONNECT] Done, connected:", State.isConnected);
+    }
 }
 
+
+// #5 (Example User 02/06) — true enquanto o bot esta subindo a sessao (conectando/
+// carregando) mas ainda nao caiu nem pediu QR. Usado para mostrar o aviso
+// "Carregando conversas… (primeira conexao pode levar alguns segundos)".
+// 'qr'/'awaiting_scan'/'disconnected' tem fluxo proprio (QR) e NAO contam.
+function isBotLoading() {
+    if (State.isConnected) return false;
+    const s = String(State.status || '').toLowerCase();
+    if (s === 'qr' || s === 'awaiting_scan' || s === 'auth_failed') return false;
+    // Treats 'disconnected' as partially loading/reconnecting unless confirmed dead.
+    return s === '' || s === 'connecting' || s === 'loading' || s === 'starting' ||
+        s === 'initializing' || s === 'unknown' || s === 'timeout' || s === 'disconnected';
+}
 
 function disconnectReason(status) {
     switch (String(status || '').toLowerCase()) {
@@ -261,6 +231,12 @@ function disconnectReason(status) {
     }
 }
 
+function setConnectStateText(text) {
+    const el = document.getElementById('waConnectStateText');
+    if (el) el.textContent = text;
+}
+window.setConnectStateText = setConnectStateText;
+
 function updateStatusUI() {
     const badge = document.getElementById('statusBadge');
     const text = document.getElementById('statusText');
@@ -270,9 +246,12 @@ function updateStatusUI() {
     const discBar = document.getElementById('waDisconnectBar');
 
     if (State.isConnected) {
+        setConnectStateText('Conectado');
         if (discBar) discBar.hidden = true;
         badge.className = 'wa-status connected';
         text.textContent = 'Conectado';
+        // Deixa claro que a sessão é da firma (compartilhada com toda a equipe).
+        if (badge) badge.title = 'WhatsApp da firma — conectado e compartilhado com toda a equipe';
         const reconnectBtn = document.getElementById('reconnectBtn');
         if (reconnectBtn) reconnectBtn.style.display = 'none';
         // Hide QR; show empty state only when no conversation is open.
@@ -282,10 +261,15 @@ function updateStatusUI() {
             if (activeChat) { activeChat.hidden = true; activeChat.style.display = 'none'; }
         }
     } else {
+        setConnectStateText(disconnectReason(State.status));
         if (discBar) {
-            discBar.hidden = false;
-            const rEl = document.getElementById('waDisconnectReason');
-            if (rEl) rEl.textContent = disconnectReason(State.status);
+            if (isBotLoading()) {
+                discBar.hidden = true;
+            } else {
+                discBar.hidden = false;
+                const rEl = document.getElementById('waDisconnectReason');
+                if (rEl) rEl.textContent = disconnectReason(State.status);
+            }
         }
         badge.className = 'wa-status disconnected';
         text.textContent = (State.selectedPhone ? 'Desconectado' : 'Reconectando — escaneie o QR');
@@ -313,11 +297,14 @@ async function loadQRCode() {
 
         if (data.qr) {
             // data.qr is a data: URI (image) produced by the bot.
+            setConnectStateText('Aguardando leitura do QR');
             container.innerHTML = `<img src="${escapeHtml(data.qr)}" alt="QR code para conectar o WhatsApp">`;
         } else if (data.connected) {
             // Bot connected between polls — reflect it immediately.
+            setConnectStateText('Conectado');
             container.innerHTML = `<div class="wa-loading"><div class="wa-spinner" aria-hidden="true"></div>Conectando...</div>`;
         } else {
+            setConnectStateText(disconnectReason(data.status || State.status));
             container.innerHTML = `<p style="color: var(--wa-text-secondary);">QR indisponível</p>`;
         }
 
@@ -356,6 +343,11 @@ function stopQRPolling() {
 }
 
 function setConnectMode(mode) {
+    // Plano B sempre visível: mostra o seletor QR/Telefone quando o painel de
+    // conexão aparece (antes ficava hidden e o pareamento por código nunca era
+    // alcançável — útil quando o WhatsApp bloqueia novos dispositivos no QR).
+    const modeBar = document.getElementById('waConnectMode');
+    if (modeBar) modeBar.hidden = false;
     const qrCode = document.getElementById('qrCode');
     const phonePairing = document.getElementById('phonePairing');
     const qrHint = document.getElementById('qrRefreshHint');
@@ -365,6 +357,7 @@ function setConnectMode(mode) {
 
     if (qrCode) qrCode.hidden = isPhone;
     if (phonePairing) phonePairing.hidden = !isPhone;
+    setConnectStateText(isPhone ? 'Aguardando código por telefone' : 'Aguardando leitura do QR');
     if (qrHint) qrHint.textContent = isPhone
         ? 'Use o codigo exibido no WhatsApp do celular para parear este navegador.'
         : 'Abra o WhatsApp no celular > Aparelhos conectados > Conectar aparelho.';
@@ -614,10 +607,26 @@ function getLinkedBadges(conversation) {
     return badges.join('');
 }
 
+// NOTA: ha uma segunda declaracao de renderAvatarContent mais abaixo (com o
+// suporte completo a foto/grupo/maestro) que prevalece em runtime por hoisting.
+// Esta mantem o mesmo comportamento para nao divergir caso seja chamada antes.
 function renderAvatarContent(conversation, name) {
     const initials = escapeHtml(getInitials(name));
-    if (conversation && conversation.profilePic) {
-        return `<img class="wa-avatar-img" src="${escapeHtml(conversation.profilePic)}" alt="${escapeHtml(name)}" onerror="this.hidden=true;this.nextElementSibling.hidden=false">` +
+    const kind = classifyAvatarKind(conversation, name);
+
+    if (kind === 'maestro') {
+        return `<img class="wa-avatar-img wa-avatar--maestro" src="${MAESTRO_AVATAR_SRC}" alt="${escapeHtml(name)}" `
+            + `onerror="this.hidden=true;this.nextElementSibling.hidden=false">`
+            + `<span class="wa-avatar-icon" hidden aria-hidden="true"><i class="fas fa-robot"></i></span>`;
+    }
+
+    if (kind === 'group') {
+        return `<span class="wa-avatar-icon" aria-hidden="true"><i class="fas fa-users"></i></span>`;
+    }
+
+    const profilePic = getConversationPhoto(conversation);
+    if (profilePic) {
+        return `<img class="wa-avatar-img" src="${escapeHtml(profilePic)}" alt="${escapeHtml(name)}" onerror="this.hidden=true;this.nextElementSibling.hidden=false">` +
             `<span class="wa-avatar-fallback" hidden>${initials}</span>`;
     }
     return `<span class="wa-avatar-fallback">${initials}</span>`;
@@ -659,6 +668,19 @@ function renderConversations() {
     }
 
     if (filtered.length === 0) {
+        // #5 (Example User 02/06) — primeira conexao: enquanto o bot ainda esta
+        // conectando/carregando e nenhuma conversa foi buscada com sucesso,
+        // mostra um aviso de carregamento em vez de "Nenhuma conversa ainda".
+        // Doherty: estado visivel evita a percepcao de tela vazia/travada.
+        if (State.conversations.length === 0 && !conversationsLoaded && isBotLoading()) {
+            container.innerHTML = `
+                <div class="wa-loading" role="status" aria-live="polite">
+                    <div class="wa-spinner" aria-hidden="true"></div>
+                    <div>Carregando conversas…</div>
+                    <small class="wa-loading-hint">A primeira conexão pode levar alguns segundos.</small>
+                </div>`;
+            return;
+        }
         container.innerHTML = `<div class="wa-empty-list">
             ${State.conversations.length === 0 ? 'Nenhuma conversa ainda' : 'Nenhum resultado encontrado'}
         </div>`;
@@ -700,10 +722,11 @@ function renderConversations() {
 
         const avatarContent = renderAvatarContent(c, name);
         const avatarStyle = getAvatarGradientStyle(c.phone || name);
+        const avatarWrapClass = getAvatarWrapperClass(c, name);
 
         return `
             <div class="wa-conversation ${isActive ? 'active' : ''} ${extraClasses.join(' ')}" onclick="selectConversation('${c.phone}')">
-                <div class="wa-avatar" style="${avatarStyle}">${avatarContent}</div>
+                <div class="wa-avatar${avatarWrapClass}" style="${avatarStyle}">${avatarContent}</div>
                 <div class="wa-conv-info">
                     <div class="wa-conv-header">
                         <span class="wa-conv-name">${isUrgent ? '<i class="fas fa-exclamation-triangle wa-urgent-icon" aria-hidden="true"></i>' : ''}<span class="wa-conv-name-text">${escapeHtml(name)}</span>${getContactTypeBadge(c.contact_type)}${getOwnerBadge(c)}${isHumanTakeover ? ' <span class="human-badge" title="Atendimento humano"><i class="fas fa-user" aria-hidden="true"></i></span>' : ''}${isNeverContact ? ' <span class="never-contact-badge" title="Assistente pausado"><i class="fas fa-ban" aria-hidden="true"></i></span>' : ''}</span>
@@ -775,6 +798,8 @@ async function selectConversation(phone) {
     const avatarEl = document.getElementById('chatAvatar');
     avatarEl.setAttribute('style', getAvatarGradientStyle((conv && conv.phone) || phone || name));
     avatarEl.innerHTML = conv ? renderAvatarContent(conv, name) : `<span class="wa-avatar-initials">${escapeHtml(getInitials(name))}</span>`;
+    // Tint de grupo no disco do cabecalho quando for um canal de equipe (#equipe).
+    avatarEl.classList.toggle('wa-avatar--group', !!conv && getAvatarWrapperClass(conv, name) !== '');
     document.getElementById('chatStatus').textContent = phone;
 
     // Update bot toggle based on conversation
@@ -822,7 +847,7 @@ async function selectConversation(phone) {
  * Sem esse merge, qualquer refresh (loadMessages, polling, troca de
  * conversa) sobrescrevia State.messages e a msg que o user acabou de
  * enviar SUMIA da tela apesar de já ter chegado no destinatário —
- * exatamente o que o [parceiro] reportou na reunião 25/05 [01:10:33].
+ * exatamente o que o Example User reportou na reunião 25/05 [01:10:33].
  *
  * Política: mantém otimisticas com idade ≤ 60s que NÃO têm correspondente
  * no fresh (matched por content+role + janela de tempo de 30s). Acima de
@@ -859,7 +884,7 @@ async function loadMessages(phone, loadId) {
         const fresh = Array.isArray(data) ? data : [];
         // B10 (26/05): preserva otimisticas pendentes (< 60s) que o bot ainda
         // não confirmou — antes, sobrescrever State.messages cega apagava a msg
-        // recém-enviada da tela do CaseHub. Reunião [parceiro] [01:10:33].
+        // recém-enviada da tela do CaseHub. Reunião Example User [01:10:33].
         State.messages = _mergeWithPendingOptimistic(fresh, State.messages);
         renderWhatsAppMessages();
 
@@ -2134,28 +2159,54 @@ function formatPhone(phone) {
     return phone;
 }
 
+// Fuso de Brasília (Victor 10/06). O backend grava UTC (datetime.utcnow), às
+// vezes SEM designador de fuso ('Z'). new Date() interpreta string naive como
+// horário LOCAL do navegador -> horários errados e variando por máquina.
+// parseServerDate trata a string naive como UTC; os formatadores SEMPRE exibem
+// em America/Sao_Paulo, independente de onde o usuário esteja.
+const BR_TZ = 'America/Sao_Paulo';
+function parseServerDate(s) {
+    if (s instanceof Date) return s;
+    if (!s) return new Date(NaN);
+    // Epoch numérico (ms ou segundos) — getMessageTs e o balão otimista passam
+    // NÚMERO; antes virava "Invalid date" (String(1718..)+'Z' não parseia).
+    if (typeof s === 'number' || /^\d{9,}$/.test(String(s).trim())) {
+        let n = Number(s);
+        if (n < 1e12) n *= 1000; // epoch em segundos -> ms
+        return new Date(n);
+    }
+    let str = String(s);
+    if (!/([zZ])|([+-]\d{2}:?\d{2})$/.test(str)) {
+        str = str.replace(' ', 'T') + 'Z'; // naive => trata como UTC
+    }
+    return new Date(str);
+}
+
 function formatTime(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
+    const date = parseServerDate(dateStr);
     const now = new Date();
     const diff = now - date;
 
-    if (diff < 86400000 && date.getDate() === now.getDate()) {
-        return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    // mesmo dia em Brasília (compara via string localizada no fuso BR)
+    const sameDayBr = date.toLocaleDateString('pt-BR', { timeZone: BR_TZ })
+        === now.toLocaleDateString('pt-BR', { timeZone: BR_TZ });
+    if (diff < 86400000 && sameDayBr) {
+        return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: BR_TZ });
     }
     if (diff < 172800000) {
         return 'Ontem';
     }
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: BR_TZ });
 }
 
 function formatMessageTime(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
-    // v13.0: Use EST (office timezone) for consistency
-    return date.toLocaleTimeString('en-US', {
+    const date = parseServerDate(dateStr);
+    // Brasília (era America/New_York — leftover ILC immigration v13.0)
+    return date.toLocaleTimeString('pt-BR', {
         hour: '2-digit', minute: '2-digit',
-        timeZone: 'America/New_York'
+        timeZone: BR_TZ
     });
 }
 
@@ -2164,6 +2215,47 @@ function getConversationDisplayName(conversation) {
     // Backend resolves `name` = linked Client.full_name > WhatsApp display_name >
     // phone, so prefer it over the raw WhatsApp pushname.
     return conversation.name || conversation.whatsapp_name || formatPhone(conversation.phone);
+}
+
+// Marca do Maestro nas abas do chat de bandeja. `/static/` direto (regra de
+// paths do CaseHub — nunca PREFIX/static).
+const MAESTRO_AVATAR_SRC = '/static/img/maestro.png';
+
+// Classifica a conversa para escolher o avatar das abas internas do chat de
+// bandeja (#equipe, @Maestro, @Example User...). Retorna 'maestro' p/ o Maestro,
+// 'group' p/ canais de equipe (#...), ou 'person' p/ pessoas/contatos normais.
+// So olha nome/flags da conversa — nao toca em socket/conexao do WhatsApp.
+function classifyAvatarKind(conversation, displayName) {
+    const rawName = (conversation && (conversation.name || conversation.whatsapp_name)) || displayName || '';
+    const name = String(rawName).trim();
+    const lower = name.toLowerCase();
+
+    // Maestro: aba @Maestro (ou flag explicita do backend).
+    if ((conversation && (conversation.is_maestro === true || conversation.isMaestro === true))
+        || lower === '@maestro' || lower === 'maestro'
+        || lower.replace(/^@/, '') === 'maestro') {
+        return 'maestro';
+    }
+
+    // Grupo/canal de equipe: #equipe e similares (ou flag de grupo do backend).
+    if ((conversation && (conversation.is_group === true || conversation.isGroup === true))
+        || name.startsWith('#')) {
+        return 'group';
+    }
+
+    return 'person';
+}
+
+// Resolve a foto da conversa, aceitando os varios nomes de campo que o backend
+// pode usar (profilePic / profile_pic / profile_picture / photo_url / photoUrl).
+function getConversationPhoto(conversation) {
+    if (!conversation) return '';
+    return conversation.profilePic
+        || conversation.profile_pic
+        || conversation.profile_picture
+        || conversation.photo_url
+        || conversation.photoUrl
+        || '';
 }
 
 // Owner-tag chip: colored badge showing who "owns" this contact (CRM owner).
@@ -2221,14 +2313,36 @@ function getAvatarGradientStyle(seed) {
     return `--wa-avatar-gradient: linear-gradient(135deg, ${selected[0]} 0%, ${selected[1]} 58%, ${selected[2]} 100%);`;
 }
 
+// Conteudo interno do disco de avatar. Renderiza FOTO redonda p/ pessoa
+// (fallback iniciais se sem foto), icone de grupo p/ #equipe, e a marca do
+// Maestro p/ a aba @Maestro — nunca um "@"/"#" cru. So mexe no render do
+// avatar; nenhuma logica de socket/conexao do WhatsApp e tocada aqui.
 function renderAvatarContent(conversation, displayName) {
     const initials = escapeHtml(getInitials(displayName));
-    const profilePic = conversation && (conversation.profilePic || conversation.profile_pic || conversation.profile_picture);
+    const kind = classifyAvatarKind(conversation, displayName);
+
+    if (kind === 'maestro') {
+        return `<img class="wa-avatar-img wa-avatar--maestro" src="${MAESTRO_AVATAR_SRC}" alt="${escapeHtml(displayName)}" `
+            + `onerror="this.hidden=true;this.nextElementSibling.hidden=false">`
+            + `<span class="wa-avatar-icon" hidden aria-hidden="true"><i class="fas fa-robot"></i></span>`;
+    }
+
+    if (kind === 'group') {
+        return `<span class="wa-avatar-icon" aria-hidden="true"><i class="fas fa-users"></i></span>`;
+    }
+
+    const profilePic = getConversationPhoto(conversation);
     if (profilePic) {
         return `<img class="wa-avatar-img" src="${escapeHtml(profilePic)}" alt="${escapeHtml(displayName)}" onerror="this.hidden=true;this.nextElementSibling.hidden=false">`
             + `<span class="wa-avatar-initials" hidden>${initials}</span>`;
     }
     return `<span class="wa-avatar-initials">${initials}</span>`;
+}
+
+// Classe extra do disco (.wa-avatar). Grupos (#equipe) ganham o tint verde do
+// .wa-avatar--group; pessoas/maestro ficam com o relevo neumorfico padrao.
+function getAvatarWrapperClass(conversation, displayName) {
+    return classifyAvatarKind(conversation, displayName) === 'group' ? ' wa-avatar--group' : '';
 }
 
 function truncate(str, len) {
@@ -2285,6 +2399,9 @@ function requestNotificationPermission() {
 }
 
 function showBrowserNotification(msg) {
+    // Respeita os toggles das settings (antes eram decorativos — notificava
+    // sempre, ignorando a preferência do usuário).
+    if (typeof SettingsState !== 'undefined' && !SettingsState.notifyNewMsg) return;
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     if (!document.hidden) return;
 
@@ -2297,7 +2414,7 @@ function showBrowserNotification(msg) {
         body: body,
         icon: icon,
         tag: 'wa-msg-' + (msg.phone || State.selectedPhone),
-        silent: false
+        silent: (typeof SettingsState !== 'undefined') ? !SettingsState.notifySound : false
     });
 
     notification.onclick = () => {
@@ -2545,7 +2662,13 @@ function renderMessageContent(m) {
     const REAL_MEDIA = ['image','video','audio','ptt','voice','document','file','sticker','location','vcard','contact'];
     const mtKind = (m.media_type || '').toLowerCase();
     if (m.hasMedia || REAL_MEDIA.includes(mtKind) || m.media_url) {
-        const mediaUrl = m.media_url || m.mediaUrl;
+        let mediaUrl = m.media_url || m.mediaUrl;
+
+        // Ensure media requests route through the proxy so images/videos appear correctly
+        if (mediaUrl && mediaUrl.startsWith('/api/')) {
+            mediaUrl = '/whatsapp-api' + mediaUrl;
+        }
+
         const kind = getMediaKind(m);
 
         if (mediaUrl) {
@@ -3009,14 +3132,18 @@ function saveTemplate() {
         }
         showNotification('Template atualizado!');
     } else {
-        // Add new
-        const newId = Math.max(...TEMPLATES.map(t => t.id)) + 1;
+        // Add new. IDs custom começam em >100 para que loadCustomTemplates os
+        // reconheça e persista (antes pegava o próximo id sequencial — ex. 23 —
+        // que era ignorado no reload e o template recém-criado sumia).
+        const newId = Math.max(100, ...TEMPLATES.map(t => t.id)) + 1;
         TEMPLATES.push({ id: newId, cat: category, name: name, text: text });
         showNotification('Template adicionado!');
     }
 
-    // Save to localStorage
-    localStorage.setItem('customTemplates', JSON.stringify(TEMPLATES));
+    // Persiste SÓ os templates criados pelo usuário (id>100). Salvar o array
+    // inteiro fazia os defaults antigos (imigração US) ressuscitarem sobre os
+    // novos defaults BR vindos do código.
+    localStorage.setItem('customTemplates', JSON.stringify(TEMPLATES.filter(t => t.id > 100)));
 
     closeEditTemplateModal();
     renderTemplatesGrid();
@@ -3031,7 +3158,7 @@ function deleteTemplate(id) {
     const index = TEMPLATES.findIndex(t => t.id === id);
     if (index > -1) {
         TEMPLATES.splice(index, 1);
-        localStorage.setItem('customTemplates', JSON.stringify(TEMPLATES));
+        localStorage.setItem('customTemplates', JSON.stringify(TEMPLATES.filter(t => t.id > 100)));
         renderTemplatesGrid();
         renderTemplates();
         showNotification('Template excluído!');
@@ -3044,12 +3171,11 @@ function loadCustomTemplates() {
     if (saved) {
         try {
             const customTemplates = JSON.parse(saved);
-            // Merge with default templates (custom overrides)
+            // Só re-injeta os templates CRIADOS pelo usuário (id>100). Os defaults
+            // (id<=100) vêm sempre do código (BR atuais) — não deixa edição antiga
+            // em localStorage sobrescrever/ressuscitar defaults trocados.
             customTemplates.forEach(ct => {
-                const existing = TEMPLATES.find(t => t.id === ct.id);
-                if (existing) {
-                    Object.assign(existing, ct);
-                } else if (ct.id > 100) { // New custom templates have id > 100
+                if (ct && ct.id > 100 && !TEMPLATES.some(t => t.id === ct.id)) {
                     TEMPLATES.push(ct);
                 }
             });
@@ -3129,10 +3255,40 @@ function saveUrgentConversations() {
     localStorage.setItem('urgentConversations', JSON.stringify([...urgentConversations]));
 }
 
+// Abas de tag (Victor 10/06): separa conversas por tag/cliente. Aditivo e
+// defensivo — tags podem vir como array, string CSV ou ausentes; sem tags a
+// barra fica escondida (degrada graciosamente, nunca quebra). escapeHtml em
+// todo conteúdo de tag (evita XSS via nome de tag vindo do backend).
+function convTags(c) {
+    const t = c && c.tags;
+    if (Array.isArray(t)) return t.map(x => String(x).trim()).filter(Boolean);
+    if (typeof t === 'string') return t.split(',').map(x => x.trim()).filter(Boolean);
+    return [];
+}
+
+function renderTagChips() {
+    const bar = document.getElementById('tagFilterBar');
+    if (!bar) return;
+    const counts = {};
+    (State.conversations || []).forEach(c => convTags(c).forEach(t => { counts[t] = (counts[t] || 0) + 1; }));
+    const tags = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    if (!tags.length) { bar.hidden = true; bar.innerHTML = ''; return; }
+    bar.hidden = false;
+    bar.innerHTML = '<span class="wa-tagbar-label"><i class="fas fa-tags" aria-hidden="true"></i> Tags</span>' +
+        tags.map(t => {
+            const f = 'tag:' + t;
+            const on = currentFilter === f;
+            return '<button class="wa-filter-chip wa-tag-chip' + (on ? ' active' : '') + '" type="button"'
+                + ' data-filter="' + escapeHtml(f) + '" onclick="applyFilter(this.dataset.filter)"'
+                + ' aria-pressed="' + on + '" title="Conversas com a tag ' + escapeHtml(t) + '">'
+                + escapeHtml(t) + ' <span class="wa-tag-chip__count">' + counts[t] + '</span></button>';
+        }).join('');
+}
+
 function applyFilter(filter) {
     currentFilter = filter;
 
-    // Update filter buttons
+    // Update filter buttons (inclui as wa-tag-chip, que tambem sao wa-filter-chip)
     document.querySelectorAll('.wa-filter-chip').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.filter === filter);
     });
@@ -3173,6 +3329,14 @@ renderConversations = function() {
             filtered = filtered.filter(c => urgentConversations.has(c.phone));
             break;
     }
+
+    // Abas de tag: filtra por tag selecionada (separa conversas por cliente/tag).
+    if (typeof currentFilter === 'string' && currentFilter.indexOf('tag:') === 0) {
+        const wantTag = currentFilter.slice(4);
+        filtered = filtered.filter(c => convTags(c).indexOf(wantTag) !== -1);
+    }
+
+    renderTagChips();
 
     if (filtered.length === 0) {
         container.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--wa-text-secondary);">
@@ -3215,10 +3379,11 @@ renderConversations = function() {
 
         const avatarContent2 = renderAvatarContent(c, name);
         const avatarStyle = getAvatarGradientStyle(c.phone || name);
+        const avatarWrapClass = getAvatarWrapperClass(c, name);
 
         return `
             <div class="wa-conversation ${isActive ? 'active' : ''} ${extraClasses.join(' ')}" onclick="selectConversation('${c.phone}')">
-                <div class="wa-avatar" style="${avatarStyle}">${avatarContent2}</div>
+                <div class="wa-avatar${avatarWrapClass}" style="${avatarStyle}">${avatarContent2}</div>
                 <div class="wa-conv-info">
                     <div class="wa-conv-header">
                         <span class="wa-conv-name">
@@ -3846,7 +4011,9 @@ let newMessageCount = 0;  // tracked for the scroll-to-bottom badge
 // created_at so legacy rows still order correctly.
 function getMessageTs(m) {
     const raw = m.sent_at || m.created_at || m.timestamp;
-    const t = raw ? new Date(raw).getTime() : 0;
+    // parseServerDate trata string naive como UTC e número como epoch — antes
+    // new Date(raw) cru lia o naive como horário LOCAL (3h erradas no sort).
+    const t = raw ? parseServerDate(raw).getTime() : 0;
     return Number.isFinite(t) ? t : 0;
 }
 
@@ -4046,6 +4213,33 @@ selectConversation = async function(phone) {
         const btn = document.querySelector('.wa-toggle-sidebar');
         if (sidebar) sidebar.classList.add('collapsed');
         syncMobileSidebarToggle(sidebar, btn);
+    }
+};
+
+// Keep the CRM contact panel synced to the open conversation. PR #733 mounted
+// the panel + buttons but it never re-rendered on conversation switch, so the
+// owner / lead-stage / notes stayed pinned to the previously-opened phone
+// (Fase 1+2 "inacessível": clicking a new chat left the CRM card stale).
+// Additive + guarded: if whatsapp-crm.js is absent or the panel is closed this
+// is a no-op and never throws.
+const originalSelectConvCrm = selectConversation;
+selectConversation = async function(phone) {
+    await originalSelectConvCrm(phone);
+    try {
+        if (!window.WhatsAppCRM || !phone) return;
+        // Refresh the CRM panel only if it is currently visible — never force it
+        // open over the user's layout, just keep an open panel in sync.
+        const panelHost = document.getElementById('wacPanelHost');
+        if (panelHost && !panelHost.hidden) {
+            window.WhatsAppCRM.openContactPanel(phone);
+        }
+        // If the funnel kanban is open, refresh it so a new lead/stage shows up.
+        const pipeHost = document.getElementById('wacPipelineHost');
+        if (pipeHost && !pipeHost.hidden && window.WhatsAppCRM.refreshPipeline) {
+            window.WhatsAppCRM.refreshPipeline();
+        }
+    } catch (e) {
+        console.warn('[wa-crm] panel sync skipped:', e && e.message);
     }
 };
 
@@ -4549,13 +4743,15 @@ function updatePresence(data) {
 }
 
 function formatLastSeen(date) {
+    date = parseServerDate(date);
     const now = new Date();
-    const sameDay = date.toDateString() === now.toDateString();
-    const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const sameDay = date.toLocaleDateString('pt-BR', { timeZone: BR_TZ })
+        === now.toLocaleDateString('pt-BR', { timeZone: BR_TZ });
+    const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: BR_TZ });
     if (sameDay) return `hoje às ${time}`;
     const y = new Date(now); y.setDate(y.getDate() - 1);
-    if (date.toDateString() === y.toDateString()) return `ontem às ${time}`;
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ` às ${time}`;
+    if (date.toLocaleDateString('pt-BR', { timeZone: BR_TZ }) === y.toLocaleDateString('pt-BR', { timeZone: BR_TZ })) return `ontem às ${time}`;
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: BR_TZ }) + ` às ${time}`;
 }
 
 // ── Attach menu + media composer ─────────────────────────────

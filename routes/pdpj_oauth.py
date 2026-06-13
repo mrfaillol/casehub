@@ -5,7 +5,7 @@ Rota de callback para o fluxo OAuth2 authorization_code do PDPJ (Keycloak CNJ).
 Fluxo:
     1. Admin clica "Conectar PDPJ" na página de settings ou na controladoria
     2. Redireciona para o authorization endpoint do Keycloak PDPJ
-    3. Titular OAB ([parceiro]) autentica com certificado digital / gov.br
+    3. Titular OAB (Example User) autentica com certificado digital / gov.br
     4. PDPJ redireciona de volta para /casehub/oauth/pdpj/callback com ?code=...
     5. Este handler troca o code por access_token + refresh_token
     6. Persiste o refresh_token no banco (org settings) — não no .env
@@ -17,11 +17,15 @@ Notas:
     - Só admins podem iniciar o fluxo (proteção contra CSRF + privilege).
     - O state é armazenado em session cookie (não no banco) para simplicidade.
 """
+import base64
 import hashlib
+import hmac
 import httpx
+import json
 import logging
 import os
 import secrets
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Request, HTTPException
@@ -33,6 +37,11 @@ from core.template_config import templates, PREFIX
 from auth import get_current_user
 from models import get_db
 from config import settings
+from services.pdpj_credentials import (
+    public_pdpj_credential_status,
+    resolve_pdpj_client_credentials,
+    store_tenant_pdpj_client_credentials,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +55,7 @@ PDPJ_USERINFO_URL = "https://sso.cloud.pje.jus.br/auth/realms/pje/protocol/openi
 # Staging (homologação) — usar quando PDPJ_ENV=staging no .env
 PDPJ_STG_AUTH_URL = "https://sso.stg.cloud.pje.jus.br/auth/realms/pje/protocol/openid-connect/auth"
 PDPJ_STG_TOKEN_URL = "https://sso.stg.cloud.pje.jus.br/auth/realms/pje/protocol/openid-connect/token"
+OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60
 
 
 def _get_pdpj_urls() -> tuple[str, str]:
@@ -55,22 +65,98 @@ def _get_pdpj_urls() -> tuple[str, str]:
     return PDPJ_AUTH_URL, PDPJ_TOKEN_URL
 
 
-def _get_redirect_uri() -> str:
-    """Build redirect_uri dynamically from BASE_URL + PREFIX."""
-    base = settings.BASE_URL.rstrip("/")
+def _get_redirect_uri(request: Optional[Request] = None) -> str:
+    """Build redirect_uri from the active host when available."""
+    if request is not None:
+        forwarded_host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+        forwarded_proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+        if forwarded_host and not forwarded_host.startswith(("localhost", "127.0.0.1")):
+            base = f"{forwarded_proto if forwarded_proto != 'http' else 'https'}://{forwarded_host}"
+        else:
+            base = settings.BASE_URL.rstrip("/")
+    else:
+        base = settings.BASE_URL.rstrip("/")
     return f"{base}{PREFIX}/oauth/pdpj/callback"
 
 
-def _get_client_credentials() -> tuple[str, str]:
-    """Return (client_id, client_secret) from environment."""
-    return (
-        os.getenv("PDPJ_CLIENT_ID", ""),
-        os.getenv("PDPJ_CLIENT_SECRET", ""),
-    )
+def _get_client_credentials(db: Session = None, org_id: int | None = None) -> tuple[str, str]:
+    """Return tenant PDPJ credentials, falling back to environment if unset."""
+    credentials = resolve_pdpj_client_credentials(db, org_id)
+    return credentials.client_id, credentials.client_secret
 
 
 def _is_pdpj_admin(user) -> bool:
     return getattr(user, "user_type", "") in ("admin", "superadmin")
+
+
+def _request_org_id(request: Request, user=None) -> Optional[int]:
+    """Resolve tenant context without falling back to org 1."""
+    raw_org_id = getattr(getattr(request, "state", None), "org_id", None)
+    if raw_org_id is None and user is not None:
+        raw_org_id = getattr(user, "org_id", None)
+    try:
+        org_id = int(raw_org_id)
+    except (TypeError, ValueError):
+        return None
+    return org_id if org_id > 0 else None
+
+
+def _b64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def _b64url_decode(data: str) -> bytes:
+    padding = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode((data + padding).encode("ascii"))
+
+
+def _oauth_state_signature(payload: str) -> str:
+    return hmac.new(
+        settings.SECRET_KEY.encode("utf-8"),
+        payload.encode("ascii"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _encode_pdpj_oauth_state(user, org_id: int) -> str:
+    payload = {
+        "scope": "pdpj",
+        "uid": getattr(user, "id", None),
+        "sub": getattr(user, "email", ""),
+        "org": int(org_id),
+        "iat": int(time.time()),
+        "nonce": secrets.token_urlsafe(16),
+    }
+    encoded = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    return f"{encoded}.{_oauth_state_signature(encoded)}"
+
+
+def _decode_pdpj_oauth_state(state: str, user, expected_org_id: int) -> bool:
+    try:
+        encoded, signature = (state or "").split(".", 1)
+    except ValueError:
+        return False
+    expected = _oauth_state_signature(encoded)
+    if not hmac.compare_digest(signature, expected):
+        return False
+    try:
+        payload = json.loads(_b64url_decode(encoded).decode("utf-8"))
+    except Exception:
+        return False
+    now = int(time.time())
+    issued_at = int(payload.get("iat") or 0)
+    if not (now - OAUTH_STATE_MAX_AGE_SECONDS <= issued_at <= now + 60):
+        return False
+    if payload.get("scope") != "pdpj":
+        return False
+    if payload.get("uid") != getattr(user, "id", None):
+        return False
+    if payload.get("sub") != getattr(user, "email", ""):
+        return False
+    if int(payload.get("org") or 0) != int(expected_org_id):
+        logger.warning("PDPJ OAuth state org mismatch: payload=%s expected=%s", payload.get("org"), expected_org_id)
+        return False
+    return True
 
 
 # ──────────── Routes ────────────
@@ -85,11 +171,14 @@ async def pdpj_status(
     if not user:
         return JSONResponse({"error": "Não autenticado"}, status_code=401)
 
-    client_id, client_secret = _get_client_credentials()
+    org_id = _request_org_id(request, user)
+    if org_id is None:
+        return JSONResponse({"error": "Tenant não identificado"}, status_code=400)
+    credential_status = public_pdpj_credential_status(db, org_id)
+    client_id, client_secret = _get_client_credentials(db, org_id)
     refresh_token = os.getenv("PDPJ_REFRESH_TOKEN", "")
 
     # Check org-level override (stored in DB)
-    org_id = getattr(request.state, "org_id", 1)
     org_refresh = _get_org_pdpj_token(db, org_id)
 
     # Alinhado ao PDPJAuthClient.is_configured: client_credentials não precisa
@@ -101,7 +190,7 @@ async def pdpj_status(
     auth_state = {}
     try:
         from services.comunicaapi import pdpj_auth
-        auth_state = pdpj_auth.public_status()
+        auth_state = pdpj_auth.public_status(org_id)
     except Exception:
         auth_state = {}
 
@@ -109,12 +198,70 @@ async def pdpj_status(
         "configured": configured,
         "has_client_id": bool(client_id),
         "has_client_secret": bool(client_secret),
+        "credential_source": credential_status["source"],
+        "credential_error": credential_status["error"],
+        "client_id_fingerprint": credential_status["client_id_fingerprint"],
+        "client_secret_fingerprint": credential_status["client_secret_fingerprint"],
         "has_refresh_token": bool(refresh_token or org_refresh),
         "token_source": "database" if org_refresh else ("env" if refresh_token else "none"),
-        "redirect_uri": _get_redirect_uri(),
+        "redirect_uri": _get_redirect_uri(request),
         "environment": os.getenv("PDPJ_ENV", "production"),
         "grant_strategy": "client_credentials_with_refresh_fallback",
         "auth": auth_state,
+    })
+
+
+@router.post("/credentials", response_class=JSONResponse)
+async def pdpj_credentials(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Admin-only write path for tenant-scoped PDPJ client credentials."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Não autenticado"}, status_code=401)
+    if not _is_pdpj_admin(user):
+        raise HTTPException(status_code=403, detail="Apenas administradores podem configurar o PDPJ")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Payload inválido"}, status_code=400)
+
+    client_id = str(payload.get("client_id") or "").strip()
+    client_secret = str(payload.get("client_secret") or "").strip()
+    if not client_id or not client_secret:
+        return JSONResponse({"error": "client_id e client_secret são obrigatórios"}, status_code=400)
+
+    org_id = _request_org_id(request, user)
+    if org_id is None:
+        return JSONResponse({"error": "Tenant não identificado"}, status_code=400)
+    try:
+        status = store_tenant_pdpj_client_credentials(
+            db,
+            org_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            user_id=getattr(user, "id", None),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except Exception as exc:
+        db.rollback()
+        logger.error("PDPJ credential store failed for org_id=%s: %s", org_id, exc)
+        return JSONResponse({"error": "Não foi possível salvar a credencial PDPJ"}, status_code=500)
+
+    try:
+        from services.comunicaapi import pdpj_auth
+        await pdpj_auth.invalidate_cache(org_id)
+    except Exception:
+        logger.debug("PDPJ credential cache invalidation skipped", exc_info=True)
+
+    return JSONResponse({
+        "success": True,
+        "status": status,
     })
 
 
@@ -132,7 +279,10 @@ async def pdpj_probe(
 
     try:
         from services.comunicaapi import pdpj_auth
-        result = await pdpj_auth.probe_client_credentials()
+        org_id = _request_org_id(request, user)
+        if org_id is None:
+            return JSONResponse({"error": "Tenant não identificado"}, status_code=400)
+        result = await pdpj_auth.probe_client_credentials(org_id)
     except Exception as e:
         logger.error("PDPJ probe failed unexpectedly: %s", e)
         result = {
@@ -146,7 +296,7 @@ async def pdpj_probe(
         **result,
         "environment": os.getenv("PDPJ_ENV", "production"),
         "grant_type": "client_credentials",
-        "redirect_uri": _get_redirect_uri(),
+        "redirect_uri": _get_redirect_uri(request),
     })
 
 
@@ -168,19 +318,21 @@ async def pdpj_connect(
     if not _is_pdpj_admin(user):
         raise HTTPException(status_code=403, detail="Apenas administradores podem conectar o PDPJ")
 
-    client_id, _ = _get_client_credentials()
+    org_id = _request_org_id(request, user)
+    if org_id is None:
+        return JSONResponse({"error": "Tenant não identificado"}, status_code=400)
+    client_id, _ = _get_client_credentials(db, org_id)
     if not client_id:
         return JSONResponse({
-            "error": "PDPJ_CLIENT_ID não configurado. Aguarde as credenciais do CNJ.",
-            "help": "Configure PDPJ_CLIENT_ID e PDPJ_CLIENT_SECRET no .env da instância.",
+            "error": "Client_ID PDPJ não configurado para este tenant.",
+            "help": "Configure as credenciais oficiais do tenant ou PDPJ_CLIENT_ID/PDPJ_CLIENT_SECRET no servidor.",
         }, status_code=400)
 
-    # Generate CSRF state
-    state = secrets.token_urlsafe(32)
+    state = _encode_pdpj_oauth_state(user, org_id)
 
     # Store state in a signed cookie (expires in 10 minutes)
     auth_url, _ = _get_pdpj_urls()
-    redirect_uri = _get_redirect_uri()
+    redirect_uri = _get_redirect_uri(request)
 
     # Build authorization URL
     # Copilot feedback 2026-04-24: urlencode correto pra aceitar valores com
@@ -281,8 +433,17 @@ async def pdpj_callback(
         })
 
     # CSRF verification
+    org_id = _request_org_id(request, user)
+    if org_id is None:
+        return templates.TemplateResponse("pdpj_oauth_result.html", {
+            "request": request,
+            "PREFIX": PREFIX,
+            "success": False,
+            "error": "no_tenant_context",
+            "error_description": "Sessão sem contexto de escritório. Faça login novamente e reinicie a conexão PDPJ.",
+        })
     stored_state = request.cookies.get("pdpj_oauth_state")
-    if not stored_state or stored_state != state:
+    if not stored_state or not hmac.compare_digest(stored_state, state or "") or not _decode_pdpj_oauth_state(state, user, org_id):
         logger.warning("PDPJ OAuth: state mismatch (CSRF)")
         return templates.TemplateResponse("pdpj_oauth_result.html", {
             "request": request,
@@ -293,9 +454,9 @@ async def pdpj_callback(
         })
 
     # Exchange code for tokens
-    client_id, client_secret = _get_client_credentials()
+    client_id, client_secret = _get_client_credentials(db, org_id)
     _, token_url = _get_pdpj_urls()
-    redirect_uri = _get_redirect_uri()
+    redirect_uri = _get_redirect_uri(request)
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -312,10 +473,11 @@ async def pdpj_callback(
             )
 
             if token_response.status_code != 200:
+                from services.comunicaapi import _safe_oauth_error
                 logger.error(
                     "PDPJ OAuth: token exchange failed — HTTP %s: %s",
                     token_response.status_code,
-                    token_response.text[:300],
+                    _safe_oauth_error(token_response.text[:300]),
                 )
                 return templates.TemplateResponse("pdpj_oauth_result.html", {
                     "request": request,
@@ -365,15 +527,16 @@ async def pdpj_callback(
         logger.warning("PDPJ OAuth: userinfo failed (non-critical): %s", e)
 
     # Store refresh_token in org settings (database — survives deploys)
-    org_id = getattr(request.state, "org_id", 1)
     _store_org_pdpj_token(db, org_id, refresh_token, pdpj_user_info)
 
     # Also update the in-memory PDPJAuthClient singleton
     try:
         from services.comunicaapi import pdpj_auth
-        pdpj_auth.refresh_token = refresh_token
-        pdpj_auth._access_token = access_token
-        pdpj_auth._expires_at = __import__("time").time() + int(expires_in)
+        st = pdpj_auth._state(org_id)
+        st.refresh_token = refresh_token
+        st.access_token = access_token
+        st.expires_at = time.time() + int(expires_in)
+        st.last_grant_type = "authorization_code"
         logger.info("PDPJ OAuth: in-memory PDPJAuthClient updated")
     except ImportError:
         logger.warning("PDPJ OAuth: could not update PDPJAuthClient (import failed)")

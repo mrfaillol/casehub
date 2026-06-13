@@ -21,6 +21,39 @@
   </div>
 </section>
 
+{% if pending_welcome and pending_welcome > 0 %}
+<div class="ch-card ch-card--compact" style="margin-bottom: var(--space-4); border-left: 4px solid var(--c-warn); display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); flex-wrap:wrap;">
+  <p style="margin:0; font-size: var(--fs-sm);">
+    <strong>{{ pending_welcome }} convite{{ 's' if pending_welcome != 1 else '' }} de acesso pendente{{ 's' if pending_welcome != 1 else '' }}.</strong>
+    O e-mail de boas-vindas não foi entregue (provavelmente a conta Google do escritório ainda precisa ser reconectada). Reenvie quando a conexão estiver ativa — uma nova senha temporária será gerada e enviada a cada pessoa.
+  </p>
+  <button type="button" class="ch-btn ch-btn--primary" id="retryWelcomeBtn" style="flex:none;">
+    <span data-icon="send" data-icon-size="14"></span> Reenviar convites
+  </button>
+</div>
+<script>
+(function(){
+  var btn = document.getElementById('retryWelcomeBtn');
+  if (!btn) return;
+  var orig = btn.innerHTML;
+  btn.addEventListener('click', function(){
+    btn.disabled = true; btn.textContent = 'Reenviando…';
+    fetch('{{ PREFIX }}/admin/users/retry-welcome', { method: 'POST', credentials: 'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.success) {
+          alert('Convites reenviados: ' + (d.sent || 0) + ' de ' + (d.pending || 0) + '.' + ((d.failed||0) ? (' Falharam: ' + d.failed + ' — a conexão do Google pode ainda não estar ativa.') : ''));
+          if (d.sent) { window.location.reload(); } else { btn.disabled = false; btn.innerHTML = orig; }
+        } else {
+          alert('Erro: ' + ((d && d.error) || 'desconhecido')); btn.disabled = false; btn.innerHTML = orig;
+        }
+      })
+      .catch(function(e){ alert('Erro ao reenviar: ' + (e.message || e)); btn.disabled = false; btn.innerHTML = orig; });
+  });
+})();
+</script>
+{% endif %}
+
 <section class="ch-card ch-card--bleed">
   <div class="ch-table-wrap">
     <table class="ch-table ch-table--responsive">

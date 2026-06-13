@@ -172,7 +172,7 @@ CaseHub can run on Windows using Docker Desktop with WSL2.
 
 ```powershell
 # In WSL2 terminal:
-git clone git@github.com:mrfaillol/casehub.git /opt/casehub
+git clone git@github.com:mrfaillol/casehub-prod.git /opt/casehub
 cd /opt/casehub
 cp .env.example .env
 # Edit .env

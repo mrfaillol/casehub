@@ -154,16 +154,16 @@ if __name__ == "__main__":
 
 ```bash
 # Copiar script para o servidor
-scp expand_form.py root@REDACTED-HOST:/var/www/legacy.example/casehub/
+scp expand_form.py root@31.97.174.212:/var/www/immigrant.law/casehub/
 
 # Executar no servidor
-ssh root@REDACTED-HOST "cd /var/www/legacy.example/casehub && source venv/bin/activate && python expand_form.py"
+ssh root@31.97.174.212 "cd /var/www/immigrant.law/casehub && source venv/bin/activate && python expand_form.py"
 ```
 
 ### Passo 6: Verificar o Resultado
 
 ```bash
-ssh root@REDACTED-HOST "cd /var/www/legacy.example/casehub && source venv/bin/activate && python3 -c \"
+ssh root@31.97.174.212 "cd /var/www/immigrant.law/casehub && source venv/bin/activate && python3 -c \"
 import os
 os.environ['DATABASE_URL'] = 'postgresql://casehub:YOUR_DB_PASSWORD@localhost/casehub'
 from sqlalchemy import create_engine, text
@@ -228,14 +228,14 @@ A maioria dos formulários USCIS segue esta estrutura:
 ## Arquivos de Referência
 
 Os scripts de expansão estão em:
-- `/var/www/legacy.example/casehub/expand_i485.py`
-- `/var/www/legacy.example/casehub/expand_i130.py`
-- `/var/www/legacy.example/casehub/expand_i864.py`
-- `/var/www/legacy.example/casehub/expand_i765.py`
-- `/var/www/legacy.example/casehub/expand_i131.py`
-- `/var/www/legacy.example/casehub/expand_remaining_forms.py`
+- `/var/www/immigrant.law/casehub/expand_i485.py`
+- `/var/www/immigrant.law/casehub/expand_i130.py`
+- `/var/www/immigrant.law/casehub/expand_i864.py`
+- `/var/www/immigrant.law/casehub/expand_i765.py`
+- `/var/www/immigrant.law/casehub/expand_i131.py`
+- `/var/www/immigrant.law/casehub/expand_remaining_forms.py`
 
 ## Contato
 
 Para questões sobre o sistema:
-- Email: info@legacy.example
+- Email: info@immigrant.law

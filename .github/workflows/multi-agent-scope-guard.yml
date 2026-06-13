@@ -1,0 +1,204 @@
+name: multi-agent-scope-guard
+
+# Codex round-3: agent role detected by branch pattern (agent/{wing}/<id>)
+# OR label, so removing the label cannot bypass wing validation.
+#
+# KNOWN LIMITATION (Codex round 2): fork PRs get read-only GITHUB_TOKEN;
+# createCommitStatus fails, catch uses core.setFailed.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+concurrency:
+  group: multi-agent-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scope-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Detect agent
+        id: detect
+        env:
+          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          labels="$LABELS_JSON"
+          head_ref="$HEAD_REF"
+          # Codex review P2 round 3: detect by branch pattern OR label.
+          agent=""
+          if echo "$labels" | grep -q '"agent:codex-wing"'; then agent=codex-wing
+          elif echo "$labels" | grep -q '"agent:gemini-wing"'; then agent=gemini-wing
+          fi
+          if [[ -z "$agent" ]]; then
+            if [[ "$head_ref" =~ ^agent/codex-wing/[a-zA-Z0-9_-]+$ ]]; then agent=codex-wing
+            elif [[ "$head_ref" =~ ^agent/gemini-wing/[a-zA-Z0-9_-]+$ ]]; then agent=gemini-wing
+            fi
+          fi
+          is_army=false
+          if echo "$labels" | grep -q '"agent:army-claude"'; then is_army=true; fi
+          if [[ "$head_ref" =~ ^agent/army-claude/[a-zA-Z0-9_-]+$ ]]; then is_army=true; fi
+          # Mutex with oracle: multi-agent posts only if wing AND NOT army.
+          if [[ -n "$agent" ]] && [[ "$is_army" != "true" ]]; then
+            responsible=true
+          else
+            responsible=false
+          fi
+          echo "agent=$agent" >> "$GITHUB_OUTPUT"
+          echo "responsible=$responsible" >> "$GITHUB_OUTPUT"
+
+      - name: Post pending scope-guard status (decouple from Copilot bot)
+        if: steps.detect.outputs.responsible == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.payload.pull_request.head.sha,
+                context: 'scope-guard',
+                state: 'pending',
+                description: 'Scope-guard validation in progress',
+                target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+            } catch (e) {
+              core.setFailed(
+                `createCommitStatus pending failed: ${e.message}. ` +
+                `If this is a fork PR, GITHUB_TOKEN is read-only on pull_request; ` +
+                `convert to in-repo branch or add a pull_request_target aggregator.`
+              );
+            }
+
+      - name: Non-wing PR no-op
+        if: steps.detect.outputs.agent == ''
+        run: echo "No wing label or branch; multi-agent scope-guard passes as no-op."
+
+      - name: Checkout
+        if: steps.detect.outputs.agent != ''
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate envelope/branch/title
+        if: steps.detect.outputs.agent != ''
+        run: |
+          set -euo pipefail
+          agent="${{ steps.detect.outputs.agent }}"
+          title="${{ github.event.pull_request.title }}"
+          branch="${{ github.head_ref }}"
+          if [[ ! "$title" =~ ^\[(${agent})-([a-zA-Z0-9_-]+)\] ]]; then
+            echo "::error::PR title missing [${agent}-<id>] header"
+            exit 1
+          fi
+          envelope_id="${BASH_REMATCH[2]}"
+          expected="agent/${agent}/${envelope_id}"
+          [[ "$branch" != "$expected" ]] && { echo "::error::Branch '$branch' != '$expected'"; exit 1; }
+          echo "envelope=$envelope_id" >> "$GITHUB_ENV"
+
+      - name: Reject blocklisted paths (S2)
+        if: steps.detect.outputs.agent != ''
+        run: |
+          set -euo pipefail
+          BLOCKLIST=(
+            '\.env' '\.env\.' '\.key$' '\.pem$' 'id_rsa' 'id_ed25519' 'id_ecdsa'
+            'secrets/' 'credentials/' '\.npmrc$' '\.pypirc$' 'github-app\.pem'
+            '\.htpasswd' '\.aws/' '\.ssh/' '^kubeconfig|/kubeconfig' '\.gpg$'
+            '\.netrc$' 'service-account.*\.json$' '\.p12$' '\.pfx$' '\.jks$'
+            '\.keystore$' 'authorized_keys$'
+          )
+          changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          for path in $changed; do
+            for pattern in "${BLOCKLIST[@]}"; do
+              if [[ "$path" =~ $pattern ]]; then
+                echo "::error file=$path::Blocklisted"
+                exit 1
+              fi
+            done
+          done
+          echo "✓ no blocklisted paths"
+
+      - name: Validate paths_allowed
+        if: steps.detect.outputs.agent != ''
+        run: |
+          set -euo pipefail
+          paths_allowed=$(printf '%s' '${{ github.event.pull_request.body }}' \
+            | awk '/^```paths_allowed$/,/^```$/{ if (!/^```/) print }')
+          [[ -z "$paths_allowed" ]] && { echo "::error::missing paths_allowed"; exit 1; }
+          changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          violations=()
+          while IFS= read -r path; do
+            allowed=false
+            while IFS= read -r ap; do
+              if [[ "$path" == $ap || "$path" == $ap/* ]]; then allowed=true; break; fi
+            done <<< "$paths_allowed"
+            $allowed || violations+=("$path")
+          done <<< "$changed"
+          if [[ ${#violations[@]} -gt 0 ]]; then
+            echo "::error::Scope violation:"
+            printf '  - %s\n' "${violations[@]}"
+            exit 1
+          fi
+          echo "✓ scope OK"
+
+      - name: Audit comment
+        if: always() && steps.detect.outputs.agent != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const agent = '${{ steps.detect.outputs.agent }}';
+            const status = '${{ job.status }}';
+            const envelope = process.env.envelope || 'unknown';
+            const body = [
+              `### Multi-agent scope-guard — ${agent}`,
+              `**Envelope:** \`${envelope}\``,
+              `**Status:** ${status === 'success' ? '✅ ready' : '❌ blocked'}`,
+              ``,
+              `cc @openai-code-agent (codex co-watcher)`,
+              `Ruling: \`2026-05-05-perpetual-sessions-and-automerge\` (Item 2)`,
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number, body,
+            });
+
+      - name: Post final scope-guard status
+        if: always() && steps.detect.outputs.responsible == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobStatus = '${{ job.status }}';
+            if (jobStatus === 'cancelled') {
+              core.info('Job cancelled (likely superseded by newer run); skipping status post.');
+              return;
+            }
+            const state = jobStatus === 'success' ? 'success' : 'failure';
+            const description = state === 'success'
+              ? 'Scope-guard passed (wing validations green)'
+              : `Scope-guard ${jobStatus} — see workflow logs`;
+            try {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.payload.pull_request.head.sha,
+                context: 'scope-guard',
+                state,
+                description,
+                target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+            } catch (e) {
+              core.setFailed(
+                `createCommitStatus final failed: ${e.message}. ` +
+                `If this is a fork PR, GITHUB_TOKEN is read-only on pull_request; ` +
+                `convert to in-repo branch or add a pull_request_target aggregator.`
+              );
+            }

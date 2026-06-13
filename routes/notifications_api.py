@@ -217,6 +217,27 @@ async def whatsapp_message_notification(
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+@router.post("/sentinel-run")
+async def run_sentinel(request: Request, db: Session = Depends(get_db)):
+    """Trigger do Maestro Sentinel. Protegido por CRM_WEBHOOK_API_KEY ou admin.
+    Cron diário: POST /api/notifications/sentinel-run com X-Api-Key.
+    """
+    import hmac as _hmac
+    api_key = request.headers.get("X-Api-Key", "")
+    key_ok = bool(WEBHOOK_API_KEY) and _hmac.compare_digest(api_key, WEBHOOK_API_KEY)
+    if not key_ok:
+        user = get_current_user(request, db)
+        if not user or not getattr(user, "is_admin", False):
+            return JSONResponse({"error": "Não autorizado"}, status_code=403)
+    try:
+        from services.maestro_sentinel import run_sentinel_all_orgs
+        result = run_sentinel_all_orgs()
+        return {"ok": True, **result}
+    except Exception as e:
+        logger.error("sentinel-run error: %s", e)
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 def _time_ago(dt):
     """Human-readable time ago string."""
     if not dt:

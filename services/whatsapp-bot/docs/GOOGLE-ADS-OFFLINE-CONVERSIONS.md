@@ -6,7 +6,7 @@
 LEAD CLICKS GOOGLE AD
         |
         v
-  Landing Page (legacy.example/en/ or /en/free/)
+  Landing Page (immigrant.law/en/ or /en/free/)
   * gclid automatically captured from URL
   * Stored in browser localStorage
         |
@@ -50,9 +50,9 @@ LEAD CLICKS GOOGLE AD
 | **Notion** | NOT automatic | Notion only receives client emails, not form leads |
 
 ### Technical flow:
-- File: `/var/www/legacy.example/whatsapp-bot/server.js` (endpoint `/webhook/form`)
-- Moskit: `/var/www/legacy.example/whatsapp-bot/moskit.js` (createMoskitContact + createDeal)
-- CaseHub: `/var/www/legacy.example/whatsapp-bot/crm-sync.js` (sendToCRM)
+- File: `/var/www/immigrant.law/whatsapp-bot/server.js` (endpoint `/webhook/form`)
+- Moskit: `/var/www/immigrant.law/whatsapp-bot/moskit.js` (createMoskitContact + createDeal)
+- CaseHub: `/var/www/immigrant.law/whatsapp-bot/crm-sync.js` (sendToCRM)
 
 ---
 
@@ -71,7 +71,7 @@ LEAD CLICKS GOOGLE AD
 CALLHIPPO_API_KEY=***
 CALLHIPPO_FROM=+14422197512
 CALLHIPPO_TO=+17272751816
-CALLHIPPO_EMAIL=info@legacy.example
+CALLHIPPO_EMAIL=info@immigrant.law
 CALLHIPPO_WEBHOOK_SECRET=***
 ```
 
@@ -158,7 +158,7 @@ pm2 logs whatsapp-bot --lines 20 --nostream | grep GADS
 - **Secondary microconversion**: WhatsApp button click
 
 ### gclid Capture (frontend):
-- **File**: `/var/www/legacy.example/wp-content/mu-plugins/ilc-gclid-capture.php`
+- **File**: `/var/www/immigrant.law/wp-content/mu-plugins/ilc-gclid-capture.php`
 - **What it does**: Captures gclid from URL, saves in localStorage, injects into Elementor forms
 - **Persistence**: gclid persists across pages (localStorage)
 
@@ -168,12 +168,12 @@ pm2 logs whatsapp-bot --lines 20 --nostream | grep GADS
 
 If the Google Ads API is not configured or returns an error, conversions are saved to:
 ```
-/var/www/legacy.example/whatsapp-bot/data/failed-conversions.json
+/var/www/immigrant.law/whatsapp-bot/data/failed-conversions.json
 ```
 
 Once credentials are configured, retry failed conversions:
 ```bash
-cd /var/www/legacy.example/whatsapp-bot
+cd /var/www/immigrant.law/whatsapp-bot
 node -e "const ct = require('./conversion-tracking'); ct.retryFailedConversions().then(r => console.log(r))"
 ```
 
@@ -183,14 +183,14 @@ node -e "const ct = require('./conversion-tracking'); ct.retryFailedConversions(
 
 ### Via code:
 ```bash
-cd /var/www/legacy.example/whatsapp-bot
+cd /var/www/immigrant.law/whatsapp-bot
 node -e "const ct = require('./conversion-tracking'); console.log(JSON.stringify(ct.getStatus(), null, 2))"
 ```
 
 ### Quick checklist:
 ```bash
 # Google Tag on site?
-curl -s https://legacy.example/en/ | grep -o 'AW-[0-9]*'
+curl -s https://immigrant.law/en/ | grep -o 'AW-[0-9]*'
 # Expected: AW-17815070319
 
 # Facebook CAPI active?
@@ -198,13 +198,13 @@ pm2 logs whatsapp-bot --lines 50 --nostream | grep "Facebook CAPI"
 # Expected: [OK] Conversion Tracking active (Facebook CAPI)
 
 # Webhook working?
-curl -s -X POST https://legacy.example/webhook/form \
+curl -s -X POST https://immigrant.law/webhook/form \
   -H 'Content-Type: application/json' \
   -d '{"name":"Test","email":"test@test.com","phone":"3051234567","message":"test"}'
 # Expected: {"success":true,...}
 
 # gclid capture on frontend?
-curl -s https://legacy.example/en/ | grep 'ilc_gclid'
+curl -s https://immigrant.law/en/ | grep 'ilc_gclid'
 # Expected: JavaScript capture code present
 ```
 
@@ -214,13 +214,13 @@ curl -s https://legacy.example/en/ | grep 'ilc_gclid'
 
 | File | Description |
 |------|-------------|
-| `/var/www/legacy.example/whatsapp-bot/conversion-tracking.js` | Main module (Google Ads API + Facebook CAPI) |
-| `/var/www/legacy.example/whatsapp-bot/server.js` | Webhook `/webhook/form` (receives leads) |
-| `/var/www/legacy.example/whatsapp-bot/moskit.js` | Moskit CRM integration |
-| `/var/www/legacy.example/whatsapp-bot/crm-sync.js` | Dual-write to CaseHub |
-| `/var/www/legacy.example/whatsapp-bot/callhippo.js` | CallHippo SMS integration |
-| `/var/www/legacy.example/wp-content/mu-plugins/ilc-gclid-capture.php` | Frontend: gclid capture |
-| `/var/www/legacy.example/whatsapp-bot/data/failed-conversions.json` | Failed conversions queue |
+| `/var/www/immigrant.law/whatsapp-bot/conversion-tracking.js` | Main module (Google Ads API + Facebook CAPI) |
+| `/var/www/immigrant.law/whatsapp-bot/server.js` | Webhook `/webhook/form` (receives leads) |
+| `/var/www/immigrant.law/whatsapp-bot/moskit.js` | Moskit CRM integration |
+| `/var/www/immigrant.law/whatsapp-bot/crm-sync.js` | Dual-write to CaseHub |
+| `/var/www/immigrant.law/whatsapp-bot/callhippo.js` | CallHippo SMS integration |
+| `/var/www/immigrant.law/wp-content/mu-plugins/ilc-gclid-capture.php` | Frontend: gclid capture |
+| `/var/www/immigrant.law/whatsapp-bot/data/failed-conversions.json` | Failed conversions queue |
 
 ---
 

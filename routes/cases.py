@@ -420,6 +420,13 @@ async def _view_case_impl(request: Request, case_id: int, db: Session, user):
         timeline.sort(key=_sort_date, reverse=True)
         extra_ctx["timeline"] = timeline
 
+    try:
+        from services.google_drive_handler import GoogleDriveHandler
+        _dh = GoogleDriveHandler(db=db, org_id=getattr(request.state, "org_id", None))
+        drive_connected = _dh.is_connected()
+    except Exception:
+        drive_connected = False
+
     return templates.TemplateResponse("app/cases/detail.html", {
         "request": request,
         "user": user,
@@ -427,6 +434,7 @@ async def _view_case_impl(request: Request, case_id: int, db: Session, user):
         "case": case,
         "client": client,
         "custom_fields": custom_fields,
+        "drive_connected": drive_connected,
         **extra_ctx,
     })
 

@@ -297,7 +297,7 @@ O bot e um sistema automatizado de atendimento via WhatsApp para o escritorio de
 
 ### Reiniciar bot:
 ```bash
-cd /var/www/legacy.example/whatsapp-bot
+cd /var/www/immigrant.law/whatsapp-bot
 pm2 restart whatsapp-bot
 ```
 
@@ -308,7 +308,7 @@ pm2 logs whatsapp-bot --lines 100
 
 ### Verificar versao:
 ```bash
-head -10 /var/www/legacy.example/whatsapp-bot/bot-flow.js
+head -10 /var/www/immigrant.law/whatsapp-bot/bot-flow.js
 ```
 
 ### Acessar metricas:
@@ -321,7 +321,7 @@ head -10 /var/www/legacy.example/whatsapp-bot/bot-flow.js
 ## 7. ESTRUTURA DE ARQUIVOS
 
 ```
-/var/www/legacy.example/whatsapp-bot/
+/var/www/immigrant.law/whatsapp-bot/
 ├── server.js              # Servidor principal (v8.6)
 ├── bot-flow.js            # Logica de conversa (v8.6)
 ├── languages.js           # Mensagens multilíngue

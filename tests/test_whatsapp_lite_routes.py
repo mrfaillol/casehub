@@ -88,7 +88,7 @@ def test_message_history_survives_failed_messages_query(db, monkeypatch, request
     result = asyncio.run(wl.message_history(request_stub, client_id=None, db=db))
 
     assert isinstance(result, dict)
-    assert result["_template"] == "whatsapp/lite_dashboard.html"
+    assert result["_template"] == "app/whatsapp/lite_dashboard.html"
     assert result["recent"] == []          # empty state, not a 500
     assert result["view"] == "mensagens"
     assert state["rollbacks"] >= 1          # the except path rolled back
@@ -104,6 +104,6 @@ def test_whatsapp_dashboard_survives_failed_messages_query(db, monkeypatch, requ
     result = asyncio.run(wl.whatsapp_dashboard(request_stub, db=db))
 
     assert isinstance(result, dict)
-    assert result["_template"] == "whatsapp/lite_dashboard.html"
+    assert result["_template"] == "app/whatsapp/lite_dashboard.html"
     assert result["recent"] == []
     assert result["stats"]["total"] == 0   # _get_message_stats degraded cleanly

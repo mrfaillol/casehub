@@ -157,7 +157,12 @@ async def tribunal_consulta(
                 oab_estado = oab_match.group(1)
                 oab_numero = oab_match.group(2)
 
-            resultado = await _search_by_oab(oab_numero, oab_estado, tribunal)
+            resultado = await _search_by_oab(
+                oab_numero,
+                oab_estado,
+                tribunal,
+                org_id=getattr(request.state, "org_id", None),
+            )
             results = resultado["results"]
             source = resultado["source"]
 
@@ -223,11 +228,11 @@ async def _search_by_numero(cnj: str, tribunal: str) -> dict:
         return {"results": [data] if data else [], "source": "Escavador (mock)"}
 
 
-async def _search_by_oab(oab: str, estado: str, tribunal: str) -> dict:
+async def _search_by_oab(oab: str, estado: str, tribunal: str, org_id: Optional[int] = None) -> dict:
     """Try APIs in order for OAB search. ComunicaAPI first (free, official)."""
     # 0. ComunicaAPI PJE/CNJ (gratuita, oficial, prioridade #1)
     try:
-        resultado = await comunicaapi_client.buscar_por_oab(oab, estado)
+        resultado = await comunicaapi_client.buscar_por_oab(oab, estado, org_id=org_id)
         items = resultado.get("items", [])
         if items:
             return {"results": items, "source": "ComunicaAPI PJE/CNJ"}

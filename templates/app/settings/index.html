@@ -123,25 +123,51 @@
     </button>
   </div>
 </section>
+
+<section class="ch-card ch-card--compact" style="margin-top: var(--space-4); display:flex; gap: var(--space-4); align-items: center; flex-wrap: wrap;">
+  <div style="flex: 1; min-width: 280px;">
+    <span class="ch-card__eyebrow">Acessibilidade</span>
+    <p style="margin: var(--space-1) 0 0; color: var(--fg-default);">
+      Fonte grande <strong data-a11y-large-label>—</strong>
+      <span style="color: var(--fg-muted); font-size: var(--fs-sm);"> · Aumenta o tamanho do texto e dos botões em toda a plataforma. Fica salvo neste aparelho.</span>
+    </p>
+  </div>
+  <label class="ch-a11y-switch" for="a11y-large-toggle">
+    <span style="font-size: var(--fs-sm); color: var(--fg-muted);">Letra grande</span>
+    <input id="a11y-large-toggle" type="checkbox" data-toggle="a11y-large" />
+    <span class="ch-a11y-switch__track" aria-hidden="true"></span>
+  </label>
+</section>
 {% endblock %}
 
 {% block extra_js %}
+<script defer src="{{ asset_url('js/a11y.js') }}"></script>
 <script>
 (function () {
   function sync() {
-    if (!window.CHTheme) return;
-    var t = window.CHTheme.get();
-    document.querySelectorAll('[data-theme-label]').forEach(function (el) {
-      el.textContent = t.theme === 'auto' ? 'auto (' + t.resolvedTheme + ')' : t.resolvedTheme;
-    });
-    document.querySelectorAll('[data-eco-label]').forEach(function (el) {
-      el.textContent = t.eco === 'auto' ? 'auto (' + (t.resolvedEco ? 'on' : 'off') + ')' : t.eco;
+    if (window.CHTheme) {
+      var t = window.CHTheme.get();
+      document.querySelectorAll('[data-theme-label]').forEach(function (el) {
+        el.textContent = t.theme === 'auto' ? 'auto (' + t.resolvedTheme + ')' : t.resolvedTheme;
+      });
+      document.querySelectorAll('[data-eco-label]').forEach(function (el) {
+        el.textContent = t.eco === 'auto' ? 'auto (' + (t.resolvedEco ? 'on' : 'off') + ')' : t.eco;
+      });
+    }
+  }
+  function syncA11y() {
+    var on = window.CHA11y ? window.CHA11y.isOn()
+                           : document.documentElement.classList.contains('ch-a11y-large');
+    document.querySelectorAll('[data-a11y-large-label]').forEach(function (el) {
+      el.textContent = on ? 'ligada' : 'desligada';
     });
   }
   document.addEventListener('casehub:theme', sync);
   document.addEventListener('casehub:eco', sync);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sync);
-  else sync();
+  document.addEventListener('casehub:a11y-large', syncA11y);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { sync(); syncA11y(); });
+  } else { sync(); syncA11y(); }
 })();
 </script>
 {% endblock %}

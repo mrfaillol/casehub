@@ -1992,7 +1992,7 @@ var maestroData = null;
 
 var MAESTRO_KNOWN_DATA = {
     admins: [
-        { phone: "REDACTED-PHONE", label: "Victor" },
+        { phone: "5532991513405", label: "Victor" },
         { phone: "5519998523218", label: "Admin 2" },
         { phone: "+1 (940) ***", label: "Daniel" }
     ],

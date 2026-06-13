@@ -16,6 +16,31 @@
   </div>
 </section>
 
+{% if birthdays_month and birthdays_month|length > 0 %}
+<section class="ch-card ch-card--compact" style="margin-bottom: var(--space-5);" aria-labelledby="ch-bday-title">
+  <header style="display:flex; align-items:center; gap: var(--space-2); margin-bottom: var(--space-3);">
+    <span data-icon="calendar" aria-hidden="true"></span>
+    <h2 id="ch-bday-title" style="font-size: var(--fs-md); margin:0;">Aniversariantes</h2>
+    {% if birthdays_today and birthdays_today|length > 0 %}
+      <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ birthdays_today|length }} hoje</span>
+    {% endif %}
+    <span class="ch-pill ch-pill--info"><span class="dot"></span>{{ birthdays_month|length }} este mês</span>
+  </header>
+  <ul style="list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap: var(--space-2);">
+    {% for b in birthdays_month %}
+    <li style="display:flex; align-items:center; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--line); flex-wrap: wrap;">
+      <a href="{{ PREFIX }}/clients/{{ b.id }}" style="flex: 1 1 160px; color: var(--fg-default); font-weight:600; text-decoration:none;">
+        {{ b.name }}{% if b.is_today %} <span class="ch-pill ch-pill--ok" style="font-size: var(--fs-xs);"><span class="dot"></span>Hoje</span>{% endif %}
+      </a>
+      <span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">{{ b.date }}</span>
+      <span style="font-size: var(--fs-sm); color: var(--fg-muted);">faz {{ b.turning }}</span>
+      {% if b.phone %}<span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-faint);">{{ b.phone }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 <form class="ch-card ch-card--compact" method="get" action="{{ PREFIX }}/clients" style="display:flex; gap: var(--space-3); align-items:flex-end; flex-wrap: wrap; margin-bottom: var(--space-5);">
   <div class="ch-field" style="flex: 1 1 240px; margin-bottom: 0;">
     <label class="ch-field__label" for="search">Buscar</label>
@@ -38,31 +63,31 @@
 {% if clients and clients|length > 0 %}
 <section class="ch-card ch-card--bleed">
   <div class="ch-table-wrap">
-    <table class="ch-table ch-table--responsive">
+    <table class="ch-table ch-table--responsive ch-table--clients">
       <thead>
         <tr>
           <th>Cliente</th>
           <th>Contato</th>
           <th>Status</th>
           <th>Cadastrado em</th>
-          <th></th>
+          <th aria-label="Ações"></th>
         </tr>
       </thead>
       <tbody>
         {% for c in clients %}
-        <tr>
-          <td data-label="Cliente">
+        <tr class="ch-cli-row">
+          <td data-label="Cliente" class="ch-cli__name">
             <strong style="display:block; color: var(--fg-default);">{{ c.full_name }}</strong>
             {% if c.client_number %}<span class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">{{ c.client_number }}</span>{% endif %}
           </td>
-          <td data-label="Contato">
+          <td data-label="Contato" class="ch-cli__contact">
             <div style="font-size: var(--fs-sm);">
               {% if c.email %}<div>{{ c.email }}</div>{% endif %}
               {% if c.phone %}<div style="color: var(--fg-muted); font-size: var(--fs-xs);">{{ c.phone }}</div>{% endif %}
               {% if not c.email and not c.phone %}<span style="color: var(--fg-faint);">—</span>{% endif %}
             </div>
           </td>
-          <td data-label="Status">
+          <td data-label="Status" class="ch-cli__status">
             {% if c.status == 'active' %}
               <span class="ch-pill ch-pill--ok"><span class="dot"></span>Ativo</span>
             {% elif c.status == 'inactive' %}
@@ -73,10 +98,10 @@
               <span class="ch-pill"><span class="dot"></span>{{ c.status }}</span>
             {% endif %}
           </td>
-          <td data-label="Cadastrado em" class="ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
+          <td data-label="Cadastrado em" class="ch-cli__date ch-mono" style="font-size: var(--fs-xs); color: var(--fg-muted);">
             {{ c.created_at.strftime('%d/%m/%Y') if c.created_at else '—' }}
           </td>
-          <td data-label="" style="text-align: right;">
+          <td class="ch-cli__go" style="text-align: right;">
             <a class="ch-chip" href="{{ PREFIX }}/clients/{{ c.id }}" aria-label="Abrir cliente {{ c.full_name }}">
               <span data-icon="chevron_right" data-icon-size="14"></span>
             </a>

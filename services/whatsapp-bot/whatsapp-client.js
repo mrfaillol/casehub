@@ -10,7 +10,7 @@
  * proxy "manager" + um shim "default" que mapeia chamadas legadas para
  * manager.getOrCreate(DEFAULT_ORG_ID).
  *
- * Por que multi-session: tenant alpha (cliente.example.com) compartilhava
+ * Por que multi-session: tenant alpha (sampletenant.casehub.legal) compartilhava
  * a sessao WhatsApp da org "default" — qualquer um logado em qualquer tenant
  * via as mesmas conversas. Cada org agora tem QR/numero proprio, isolado.
  *
@@ -22,6 +22,7 @@ const QRCode = require("qrcode");
 const EventEmitter = require("events");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 // ID da org que assume o comportamento legado single-tenant quando nada
 // (header X-Org-Id, dispatch) for passado. ENV opcional: CASEHUB_DEFAULT_ORG_ID.
@@ -63,11 +64,38 @@ class WhatsAppClient extends EventEmitter {
     this.qrTimestamp = null;
     this.status = "disconnected";
     this.lidCache = new Map();
+    // Cache REVERSO telefone(digitos) -> JID original "<lid>@lid". Preenchido no
+    // inbound (client.on "message") sempre que uma conversa chega keyed por LID e
+    // resolvemos o telefone real. O ENVIO consulta este mapa: na era de
+    // LID-addressing o WhatsApp Web indexa a "chat table" pelo LID, NAO pelo
+    // telefone — mandar para "<numero>@c.us" dispara a resolucao usync
+    // phone->LID interna (constructUsyncDeltaQuery) que, quando o interlocutor so
+    // existe no store como LID, falha com "Lid is missing in chat table". Mandar
+    // de volta para o "<lid>@lid" original acerta o Store.Chat.get direto (Tier 1
+    // do WWebJS.getChat) e contorna esse caminho quebrado.
+    this.reverseLidCache = new Map();
     this.pairingCode = null;
     this.pairingPhoneNumber = null;
     this.connectionState = null;   // ultimo estado real (change_state / getState)
     this._healthTimer = null;      // monitor de saude da sessao
     this._reconnecting = false;    // guarda contra reconnect concorrente
+    this._authFailureCount = 0;    // recuperacoes automaticas de auth_failure
+    this._AUTH_FAILURE_MAX = 2;    // teto antes de exigir intervencao manual
+    this._lastEvent = "created";
+    this._lastEventAt = new Date().toISOString();
+    this._lastError = null;
+    this._lastWatchdogAt = null;
+    this._lastHealthState = null;
+    this._watchdogFailures = 0;
+    this._lastReconnectAt = null;
+    this._lastReconnectMs = 0;     // timestamp numerico p/ cooldown do reconnect
+    this._reconnectAttempts = 0;   // backoff exponencial; zera num 'ready'
+    // Fonte de verdade da conexao: ATIVIDADE viva. message/message_ack carimbam
+    // _lastInboundMs; _isLive()/isConnected() leem dali. Uma sessao que recebe
+    // trafego esta conectada — nenhuma flag cacheada nem getState() lento pode
+    // dizer o contrario (cura do "fantasma desconectado").
+    this._lastInboundMs = 0;
+    this._LIVENESS_WINDOW_MS = 120000;  // 2min de inbound => definitivamente vivo
   }
 
   _log(...args) {
@@ -82,8 +110,163 @@ class WhatsAppClient extends EventEmitter {
     console.error(this.logPrefix, ...args);
   }
 
-  async initialize(phoneNumber = null) {
+  _safeDiagnosticText(value) {
+    if (value === undefined || value === null) return null;
+    return String(value)
+      .replace(/data:image\/png;base64,[A-Za-z0-9+/=]+/g, "[qr-redacted]")
+      .replace(/\b\d{6,}\b/g, "[digits-redacted]")
+      .replace(this.dataBase, "[auth-dir]")
+      .slice(0, 220);
+  }
+
+  _markEvent(event, detail = null) {
+    this._lastEvent = String(event || "event");
+    this._lastEventAt = new Date().toISOString();
+    const err = detail && (detail.error || detail.reason || detail.message);
+    if (err) this._lastError = this._safeDiagnosticText(err);
+  }
+
+  _dirLooksPresent(dirPath) {
+    try {
+      return fs.existsSync(dirPath) && fs.readdirSync(dirPath).length > 0;
+    } catch (_) { return false; }
+  }
+
+  _backupDir(suffix) {
+    return path.join(this.dataBase, `_bak-session-org-${this.orgId}${suffix}`);
+  }
+
+  _intentionalDownMarkerPath() {
+    return path.join(this.dataBase, `.intentional-down-org-${this.orgId}`);
+  }
+
+  _isIntentionalDown() {
+    try {
+      return Boolean(this._intentionalDown || fs.existsSync(this._intentionalDownMarkerPath()));
+    } catch (_) { return Boolean(this._intentionalDown); }
+  }
+
+  _markIntentionalDown() {
+    this._intentionalDown = true;
+    try {
+      fs.mkdirSync(this.dataBase, { recursive: true });
+      fs.writeFileSync(this._intentionalDownMarkerPath(), new Date().toISOString(), { mode: 0o600 });
+    } catch (e) {
+      this._warn("[INTENTIONAL-DOWN] falha ao persistir marcador:", e && e.message ? e.message : e);
+    }
+  }
+
+  _clearIntentionalDown() {
+    this._intentionalDown = false;
+    try { fs.rmSync(this._intentionalDownMarkerPath(), { force: true }); } catch (_) {}
+  }
+
+  _hostBindingHash() {
+    const secret = process.env.CASEHUB_WA_SESSION_BINDING || "";
+    return secret ? crypto.createHash("sha256").update(secret).digest("hex") : "";
+  }
+
+  _readHostBindMarker(dirPath) {
+    try {
+      const markerPath = path.join(dirPath, ".host-bind");
+      if (fs.existsSync(markerPath)) return fs.readFileSync(markerPath, "utf8").trim();
+    } catch (_) {}
+    return "";
+  }
+
+  _backupAllowedForHost(backupDir) {
+    const expected = this._hostBindingHash();
+    const marker = this._readHostBindMarker(backupDir);
+    if (!expected) {
+      if (marker) {
+        this._error("[HOST-BIND] backup __lastgood tem marcador mas este host nao tem CASEHUB_WA_SESSION_BINDING — restore recusado");
+        this.status = "blocked_host";
+        this._markEvent("backup_restore_blocked_host");
+        return false;
+      }
+      return true;
+    }
+    if (!marker) {
+      this._error("[HOST-BIND] backup __lastgood sem .host-bind em host bound — restore recusado");
+      this.status = "blocked_host";
+      this._markEvent("backup_restore_missing_host_bind");
+      return false;
+    }
+    if (marker !== expected) {
+      this._error("[HOST-BIND] backup __lastgood pertence a outro host — restore recusado");
+      this.status = "blocked_host";
+      this._markEvent("backup_restore_wrong_host");
+      return false;
+    }
+    return true;
+  }
+
+  _discardLastGoodBackup(reason) {
+    try {
+      const dir = this._backupDir("__lastgood");
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+        this._warn(`[BACKUP] __lastgood descartado (${reason})`);
+      }
+    } catch (e) {
+      this._warn("[BACKUP] falha ao descartar __lastgood:", e && e.message ? e.message : e);
+    }
+  }
+
+  _maskedPairingPhone() {
+    const digits = String(this.pairingPhoneNumber || "").replace(/\D/g, "");
+    if (!digits) return null;
+    return digits.length <= 4 ? "****" : `${"*".repeat(Math.max(4, digits.length - 4))}${digits.slice(-4)}`;
+  }
+
+  _recommendedAction(status = this.status) {
+    const s = String(status || "").toLowerCase();
+    if (this.isReady || s === "ready" || s === "connected") return "none";
+    if (this.qrCode || s === "awaiting_scan" || s === "qr") return "scan_qr";
+    if (this.pairingCode || s === "awaiting_pairing") return "enter_pairing_code";
+    if (this._reconnecting || ["authenticated", "initializing", "reconnecting", "connecting", "loading", "starting"].includes(s)) {
+      return "wait";
+    }
+    if (s === "auth_failed") {
+      return this._authFailureCount > this._AUTH_FAILURE_MAX ? "manual_review" : "soft_reconnect";
+    }
+    if (this._sessionLooksPresent()) return "soft_reconnect";
+    return "scan_qr";
+  }
+
+  _nextStep(action) {
+    switch (action) {
+      case "none":
+        return "Conectado. O watchdog continua monitorando a sessao.";
+      case "scan_qr":
+        return "Escaneie o QR pelo WhatsApp do celular.";
+      case "enter_pairing_code":
+        return "Digite o codigo exibido no WhatsApp do celular.";
+      case "wait":
+        return "Aguarde a sessao terminar de inicializar.";
+      case "soft_reconnect":
+        return "Use Reconectar; a sessao salva sera preservada.";
+      case "manual_review":
+        return "Auth recusada repetidamente. Repareamento manual pode ser necessario.";
+      default:
+        return "Atualize o status da conexao.";
+    }
+  }
+
+  async initialize(phoneNumber = null, options = {}) {
     this._log("[INIT] WhatsApp Client v4.0 (multi-session)");
+    const explicit = Boolean(options && options.explicit) || Boolean(phoneNumber);
+    if (this._isIntentionalDown() && !explicit) {
+      this._intentionalDown = true;
+      this.status = "disconnected";
+      this._markEvent("initialize_blocked_intentional_down");
+      this._log("[INIT] bloqueado — sessao derrubada deliberadamente; use reconnect/init explicito");
+      return;
+    }
+    if (explicit) this._clearIntentionalDown();
+    this.status = phoneNumber ? "awaiting_pairing" : (this.status === "reconnecting" ? "reconnecting" : "initializing");
+    this._markEvent(phoneNumber ? "pairing_initialize" : "initialize");
+    if (this._readyTimeout) { clearTimeout(this._readyTimeout); this._readyTimeout = null; }
 
     // Auto-cura: se a sessao sumiu mas ha backup __lastgood, restaura o
     // pareamento ANTES do LocalAuth carregar (so no boot, so sem re-pair).
@@ -95,6 +278,15 @@ class WhatsAppClient extends EventEmitter {
     // morto => o novo Chromium recusa ("profile in use", Code 21) e o QR
     // nunca aparece. Remover os locks (preservando a sessao) cura o launch.
     this._clearChromiumLocks();
+
+    // Gate anti-hijack (Victor 10/06): recusa subir a sessao se os arquivos de
+    // auth nao pertencem a este host. Fail-safe e aditivo (sem env => sem trava).
+    if (!this._enforceHostBinding()) {
+      this._error("[HOST-BIND] inicializacao abortada — sessao nao pertence a este host");
+      this._markEvent("blocked_host");
+      this.emit("blocked_host", this.orgId);
+      return;
+    }
 
     // Build client options with fixes for QR authentication loop
     const clientOptions = {
@@ -158,59 +350,71 @@ class WhatsAppClient extends EventEmitter {
 
     // QR code event com cooldown para evitar loop de regeneração (por org).
     this.client.on("qr", async (qr) => {
-      const now = Date.now();
-      const last = _lastQrTimes.get(this.orgId) || 0;
-      if (now - last < QR_COOLDOWN) {
-        this._log("[QR] Cooldown ativo, ignorando regeneracao rapida");
-        return;
-      }
-      _lastQrTimes.set(this.orgId, now);
-
-      this._log("[QR] Escaneie com o WhatsApp:");
-      qrcode.generate(qr, { small: true });
+      // SEMPRE atualiza o QR servido — o QR do WhatsApp expira em ~20-60s; suprimir
+      // a regeneracao (cooldown antigo dava `return`) deixava o front com um QR
+      // velho/expirado -> "nao foi possivel conectar o dispositivo". O cooldown
+      // agora so throttla o render no terminal (cosmetico), nunca o QR servido.
       this.qrCode = await QRCode.toDataURL(qr);
       this.qrTimestamp = Date.now();
       this.status = "awaiting_scan";
+      this._markEvent("qr");
       this.emit("qr", this.qrCode);
+
+      const now = Date.now();
+      const last = _lastQrTimes.get(this.orgId) || 0;
+      if (now - last >= QR_COOLDOWN) {
+        _lastQrTimes.set(this.orgId, now);
+        this._log("[QR] Escaneie com o WhatsApp:");
+        qrcode.generate(qr, { small: true });
+      }
     });
 
     // Pairing code event - triggered when using pairWithPhoneNumber
     this.client.on("code", (code) => {
-      this._log("[PAIRING] Code received:", code);
+      this._log("[PAIRING] Code received");
       this.pairingCode = code;
       this.status = "awaiting_pairing";
+      this._markEvent("pairing_code");
       this.emit("code", code);
     });
 
     this.client.on("authenticated", () => {
       this._log("[AUTH] Autenticado!");
       this.status = "authenticated";
+      this._markEvent("authenticated");
       this.emit("authenticated");
 
-      // Timeout para verificar se READY dispara em 60s
+      // Timeout p/ READY lento. Limpa o anterior antes de re-armar: um ciclo
+      // authenticated->ready-lento->novo-authenticated orfanava o timer #1
+      // (referencia sobrescrita), que aos 60s disparava softReconnect espurio.
+      if (this._readyTimeout) clearTimeout(this._readyTimeout);
       this._readyTimeout = setTimeout(() => {
-        if (!this.isReady) {
-          // PROFILAXIA: um READY lento (Mumbai/WhatsApp Web/rede transiente) NAO
-          // pode mais apagar a sessao pareada. softReconnect PRESERVA a sessao e
-          // tenta de novo; se persistir, vira loop de reconnect (preservando) +
-          // o alerta de disconnect ja dispara — nunca um wipe silencioso.
+        // So reconecta se nao esta ready E nao ha atividade (socket morto mesmo).
+        if (!this.isReady && !this._isLive()) {
           this._warn("[WARN] READY timeout apos 60s - soft reconnect (preserva a sessao)...");
-          this.softReconnect();
+          this.softReconnect("ready-timeout");
         }
       }, 60000);
+      if (this._readyTimeout.unref) this._readyTimeout.unref();
     });
 
     this.client.on("ready", () => {
       this._log("[READY] WhatsApp conectado!");
-      if (this._readyTimeout) clearTimeout(this._readyTimeout);
+      if (this._readyTimeout) { clearTimeout(this._readyTimeout); this._readyTimeout = null; }
+      this._intentionalDown = false;
       this.isReady = true;
       this.qrCode = null;
       this.qrTimestamp = null;
       this.status = "ready";
+      this._authFailureCount = 0; // sessao saudavel — zera o circuito de auth_failure
+      this._reconnectAttempts = 0; // sessao saudavel — zera o backoff de reconnect
+      this._lastReconnectMs = 0;
+      this._markEvent("ready");
       this.emit("ready");
     });
 
     this.client.on("message", async (message) => {
+      this._touchActivity();  // qualquer inbound = socket vivo (fonte de verdade)
       if (message.from.includes("@g.us") || message.fromMe || message.from === "status@broadcast") return;
 
       let phoneNumber = message.from;
@@ -223,6 +427,7 @@ class WhatsAppClient extends EventEmitter {
         if (this.lidCache.has(lidId)) {
           realPhone = (this.lidCache.get(lidId) || "").replace(/@c\.us/g, "");
           phoneNumber = realPhone + "@c.us";
+          this._rememberLidForPhone(realPhone, message.from); // reforca reverso (TTL do envio)
           this._log("[CACHE] Numero:", realPhone);
         } else {
           // Metodo 1: getContactLidAndPhone
@@ -269,7 +474,10 @@ class WhatsAppClient extends EventEmitter {
           }
         }
 
-        if (!realPhone) this._warn("[WARN] LID nao resolvido:", message.from);
+        // Qualquer metodo (1/2/3) que resolveu o telefone -> grava o reverso
+        // telefone->"<lid>@lid" para o ENVIO reusar o JID que o store ja conhece.
+        if (realPhone) this._rememberLidForPhone(realPhone, message.from);
+        else this._warn("[WARN] LID nao resolvido:", message.from);
       }
 
       this._log("[MSG] De " + phoneNumber + ": " + (message.body || "").substring(0, 50));
@@ -340,6 +548,7 @@ class WhatsAppClient extends EventEmitter {
     // 2 DEVICE (entregue), 3 READ (lido), 4 PLAYED (áudio ouvido).
     // O frontend usa isto para renderizar os ticks (cinza/duplo/azul).
     this.client.on("message_ack", (message, ack) => {
+      this._touchActivity();  // ack recebido = socket vivo
       try {
         const messageId =
           message && message.id && message.id._serialized
@@ -364,9 +573,21 @@ class WhatsAppClient extends EventEmitter {
 
     this.client.on("disconnected", (reason) => {
       this._log("[DISCONNECT]", reason);
+      this.connectionState = "DISCONNECTED";
+      this._markEvent("disconnected", { reason });
+      // Deny-list: SO um conjunto FECHADO de reasons sabidamente transitorios
+      // pode ser ignorado como blip (quando ha atividade recente). Qualquer outro
+      // — inclui NAVIGATION/LOGOUT que varios forks emitem no logout pelo celular
+      // — rebaixa e oferece QR. O watchdog re-promove em <=60s se for so um blip.
+      const r = String(reason || "");
+      const transient = /TIMEOUT|OPENING|PAIRING|CONNECTING/i.test(r);
+      if (this._isLive() && transient) {
+        this._warn("[DISCONNECT] ignorado (blip transitorio, socket vivo):", r);
+        return;
+      }
+      this._lastInboundMs = 0;
       this.isReady = false;
       this.status = "disconnected";
-      this.connectionState = "DISCONNECTED";
       this.emit("disconnected", reason);
     });
 
@@ -376,23 +597,156 @@ class WhatsAppClient extends EventEmitter {
     this.client.on("change_state", (state) => {
       this._log("[STATE]", state);
       this.connectionState = state;
+      this._lastHealthState = state;
       if (state === "CONNECTED") {
         this.isReady = true;
         this.status = "ready";
-      } else {
+        this._reconnectAttempts = 0;
+        this._lastReconnectMs = 0;
+        this._markEvent("state_connected");
+      } else if (/UNPAIRED|CONFLICT|LOGOUT/i.test(String(state)) || !this._isLive()) {
+        // Rebaixa SEMPRE em estado morto (UNPAIRED/CONFLICT/LOGOUT); nos demais,
+        // so quando NAO ha atividade recente (um TIMEOUT/OPENING com socket vivo
+        // e' blip e nao rebaixa). O watchdog decide reconectar de fato.
+        if (/UNPAIRED|CONFLICT|LOGOUT/i.test(String(state))) this._lastInboundMs = 0;
         this.isReady = false;
-        if (this.status === "ready") this.status = "disconnected";
+        this.status = "disconnected";
       }
     });
 
-    this.client.on("auth_failure", (error) => {
+    // auth_failure: o WhatsApp REJEITOU as credenciais salvas (deslogado pelo
+    // celular, conflito de sessao, ou pareamento corrompido apos um wipe). A
+    // sessao em disco esta morta — preserva-la so produz um loop infinito de
+    // "authenticated -> ready-timeout -> softReconnect -> auth_failure". A cura
+    // e' apagar a auth rejeitada e re-inicializar limpo, oferecendo um QR novo
+    // valido. clearAndReinitialize ja faz snapshot __prewipe ANTES de apagar
+    // (recuperavel) — entao isto nao e' destrutivo de verdade.
+    //
+    // Guarda contra loop: no maximo _AUTH_FAILURE_MAX recuperacoes automaticas;
+    // depois disso para e deixa a sessao em "auth_failed" para intervencao
+    // manual (evita apagar/recriar em tempestade). O contador zera num `ready`.
+    this.client.on("auth_failure", async (error) => {
       this._error("[AUTH-FAIL]", error);
       this.status = "auth_failed";
+      this._markEvent("auth_failure", { error });
       this.emit("auth_failure", error);
+      if (this._reconnecting) return;
+      this._authFailureCount = (this._authFailureCount || 0) + 1;
+      if (this._authFailureCount > this._AUTH_FAILURE_MAX) {
+        this._warn(`[AUTH-FAIL] limite de ${this._AUTH_FAILURE_MAX} recuperacoes atingido — parando (intervencao manual via /api/disconnect { confirm: 'wipe' })`);
+        return;
+      }
+      this._reconnecting = true;
+      try {
+        this._warn(`[AUTH-FAIL] auth rejeitada — limpando sessao morta e re-inicializando (${this._authFailureCount}/${this._AUTH_FAILURE_MAX}); QR novo sera emitido`);
+        if (this._healthTimer) { clearInterval(this._healthTimer); this._healthTimer = null; }
+        // clearAndReinitialize faz destroy + snapshot __prewipe + rm + initialize.
+        // Sem phoneNumber => volta pro fluxo de QR. MANTEM _reconnecting=true por
+        // TODA a recuperacao (resetado no finally): zera-lo antes do await abria a
+        // janela do self-heal de 45s disparar um 2o initialize => duplo Chromium.
+        await this.clearAndReinitialize();
+      } catch (e) {
+        this._error("[AUTH-FAIL] recuperacao falhou:", e && e.message ? e.message : e);
+      } finally {
+        this._reconnecting = false;
+      }
     });
 
-    await this.client.initialize();
-    this._startHealthMonitor();
+    // Watchdog armado ANTES do await: no Mumbai CPU-only o client.initialize()
+    // pode levar minutos (protocolTimeout=5min) ou travar num hang puro de
+    // qr/ready — re-armar so no finally deixava o watchdog MORTO toda a janela
+    // (o "active:false" que dizemos curar). Armado aqui, ele monitora ja no boot.
+    // Guarda de reentrancia: impede um 2o initialize() concorrente (self-heal,
+    // ensureInitialized na janela client=null) que subiria um 2o Chromium no MESMO
+    // profile session-org-N => SingletonLock/"profile in use" (Code 21) => QR
+    // nunca aparece. Setado ANTES do 1o await (sincrono); resetado no finally.
+    this._initInFlight = true;
+    this._ensureHealthMonitor();
+    let initTimer = null;
+    let initTimedOut = false;
+    try {
+      // Timeout DURO: um hang puro de eventos (qr/ready que nunca disparam) NAO e'
+      // coberto por protocolTimeout. Sem isto a sessao ficava presa em
+      // "initializing" pra sempre. Timeout e' recuperado pelo watchdog; rejeicao
+      // imediata de initialize() deve propagar para os callers/HTTP 502.
+      const initP = this.client.initialize();
+      initP.catch(() => {});   // perna perdedora do race nao vira unhandledRejection
+      const timeoutP = new Promise((_, rej) => {
+        initTimer = setTimeout(() => {
+          initTimedOut = true;
+          rej(new Error("initialize timeout 120s"));
+        }, 120000);
+        if (initTimer.unref) initTimer.unref();
+      });
+      await Promise.race([
+        initP,
+        timeoutP,
+      ]);
+    } catch (e) {
+      this._warn("[INIT] initialize falhou/timeout:", e && e.message ? e.message : e);
+      this._markEvent("initialize_failed", { error: e && e.message ? e.message : e });
+      if (!initTimedOut) {
+        try { if (this.client) await this.client.destroy(); } catch (_) {}
+        this.client = null;
+        this.isReady = false;
+        this._lastInboundMs = 0;
+        this.connectionState = "DISCONNECTED";
+        this.status = "disconnected";
+        throw e;
+      }
+    } finally {
+      if (initTimer) clearTimeout(initTimer);
+      this._initInFlight = false;
+      this._ensureHealthMonitor();
+    }
+  }
+
+  // GATE ANTI-HIJACK: amarra os arquivos de sessao (.wwebjs_auth/session-org-N)
+  // ao host autorizado. O segredo CASEHUB_WA_SESSION_BINDING vive SO no host
+  // (env, fora do volume Docker); no diretorio da sessao gravamos apenas o
+  // sha256 dele em .host-bind. Se o volume for copiado para outro host:
+  //   - host sem o segredo (env ausente) + sessao ja-amarrada  => RECUSA
+  //   - host com segredo DIFERENTE (hash nao bate)             => RECUSA
+  // So um host com o MESMO segredo carrega a sessao. O segredo nunca vai pro
+  // volume (so o hash, irreversivel). Sem env => sem restricao (dev nao quebra).
+  _enforceHostBinding() {
+    const sessionDir = path.join(
+      process.cwd(),
+      this.dataBase.replace(/^\.\//, ""),
+      `session-org-${this.orgId}`
+    );
+    const markerPath = path.join(sessionDir, ".host-bind");
+    const expected = this._hostBindingHash();
+    const marker = this._readHostBindMarker(sessionDir);
+
+    if (!expected) {
+      // Sem segredo neste host. Se a sessao ja foi amarrada noutro lugar, recusa
+      // (impede carregar sessao roubada num host sem credencial). Senao, libera.
+      if (marker) {
+        this._error("[HOST-BIND] sessao amarrada a outro host mas CASEHUB_WA_SESSION_BINDING ausente — recusando (possivel hijack)");
+        this.status = "blocked_host";
+        return false;
+      }
+      return true;
+    }
+
+    if (!marker) {
+      // Primeira amarracao neste host (sessao nova OU pre-existente do Mumbai).
+      try {
+        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+        fs.writeFileSync(markerPath, expected, { mode: 0o600 });
+        this._log("[HOST-BIND] sessao amarrada a este host");
+      } catch (e) {
+        this._warn("[HOST-BIND] falha ao gravar marcador:", e && e.message ? e.message : e);
+      }
+      return true;
+    }
+    if (marker !== expected) {
+      this._error("[HOST-BIND] marcador da sessao nao confere com este host — recusando (possivel hijack de sessao)");
+      this.status = "blocked_host";
+      return false;
+    }
+    return true; // marcador confere — host autorizado
   }
 
   // Remove locks Singleton* orfaos do Chromium sob ./.wwebjs_auth. O Chromium
@@ -438,7 +792,23 @@ class WhatsAppClient extends EventEmitter {
   async syncProfilePhotos(options = {}) {
     this.assertReady();
     const limit = Math.max(1, Math.min(Number(options.limit || 500), 1000));
-    const chats = (await this.client.getChats())
+    // #5 — getChats() pode falhar transitoriamente logo apos o `ready` (o
+    // WhatsApp Web ainda esta hidratando os chats). Pequeno retry com backoff
+    // antes de desistir; sem isso o sync inteiro aborta e fica sem fotos/nomes.
+    const chatRetries = Math.max(0, Number(options.chatRetries == null ? 2 : options.chatRetries));
+    let rawChats = null;
+    for (let attempt = 0; attempt <= chatRetries; attempt++) {
+      try {
+        rawChats = await this.client.getChats();
+        break;
+      } catch (e) {
+        if (attempt >= chatRetries) throw e;
+        const wait = 1500 * (attempt + 1);
+        this._warn(`[SYNC] getChats falhou (tentativa ${attempt + 1}/${chatRetries + 1}), retry em ${wait}ms:`, e && e.message ? e.message : e);
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+    const chats = (rawChats || [])
       .filter((chat) => !chat.isGroup)
       .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
       .slice(0, limit);
@@ -454,8 +824,18 @@ class WhatsAppClient extends EventEmitter {
         if (contact) {
           displayName = contact.pushname || contact.name || displayName;
           isBusiness = Boolean(contact.isBusiness);
-          try { profilePicUrl = (await contact.getProfilePicUrl()) || null; }
-          catch (_) { /* contato sem foto ou privado */ }
+          // #5 — a foto e o dado mais flaky (chamada extra ao servidor WA).
+          // 1 retry rapido por contato cobre falha transitoria sem virar
+          // varredura cara: contato realmente sem foto cai no catch e segue.
+          for (let picTry = 0; picTry < 2; picTry++) {
+            try {
+              profilePicUrl = (await contact.getProfilePicUrl()) || null;
+              break;
+            } catch (_) {
+              if (picTry === 0) { await new Promise((r) => setTimeout(r, 400)); continue; }
+              /* contato sem foto ou privado */
+            }
+          }
         }
       } catch (_) { /* segue so com chat.name */ }
       out.push({
@@ -521,21 +901,28 @@ class WhatsAppClient extends EventEmitter {
     this._bootRestoreTried = true;
     try {
       if (this._sessionLooksPresent()) return false;              // sessao ja esta la
-      const bak = path.join(this.dataBase, `_bak-session-org-${this.orgId}__lastgood`);
+      const bak = this._backupDir("__lastgood");
       if (!fs.existsSync(bak) || fs.readdirSync(bak).length === 0) return false;
+      if (!this._backupAllowedForHost(bak)) return false;
       const dst = this._sessionDir();
       fs.rmSync(dst, { recursive: true, force: true });
       fs.cpSync(bak, dst, { recursive: true, force: true });
       this._warn("[RESTORE] sessao ausente no boot — restaurada do backup __lastgood (auto-cura, sem QR)");
+      this._markEvent("session_restored_from_backup");
       return true;
     } catch (e) {
       this._warn("[RESTORE] auto-cura falhou (segue p/ QR):", e && e.message ? e.message : e);
+      this._markEvent("session_restore_failed", { error: e && e.message ? e.message : e });
       return false;
     }
   }
 
   assertReady() {
-    if (!this.client || !this.isReady) {
+    // Aceita a sessao quando ha conexao viva comprovada (isConnected: ready OU
+    // atividade recente OU estado real CONNECTED). Antes exigia a flag isReady
+    // crua, presa em false no reconnect morno, bloqueando getMessages/
+    // listConversations com o socket vivo => "mensagens nao carregam".
+    if (!this.client || !this.isConnected()) {
       throw new Error(`WhatsApp nao conectado (org=${this.orgId})`);
     }
   }
@@ -544,6 +931,27 @@ class WhatsAppClient extends EventEmitter {
     if (!value) return "";
     if (typeof value === "string") return value;
     return value._serialized || value.user || "";
+  }
+
+  _isLidJid(value) {
+    return /^[A-Za-z0-9._-]+@lid$/.test(String(value || ""));
+  }
+
+  _isPhoneJid(value) {
+    return /^\d+@c\.us$/.test(String(value || ""));
+  }
+
+  _isGroupJid(value) {
+    return /^[\d-]+@g\.us$/.test(String(value || ""));
+  }
+
+  _isSupportedSendJid(value) {
+    return this._isPhoneJid(value) || this._isLidJid(value) || this._isGroupJid(value);
+  }
+
+  _sendableJidFromId(value) {
+    const jid = this.normalizeChatId(value);
+    return this._isSupportedSendJid(jid) ? jid : "";
   }
 
   phoneFromChatId(value) {
@@ -558,16 +966,98 @@ class WhatsAppClient extends EventEmitter {
   // metodos que o handler de inbound (message) ja usa. Sem isto, ler mensagens
   // de uma conversa keyed por LID falha (getChatById nao acha o JID errado).
   async _resolvePhoneFromLid(lidJid) {
-    const lidId = String(lidJid).replace("@lid", "");
+    const normalized = String(lidJid || "");
+    if (!this._isLidJid(normalized)) return null;
+    const lidId = normalized.replace("@lid", "");
     if (this.lidCache.has(lidId)) return this.lidCache.get(lidId);
     try {
-      const result = await this.client.getContactLidAndPhone([lidJid]);
+      const result = await this.client.getContactLidAndPhone([normalized]);
       if (result && result.length > 0 && result[0].pn) {
         const realPhone = (result[0].pn || "").replace(/@c\.us/g, "").replace(/\D/g, "");
         if (realPhone) { this.lidCache.set(lidId, realPhone); return realPhone; }
       }
     } catch (e) { this._log("[LID-READ] resolve falhou:", e.message); }
     return null;
+  }
+
+  // Grava o reverso telefone(digitos) -> "<lid>@lid". Chamado no inbound toda
+  // vez que uma conversa LID resolve para um telefone. O ENVIO consulta isto:
+  // se o destino conversa via LID, mandamos de volta para o JID @lid original
+  // (chave que o store ja indexa), em vez de "<numero>@c.us" (que dispara a
+  // resolucao phone->LID interna e falha com "Lid is missing in chat table").
+  _rememberLidForPhone(phone, lidJid) {
+    const digits = String(phone || "").replace(/\D/g, "");
+    const jid = String(lidJid || "");
+    if (!digits || !this._isLidJid(jid)) return;
+    this.reverseLidCache.set(digits, jid);
+  }
+
+  // Resolve o JID de ENVIO para um destino arbitrario (numero, @c.us ou @lid).
+  // Ordem de robustez:
+  //   0. Ja e @lid           -> usa cru (store indexa por LID; Tier 1 do getChat).
+  //   1. reverseLidCache      -> destino fala por LID e ja vimos no inbound: usa o
+  //                              "<lid>@lid" memorizado (caminho que NUNCA falha,
+  //                              pois e a mesma chave que recebeu a msg).
+  //   2. getChatById("<num>@c.us") -> chat @c.us existe no store: usa o JID real
+  //      dele (.id._serialized), que pode inclusive ser @lid. Confirma roteamento.
+  //   3. getNumberId("<num>")      -> QueryExist no servidor; devolve o wid
+  //      canonico registrado (lida com numero existente mas chat ainda nao no store).
+  //   4. fallback "<num>@c.us"     -> ultimo recurso (numero sem historico de LID;
+  //      WWebJS.getChat tenta a resolucao usync por conta propria).
+  async _resolveSendJid(to) {
+    const raw = String(to || "").trim();
+    if (this._isLidJid(raw)) return raw;
+
+    const digits = raw.replace(/\D/g, "");
+    // Destinos com servidor explicito ficam limitados aos namespaces que este
+    // worker envia de forma intencional. Nao encaminhe JID arbitrario cru para
+    // o WhatsApp Web: entrada HTTP/CRM deve virar telefone, @c.us, @lid ou grupo.
+    if (raw.includes("@")) {
+      if (this._isPhoneJid(raw)) {
+        // segue pelo fluxo normal: cache LID -> chat store -> number id -> @c.us
+      } else if (this._isGroupJid(raw)) {
+        return raw;
+      } else {
+        throw new Error("JID WhatsApp nao suportado para envio");
+      }
+    }
+    if (!digits) throw new Error("Destino WhatsApp invalido");
+
+    if (digits && this.reverseLidCache.has(digits)) {
+      const lidJid = this.reverseLidCache.get(digits);
+      this._log("[SEND-LID] usando JID @lid memorizado para", digits);
+      return lidJid;
+    }
+
+    const cusJid = digits ? `${digits}@c.us` : raw;
+
+    // getChatById: se o chat ja existe no store, seu .id._serialized e a chave
+    // canonica de roteamento (pode ser @lid). Best-effort — nao quebra o envio.
+    if (digits) {
+      try {
+        const chat = await this.client.getChatById(cusJid);
+        const sid = chat && this._sendableJidFromId(chat.id);
+        if (sid) {
+          if (this._isLidJid(sid)) this._rememberLidForPhone(digits, sid);
+          this._log("[SEND-LID] JID via getChatById:", sid);
+          return sid;
+        }
+      } catch (_) { /* chat ainda nao no store — tenta getNumberId */ }
+
+      // getNumberId: QueryExist no servidor devolve o wid registrado canonico.
+      try {
+        if (typeof this.client.getNumberId === "function") {
+          const wid = await this.client.getNumberId(cusJid);
+          const sid = wid && (wid._serialized || (wid.user && wid.server ? `${wid.user}@${wid.server}` : null));
+          if (this._isSupportedSendJid(sid)) {
+            this._log("[SEND-LID] JID via getNumberId:", sid);
+            return sid;
+          }
+        }
+      } catch (_) { /* numero nao registrado / metodo ausente — cai no fallback */ }
+    }
+
+    return cusJid;
   }
 
   isoFromTimestamp(value) {
@@ -671,23 +1161,132 @@ class WhatsAppClient extends EventEmitter {
 
   async sendMessage(to, text, options) {
     this.assertReady();
-    const chatId = to.includes("@") ? to : to + "@c.us";
-    const result = options
-      ? await this.client.sendMessage(chatId, text, options)
-      : await this.client.sendMessage(chatId, text);
-    this._log("[SEND] Para " + to);
-    return result;
+    // Resolve o JID de ENVIO de forma robusta. Na era de LID-addressing o
+    // WhatsApp Web indexa a "chat table" pelo LID: mandar para "<numero>@c.us"
+    // forca a resolucao usync phone->LID interna que, quando o interlocutor so
+    // existe no store como LID, lanca "Lid is missing in chat table" (erro vindo
+    // do proprio JS do WA Web). _resolveSendJid prefere o "<lid>@lid" que o store
+    // ja conhece (reverseLidCache preenchido no inbound, getChatById, getNumberId).
+    const chatId = await this._resolveSendJid(to);
+    const _send = (jid) =>
+      options
+        ? this.client.sendMessage(jid, text, options)
+        : this.client.sendMessage(jid, text);
+
+    try {
+      const result = await _send(chatId);
+      this._log(`[SEND] Para ${to} (jid=${chatId})`);
+      return result;
+    } catch (err) {
+      // Retry dirigido: o envio @c.us bateu no "Lid is missing in chat table" e
+      // o resolver ainda nao tinha um @lid (cache frio + getChatById/getNumberId
+      // sem sucesso). Tenta uma ultima resolucao LID e reenvia para o @lid antes
+      // de desistir. So entra aqui quando NAO mandamos ja para um @lid.
+      const msg = String(err && err.message ? err.message : err);
+      const lidMissing = /lid is missing|missing in chat table/i.test(msg);
+      if (lidMissing && !this._isLidJid(chatId)) {
+        const digits = String(to).replace(/\D/g, "");
+        let lidJid = digits && this.reverseLidCache.get(digits);
+        if (lidJid && !this._isLidJid(lidJid)) lidJid = null;
+        if (!lidJid) {
+          // Ultimo recurso: pede o LID ao store via getChatById (.id pode ser @lid).
+          try {
+            const chat = await this.client.getChatById(`${digits}@c.us`);
+            const sid = chat && this._sendableJidFromId(chat.id);
+            if (this._isLidJid(sid)) { lidJid = sid; this._rememberLidForPhone(digits, sid); }
+          } catch (_) { /* sem chat — propaga o erro original abaixo */ }
+        }
+        if (lidJid && lidJid !== chatId) {
+          this._warn(`[SEND] "${msg}" para ${chatId} — retry via LID ${lidJid}`);
+          const result = await _send(lidJid);
+          this._log(`[SEND] Para ${to} (jid=${lidJid}, via retry-lid)`);
+          return result;
+        }
+      }
+      throw err;
+    }
+  }
+
+  // --- Fonte unica de verdade da conexao --------------------------------
+  // Carimba atividade inbound (message/message_ack). Trafego recebido = prova
+  // de que o socket WhatsApp esta vivo — o sinal mais forte e mais barato.
+  _touchActivity() { this._lastInboundMs = Date.now(); }
+
+  // Houve inbound dentro da janela de liveness? Mais confiavel que getState()
+  // (lento/instavel no Mumbai CPU-only, 15s de timeout).
+  _isLive() {
+    return this._lastInboundMs > 0 &&
+      (Date.now() - this._lastInboundMs) < this._LIVENESS_WINDOW_MS;
+  }
+
+  // CONECTADO = derivacao UNICA, usada por getStatus/getSessionHealth/
+  // getStatusVerified/assertReady. Acaba com o drift dos 7 escritores das flags:
+  // (evento ready disparou) OU (atividade recente) OU (estado real CONNECTED).
+  // Atividade recente SOBREPOE qualquer flag cacheada de "disconnected" — cura o
+  // "fantasma desconectado" (socket recebe mensagens mas isReady ficou preso).
+  isConnected() {
+    return Boolean(this.isReady) || this._isLive() || this.connectionState === "CONNECTED";
   }
 
   getStatus() {
+    const connected = this.isConnected();
     return {
       orgId: this.orgId,
-      status: this.status,
-      isReady: this.isReady,
+      status: connected ? "ready" : this.status,
+      isReady: connected,
       hasQrCode: !!this.qrCode,
       hasPairingCode: !!this.pairingCode,
       pairingCode: this.pairingCode,
       pairingPhoneNumber: this.pairingPhoneNumber
+    };
+  }
+
+  getSessionHealth() {
+    const connected = this.isConnected();
+    const status = connected ? "ready" : (this.status || "unknown");
+    const action = this._recommendedAction(status);
+    const qrAgeSeconds = this.qrTimestamp ? Math.max(0, Math.round((Date.now() - this.qrTimestamp) / 1000)) : null;
+    return {
+      orgId: this.orgId,
+      status,
+      connected,
+      isReady: connected,
+      live: this._isLive(),
+      realState: this.connectionState || null,
+      sessionPresent: this._sessionLooksPresent(),
+      backups: {
+        lastGood: this._dirLooksPresent(this._backupDir("__lastgood")),
+        prewipe: this._dirLooksPresent(this._backupDir("__prewipe")),
+      },
+      qr: {
+        available: Boolean(this.qrCode),
+        ageSeconds: qrAgeSeconds,
+      },
+      pairing: {
+        available: Boolean(this.pairingCode),
+        phone: this._maskedPairingPhone(),
+      },
+      watchdog: {
+        active: Boolean(this._healthTimer),
+        intervalSeconds: 60,
+        lastCheckAt: this._lastWatchdogAt,
+        lastState: this._lastHealthState,
+        failures: Number(this._watchdogFailures || 0),
+        reconnecting: Boolean(this._reconnecting),
+        lastReconnectAt: this._lastReconnectAt,
+      },
+      authFailures: {
+        count: Number(this._authFailureCount || 0),
+        max: Number(this._AUTH_FAILURE_MAX || 0),
+        limitReached: Number(this._authFailureCount || 0) > Number(this._AUTH_FAILURE_MAX || 0),
+      },
+      lastEvent: this._lastEvent,
+      lastEventAt: this._lastEventAt,
+      lastError: this._lastError,
+      requiresPairing: !connected && (Boolean(this.qrCode || this.pairingCode) || action === "scan_qr" || action === "enter_pairing_code"),
+      safeToReconnect: true,
+      recommendedAction: action,
+      nextStep: this._nextStep(action),
     };
   }
 
@@ -699,7 +1298,7 @@ class WhatsAppClient extends EventEmitter {
     try {
       const state = await Promise.race([
         this.client.getState(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("getState timeout")), 7000))
+        new Promise((_, rej) => setTimeout(() => rej(new Error("getState timeout")), 15000))
       ]);
       return state || "UNKNOWN";
     } catch (e) {
@@ -710,24 +1309,33 @@ class WhatsAppClient extends EventEmitter {
   // Status VERIFICADO — nao confia na flag isReady cacheada; checa o estado
   // real. O /api/status usa isto para o front nunca mostrar "conectado"
   // quando a sessao na verdade caiu.
+  // Status VERIFICADO — SEM efeitos colaterais. O watchdog e' o UNICO dono da
+  // reconexao; um read endpoint jamais dispara reconnect (era a fonte do churn).
+  // Atividade inbound recente comprova o socket e dispensa o getState() lento.
   async getStatusVerified() {
+    const rawStatus = this.status;   // ANTES de getStatus() derivar 'ready'
     const base = this.getStatus();
-    if (base.status === "awaiting_scan" || base.status === "awaiting_pairing" || !this.client) {
-      return { ...base, connected: false };
+    if (rawStatus === "awaiting_scan" || rawStatus === "awaiting_pairing" || !this.client) {
+      return { ...base, isReady: false, status: rawStatus, connected: false, realState: this.connectionState || null };
+    }
+    if (this._isLive()) {
+      return { ...base, isReady: true, status: "ready", connected: true, realState: "CONNECTED" };
+    }
+    // isReady (evento 'ready' disparou e o watchdog o mantem) e' verdade: NAO
+    // deixar um unico getState() lento/UNREACHABLE do Mumbai derrubar uma sessao
+    // saudavel porem quieta (>120s sem inbound). So o watchdog (3 strikes)
+    // rebaixa isReady; aqui apenas reportamos. Mata o fantasma no caminho quieto.
+    if (this.isReady) {
+      return { ...base, isReady: true, status: "ready", connected: true, realState: this.connectionState || "CONNECTED" };
     }
     const realState = await this.getRealState();
-    const connected = realState === "CONNECTED";
-    if (!connected && this.isReady) {
-      this._log("[STATE] divergencia: isReady=true mas getState=" + realState + " -> desconectado");
-      this.isReady = false;
-      this.status = "disconnected";
-    }
+    const connected = realState === "CONNECTED" || this._isLive();
     return {
       ...base,
       isReady: connected,
-      status: connected ? "ready" : (this.qrCode ? "awaiting_scan" : "disconnected"),
+      status: connected ? "ready" : (this.qrCode ? "awaiting_scan" : (base.status || "disconnected")),
       connected,
-      realState
+      realState,
     };
   }
 
@@ -735,48 +1343,135 @@ class WhatsAppClient extends EventEmitter {
   // sessao ainda for valida, reconecta sem QR; se morreu de vez, o initialize
   // emite 'qr' e o front mostra o QR de novo.
   async softReconnect() {
+    const reason = arguments.length > 0 ? arguments[0] : "";
+    const options = arguments.length > 1 ? (arguments[1] || {}) : {};
     if (this._reconnecting) return;
+    // Teardown DELIBERADO (disconnect()/LGPD): nao ressuscita. O self-heal do
+    // server-lite e qualquer outro gatilho param aqui — a sessao so volta por
+    // acao explicita (initialize/reconnect), que zera _intentionalDown.
+    const explicit = Boolean(options && options.explicit);
+    if (this._isIntentionalDown() && !explicit) { this._log("[RECONNECT] abortado — teardown deliberado"); return; }
+    if (explicit) this._clearIntentionalDown();
+    // Socket vivo (atividade recente) => NAO reconecta. Era a causa do churn:
+    // uma divergencia transitoria do getState derrubava uma sessao saudavel.
+    if (this._isLive()) {
+      this._log(`[RECONNECT] abortado — atividade recente, socket vivo${reason ? " [" + reason + "]" : ""}`);
+      this.isReady = true;
+      this.status = "ready";
+      return;
+    }
+    // Cooldown + backoff exponencial limitado; um 'ready'/atividade zera o contador.
+    const now = Date.now();
+    const minGap = Math.min(60000 * Math.pow(2, this._reconnectAttempts || 0), 15 * 60000); // 1,2,4,8min -> teto 15min
+    if (this._lastReconnectMs && now - this._lastReconnectMs < minGap) {
+      const left = Math.round((minGap - (now - this._lastReconnectMs)) / 1000);
+      this._log(`[RECONNECT] cooldown ativo (${left}s, tentativa ${this._reconnectAttempts}) — pulando${reason ? " [" + reason + "]" : ""}`);
+      return;
+    }
     this._reconnecting = true;
-    this._log("[RECONNECT] soft reconnect (preserva a sessao)...");
+    this._lastReconnectMs = now;
+    this._reconnectAttempts = (this._reconnectAttempts || 0) + 1;
+    this._lastReconnectAt = new Date().toISOString();
+    this._markEvent("soft_reconnect", reason ? { reason } : null);
+    this._log(`[RECONNECT] soft reconnect #${this._reconnectAttempts} (preserva a sessao)${reason ? " — " + reason : ""}...`);
     try {
       if (this._healthTimer) { clearInterval(this._healthTimer); this._healthTimer = null; }
       try { if (this.client) await this.client.destroy(); } catch (e) {}
       this.client = null;
       this.isReady = false;
+      this.connectionState = "RECONNECTING";   // limpa CONNECTED stale (isConnected nao mente no reconnect)
       this.status = "reconnecting";
-      await this.initialize();
+      if (explicit) {
+        await this.initialize(null, { explicit });
+      } else {
+        await this.initialize();
+      }
     } catch (e) {
       this._log("[RECONNECT] erro:", e.message);
+      this._markEvent("soft_reconnect_failed", { error: e && e.message ? e.message : e });
     } finally {
       this._reconnecting = false;
+      // O watchdog DEVE sobreviver a qualquer reconnect (ver _ensureHealthMonitor).
+      this._ensureHealthMonitor();
     }
   }
 
-  // Monitor de saude: a cada 45s confere o estado real. 2 falhas seguidas =>
-  // sessao morta (ex.: Chromium travou) => soft reconnect automatico. Cura o
-  // "conectado fantasma" sem intervencao manual.
+  // Monitor de saude: a cada 60s confere o estado real. 3 falhas seguidas (sem
+  // atividade inbound) => sessao morta (ex.: Chromium travou) => soft reconnect
+  // automatico. Cura o "conectado fantasma" sem intervencao manual.
+  _ensureHealthMonitor() {
+    // Idempotente: garante o watchdog vivo. Chamado nos finally de initialize()
+    // e softReconnect() pra que o monitor NUNCA morra permanentemente (era a
+    // causa do active:false eterno quando client.initialize() travava no Mumbai).
+    if (!this._healthTimer) this._startHealthMonitor();
+  }
+
   _startHealthMonitor() {
     if (this._healthTimer) clearInterval(this._healthTimer);
     let bad = 0;
+    this._watchdogFailures = 0;
+    this._lastHealthState = this.connectionState || this.status || null;
+    // Geracao: invalida ticks em-voo de um interval anterior. clearInterval NAO
+    // cancela um callback ja suspenso num await (getState, 15s) — sem isto um tick
+    // antigo ressuscitaria uma sessao derrubada de proposito (disconnect()).
+    const myGen = (this._monitorGen = (this._monitorGen || 0) + 1);
     this._healthTimer = setInterval(async () => {
+      if (myGen !== this._monitorGen || this._intentionalDown) return;
       if (this._reconnecting) return;
-      if (this.status === "awaiting_scan" || this.status === "awaiting_pairing") return;
+      this._lastWatchdogAt = new Date().toISOString();
+      if (this.status === "awaiting_scan" || this.status === "awaiting_pairing") {
+        bad = 0;
+        this._watchdogFailures = 0;
+        this._lastHealthState = this.status;
+        return;
+      }
+      // Atividade inbound recente = sessao viva. Promove e zera strikes SEM pagar
+      // o getState() (15s no pior caso). Cura o "fantasma desconectado".
+      if (this._isLive()) {
+        bad = 0;
+        this._watchdogFailures = 0;
+        this._lastHealthState = "ACTIVE";
+        if (!this.isReady) {
+          this.isReady = true;
+          this.status = "ready";
+          this._reconnectAttempts = 0;
+          this._lastReconnectMs = 0;
+          this._log("[HEALTH] promovido a ready (atividade recente comprova o socket)");
+        }
+        return;
+      }
       const state = await this.getRealState();
+      // Tick obsoleto / sessao intencionalmente derrubada durante o await: aborta
+      // sem agir (nao ressuscita o que o usuario desconectou de proposito).
+      if (myGen !== this._monitorGen || this._intentionalDown || this._reconnecting) return;
+      this.connectionState = state;   // mantem isConnected() coerente com a verdade
       if (state === "CONNECTED") {
         bad = 0;
-        if (!this.isReady) { this.isReady = true; this.status = "ready"; }
+        this._watchdogFailures = 0;
+        this._lastHealthState = state;
+        if (!this.isReady) {
+          this.isReady = true;
+          this.status = "ready";
+          this._reconnectAttempts = 0;
+          this._lastReconnectMs = 0;
+          this._log("[HEALTH] promovido a ready (getState=CONNECTED)");
+        }
         return;
       }
       bad += 1;
-      this._log(`[HEALTH] estado=${state} (falha ${bad}/2)`);
-      if (bad >= 2) {
+      this._watchdogFailures = bad;
+      this._lastHealthState = state;
+      this._log(`[HEALTH] estado=${state} sem atividade (falha ${bad}/3)`);
+      if (bad >= 3) {
         bad = 0;
+        this._watchdogFailures = 0;
         this.isReady = false;
         this.status = "disconnected";
+        this._markEvent("watchdog_reconnect", { reason: state });
         this.emit("disconnected", "health-monitor:" + state);
-        this.softReconnect();
+        this.softReconnect("health-monitor:" + state);
       }
-    }, 45000);
+    }, 60000);
     if (this._healthTimer.unref) this._healthTimer.unref();
   }
 
@@ -784,7 +1479,21 @@ class WhatsAppClient extends EventEmitter {
   getQrTimestamp() { return this.qrTimestamp; }
   getPairingCode() { return this.pairingCode; }
   async disconnect() {
-    if (this.client) { await this.client.destroy(); this.isReady = false; this.status = "disconnected"; }
+    // Teardown DELIBERADO: zera TODA a fonte de verdade. Sem isto, _lastInboundMs
+    // recente + this.client truthy + connectionState='CONNECTED' faziam
+    // isConnected() mentir "ready" por ate 120s apos o usuario clicar Desconectar,
+    // e assertReady() passava => operacoes batiam num browser ja destruido.
+    this._markIntentionalDown();
+    this._monitorGen = (this._monitorGen || 0) + 1;   // invalida tick do watchdog em voo
+    if (this._readyTimeout) { clearTimeout(this._readyTimeout); this._readyTimeout = null; }
+    if (this._healthTimer) { clearInterval(this._healthTimer); this._healthTimer = null; }
+    if (this.client) { try { await this.client.destroy(); } catch (e) {} }
+    this.client = null;
+    this.isReady = false;
+    this._lastInboundMs = 0;
+    this.connectionState = "DISCONNECTED";
+    this.status = "disconnected";
+    this._markEvent("disconnect_preserve_session");
   }
 
   async requestPairingCode(phoneNumber) {
@@ -793,6 +1502,7 @@ class WhatsAppClient extends EventEmitter {
       throw new Error("Invalid phone number. Use format: +1 (940) 618-3140 or 19406183140");
     }
     this._log("[PAIRING] Requesting pairing code for:", cleanPhone);
+    this._markEvent("pairing_requested");
     await this.clearAndReinitialize(cleanPhone);
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -814,12 +1524,18 @@ class WhatsAppClient extends EventEmitter {
 
   async clearAndReinitialize(phoneNumber = null) {
     this._log("[PAIRING] Clearing auth and reinitializing...");
+    this._markEvent(phoneNumber ? "pairing_reinitialize" : "session_wipe_reinitialize");
     try {
       if (this.client) { await this.client.destroy(); }
     } catch (e) { this._log("[PAIRING] Error destroying client:", e.message); }
 
+    if (this._readyTimeout) { clearTimeout(this._readyTimeout); this._readyTimeout = null; }
+    if (this._healthTimer) { clearInterval(this._healthTimer); this._healthTimer = null; }
+    this._monitorGen = (this._monitorGen || 0) + 1;   // invalida tick do watchdog em voo
     this.client = null;
     this.isReady = false;
+    this._lastInboundMs = 0;            // invalida prova-de-vida stale (mascarava awaiting_*)
+    this.connectionState = "DISCONNECTED"; // limpa CONNECTED cacheado
     this.qrCode = null;
     this.pairingCode = null;
     this.pairingPhoneNumber = null;
@@ -834,6 +1550,9 @@ class WhatsAppClient extends EventEmitter {
     // PROFILAXIA: snapshot de seguranca ANTES de apagar — qualquer wipe (timeout,
     // /api/disconnect ou re-pair) fica recuperavel via _bak-...__prewipe.
     this._snapshotSession("__prewipe");
+    // Wipe/re-pair explicito nao pode ser desfeito pelo restore automatico do
+    // ultimo backup saudavel; manter so o __prewipe para recuperacao manual.
+    this._discardLastGoodBackup(phoneNumber ? "pairing reinitialize" : "wipe reinitialize");
     try {
       if (fs.existsSync(sessionPath)) {
         fs.rmSync(sessionPath, { recursive: true, force: true });
@@ -841,17 +1560,19 @@ class WhatsAppClient extends EventEmitter {
       }
     } catch (e) { this._log("[PAIRING] Error clearing auth:", e.message); }
 
-    await this.initialize(phoneNumber);
+    await this.initialize(phoneNumber, { explicit: true });
 
     if (phoneNumber) {
       this._log("[PAIRING] Reinitialized with pairing mode for:", phoneNumber);
     } else {
       this._log("[PAIRING] Reinitialized - waiting for QR code...");
       return new Promise((resolve, reject) => {
+        let checkQR;
         const timeout = setTimeout(() => {
+          if (checkQR) clearInterval(checkQR);   // vazava: interval seguia pollando p/ sempre
           reject(new Error("Timeout waiting for QR code after reinitialization"));
         }, 30000);
-        const checkQR = setInterval(() => {
+        checkQR = setInterval(() => {
           if (this.qrCode && this.status === "awaiting_scan") {
             clearInterval(checkQR);
             clearTimeout(timeout);
@@ -925,10 +1646,17 @@ class WhatsAppManager extends EventEmitter {
    * Cria + inicializa em uma chamada. Idempotente: se ja inicializou, devolve
    * a instancia existente sem re-iniciar.
    */
-  async ensureInitialized(orgId, phoneNumber = null) {
+  async ensureInitialized(orgId, phoneNumber = null, options = {}) {
     const client = this.getOrCreate(orgId);
-    if (!client.client) {
-      await client.initialize(phoneNumber);
+    const explicit = Boolean(options && options.explicit) || Boolean(phoneNumber);
+    if (!explicit && typeof client._isIntentionalDown === "function" && client._isIntentionalDown()) {
+      client._intentionalDown = true;
+      return client;
+    }
+    // Nao dispara um 2o initialize se ja ha um em voo (janela client=null durante
+    // softReconnect/clearAndReinitialize) — evita duplo Chromium no mesmo profile.
+    if (!client.client && !client._initInFlight && !client._reconnecting) {
+      await client.initialize(phoneNumber, { explicit });
     }
     return client;
   }
@@ -967,11 +1695,16 @@ class WhatsAppManager extends EventEmitter {
     return this.list().map((orgId) => {
       const c = this._clients.get(orgId);
       const status = c ? c.getStatus() : null;
+      const health = c && typeof c.getSessionHealth === "function" ? c.getSessionHealth() : null;
       return {
         orgId,
         status: status ? status.status : "unknown",
         isReady: status ? status.isReady : false,
         hasQrCode: status ? status.hasQrCode : false,
+        requiresPairing: health ? health.requiresPairing : Boolean(status && (status.hasQrCode || status.hasPairingCode)),
+        recommendedAction: health ? health.recommendedAction : null,
+        watchdog: health ? health.watchdog : null,
+        sessionPresent: health ? health.sessionPresent : false,
       };
     });
   }

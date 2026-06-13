@@ -23,6 +23,10 @@ router = APIRouter(prefix="/processes", tags=["processes"])
 # templates = Jinja2Templates(directory="templates")  # Using shared instance from template_config.py
 # PREFIX = "/casehub"  # Imported from template_config.py
 
+# Proc-M: tipos válidos de movimentação/andamento manual. Servidor valida contra
+# esta whitelist; qualquer valor fora dela cai em 'Outro'.
+MOVEMENT_TYPES = ["Andamento", "Despacho", "Audiência", "Petição", "Decisão", "Outro"]
+
 def get_context(request: Request, db: Session, **kwargs):
     lang = request.cookies.get("lang", "pt-BR")
     t = get_translations(lang)
@@ -257,7 +261,12 @@ async def delete_step(process_id: int, step_id: int, request: Request, db: Sessi
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
-    db.execute(text("DELETE FROM process_steps WHERE id = :id"), {"id": step_id})
+    db.execute(text("""
+        DELETE FROM process_steps
+        WHERE id = :step_id
+          AND process_id = :process_id
+          AND process_id IN (SELECT id FROM processes WHERE org_id = :org_id)
+    """), {"step_id": step_id, "process_id": process_id, "org_id": user.org_id})
     db.commit()
 
     return RedirectResponse(url=f"{PREFIX}/processes/{process_id}", status_code=302)
@@ -415,6 +424,18 @@ async def view_case_progress(case_id: int, request: Request, db: Session = Depen
         SELECT id, name FROM users WHERE enabled = true AND org_id = :org_id ORDER BY name
     """), {"org_id": request.state.org_id}).fetchall()
 
+    # Proc-M: movimentações/andamentos manuais (org-scoped, most-recent-first).
+    # `case` já foi validado como pertencente ao org acima; ainda filtramos por
+    # org_id na própria tabela para defesa em profundidade.
+    movements = db.execute(text("""
+        SELECT cm.id, cm.data, cm.tipo, cm.descricao, cm.created_at,
+               u.name AS author_name
+        FROM case_movements cm
+        LEFT JOIN users u ON u.id = cm.created_by
+        WHERE cm.case_id = :case_id AND cm.org_id = :org_id
+        ORDER BY cm.data DESC, cm.id DESC
+    """), {"case_id": case_id, "org_id": request.state.org_id}).fetchall()
+
     return templates.TemplateResponse("app/processes/case_progress.html", get_context(
         request, db,
         case=case,
@@ -424,7 +445,10 @@ async def view_case_progress(case_id: int, request: Request, db: Session = Depen
         all_users=all_users,
         progress_percent=progress_percent,
         total_steps=total_steps,
-        completed_steps=completed_steps
+        completed_steps=completed_steps,
+        movements=movements,
+        movement_types=MOVEMENT_TYPES,
+        today=datetime.now().date().strftime("%Y-%m-%d"),
     ))
 
 @router.post("/case/{case_id}/step/{step_id}/complete")
@@ -439,6 +463,10 @@ async def complete_step(
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    # Tenant guard (Sentinela): o caso precisa pertencer à org do request — sem isso,
+    # qualquer usuário altera o andamento de processo de outra org enumerando case_id.
+    if not _case_in_org(db, case_id, request.state.org_id):
+        raise HTTPException(status_code=404, detail="Case not found")
 
     # Update current step as completed
     db.execute(text("""
@@ -502,6 +530,8 @@ async def skip_step(
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    if not _case_in_org(db, case_id, request.state.org_id):
+        raise HTTPException(status_code=404, detail="Case not found")
 
     db.execute(text("""
         UPDATE case_step_progress
@@ -526,6 +556,8 @@ async def set_step_target_date(
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    if not _case_in_org(db, case_id, request.state.org_id):
+        raise HTTPException(status_code=404, detail="Case not found")
 
     db.execute(text("""
         UPDATE case_step_progress
@@ -548,6 +580,14 @@ async def assign_step_to_user(
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    if not _case_in_org(db, case_id, request.state.org_id):
+        raise HTTPException(status_code=404, detail="Case not found")
+    # Assignee precisa ser usuário da mesma org (defesa em profundidade — Sentinela).
+    if not db.execute(
+        text("SELECT 1 FROM users WHERE id = :uid AND org_id = :org_id"),
+        {"uid": assigned_to, "org_id": request.state.org_id},
+    ).first():
+        raise HTTPException(status_code=400, detail="Invalid assignee")
 
     db.execute(text("""
         UPDATE case_step_progress
@@ -570,6 +610,8 @@ async def set_step_priority(
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    if not _case_in_org(db, case_id, request.state.org_id):
+        raise HTTPException(status_code=404, detail="Case not found")
 
     db.execute(text("""
         UPDATE case_step_progress
@@ -579,6 +621,197 @@ async def set_step_priority(
     db.commit()
 
     return RedirectResponse(url=f"{PREFIX}/processes/case/{case_id}/progress", status_code=302)
+
+# ==================== PROC-M: MOVIMENTAÇÕES / ANDAMENTOS (MANUAL) ====================
+
+def _case_in_org(db: Session, case_id: int, org_id: int):
+    """Return the Case iff it belongs to org_id, else None (tenant guard)."""
+    return tenant_query(db, Case, org_id).filter(Case.id == case_id).first()
+
+
+def _normalize_tipo(tipo: Optional[str]) -> str:
+    """Clamp the movement type to the server-side whitelist."""
+    return tipo if tipo in MOVEMENT_TYPES else "Outro"
+
+
+@router.post("/case/{case_id}/movements/add")
+async def add_case_movement(
+    case_id: int,
+    request: Request,
+    descricao: str = Form(...),
+    tipo: str = Form("Andamento"),
+    data: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Add a manual movement/andamento to a case (org-scoped)."""
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    org_id = request.state.org_id
+    # Tenant guard: the case MUST belong to the caller's org.
+    if not _case_in_org(db, case_id, org_id):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    descricao = (descricao or "").strip()
+    if not descricao:
+        return RedirectResponse(
+            url=f"{PREFIX}/processes/case/{case_id}/progress", status_code=302
+        )
+
+    # Date: default to today; reject malformed input rather than guessing.
+    if data:
+        try:
+            mov_date = datetime.strptime(data, "%Y-%m-%d").date()
+        except ValueError:
+            mov_date = datetime.now().date()
+    else:
+        mov_date = datetime.now().date()
+
+    db.execute(text("""
+        INSERT INTO case_movements (org_id, case_id, data, tipo, descricao, created_by, created_at)
+        VALUES (:org_id, :case_id, :data, :tipo, :descricao, :created_by, NOW())
+    """), {
+        "org_id": org_id,
+        "case_id": case_id,
+        "data": mov_date,
+        "tipo": _normalize_tipo(tipo),
+        "descricao": descricao,
+        "created_by": user.id,
+    })
+    db.commit()
+
+    return RedirectResponse(
+        url=f"{PREFIX}/processes/case/{case_id}/progress", status_code=302
+    )
+
+
+@router.post("/case/{case_id}/movements/{movement_id}/edit")
+async def edit_case_movement(
+    case_id: int,
+    movement_id: int,
+    request: Request,
+    descricao: str = Form(...),
+    tipo: str = Form("Andamento"),
+    data: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Edit an existing movement (org-scoped on id AND org_id)."""
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    org_id = request.state.org_id
+    if not _case_in_org(db, case_id, org_id):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    descricao = (descricao or "").strip()
+    if not descricao:
+        return RedirectResponse(
+            url=f"{PREFIX}/processes/case/{case_id}/progress", status_code=302
+        )
+
+    if data:
+        try:
+            mov_date = datetime.strptime(data, "%Y-%m-%d").date()
+        except ValueError:
+            mov_date = None
+    else:
+        mov_date = None
+
+    if mov_date is not None:
+        db.execute(text("""
+            UPDATE case_movements
+            SET descricao = :descricao, tipo = :tipo, data = :data, updated_at = NOW()
+            WHERE id = :movement_id AND case_id = :case_id AND org_id = :org_id
+        """), {
+            "descricao": descricao,
+            "tipo": _normalize_tipo(tipo),
+            "data": mov_date,
+            "movement_id": movement_id,
+            "case_id": case_id,
+            "org_id": org_id,
+        })
+    else:
+        db.execute(text("""
+            UPDATE case_movements
+            SET descricao = :descricao, tipo = :tipo, updated_at = NOW()
+            WHERE id = :movement_id AND case_id = :case_id AND org_id = :org_id
+        """), {
+            "descricao": descricao,
+            "tipo": _normalize_tipo(tipo),
+            "movement_id": movement_id,
+            "case_id": case_id,
+            "org_id": org_id,
+        })
+    db.commit()
+
+    return RedirectResponse(
+        url=f"{PREFIX}/processes/case/{case_id}/progress", status_code=302
+    )
+
+
+@router.post("/case/{case_id}/movements/{movement_id}/delete")
+async def delete_case_movement(
+    case_id: int,
+    movement_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Hard-delete a movement (org-scoped). Movements are not financial data."""
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    org_id = request.state.org_id
+    if not _case_in_org(db, case_id, org_id):
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    db.execute(text("""
+        DELETE FROM case_movements
+        WHERE id = :movement_id AND case_id = :case_id AND org_id = :org_id
+    """), {"movement_id": movement_id, "case_id": case_id, "org_id": org_id})
+    db.commit()
+
+    return RedirectResponse(
+        url=f"{PREFIX}/processes/case/{case_id}/progress", status_code=302
+    )
+
+
+@router.get("/api/case/{case_id}/movements")
+async def api_case_movements(case_id: int, request: Request, db: Session = Depends(get_db)):
+    """API: list movements for a case (org-scoped, most-recent-first)."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
+
+    org_id = request.state.org_id
+    if not _case_in_org(db, case_id, org_id):
+        return JSONResponse({"error": "Case not found"}, status_code=404)
+
+    try:
+        rows = db.execute(text("""
+            SELECT cm.id, cm.data, cm.tipo, cm.descricao, cm.created_at,
+                   u.name AS author_name
+            FROM case_movements cm
+            LEFT JOIN users u ON u.id = cm.created_by
+            WHERE cm.case_id = :case_id AND cm.org_id = :org_id
+            ORDER BY cm.data DESC, cm.id DESC
+        """), {"case_id": case_id, "org_id": org_id}).fetchall()
+
+        movements = [{
+            "id": r.id,
+            "data": str(r.data) if r.data else None,
+            "tipo": r.tipo,
+            "descricao": r.descricao,
+            "author": r.author_name,
+            "created_at": str(r.created_at) if r.created_at else None,
+        } for r in rows]
+        return JSONResponse({"movements": movements, "count": len(movements)})
+    except Exception as e:
+        db.rollback()
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 
 # ==================== API ENDPOINTS ====================
 

@@ -34,6 +34,7 @@ KANBAN_TOTAL_LIMIT = 500
 TASK_CALENDAR_EVENT_LIMIT = 300
 VALID_KANBAN_STATUSES = {"pending", "in_progress", "blocked", "completed"}
 TASK_CALENDAR_PRIORITIES = {"urgent", "high", "medium", "low"}
+KANBAN_MANAGER_ROLES = {"admin", "superadmin", "owner", "manager", "gestor"}
 KANBAN_STATUS_ALIASES = {
     "todo": "pending",
     "to_do": "pending",
@@ -76,10 +77,33 @@ def _normalize_column_visibility(value: str) -> str:
     return "private" if str(value or "").strip().lower() in {"private", "privada", "me"} else "shared"
 
 
+def _normalize_task_visibility(value) -> str:
+    """Task-level privacy. 'private' (só criador+responsável) | 'org' (default, toda a org)."""
+    return "private" if str(value or "").strip().lower() in {"private", "privada", "me", "true", "1", "on"} else "org"
+
+
+def _visible_task_filter(user_id: int):
+    """Backend privacy guard — NÃO confiar só no front (Sentinela).
+    Tarefa privada só aparece p/ o CRIADOR ou o RESPONSÁVEL; org-scope já vem do tenant_query.
+    Tarefas legadas (visibility NULL/'org') seguem visíveis a toda a org."""
+    return or_(
+        Task.visibility.is_(None),
+        Task.visibility != "private",
+        Task.created_by == user_id,
+        Task.assigned_to == user_id,
+    )
+
+
+def _user_role_key(user) -> str:
+    return str(getattr(user, "role", "") or getattr(user, "user_type", "") or "").lower()
+
+
 def _can_manage_shared_kanban(user) -> bool:
-    return str(getattr(user, "role", "") or getattr(user, "user_type", "")).lower() in {
-        "admin", "owner", "manager", "gestor"
-    }
+    return _user_role_key(user) in KANBAN_MANAGER_ROLES
+
+
+def _can_view_team_private_kanban(user) -> bool:
+    return _user_role_key(user) in KANBAN_MANAGER_ROLES
 
 
 def _ensure_kanban_schema(db):
@@ -91,6 +115,12 @@ def _ensure_kanban_schema(db):
         ("kanban_columns", "visibility", "VARCHAR(20) DEFAULT 'shared'"),
         ("kanban_columns", "owner_user_id", "INTEGER"),
         ("kanban_columns", "is_archived", f"BOOLEAN DEFAULT {false_default}"),
+        # due_time: horário do prazo ("HH:MM") p/ reloginho Trello no card. Compat DBs antigas do alpha.
+        ("tasks", "due_time", "VARCHAR(5)"),
+        # Privacidade de tarefa (Victor 03/06): 'org' (default, toda a org vê) | 'private'
+        # (só criador + responsável). created_by preserva o dono p/ enforcement no backend.
+        ("tasks", "visibility", "VARCHAR(20) DEFAULT 'org'"),
+        ("tasks", "created_by", "INTEGER"),
     ]
     for table, column, definition in additions:
         try:
@@ -129,11 +159,16 @@ def _ensure_kanban_schema(db):
     db.commit()
 
 
-def _visible_column_where_sql() -> str:
+def _visible_column_where_sql(*, include_team_private: bool = False) -> str:
+    private_owner_clause = (
+        "(:include_team_private = 1 OR owner_user_id = :user_id)"
+        if include_team_private
+        else "owner_user_id = :user_id"
+    )
     return (
         "org_id = :org_id AND COALESCE(is_archived, FALSE) = FALSE "
         "AND (COALESCE(visibility, 'shared') = 'shared' "
-        "OR (visibility = 'private' AND owner_user_id = :user_id))"
+        f"OR (visibility = 'private' AND {private_owner_clause}))"
     )
 
 
@@ -250,7 +285,8 @@ async def list_tasks(
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
     query = tenant_query(db, Task, request.state.org_id).filter(
-        Task.parent_task_id.is_(None)  # Only top-level tasks
+        Task.parent_task_id.is_(None),  # Only top-level tasks
+        _visible_task_filter(user.id),  # Privacy guard
     )
 
     if not show_completed:
@@ -272,13 +308,15 @@ async def list_tasks(
     # Get overdue count
     overdue_count = tenant_query(db, Task, request.state.org_id).filter(
         Task.status != "completed",
-        Task.due_date < date.today()
+        Task.due_date < date.today(),
+        _visible_task_filter(user.id),
     ).count()
 
     # Get today's count
     today_count = tenant_query(db, Task, request.state.org_id).filter(
         Task.status != "completed",
-        Task.due_date == date.today()
+        Task.due_date == date.today(),
+        _visible_task_filter(user.id),
     ).count()
 
     return templates.TemplateResponse("app/tasks/list.html", {
@@ -339,9 +377,11 @@ async def create_task(
     case_id: str = Form(None),
     assigned_to: str = Form(None),
     due_date: str = Form(None),
+    due_time: str = Form(None),
     reminder_date: str = Form(None),
     tags: str = Form(None),
     estimated_hours: str = Form(None),
+    visibility: str = Form("org"),
     db: Session = Depends(get_db)
 ):
     user = get_current_user(request, db)
@@ -353,6 +393,10 @@ async def create_task(
     case_id = form_int(case_id)
     assigned_to = form_int(assigned_to)
     estimated_hours = form_float(estimated_hours)
+    # due_time: "HH:MM" (input type=time). Mesma validação do edit (update_task_api)
+    # para não corromper o reloginho do card. Inválido/vazio => None.
+    due_time = (due_time or "").strip()
+    due_time = due_time if re.match(r"^\d{2}:\d{2}$", due_time) else None
 
     task = Task(
         title=title,
@@ -364,9 +408,12 @@ async def create_task(
         case_id=case_id,
         assigned_to=assigned_to,
         due_date=parse_date(due_date),
+        due_time=due_time,
         reminder_date=parse_date(reminder_date),
         tags=tags.strip() if tags else None,
         estimated_hours=estimated_hours,
+        visibility=_normalize_task_visibility(visibility),
+        created_by=user.id,
         org_id=request.state.org_id
     )
     db.add(task)
@@ -768,21 +815,32 @@ async def kanban_view(request: Request, db: Session = Depends(get_db)):
     if view_mode not in {"all", "shared", "private"}:
         view_mode = "all"
 
+    can_manage_shared = _can_manage_shared_kanban(user)
+    can_view_team_private = _can_view_team_private_kanban(user)
     kanban_cols = db.execute(
         text(f"""
             SELECT id, name, slug, position, color, is_done,
                    COALESCE(visibility, 'shared') AS visibility,
                    owner_user_id
             FROM kanban_columns
-            WHERE {_visible_column_where_sql()}
+            WHERE {_visible_column_where_sql(include_team_private=can_view_team_private)}
               AND (:view_mode = 'all' OR COALESCE(visibility, 'shared') = :view_mode)
             ORDER BY
                 CASE WHEN COALESCE(visibility, 'shared') = 'shared' THEN 0 ELSE 1 END,
                 position ASC,
                 id ASC
         """),
-        {"org_id": org_id, "user_id": user.id, "view_mode": view_mode},
+        {
+            "org_id": org_id,
+            "user_id": user.id,
+            "include_team_private": 1 if can_view_team_private else 0,
+            "view_mode": view_mode,
+        },
     ).fetchall()
+
+    # Load org users for modal assignee dropdown and private-list owner labels.
+    org_users = tenant_query(db, User, org_id).filter(User.enabled == True).order_by(User.name).all()
+    org_user_names = {u.id: u.name for u in org_users}
 
     # User filter: ?user=me or ?user={id}
     user_filter = request.query_params.get("user")
@@ -793,15 +851,31 @@ async def kanban_view(request: Request, db: Session = Depends(get_db)):
         filter_user_id = int(user_filter)
 
     tasks_query = tenant_query(db, Task, org_id).filter(Task.parent_task_id.is_(None))
+    # Privacidade de tarefa (backend guard): tarefa privada só p/ criador+responsável.
+    tasks_query = tasks_query.filter(_visible_task_filter(user.id))
     if filter_user_id:
         tasks_query = tasks_query.filter(Task.assigned_to == filter_user_id)
 
-    privately_placed_ids = [
-        r.task_id for r in db.execute(
-            text("SELECT task_id FROM task_kanban_placements WHERE org_id = :org_id AND user_id = :user_id"),
-            {"org_id": org_id, "user_id": user.id},
-        ).fetchall()
-    ]
+    private_column_ids = [col.id for col in kanban_cols if col.visibility == "private"]
+    if can_view_team_private and private_column_ids:
+        private_placement_query = text("""
+            SELECT task_id
+            FROM task_kanban_placements
+            WHERE org_id = :org_id AND column_id IN :column_ids
+        """).bindparams(bindparam("column_ids", expanding=True))
+        privately_placed_ids = [
+            r.task_id for r in db.execute(
+                private_placement_query,
+                {"org_id": org_id, "column_ids": private_column_ids},
+            ).fetchall()
+        ]
+    else:
+        privately_placed_ids = [
+            r.task_id for r in db.execute(
+                text("SELECT task_id FROM task_kanban_placements WHERE org_id = :org_id AND user_id = :user_id"),
+                {"org_id": org_id, "user_id": user.id},
+            ).fetchall()
+        ]
 
     column_entries = []
     column_count = max(len(kanban_cols), 1)
@@ -811,6 +885,7 @@ async def kanban_view(request: Request, db: Session = Depends(get_db)):
         col_status = _status_for_kanban_column(col.slug, col.is_done)
         col_limit = min(per_column_limit, initial_task_budget)
         if col.visibility == "private":
+            placement_user_id = col.owner_user_id or user.id
             placement_rows = db.execute(
                 text("""
                     SELECT task_id, position
@@ -818,7 +893,7 @@ async def kanban_view(request: Request, db: Session = Depends(get_db)):
                     WHERE org_id = :org_id AND user_id = :user_id AND column_id = :column_id
                     ORDER BY position ASC, task_id ASC
                 """),
-                {"org_id": org_id, "user_id": user.id, "column_id": col.id},
+                {"org_id": org_id, "user_id": placement_user_id, "column_id": col.id},
             ).fetchall()
             task_ids = [r.task_id for r in placement_rows]
             if task_ids:
@@ -873,6 +948,15 @@ async def kanban_view(request: Request, db: Session = Depends(get_db)):
         col_tasks = entry["tasks"]
         visible_tasks.extend(col_tasks)
         total_h = sum(t.estimated_hours or 0 for t in col_tasks)
+        is_private = col.visibility == "private"
+        is_owner = not is_private or col.owner_user_id == user.id
+        owner_name = org_user_names.get(col.owner_user_id)
+        if is_private and not is_owner:
+            visibility_label = f"Privada - {owner_name}" if owner_name else "Privada - equipe"
+        elif is_private:
+            visibility_label = "Meu quadro"
+        else:
+            visibility_label = "Compartilhada"
         columns_data.append({
             "id": col.id,
             "name": col.name,
@@ -881,15 +965,22 @@ async def kanban_view(request: Request, db: Session = Depends(get_db)):
             "color": col.color,
             "is_done": col.is_done,
             "visibility": col.visibility,
-            "visibility_label": "Meu quadro" if col.visibility == "private" else "Compartilhada",
-            "is_private": col.visibility == "private",
-            "is_owner": col.visibility != "private" or col.owner_user_id == user.id,
+            "visibility_label": visibility_label,
+            "is_private": is_private,
+            "is_owner": is_owner,
+            "owner_user_id": col.owner_user_id,
+            "owner_name": owner_name,
+            "can_manage": (can_manage_shared if not is_private else col.owner_user_id == user.id),
+            "can_add_cards": (not is_private or col.owner_user_id == user.id),
             "tasks": col_tasks,
             "hours": round(total_h, 1) if total_h else 0,
         })
 
-    # Load org users for modal assignee dropdown
-    org_users = tenant_query(db, User, org_id).filter(User.enabled == True).order_by(User.name).all()
+    # Clientes + processos p/ os selects de Cliente/Processo no modal (org-scoped).
+    clients = tenant_query(db, Client, org_id).filter(
+        or_(Client.status == None, Client.status != 'deleted')
+    ).order_by(Client.first_name).all()
+    cases = tenant_query(db, Case, org_id).order_by(Case.created_at.desc()).limit(300).all()
 
     assigned_user_ids = _assigned_user_ids_for_tasks(visible_tasks)
     assigned_task_users = (
@@ -905,6 +996,8 @@ async def kanban_view(request: Request, db: Session = Depends(get_db)):
         "columns": {c["slug"]: c["tasks"] for c in columns_data},
         "column_hours": {c["slug"]: c["hours"] for c in columns_data},
         "org_users": org_users,
+        "clients": clients,
+        "cases": cases,
         "assigned_task_users": assigned_task_users,
         "tasks_capped": tasks_capped,
         "kanban_total_limit": KANBAN_TOTAL_LIMIT,
@@ -913,7 +1006,8 @@ async def kanban_view(request: Request, db: Session = Depends(get_db)):
         "kanban_view_mode": view_mode,
         "shared_column_count": len([c for c in columns_data if c["visibility"] == "shared"]),
         "private_column_count": len([c for c in columns_data if c["visibility"] == "private"]),
-        "can_manage_shared_kanban": _can_manage_shared_kanban(user),
+        "can_manage_shared_kanban": can_manage_shared,
+        "can_view_team_private_kanban": can_view_team_private,
     })
 
 
@@ -958,7 +1052,10 @@ async def move_task(
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON invalido")
     new_status = body.get("status")
     new_position = body.get("position", 0)
     new_column_id = body.get("column_id")
@@ -1030,13 +1127,24 @@ async def quick_add_task(
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "JSON invalido"}, status_code=400)
     title = body.get("title", "").strip()
     status = body.get("status", "pending")
     column_id = body.get("column_id")
+    task_visibility = _normalize_task_visibility(body.get("visibility") if "visibility" in body else ("private" if body.get("private") else "org"))
 
     if not title:
         return JSONResponse({"error": "Title required"}, status_code=400)
+
+    # Prazo opcional no quick-add (data + hora, pareados — o reloginho do card só
+    # aparece quando há due_date). Hora validada como "HH:MM"; inválida => None.
+    raw_due_date = (body.get("due_date") or "").strip() or None
+    raw_due_time = (body.get("due_time") or "").strip()
+    quick_due_date = parse_date(raw_due_date) if raw_due_date else None
+    quick_due_time = raw_due_time if re.match(r"^\d{2}:\d{2}$", raw_due_time) else None
 
     target_column = None
     if column_id:
@@ -1069,6 +1177,10 @@ async def quick_add_task(
             org_id=request.state.org_id,
             column_id=None if (target_column and target_column.visibility == "private") else column_id,
             assigned_to=user.id if (target_column and target_column.visibility == "private") else None,
+            visibility=task_visibility,
+            created_by=user.id,
+            due_date=quick_due_date,
+            due_time=quick_due_time,
             completed_at=datetime.now() if status == "completed" else None
         )
         db.add(task)
@@ -1092,8 +1204,8 @@ async def quick_add_task(
         # Fallback: insert via raw SQL
         result = db.execute(
             text("""
-                INSERT INTO tasks (title, status, priority, org_id, column_id, assigned_to)
-                VALUES (:t, :s, :p, :o, :column_id, :assigned_to)
+                INSERT INTO tasks (title, status, priority, org_id, column_id, assigned_to, visibility, created_by, due_date, due_time)
+                VALUES (:t, :s, :p, :o, :column_id, :assigned_to, :visibility, :created_by, :due_date, :due_time)
                 RETURNING id
             """),
             {
@@ -1103,6 +1215,10 @@ async def quick_add_task(
                 "o": request.state.org_id,
                 "column_id": None if (target_column and target_column.visibility == "private") else column_id,
                 "assigned_to": user.id if (target_column and target_column.visibility == "private") else None,
+                "visibility": task_visibility,
+                "created_by": user.id,
+                "due_date": quick_due_date,
+                "due_time": quick_due_time,
             },
         )
         task_id = result.scalar()
@@ -1140,7 +1256,10 @@ async def create_column(request: Request, db: Session = Depends(get_db)):
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
     org_id = request.state.org_id
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "JSON invalido"}, status_code=400)
     name = body.get("name", "").strip()
     visibility = _normalize_column_visibility(body.get("visibility", "shared"))
     if not name:
@@ -1206,7 +1325,10 @@ async def update_column(request: Request, col_id: int, db: Session = Depends(get
         return JSONResponse({"error": "Coluna nao encontrada"}, status_code=404)
     if column.visibility == "shared" and not _can_manage_shared_kanban(user):
         return JSONResponse({"error": "Apenas gestores podem editar listas compartilhadas"}, status_code=403)
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "JSON invalido"}, status_code=400)
     updates = []
     params = {"id": col_id, "o": org_id}
     if "name" in body:
@@ -1286,7 +1408,10 @@ async def reorder_columns(request: Request, db: Session = Depends(get_db)):
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
     org_id = request.state.org_id
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "JSON invalido"}, status_code=400)
     order = body.get("order", [])  # list of column IDs in new order
     for i, col_id in enumerate(order):
         db.execute(
@@ -1326,6 +1451,44 @@ async def toggle_subtask(
     return JSONResponse({"success": True, "status": task.status})
 
 
+@router.post("/api/{task_id}/subtask")
+async def create_subtask(request: Request, task_id: int, db: Session = Depends(get_db)):
+    """Create a subtask under a top-level task (Notion-style checklist item)."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    # Org-scoped + privacy guard: só adiciona subtarefa a uma tarefa de topo que o
+    # usuário enxerga (criador/responsável p/ privadas). Subtarefa de subtarefa: não.
+    parent = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),
+    ).first()
+    if not parent or parent.parent_task_id:
+        return JSONResponse({"error": "Task not found"}, status_code=404)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "JSON invalido"}, status_code=400)
+    title = (body.get("title") or "").strip()
+    if not title:
+        return JSONResponse({"error": "Title required"}, status_code=400)
+
+    sub = Task(
+        title=title[:500],
+        status="pending",
+        priority="medium",
+        org_id=request.state.org_id,
+        parent_task_id=parent.id,
+        created_by=user.id,
+        visibility=parent.visibility,  # herda visibilidade do pai (privada continua privada)
+    )
+    db.add(sub)
+    db.commit()
+    return JSONResponse({"success": True, "subtask": {"id": sub.id, "title": sub.title, "status": sub.status}})
+
+
 # ==========================================
 # TASK CALENDAR VIEW
 # ==========================================
@@ -1339,7 +1502,8 @@ async def task_calendar_view(request: Request, db: Session = Depends(get_db)):
 
     tasks = tenant_query(db, Task, request.state.org_id).filter(
         Task.parent_task_id.is_(None),
-        Task.due_date.isnot(None)
+        Task.due_date.isnot(None),
+        _visible_task_filter(user.id),  # Privacy guard
     ).order_by(
         Task.due_date.asc(),
         Task.id.asc(),
@@ -1413,7 +1577,11 @@ async def get_task_detail(request: Request, task_id: int, db: Session = Depends(
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
-    task = tenant_query(db, Task, request.state.org_id).filter(Task.id == task_id).first()
+    # Privacy guard: tarefa privada de outro usuário retorna 404 (sem vazar conteúdo).
+    task = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),
+    ).first()
     if not task:
         return JSONResponse({"error": "Task not found"}, status_code=404)
 
@@ -1440,7 +1608,10 @@ async def get_task_detail(request: Request, task_id: int, db: Session = Depends(
         "case_id": task.case_id,
         "case_name": task.case.case_number or task.case.case_name if task.case else None,
         "due_date": task.due_date.isoformat() if task.due_date else None,
+        "due_time": task.due_time or None,
         "tags": task.tags or "",
+        "visibility": task.visibility or "org",
+        "is_private": (task.visibility == "private"),
         "estimated_hours": task.estimated_hours,
         "completed_at": task.completed_at.isoformat() if task.completed_at else None,
         "created_at": task.created_at.isoformat() if task.created_at else None,
@@ -1467,11 +1638,22 @@ async def update_task_api(request: Request, task_id: int, db: Session = Depends(
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
-    task = tenant_query(db, Task, request.state.org_id).filter(Task.id == task_id).first()
+    # Privacy guard: ninguém edita tarefa privada de outro usuário (404, sem vazar).
+    task = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),
+    ).first()
     if not task:
         return JSONResponse({"error": "Task not found"}, status_code=404)
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "JSON invalido"}, status_code=400)
+
+    # Capturar assignee anterior ANTES de mutar: assim só notifica em mudança real (Doherty: feedback <400ms só quando muda).
+    prev_assigned_to = task.assigned_to
+    newly_assigned_user_id = None
 
     if "title" in body:
         task.title = body["title"].strip()
@@ -1480,11 +1662,48 @@ async def update_task_api(request: Request, task_id: int, db: Session = Depends(
     if "priority" in body and body["priority"] in ("low", "medium", "high", "urgent"):
         task.priority = body["priority"]
     if "assigned_to" in body:
-        task.assigned_to = int(body["assigned_to"]) if body["assigned_to"] else None
+        new_assigned = int(body["assigned_to"]) if body["assigned_to"] else None
+        # Org-scope guard: só aceita user da mesma org (evita atribuir a colaborador de outro tenant).
+        if new_assigned is not None:
+            assignee_ok = tenant_query(db, User, request.state.org_id).filter(User.id == new_assigned).first()
+            if not assignee_ok:
+                return JSONResponse({"error": "Invalid assignee"}, status_code=400)
+        task.assigned_to = new_assigned
+        # Notifica apenas se mudou e há novo responsável diferente de quem editou (não auto-notificar).
+        if new_assigned and new_assigned != prev_assigned_to and new_assigned != user.id:
+            newly_assigned_user_id = new_assigned
+    if "client_id" in body:
+        # Org-scope guard (anti-IDOR): só aceita cliente da mesma org. Espelha o guard de assignee.
+        new_client = int(body["client_id"]) if body["client_id"] else None
+        if new_client is not None:
+            if not tenant_query(db, Client, request.state.org_id).filter(Client.id == new_client).first():
+                return JSONResponse({"error": "Invalid client"}, status_code=400)
+        task.client_id = new_client
+    if "case_id" in body:
+        # Org-scope guard (anti-IDOR): só aceita processo da mesma org.
+        new_case = int(body["case_id"]) if body["case_id"] else None
+        if new_case is not None:
+            if not tenant_query(db, Case, request.state.org_id).filter(Case.id == new_case).first():
+                return JSONResponse({"error": "Invalid case"}, status_code=400)
+        task.case_id = new_case
     if "due_date" in body:
         task.due_date = parse_date(body["due_date"]) if body["due_date"] else None
+    if "due_time" in body:
+        # Aceita "HH:MM" (input type=time). Vazio/None limpa. Valida formato p/ não corromper o badge.
+        raw_time = (body["due_time"] or "").strip()
+        if raw_time:
+            if re.match(r"^\d{2}:\d{2}$", raw_time):
+                task.due_time = raw_time
+        else:
+            task.due_time = None
     if "tags" in body:
         task.tags = body["tags"].strip() if body["tags"] else None
+    if "visibility" in body:
+        # Só pode marcar/desmarcar privada quem já enxerga (criador/responsável) — o guard
+        # acima já garante isso. Ao tornar privada sem dono registrado, fixa o editor como criador.
+        task.visibility = _normalize_task_visibility(body["visibility"])
+        if task.visibility == "private" and not task.created_by:
+            task.created_by = user.id
     if "estimated_hours" in body:
         task.estimated_hours = float(body["estimated_hours"]) if body["estimated_hours"] else None
     column_status = None
@@ -1524,6 +1743,62 @@ async def update_task_api(request: Request, task_id: int, db: Session = Depends(
         task.status = column_status
 
     db.commit()
+
+    # Item 3: notificação in-app + bandeja (sininho) ao colaborador atribuído. Org-scoped (user já validado na org).
+    if newly_assigned_user_id:
+        try:
+            from services.notifications.in_app import create_notification
+            create_notification(
+                db=db,
+                user_id=newly_assigned_user_id,
+                title=f"Nova tarefa atribuída a você: {task.title[:120]}",
+                notification_type="task_created",
+                message="Você foi designado(a) como responsável por esta tarefa no Kanban.",
+                severity="info",
+                task_id=task.id,
+                action_url=f"{PREFIX}/tasks/kanban",
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+
+    return JSONResponse({"success": True, "task_id": task_id})
+
+
+@router.delete("/api/{task_id}/delete")
+async def delete_task_api(request: Request, task_id: int, db: Session = Depends(get_db)):
+    """Item 2: excluir tarefa do Kanban via JSON. Org-scoped — só apaga tarefa da org do usuário."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    # tenant_query garante filtro por org + privacy guard: tarefa de outra org ou privada de
+    # outro usuário retorna None → 404 (sem vazamento cross-tenant nem cross-user).
+    task = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),
+    ).first()
+    if not task:
+        return JSONResponse({"error": "Task not found"}, status_code=404)
+
+    try:
+        # Limpa placements privados e subtarefas filhas antes de remover a tarefa-pai (FK self-ref).
+        db.execute(
+            text("DELETE FROM task_kanban_placements WHERE org_id = :org_id AND task_id = :task_id"),
+            {"org_id": request.state.org_id, "task_id": task_id},
+        )
+        for child in tenant_query(db, Task, request.state.org_id).filter(Task.parent_task_id == task_id).all():
+            db.execute(
+                text("DELETE FROM task_kanban_placements WHERE org_id = :org_id AND task_id = :task_id"),
+                {"org_id": request.state.org_id, "task_id": child.id},
+            )
+            db.delete(child)
+        db.delete(task)
+        db.commit()
+    except Exception:
+        db.rollback()
+        return JSONResponse({"error": "Falha ao excluir tarefa"}, status_code=500)
+
     return JSONResponse({"success": True, "task_id": task_id})
 
 
@@ -1538,7 +1813,10 @@ async def add_task_comment_api(request: Request, task_id: int, db: Session = Dep
     if not task:
         return JSONResponse({"error": "Task not found"}, status_code=404)
 
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "JSON invalido"}, status_code=400)
     content = body.get("content", "").strip()
     if not content:
         return JSONResponse({"error": "Content required"}, status_code=400)
@@ -1568,7 +1846,10 @@ async def view_task(request: Request, task_id: int, db: Session = Depends(get_db
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
-    task = tenant_query(db, Task, request.state.org_id).filter(Task.id == task_id).first()
+    task = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),  # Privacy guard
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -1590,7 +1871,10 @@ async def edit_task_form(request: Request, task_id: int, db: Session = Depends(g
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
-    task = tenant_query(db, Task, request.state.org_id).filter(Task.id == task_id).first()
+    task = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),  # Privacy guard
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -1633,6 +1917,7 @@ async def update_task(
     reminder_date: str = Form(None),
     tags: str = Form(None),
     estimated_hours: str = Form(None),
+    visibility: str = Form(None),
     db: Session = Depends(get_db)
 ):
     user = get_current_user(request, db)
@@ -1645,7 +1930,10 @@ async def update_task(
     assigned_to = form_int(assigned_to)
     estimated_hours = form_float(estimated_hours)
 
-    task = tenant_query(db, Task, request.state.org_id).filter(Task.id == task_id).first()
+    task = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),  # Privacy guard
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -1667,6 +1955,10 @@ async def update_task(
     task.reminder_date = parse_date(reminder_date)
     task.tags = tags.strip() if tags else None
     task.estimated_hours = estimated_hours
+    if visibility is not None:
+        task.visibility = _normalize_task_visibility(visibility)
+        if task.visibility == "private" and not task.created_by:
+            task.created_by = user.id
 
     db.commit()
 
@@ -1727,7 +2019,10 @@ async def complete_task(request: Request, task_id: int, db: Session = Depends(ge
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
-    task = tenant_query(db, Task, request.state.org_id).filter(Task.id == task_id).first()
+    task = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),  # Privacy guard
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -1744,7 +2039,10 @@ async def delete_task(request: Request, task_id: int, db: Session = Depends(get_
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
-    task = tenant_query(db, Task, request.state.org_id).filter(Task.id == task_id).first()
+    task = tenant_query(db, Task, request.state.org_id).filter(
+        Task.id == task_id,
+        _visible_task_filter(user.id),  # Privacy guard
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 

@@ -66,7 +66,7 @@ def _resolve_request_org_id(request: Request) -> int | None:
     Multi-session per-tenant (F29, 2026-05-27): every proxy call to the
     WhatsApp bot must carry X-Org-Id so the bot dispatches to the right
     tenant's session. The browser does NOT set this header — TenantMiddleware
-    resolved the tenant from the Host header (cliente.example.com),
+    resolved the tenant from the Host header (sampletenant.casehub.legal),
     set `request.state.org_id`, and we surface that to the bot here.
 
     Falls back to None when the request has no tenant context (the bot then

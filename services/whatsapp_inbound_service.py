@@ -161,7 +161,7 @@ def _resolve_inbound_org(
     0. `requested_org_id` (header X-Org-Id do bot multi-session) — fonte
        deterministica; pula heuristica. Quando setado, garantimos so que a
        org existe; senao caimos no fluxo legacy. Isto resolve definitivamente
-       o bug "cliente-alpha ve mensagens da default" sem depender do telefone.
+       o bug "sampletenant ve mensagens da default" sem depender do telefone.
     1. `matched_org_id` (telefone casou com um cliente) -> org desse cliente.
     2. sem match, deploy single-tenant (exatamente 1 org) -> essa org.
     3. 2+ orgs sem match -> fallback org slug='default' (ex.: id=2 em
@@ -228,7 +228,7 @@ def persist_inbound_message(
     # tenant dono da sessao que recebeu a mensagem. Sem isto, a linha ficava com
     # org_id NULL p/ remetentes nao-cadastrados (sem match de client) -> /api/messages
     # e /api/conversations (filtrados por org_id) nao achavam nada -> "Loading
-    # messages..." eterno ([parceiro], alpha 29/05). Prefere o header; cai no match so se ausente.
+    # messages..." eterno (Example User, alpha 29/05). Prefere o header; cai no match so se ausente.
     if requested_org_id and requested_org_id > 0:
         org_id = requested_org_id
 

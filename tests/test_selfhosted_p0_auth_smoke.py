@@ -72,17 +72,15 @@ def app_and_client():
     it. We import lazily so the env vars at module top are in effect
     when the app modules read settings.
 
-    TenantMiddleware resolves the org from (in priority order)
-    ``X-Org-Id`` header, JWT ``org_id`` claim, Host header, or a
-    fallback. The TestClient defaults to ``testserver`` as Host which
-    has no matching Organization — without ``X-Org-Id`` every probe
-    would 404 with "Organization not found for this domain.". We
-    forward ``X-Org-Id: 1`` (the seeded org's id) on every request.
+    TenantMiddleware resolves the org from the Host/subdomain before
+    JWT fallback. The TestClient defaults to ``testserver`` as Host,
+    which has no matching Organization, so this smoke uses
+    ``selfhost.casehub.legal`` and seeds an org with slug ``selfhost``.
     """
     from fastapi.testclient import TestClient
     from core.app_factory import create_app
 
-    # Lite is the product o cliente will run on alpha — see PR #583
+    # Lite is the product Example Legal will run on alpha — see PR #583
     # findings (suspected mismatch). Using lite here keeps the smoke
     # aligned with the goal-listed module set (Controladoria/Tarefas/
     # CRM/Agenda).
@@ -90,7 +88,7 @@ def app_and_client():
     with TestClient(
         app,
         follow_redirects=False,
-        headers={"X-Org-Id": "1"},
+        headers={"host": "selfhost.casehub.legal"},
     ) as client:
         yield app, client
 
@@ -102,8 +100,8 @@ def seeded_user(app_and_client) -> dict:
 
     Returns the credentials so the login test can drive them. The
     organization id is hardcoded to 1 (autoincrement primary key on a
-    fresh in-memory DB), matching the ``X-Org-Id`` header the
-    TestClient fixture forwards on every request.
+    fresh in-memory DB), and slug ``selfhost`` matches the Host header
+    used by the TestClient fixture.
     """
     import uuid as _uuid
 
@@ -166,11 +164,12 @@ def test_selfhosted_app_starts_and_serves_healthz(app_and_client, seeded_user):
     even with no user logged in. If this fails, the broader smoke
     cannot be trusted.
 
-    ``seeded_user`` dependency seeds Organization(id=1) before this test
-    runs so ``TenantMiddleware`` can resolve the ``X-Org-Id: 1`` header
-    sent by the module's TestClient. Without the seeded org, the
-    middleware short-circuits requests to ``Organization not found for
-    this domain`` (HTTP 404), masking the healthz route's real status.
+    ``seeded_user`` dependency seeds Organization(id=1, slug="selfhost")
+    before this test runs so ``TenantMiddleware`` can resolve the
+    ``selfhost.casehub.legal`` Host header sent by the module's
+    TestClient. Without the seeded org, the middleware short-circuits
+    requests to ``Organization not found for this domain`` (HTTP 404),
+    masking the healthz route's real status.
     Healthz itself does not need the user — only the org. Production
     alpha (casehub.legal) has a default org for that host and so does
     not hit this path; the in-memory test DB does, so seeding is the

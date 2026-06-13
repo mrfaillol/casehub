@@ -54,7 +54,7 @@ GET /emails/attachments/{attachment_id}/preview   - Preview inline (PDF/imagens)
 | file_path | VARCHAR(500) | Caminho no disco |
 | created_at | TIMESTAMP | Data de criacao |
 
-**Arquivos:** /var/www/legacy.example/casehub/uploads/email_attachments/
+**Arquivos:** /var/www/immigrant.law/casehub/uploads/email_attachments/
 
 ---
 
@@ -72,7 +72,7 @@ GET /emails/attachments/{attachment_id}/preview   - Preview inline (PDF/imagens)
 
 ## Como Testar
 
-1. Acesse https://legacy.example/casehub/emails
+1. Acesse https://immigrant.law/casehub/emails
 2. Abra um email com anexos
 3. Use os botoes Preview/Download na secao Attachments
 
@@ -82,11 +82,11 @@ GET /emails/attachments/{attachment_id}/preview   - Preview inline (PDF/imagens)
 
 ```bash
 # Restaurar backups
-cp /var/www/legacy.example/casehub/routes/emails.py.backup.20260204_* \
-   /var/www/legacy.example/casehub/routes/emails.py
+cp /var/www/immigrant.law/casehub/routes/emails.py.backup.20260204_* \
+   /var/www/immigrant.law/casehub/routes/emails.py
 
-cp /var/www/legacy.example/casehub/templates/emails/view.html.backup.20260204_* \
-   /var/www/legacy.example/casehub/templates/emails/view.html
+cp /var/www/immigrant.law/casehub/templates/emails/view.html.backup.20260204_* \
+   /var/www/immigrant.law/casehub/templates/emails/view.html
 
 # Reiniciar
 pm2 restart casehub

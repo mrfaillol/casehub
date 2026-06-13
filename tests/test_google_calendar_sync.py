@@ -3,6 +3,7 @@ import pickle
 import stat
 import time
 from datetime import date
+from pathlib import Path
 from types import SimpleNamespace
 
 
@@ -56,12 +57,14 @@ def test_legacy_ilc_pickle_token_imports_to_json(tmp_path, monkeypatch):
     monkeypatch.setenv("GOOGLE_CALENDAR_TOKEN_DIR", str(token_dir))
     monkeypatch.setenv("GOOGLE_CALENDAR_LEGACY_TOKEN_PATH", str(legacy_token))
 
-    status = GoogleCalendarService().get_account_status("center")
+    service = GoogleCalendarService()
+    status = service.get_account_status("center")
+    token_file = Path(service.get_token_file("center"))
 
     assert status["legacy_token_imported"] is True
-    assert (token_dir / "token_center.json").exists()
-    assert stat.S_IMODE((token_dir / "token_center.json").stat().st_mode) == 0o600
-    token_data = json.loads((token_dir / "token_center.json").read_text(encoding="utf-8"))
+    assert token_file.exists()
+    assert stat.S_IMODE(token_file.stat().st_mode) == 0o600
+    token_data = json.loads(token_file.read_text(encoding="utf-8"))
     assert "https://www.googleapis.com/auth/calendar.events" in token_data["scopes"]
 
 
@@ -105,8 +108,14 @@ def test_oauth_state_is_signed_user_bound_and_tamper_rejected():
 
     user = SimpleNamespace(id=7, email="victor@example.com")
     other_user = SimpleNamespace(id=8, email="other@example.com")
+    request = SimpleNamespace(
+        headers={"host": "sampletenant.casehub.legal"},
+        url=SimpleNamespace(scheme="https"),
+        base_url="https://sampletenant.casehub.legal/",
+        state=SimpleNamespace(org_id=4),
+    )
 
-    state = _encode_oauth_state("center", user)
+    state = _encode_oauth_state("center", user, request)
 
     assert _decode_oauth_state(state, user) == "center"
     assert _decode_oauth_state(state, other_user) is None
@@ -243,6 +252,32 @@ def test_sync_appointment_creates_google_event(monkeypatch, tmp_path):
     assert created_events[0]["extendedProperties"]["private"]["casehub_appointment_id"] == "42"
 
 
+def test_sync_appointment_exports_local_as_google_location(monkeypatch, tmp_path):
+    from services.google_calendar import GoogleCalendarService
+
+    created_events = []
+    monkeypatch.setenv("GOOGLE_CALENDAR_TOKEN_DIR", str(tmp_path))
+    service = GoogleCalendarService()
+    monkeypatch.setattr(service, "get_default_write_account", lambda: "center")
+    monkeypatch.setattr(
+        service,
+        "create_event",
+        lambda account, body: created_events.append(body) or {"id": "gcal-local"},
+    )
+
+    result = service.sync_appointment({
+        "id": 77,
+        "title": "Pericia",
+        "type": "pericia",
+        "date": date(2026, 6, 8),
+        "time_start": "14:00",
+        "local": "IML Belo Horizonte",
+    })
+
+    assert result["synced"] is True
+    assert created_events[0]["location"] == "IML Belo Horizonte"
+
+
 def test_sync_appointment_can_use_neutral_google_event_mode(monkeypatch, tmp_path):
     from services.google_calendar import GoogleCalendarService
 
@@ -264,6 +299,7 @@ def test_sync_appointment_can_use_neutral_google_event_mode(monkeypatch, tmp_pat
         "client_name": "Cliente Ficticio Alpha",
         "date": date(2026, 5, 4),
         "notes": "Sala virtual",
+        "local": "Forum reservado",
     })
 
     assert result["synced"] is True
@@ -271,6 +307,7 @@ def test_sync_appointment_can_use_neutral_google_event_mode(monkeypatch, tmp_pat
     assert created_events[0]["summary"] == "Compromisso CaseHub"
     assert "Cliente Ficticio Alpha" not in serialized_event
     assert "Sala virtual" not in serialized_event
+    assert "Forum reservado" not in serialized_event
     assert created_events[0]["extendedProperties"]["private"]["casehub_appointment_id"] == "42"
 
 
@@ -284,7 +321,8 @@ def test_disconnect_account_revokes_refresh_token_then_removes_file(monkeypatch,
     from services.google_calendar import GoogleCalendarService
 
     monkeypatch.setenv("GOOGLE_CALENDAR_TOKEN_DIR", str(tmp_path))
-    token_file = tmp_path / "token_center.json"
+    service = GoogleCalendarService()
+    token_file = Path(service.get_token_file("center"))
     token_file.write_text(
         json.dumps({
             "token": "access-token",
@@ -300,7 +338,6 @@ def test_disconnect_account_revokes_refresh_token_then_removes_file(monkeypatch,
         encoding="utf-8",
     )
 
-    service = GoogleCalendarService()
     revoked = []
     monkeypatch.setattr(service, "_revoke_google_token", lambda token: revoked.append(token) or True)
 
@@ -320,3 +357,195 @@ def test_sync_appointment_is_best_effort_when_no_account(tmp_path, monkeypatch):
 
     assert result["synced"] is False
     assert result["code"] == "google_calendar_not_connected"
+
+
+# ── events.watch realtime push (webhook receiver) — DORMANT behind flag ──────
+
+GCAL_WEBHOOK_URL = "/casehub/calendar/gcal-webhook"
+
+
+def _ensure_watch_table(db):
+    """Create gcal_watch_channels in the in-memory test DB (startup migration
+    runner does not run for the minimal TestClient app)."""
+    from sqlalchemy import text
+
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS gcal_watch_channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            org_id INTEGER NOT NULL,
+            account_name VARCHAR(50) NOT NULL,
+            channel_id VARCHAR(255) NOT NULL,
+            resource_id VARCHAR(512),
+            channel_token_hash VARCHAR(64) NOT NULL,
+            expiration TIMESTAMP,
+            last_message_number BIGINT DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    db.commit()
+
+
+def _insert_channel(db, *, org_id, account_name, channel_id, token):
+    from sqlalchemy import text
+    from services.google_calendar import hash_channel_token
+
+    db.execute(
+        text("""
+            INSERT INTO gcal_watch_channels
+                (org_id, account_name, channel_id, resource_id,
+                 channel_token_hash, last_message_number)
+            VALUES (:o, :a, :cid, :rid, :h, 0)
+        """),
+        {"o": org_id, "a": account_name, "cid": channel_id,
+         "rid": "res-1", "h": hash_channel_token(token)},
+    )
+    db.commit()
+
+
+def _webhook_client(db, monkeypatch, import_calls):
+    """Mount the calendar router on a minimal app and stub import_events so no
+    Google API is touched. Returns (TestClient)."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from routes import calendar as route_mod
+    import services.google_calendar as gc_mod
+
+    def _get_db_override():
+        yield db
+
+    # Record every per-account import the webhook triggers; never hit Google.
+    def _fake_import(self, account_name):
+        import_calls.append((self.org_id, account_name))
+        return {"account": account_name, "imported": 0}
+
+    monkeypatch.setattr(gc_mod.GoogleCalendarService, "import_events", _fake_import)
+
+    app = FastAPI()
+    app.include_router(route_mod.router, prefix="/casehub")
+    app.dependency_overrides[route_mod.get_db] = _get_db_override
+    return TestClient(app)
+
+
+def test_webhook_flag_off_is_200_noop(db, monkeypatch):
+    monkeypatch.delenv("GOOGLE_CALENDAR_WATCH_ENABLED", raising=False)
+    monkeypatch.setattr(
+        "config.settings.GOOGLE_CALENDAR_WATCH_ENABLED", False, raising=False
+    )
+    import_calls = []
+    client = _webhook_client(db, monkeypatch, import_calls)
+
+    resp = client.post(GCAL_WEBHOOK_URL, headers={
+        "X-Goog-Channel-ID": "casehub-anything",
+        "X-Goog-Resource-State": "exists",
+        "X-Goog-Channel-Token": "whatever",
+        "X-Goog-Message-Number": "1",
+    })
+
+    assert resp.status_code == 200
+    assert import_calls == []  # flag OFF -> never imports
+
+
+def test_webhook_unknown_channel_no_import(db, monkeypatch):
+    monkeypatch.setenv("GOOGLE_CALENDAR_WATCH_ENABLED", "true")
+    _ensure_watch_table(db)
+    import_calls = []
+    client = _webhook_client(db, monkeypatch, import_calls)
+
+    resp = client.post(GCAL_WEBHOOK_URL, headers={
+        "X-Goog-Channel-ID": "casehub-does-not-exist",
+        "X-Goog-Resource-State": "exists",
+        "X-Goog-Channel-Token": "irrelevant",
+        "X-Goog-Message-Number": "1",
+    })
+
+    assert resp.status_code == 200
+    assert import_calls == []
+
+
+def test_webhook_valid_channel_sync_handshake_is_noop(db, monkeypatch):
+    monkeypatch.setenv("GOOGLE_CALENDAR_WATCH_ENABLED", "true")
+    _ensure_watch_table(db)
+    _insert_channel(db, org_id=4, account_name="center",
+                    channel_id="casehub-ch1", token="tok-secret-1")
+    import_calls = []
+    client = _webhook_client(db, monkeypatch, import_calls)
+
+    resp = client.post(GCAL_WEBHOOK_URL, headers={
+        "X-Goog-Channel-ID": "casehub-ch1",
+        "X-Goog-Resource-State": "sync",
+        "X-Goog-Channel-Token": "tok-secret-1",
+        "X-Goog-Message-Number": "1",
+    })
+
+    assert resp.status_code == 200
+    assert import_calls == []  # handshake never imports
+
+
+def test_webhook_valid_exists_imports_once_for_owning_org(db, monkeypatch):
+    monkeypatch.setenv("GOOGLE_CALENDAR_WATCH_ENABLED", "true")
+    _ensure_watch_table(db)
+    _insert_channel(db, org_id=4, account_name="center",
+                    channel_id="casehub-ch2", token="tok-secret-2")
+    import_calls = []
+    client = _webhook_client(db, monkeypatch, import_calls)
+
+    resp = client.post(GCAL_WEBHOOK_URL, headers={
+        "X-Goog-Channel-ID": "casehub-ch2",
+        "X-Goog-Resource-State": "exists",
+        "X-Goog-Channel-Token": "tok-secret-2",
+        "X-Goog-Message-Number": "1",
+    })
+
+    assert resp.status_code == 200
+    assert import_calls == [(4, "center")]  # owning org only, exactly once
+
+
+def test_webhook_replayed_message_number_ignored(db, monkeypatch):
+    monkeypatch.setenv("GOOGLE_CALENDAR_WATCH_ENABLED", "true")
+    _ensure_watch_table(db)
+    _insert_channel(db, org_id=4, account_name="center",
+                    channel_id="casehub-ch3", token="tok-secret-3")
+    import_calls = []
+    client = _webhook_client(db, monkeypatch, import_calls)
+
+    headers = {
+        "X-Goog-Channel-ID": "casehub-ch3",
+        "X-Goog-Resource-State": "exists",
+        "X-Goog-Channel-Token": "tok-secret-3",
+        "X-Goog-Message-Number": "5",
+    }
+    first = client.post(GCAL_WEBHOOK_URL, headers=headers)
+    replay = client.post(GCAL_WEBHOOK_URL, headers=headers)  # same msg number
+    older = client.post(GCAL_WEBHOOK_URL, headers={**headers, "X-Goog-Message-Number": "3"})
+
+    assert first.status_code == replay.status_code == older.status_code == 200
+    assert import_calls == [(4, "center")]  # only the first (new) message imported
+
+
+def test_webhook_bad_token_rejected_no_import(db, monkeypatch):
+    monkeypatch.setenv("GOOGLE_CALENDAR_WATCH_ENABLED", "true")
+    _ensure_watch_table(db)
+    _insert_channel(db, org_id=4, account_name="center",
+                    channel_id="casehub-ch4", token="tok-secret-4")
+    import_calls = []
+    client = _webhook_client(db, monkeypatch, import_calls)
+
+    resp = client.post(GCAL_WEBHOOK_URL, headers={
+        "X-Goog-Channel-ID": "casehub-ch4",
+        "X-Goog-Resource-State": "exists",
+        "X-Goog-Channel-Token": "WRONG-token",
+        "X-Goog-Message-Number": "1",
+    })
+
+    assert resp.status_code == 200  # never leak; stay silent
+    assert import_calls == []  # bad token -> no processing
+
+
+def test_validate_channel_token_is_constant_time_and_rejects_empty():
+    from services.google_calendar import GoogleCalendarService, hash_channel_token
+
+    channel = {"channel_token_hash": hash_channel_token("the-secret")}
+    assert GoogleCalendarService.validate_channel_token(channel, "the-secret") is True
+    assert GoogleCalendarService.validate_channel_token(channel, "nope") is False
+    assert GoogleCalendarService.validate_channel_token(channel, "") is False
+    assert GoogleCalendarService.validate_channel_token({}, "the-secret") is False

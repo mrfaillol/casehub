@@ -109,6 +109,31 @@
     }, 2600);
   }
 
+  // MUTEX — the legacy #clientInfoPanel, the CRM #wacPanelHost and the funnel
+  // #wacPipelineHost all share the same right-hand slot and would overlap if
+  // opened together. Opening any one closes the others. `keep` is the host id
+  // that is being opened (skip closing it). Lowest-risk: we keep the legacy
+  // panel in place (chat.js still drives it) and just collapse it via its own
+  // .show contract instead of removing the element.
+  function closeSlotMates(keep) {
+    if (keep !== 'wacPanelHost') {
+      var ph = $('#wacPanelHost');
+      if (ph && !ph.hidden && window.WhatsAppCRM) window.WhatsAppCRM.closeContactPanel();
+    }
+    if (keep !== 'wacPipelineHost') {
+      var pl = $('#wacPipelineHost');
+      if (pl && !pl.hidden && window.WhatsAppCRM) window.WhatsAppCRM.closePipeline();
+    }
+    if (keep !== 'clientInfoPanel') {
+      var legacy = $('#clientInfoPanel');
+      if (legacy && legacy.classList.contains('show')) {
+        legacy.classList.remove('show');
+        var btn = $('#btnClientInfo');
+        if (btn) btn.classList.remove('active');
+      }
+    }
+  }
+
   // ========================================================================
   // CRM CONTACT PANEL
   // ========================================================================
@@ -123,6 +148,7 @@
       if (!phone) return;
       this.host = host || this.host || $('#wacPanelHost');
       if (!this.host) return;
+      closeSlotMates(this.host.id);
       this.phone = phone;
       var self = this;
       this.host.hidden = false;
@@ -782,6 +808,7 @@
     open: function (host) {
       this.host = host || this.host || $('#wacPipelineHost');
       if (!this.host) return;
+      closeSlotMates(this.host.id);
       var self = this;
       this.host.hidden = false;
       this.host.classList.add('wac-pipeline-host');
@@ -1076,6 +1103,7 @@
         t.getAttribute('data-phone') ||
         (window.State && window.State.selectedPhone);
       if (phone) Panel.open(phone);
+      else toast('Abra uma conversa primeiro.', 'info');
     } else if (action === 'open-templates') {
       ev.preventDefault();
       var host = $('#wacTemplatesHost');

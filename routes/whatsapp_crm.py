@@ -381,6 +381,27 @@ async def _gemini_generate(prompt: str, *, temperature: float = 0.7,
     return await get_ai_provider().generate(prompt, temperature=temperature, max_tokens=max_tokens)
 
 
+async def _maestro_generate(prompt: str, *, temperature: float = 0.4,
+                            max_tokens: int = 300) -> Optional[str]:
+    """IA do bloco CRM via MAESTRO LOCAL (Ollama hermes3) — Victor 10/06: o resumo
+    da conversa e a sugestão das próximas mensagens devem sair do Maestro local,
+    não de um provider externo (chaves Gemini esgotadas; zero transferência).
+    Cai pro provider configurado (OpenRouter/etc.) só se o Ollama estiver fora.
+    """
+    try:
+        from services.maestro_lite import generate_text
+        out = await generate_text(prompt, temperature=temperature, max_tokens=max_tokens)
+        if out and out.strip():
+            return out.strip()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[wa-crm] maestro local indisponivel (%s) -> fallback provider", e)
+    try:
+        from services.ai_provider import get_ai_provider
+        return await get_ai_provider().generate(prompt, temperature=temperature, max_tokens=max_tokens)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _conversation_history(db: Session, org_id: int, phone: str, limit: int = 20) -> str:
     """Build an in-memory transcript for the AI prompt. Read-only; persists nothing."""
     msgs = whatsapp_clone_service.list_messages(db, org_id=org_id, phone=phone, limit=limit)
@@ -1160,7 +1181,7 @@ async def api_crm_ai_suggest(request: Request, db: Session = Depends(get_db)):
         f"Ultima mensagem: {last_line}\n\n"
         "Sugira uma resposta apropriada para o atendente enviar:"
     )
-    suggestion = await _gemini_generate(prompt, temperature=0.7, max_tokens=250)
+    suggestion = await _maestro_generate(prompt, temperature=0.7, max_tokens=250)
     return JSONResponse({"suggestion": suggestion, "ephemeral": True})
 
 
@@ -1191,7 +1212,7 @@ async def api_crm_ai_summary(request: Request, db: Session = Depends(get_db)):
         "resultado nem estime valores.\n\n"
         f"Conversa:\n{history}\n\nResumo:"
     )
-    summary = await _gemini_generate(prompt, temperature=0.3, max_tokens=300)
+    summary = await _maestro_generate(prompt, temperature=0.3, max_tokens=300)
     return JSONResponse({"summary": summary, "ephemeral": True})
 
 
@@ -1222,7 +1243,7 @@ async def api_crm_ai_draft(request: Request, db: Session = Depends(get_db)):
         "Escreva uma mensagem de WhatsApp pronta para enviar ao cliente "
         "seguindo a instrucao:"
     )
-    draft = await _gemini_generate(prompt, temperature=0.7, max_tokens=350)
+    draft = await _maestro_generate(prompt, temperature=0.7, max_tokens=350)
     return JSONResponse({"draft": draft, "ephemeral": True})
 
 
@@ -1344,7 +1365,7 @@ async def api_lead_summary(request: Request, phone: str, db: Session = Depends(g
             "Nao prometa resultado nem estime valores. Use portugues do Brasil.\n\n"
             f"Conversa:\n{history}\n\nJSON:"
         )
-        ai_text = await _gemini_generate(prompt, temperature=0.3, max_tokens=400)
+        ai_text = await _maestro_generate(prompt, temperature=0.3, max_tokens=400)
         if ai_text:
             match = re.search(r"\{[\s\S]*\}", ai_text)
             if match:

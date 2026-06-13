@@ -51,18 +51,19 @@ async def alerts_dashboard(
 
     ensure_tables(db)
 
+    org_id = getattr(request.state, "org_id", None)
     # Get alerts summary
-    summary = alerts_service.get_alerts_summary(db)
+    summary = alerts_service.get_alerts_summary(db, org_id)
 
     # Get detailed list based on tab
     if tab == "expiring":
-        items = alerts_service.get_expiring_documents(db, 90)
+        items = alerts_service.get_expiring_documents(db, 90, org_id)
     elif tab == "expired":
-        items = alerts_service.get_expired_documents(db)
+        items = alerts_service.get_expired_documents(db, org_id)
     elif tab == "deadlines":
-        items = alerts_service.get_upcoming_deadlines(db, 30)
+        items = alerts_service.get_upcoming_deadlines(db, 30, org_id)
     elif tab == "tasks":
-        items = alerts_service.get_overdue_tasks(db)
+        items = alerts_service.get_overdue_tasks(db, org_id)
     else:
         items = []
 

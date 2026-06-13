@@ -43,7 +43,7 @@ class AlertsService:
         "police_clearance"
     ]
 
-    def get_expiring_documents(self, db_session, days_threshold: int = 90) -> List[Dict]:
+    def get_expiring_documents(self, db_session, days_threshold: int = 90, org_id: int = None) -> List[Dict]:
         """Get documents expiring within the specified days.
 
         Args:
@@ -58,20 +58,21 @@ class AlertsService:
         threshold_date = datetime.now() + timedelta(days=days_threshold)
 
         query = """
-            SELECT d.id, d.name, d.type, d.expiration_date, d.file_path,
+            SELECT d.id, d.name, d.doc_type, d.expiration_date, d.file_path,
                    c.id as case_id, c.case_number, c.case_name,
                    cl.id as client_id, cl.first_name, cl.last_name, cl.email
             FROM documents d
             LEFT JOIN cases c ON d.case_id = c.id
-            LEFT JOIN clients cl ON d.client_id = cl.id OR c.client_id = cl.id
+            LEFT JOIN clients cl ON cl.id = COALESCE(d.client_id, c.client_id)
             WHERE d.expiration_date IS NOT NULL
               AND d.expiration_date <= :threshold
               AND d.expiration_date >= CURRENT_DATE
+              AND (:org_id IS NULL OR d.org_id = :org_id)
             ORDER BY d.expiration_date ASC
         """
 
         try:
-            result = db_session.execute(text(query), {"threshold": threshold_date})
+            result = db_session.execute(text(query), {"threshold": threshold_date, "org_id": org_id})
             documents = []
 
             for row in result.fetchall():
@@ -81,7 +82,7 @@ class AlertsService:
                 documents.append({
                     "id": row.id,
                     "name": row.name,
-                    "type": row.type,
+                    "type": row.doc_type,
                     "expiration_date": row.expiration_date.isoformat() if row.expiration_date else None,
                     "days_until_expiry": days_until,
                     "priority": priority,
@@ -98,25 +99,26 @@ class AlertsService:
             db_session.rollback()
             return []
 
-    def get_expired_documents(self, db_session) -> List[Dict]:
+    def get_expired_documents(self, db_session, org_id: int = None) -> List[Dict]:
         """Get documents that have already expired."""
         from sqlalchemy import text
 
         query = """
-            SELECT d.id, d.name, d.type, d.expiration_date,
+            SELECT d.id, d.name, d.doc_type, d.expiration_date,
                    c.id as case_id, c.case_number,
                    cl.id as client_id, cl.first_name, cl.last_name
             FROM documents d
             LEFT JOIN cases c ON d.case_id = c.id
-            LEFT JOIN clients cl ON d.client_id = cl.id OR c.client_id = cl.id
+            LEFT JOIN clients cl ON cl.id = COALESCE(d.client_id, c.client_id)
             WHERE d.expiration_date IS NOT NULL
               AND d.expiration_date < CURRENT_DATE
+              AND (:org_id IS NULL OR d.org_id = :org_id)
             ORDER BY d.expiration_date DESC
             LIMIT 100
         """
 
         try:
-            result = db_session.execute(text(query))
+            result = db_session.execute(text(query), {"org_id": org_id})
             documents = []
 
             for row in result.fetchall():
@@ -125,7 +127,7 @@ class AlertsService:
                 documents.append({
                     "id": row.id,
                     "name": row.name,
-                    "type": row.type,
+                    "type": row.doc_type,
                     "expiration_date": row.expiration_date.isoformat() if row.expiration_date else None,
                     "days_expired": days_expired,
                     "priority": AlertPriority.CRITICAL,
@@ -140,7 +142,7 @@ class AlertsService:
             db_session.rollback()
             return []
 
-    def get_upcoming_deadlines(self, db_session, days: int = 30) -> List[Dict]:
+    def get_upcoming_deadlines(self, db_session, days: int = 30, org_id: int = None) -> List[Dict]:
         """Get cases with upcoming deadlines."""
         from sqlalchemy import text
 
@@ -148,21 +150,23 @@ class AlertsService:
 
         query = """
             SELECT c.id, c.case_number, c.case_name, c.visa_type,
-                   c.expiration_date, c.processing_date,
+                   c.expiration_date,
                    cl.first_name, cl.last_name
             FROM cases c
             LEFT JOIN clients cl ON c.client_id = cl.id
-            WHERE (c.expiration_date IS NOT NULL AND c.expiration_date <= :threshold AND c.expiration_date >= CURRENT_DATE)
-               OR (c.processing_date IS NOT NULL AND c.processing_date <= :threshold AND c.processing_date >= CURRENT_DATE)
-            ORDER BY COALESCE(c.expiration_date, c.processing_date) ASC
+            WHERE c.expiration_date IS NOT NULL
+              AND c.expiration_date <= :threshold
+              AND c.expiration_date >= CURRENT_DATE
+              AND (:org_id IS NULL OR c.org_id = :org_id)
+            ORDER BY c.expiration_date ASC
         """
 
         try:
-            result = db_session.execute(text(query), {"threshold": threshold_date})
+            result = db_session.execute(text(query), {"threshold": threshold_date, "org_id": org_id})
             deadlines = []
 
             for row in result.fetchall():
-                deadline_date = row.expiration_date or row.processing_date
+                deadline_date = row.expiration_date
                 days_until = (deadline_date - datetime.now().date()).days
                 priority = self._get_priority_for_days(days_until)
 
@@ -172,7 +176,7 @@ class AlertsService:
                     "case_name": row.case_name,
                     "visa_type": row.visa_type,
                     "deadline_date": deadline_date.isoformat() if deadline_date else None,
-                    "deadline_type": "expiration" if row.expiration_date else "processing",
+                    "deadline_type": "expiration",
                     "days_until": days_until,
                     "priority": priority,
                     "client_name": f"{row.first_name} {row.last_name}" if row.first_name else None
@@ -183,34 +187,35 @@ class AlertsService:
             db_session.rollback()
             return []
 
-    def get_overdue_tasks(self, db_session) -> List[Dict]:
+    def get_overdue_tasks(self, db_session, org_id: int = None) -> List[Dict]:
         """Get overdue tasks."""
         from sqlalchemy import text
 
         query = """
-            SELECT t.id, t.title, t.description, t.deadline, t.priority as task_priority,
+            SELECT t.id, t.title, t.description, t.due_date, t.priority as task_priority,
                    c.id as case_id, c.case_number,
                    u.name as assigned_to_name
             FROM tasks t
             LEFT JOIN cases c ON t.case_id = c.id
             LEFT JOIN users u ON t.assigned_to = u.id
-            WHERE t.deadline < CURRENT_DATE
+            WHERE t.due_date < CURRENT_DATE
               AND t.status NOT IN ('completed', 'cancelled')
-            ORDER BY t.deadline ASC
+              AND (:org_id IS NULL OR t.org_id = :org_id)
+            ORDER BY t.due_date ASC
         """
 
         try:
-            result = db_session.execute(text(query))
+            result = db_session.execute(text(query), {"org_id": org_id})
             tasks = []
 
             for row in result.fetchall():
-                days_overdue = (datetime.now().date() - row.deadline).days
+                days_overdue = (datetime.now().date() - row.due_date).days
 
                 tasks.append({
                     "id": row.id,
                     "title": row.title,
                     "description": row.description,
-                    "deadline": row.deadline.isoformat() if row.deadline else None,
+                    "deadline": row.due_date.isoformat() if row.due_date else None,
                     "days_overdue": days_overdue,
                     "priority": AlertPriority.HIGH if days_overdue > 7 else AlertPriority.MEDIUM,
                     "case_id": row.case_id,
@@ -223,12 +228,12 @@ class AlertsService:
             db_session.rollback()
             return []
 
-    def get_alerts_summary(self, db_session) -> Dict:
+    def get_alerts_summary(self, db_session, org_id: int = None) -> Dict:
         """Get summary of all alerts."""
-        expiring_docs = self.get_expiring_documents(db_session, 30)
-        expired_docs = self.get_expired_documents(db_session)
-        deadlines = self.get_upcoming_deadlines(db_session, 30)
-        overdue_tasks = self.get_overdue_tasks(db_session)
+        expiring_docs = self.get_expiring_documents(db_session, 30, org_id)
+        expired_docs = self.get_expired_documents(db_session, org_id)
+        deadlines = self.get_upcoming_deadlines(db_session, 30, org_id)
+        overdue_tasks = self.get_overdue_tasks(db_session, org_id)
 
         # Count by priority
         critical = len([d for d in expired_docs]) + len([d for d in expiring_docs if d["days_until_expiry"] <= 7])

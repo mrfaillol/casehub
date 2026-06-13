@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 
 # Data paths for previously exported Cerenade data
-CERENADE_DATA_PATH = "/path/to/data"
+CERENADE_DATA_PATH = "/Users/beijaflor/Projects_Local/immigration-law-suite/ia-agent-setup/cerenade_data"
 
 
 class CerenadeImportService:

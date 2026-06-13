@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Portal Access{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ PREFIX }}/">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ PREFIX }}/clients">Clients</a></li>
+            <li class="breadcrumb-item"><a href="{{ PREFIX }}/clients/{{ client.id }}">{{ client.first_name }} {{ client.last_name }}</a></li>
+            <li class="breadcrumb-item active">Portal Access</li>
+        </ol>
+    </nav>
+
+    {% if request.query_params.get('success') == 'created' %}
+    <div class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i>Portal access created successfully! Copy the link below and send it to the client.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif request.query_params.get('success') == 'regenerated' %}
+    <div class="alert alert-warning alert-dismissible fade show">
+        <i class="fas fa-sync me-2"></i>Access link regenerated. The old link is now invalid.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif request.query_params.get('success') == 'revoked' %}
+    <div class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-ban me-2"></i>Portal access has been revoked.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif request.query_params.get('success') == 'reactivated' %}
+    <div class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle me-2"></i>Portal access has been reactivated.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif request.query_params.get('success') == 'link_sent' %}
+    <div class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-envelope me-2"></i>Portal link sent to {{ portal_user.email }} successfully!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif request.query_params.get('success') == 'send_failed' %}
+    <div class="alert alert-danger alert-dismissible fade show">
+        <i class="fas fa-exclamation-circle me-2"></i>Failed to send email. Please try again or copy the link manually.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% elif request.query_params.get('info') == 'already_exists' %}
+    <div class="alert alert-info alert-dismissible fade show">
+        <i class="fas fa-info-circle me-2"></i>This client already has portal access. Manage it below.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            {% if portal_user %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-shield me-2"></i>Portal Access for {{ client.first_name }} {{ client.last_name }}
+                    </h5>
+                    {% if portal_user.is_active %}
+                    <span class="badge bg-success"><i class="fas fa-check me-1"></i>Active</span>
+                    {% else %}
+                    <span class="badge bg-danger"><i class="fas fa-ban me-1"></i>Revoked</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <!-- Portal Link -->
+                    {% if portal_link and portal_user.is_active %}
+                    <div class="mb-4">
+                        <label class="form-label fw-bold"><i class="fas fa-link me-1"></i>Secure Portal Link</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control glass-input" id="portalLink" value="{{ portal_link }}" readonly
+                                   style="background-color: var(--bs-dark); color: var(--bs-light); font-family: monospace; font-size: 0.85rem;">
+                            <button class="btn btn-outline-primary glass-btn glass-btn--ghost" type="button" onclick="copyLink()">
+                                <i class="fas fa-copy me-1"></i><span id="copyBtnText">Copy</span>
+                            </button>
+                        </div>
+                        <small class="text-muted">This link does not expire. The client can use it anytime to access the portal.</small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Email</label>
+                            <p class="mb-0"><strong>{{ portal_user.email }}</strong></p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Created</label>
+                            <p class="mb-0"><strong>{{ portal_user.created_at.strftime('%m/%d/%Y %H:%M') if portal_user.created_at else 'N/A' }}</strong></p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Last Login</label>
+                            <p class="mb-0"><strong>{{ portal_user.last_login.strftime('%m/%d/%Y %H:%M') if portal_user.last_login else 'Never' }}</strong></p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="text-muted small">Total Logins</label>
+                            <p class="mb-0"><strong>{{ portal_user.login_count or 0 }}</strong></p>
+                        </div>
+                        {% if portal_user.token_created_at %}
+                        <div class="col-md-6">
+                            <label class="text-muted small">Link Generated</label>
+                            <p class="mb-0"><strong>{{ portal_user.token_created_at.strftime('%m/%d/%Y %H:%M') }}</strong></p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Actions -->
+                    <hr>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% if portal_user.is_active %}
+                        <form method="POST" action="{{ PREFIX }}/portal/admin/send-link/{{ client.id }}" class="d-inline">
+                            <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
+                                <i class="fas fa-envelope me-1"></i>Send Link to Client
+                            </button>
+                        </form>
+
+                        <form method="POST" action="{{ PREFIX }}/portal/admin/regenerate-token/{{ client.id }}" class="d-inline"
+                              onsubmit="return confirm('This will invalidate the current link. The client will need the new link to access the portal. Continue?');">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-sync me-1"></i>Regenerate Link
+                            </button>
+                        </form>
+
+                        <form method="POST" action="{{ PREFIX }}/portal/admin/revoke-access/{{ client.id }}" class="d-inline"
+                              onsubmit="return confirm('This will revoke portal access for this client. They will no longer be able to use their link. Continue?');">
+                            <button type="submit" class="btn btn-outline-danger">
+                                <i class="fas fa-ban me-1"></i>Revoke Access
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ PREFIX }}/portal/admin/reactivate-access/{{ client.id }}" class="d-inline">
+                            <button type="submit" class="btn btn-success glass-btn glass-btn--success">
+                                <i class="fas fa-check me-1"></i>Reactivate Access
+                            </button>
+                        </form>
+                        {% endif %}
+
+                        <a href="{{ PREFIX }}/clients/{{ client.id }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Back to Client
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card glass-card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-user-slash fa-3x text-muted mb-3"></i>
+                    <h5>No Portal Access</h5>
+                    <p class="text-muted">This client does not have portal access yet.</p>
+                    <a href="{{ PREFIX }}/portal/admin/create-user/{{ client.id }}" class="btn btn-primary glass-btn glass-btn--primary">
+                        <i class="fas fa-link me-1"></i>Create Portal Access
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function copyLink() {
+    const linkInput = document.getElementById('portalLink');
+    const btnText = document.getElementById('copyBtnText');
+    navigator.clipboard.writeText(linkInput.value).then(function() {
+        btnText.textContent = 'Copied!';
+        setTimeout(function() { btnText.textContent = 'Copy'; }, 2000);
+    });
+}
+</script>
+{% endblock %}

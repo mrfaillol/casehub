@@ -1,0 +1,43 @@
+# CaseHub Dev — overlay do bot WhatsApp para dev.vingren.me.
+#
+# Carregado SO via -f explicito, em cima do stack de dev:
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev-whatsapp.yml up -d
+#
+# Espelha o padrao do docker-compose.alpha.yml (casehub.legal), mas isolado:
+#   - container/volume proprios (casehub-dev-whatsapp-bot / *_session de dev)
+#   - sessao .wwebjs_auth SEPARADA — NUNCA compartilhar a sessao entre
+#     ambientes (regra do plano: um bot + um numero WhatsApp por servidor;
+#     dev usa um numero de TESTE, casehub.legal o numero real do alpha).
+#
+# Pre-requisito de governanca: deploy do clone em dev.vingren.me e mudanca de
+# topologia de deploy — exige ruling de Council (ver
+# docs/casehub-alpha/council-proposal-whatsapp-dual-deploy.md).
+
+services:
+  # Bot WhatsApp (lite) — bridge inbound/outbound, instancia de DEV.
+  whatsapp-bot:
+    build:
+      context: ./services/whatsapp-bot
+      dockerfile: Dockerfile
+    container_name: casehub-dev-whatsapp-bot
+    restart: unless-stopped
+    shm_size: 1gb
+    environment:
+      - PORT=3001
+      - CASEHUB_API_URL=http://casehub:8001
+      - CASEHUB_INBOUND_HMAC_SECRET=${CASEHUB_INBOUND_HMAC_SECRET:-}
+    volumes:
+      - casehub_dev_whatsapp_session:/app/.wwebjs_auth
+    networks:
+      - casehub-dev
+
+  # Override do app de dev: aponta para o bot e planta o segredo HMAC do
+  # bridge. Os demais campos do casehub vem de docker-compose.dev.yml.
+  casehub:
+    environment:
+      - WHATSAPP_BOT_URL=${WHATSAPP_BOT_URL:-http://whatsapp-bot:3001}
+      - CASEHUB_INBOUND_HMAC_SECRET=${CASEHUB_INBOUND_HMAC_SECRET:-}
+
+volumes:
+  casehub_dev_whatsapp_session:
+    driver: local

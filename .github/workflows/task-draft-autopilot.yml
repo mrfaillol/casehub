@@ -1,0 +1,154 @@
+name: task-draft-autopilot
+
+# Promotes reviewed task drafts into signed queue entries.
+# Ruling: 2026-05-07-task-draft-autopilot.
+#
+# Flow:
+#   PR changes tasks/queue/_drafts/*.yaml (+ optional docs/handoff/tasks/*.md spec)
+#   -> privileged actor adds label `autopilot:queue`
+#   -> this workflow validates, signs with CASEHUB_OPS_HMAC_KEY
+#      (or CASEHUB_IMPROVEMENT_HMAC_KEY fallback), moves to tasks/queue/
+#   -> adds `auto-merge-allowed`; auto-merge.yml merges only after reviews/checks.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to promote'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: task-draft-autopilot-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  promote:
+    if: |
+      vars.TASK_DRAFT_AUTOPILOT_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'autopilot:queue'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve PR metadata
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const explicitNumber = '${{ inputs.pr_number || '' }}';
+            const number = explicitNumber ? parseInt(explicitNumber, 10) : context.payload.pull_request.number;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner, repo: context.repo.repo, pull_number: number,
+            });
+            const labels = pr.labels.map(l => l.name);
+            const allowedAuthors = new Set(['mrfaillol', 'victor-vingren', 'vvingren', 'github-actions[bot]', 'issue-to-envelope[bot]']);
+            if (!labels.includes('autopilot:queue')) throw new Error('missing label autopilot:queue');
+            if (pr.head.repo.full_name !== pr.base.repo.full_name) throw new Error('fork PRs cannot access signing autopilot');
+            if (!allowedAuthors.has(pr.user.login)) throw new Error(`PR author not allowlisted: ${pr.user.login}`);
+            if (pr.state !== 'open') throw new Error(`PR is not open: ${pr.state}`);
+            core.setOutput('number', String(number));
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('base_ref', pr.base.ref);
+
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate changed files are draft/spec only
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ steps.pr.outputs.base_ref }}" --depth=1
+          changed=$(git diff --name-only "origin/${{ steps.pr.outputs.base_ref }}...HEAD")
+          [ -n "$changed" ] || { echo "::error::No changed files"; exit 1; }
+          drafts=0
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            case "$path" in
+              tasks/queue/_drafts/*.yaml) drafts=$((drafts + 1)) ;;
+              docs/handoff/tasks/*.md) ;;
+              *) echo "::error file=$path::task-draft-autopilot only accepts draft YAML + handoff specs"; exit 1 ;;
+            esac
+          done <<< "$changed"
+          [ "$drafts" -gt 0 ] || { echo "::error::No tasks/queue/_drafts/*.yaml changed"; exit 1; }
+
+      - name: Promote and sign drafts
+        env:
+          CASEHUB_OPS_HMAC_KEY: ${{ secrets.CASEHUB_OPS_HMAC_KEY || secrets.CASEHUB_IMPROVEMENT_HMAC_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "${CASEHUB_OPS_HMAC_KEY:-}" ] || { echo "::error::CASEHUB_OPS_HMAC_KEY or CASEHUB_IMPROVEMENT_HMAC_KEY secret is not configured"; exit 1; }
+          mapfile -t drafts < <(git diff --name-only "origin/${{ steps.pr.outputs.base_ref }}...HEAD" -- 'tasks/queue/_drafts/*.yaml')
+          for draft in "${drafts[@]}"; do
+            [ -f "$draft" ] || { echo "::warning::$draft was removed; skipping"; continue; }
+            ./scripts/promote-task-draft.sh "$draft"
+          done
+
+      - name: Commit promotion back to PR branch
+        id: commit
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "task-draft-autopilot[bot]"
+          git config user.email "bot@users.noreply.github.com"
+          git add tasks/queue docs/handoff/tasks
+          git commit -m "chore(army): promote signed task draft"
+          git push origin "HEAD:${{ steps.pr.outputs.head_ref }}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Label for review-gated auto-merge
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = parseInt('${{ steps.pr.outputs.number }}', 10);
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner, repo: context.repo.repo,
+                name: 'auto-merge-allowed', color: '0e8a16',
+                description: 'Review-gated auto-merge is allowed for this PR',
+              });
+            } catch (e) {
+              if (e.status !== 422) throw e;
+            }
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number,
+              labels: ['auto-merge-allowed'],
+            });
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number,
+                name: 'needs-victor-sign',
+              });
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number,
+                name: 'autopilot:queue',
+              });
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number,
+              body: [
+                'task-draft-autopilot promoted signed draft(s) into `tasks/queue/`.',
+                '',
+                'Next: review this PR. `auto-merge.yml` may squash-merge after approved reviews and required checks pass.',
+                '',
+                'Ruling: `2026-05-07-task-draft-autopilot`.'
+              ].join('\n'),
+            });

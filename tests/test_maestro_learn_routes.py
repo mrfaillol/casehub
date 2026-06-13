@@ -50,7 +50,7 @@ def _enable_flag(monkeypatch, enabled=True):
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 def _decode(response):

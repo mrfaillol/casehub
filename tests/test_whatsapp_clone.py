@@ -183,7 +183,8 @@ def test_status_from_ack_mapping():
 def test_list_conversations_shape_matches_frontend_contract(db):
     _make_org(db)
     svc.record_message(db, org_id=1, phone="5511999999999", body="latest",
-                       wa_message_id="C-1", display_name="Bob")
+                       wa_message_id="C-1", display_name="Bob",
+                       profile_pic_url="https://pps.whatsapp.net/avatar.jpg")
     convs = svc.list_conversations(db, org_id=1)
     assert len(convs) == 1
     c = convs[0]
@@ -194,6 +195,8 @@ def test_list_conversations_shape_matches_frontend_contract(db):
         assert key in c, f"missing conversation key: {key}"
     assert c["phone"] == "+5511999999999"
     assert c["name"] == "Bob"
+    assert c["whatsapp_name"] == "Bob"
+    assert c["profilePic"] == "https://pps.whatsapp.net/avatar.jpg"
     assert c["lastMessage"] == "latest"
     assert c["unread"] == 1
 
@@ -260,6 +263,20 @@ def test_list_messages_shape_and_order(db):
     # contract keys
     for key in ("id", "role", "content", "created_at", "ack", "hasMedia"):
         assert key in msgs[0], f"missing message key: {key}"
+
+
+def test_list_messages_uses_sent_at_not_insert_order(db):
+    _make_org(db)
+    older = datetime.now(tz=timezone.utc) - timedelta(minutes=10)
+    newer = datetime.now(tz=timezone.utc)
+    svc.record_message(db, org_id=1, phone="5511999999999", body="newer",
+                       direction="incoming", wa_message_id="ORDER-NEW", sent_at=newer)
+    svc.record_message(db, org_id=1, phone="5511999999999", body="older",
+                       direction="incoming", wa_message_id="ORDER-OLD", sent_at=older)
+
+    msgs = svc.list_messages(db, org_id=1, phone="+55 11 99999-9999")
+
+    assert [m["content"] for m in msgs] == ["older", "newer"]
 
 
 def test_list_messages_unknown_phone_returns_empty(db):

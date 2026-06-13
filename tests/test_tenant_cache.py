@@ -199,17 +199,17 @@ class TestRequireOrg:
 # ---------------------------------------------------------------------------
 
 class TestTenantResolutionStrategies:
-    """Test the org resolution order: header -> domain -> subdomain -> default."""
+    """Test the org resolution order: internal header -> domain -> subdomain -> default."""
 
-    def test_x_org_id_header_strategy(self):
-        """X-Org-Id header should be the first resolution strategy."""
+    def test_x_org_id_header_strategy_is_internal_only(self):
+        """X-Org-Id is only allowed before Host resolution for internal peers."""
         import inspect
         mw = TenantMiddleware(app=MagicMock())
         source = inspect.getsource(mw._resolve_org)
-        # X-Org-Id should appear before domain resolution
-        header_idx = source.index("X-Org-Id")
-        domain_idx = source.index("host")
-        assert header_idx < domain_idx
+        internal_gate_idx = source.index("if self._internal_ips")
+        header_idx = source.index('request.headers.get("X-Org-Id")')
+        domain_idx = source.index("Strategy 1: Domain-based")
+        assert internal_gate_idx < header_idx < domain_idx
 
     def test_subdomain_extraction_logic(self):
         """Verify subdomain extraction: acme.casehub.io -> slug='acme'."""

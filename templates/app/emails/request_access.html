@@ -1,0 +1,108 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}E-mail · Acesso · {{ org_name|default('CaseHub') }}{% endblock %}
+{% block extra_head %}
+<style>
+  /* Email request-access screen — scoped tokens only (no global overrides).
+     Laws: Fitts (botão grande, alvo amplo) + Hick (uma única ação primária)
+     + Doherty (feedback imediato pós-clique). */
+  .era-wrap{
+    max-width:34rem;margin:var(--space-12, 3rem) auto;padding:0 var(--space-6, 1.5rem);
+  }
+  .era-card{
+    background:var(--surface-raised, #fff);
+    border:1px solid var(--border-subtle, rgba(0,0,0,.08));
+    border-radius:var(--radius-lg, 16px);
+    padding:var(--space-10, 2.5rem) var(--space-8, 2rem);
+    text-align:center;
+    box-shadow:var(--elevation-1, 0 1px 3px rgba(0,0,0,.08));
+  }
+  .era-icon{
+    width:4rem;height:4rem;margin:0 auto var(--space-6, 1.5rem);
+    display:flex;align-items:center;justify-content:center;
+    border-radius:var(--radius-full, 999px);
+    background:var(--status-info-bg, rgba(59,130,246,.12));
+    color:var(--accent, #3b82f6);font-size:var(--font-size-2xl, 1.5rem);
+  }
+  .era-title{
+    font-size:var(--font-size-xl, 1.25rem);
+    font-weight:var(--font-weight-semibold, 600);
+    color:var(--text-primary, #111);margin:0 0 var(--space-3, .75rem);
+  }
+  .era-text{
+    font-size:var(--font-size-md, 1rem);color:var(--text-secondary, #555);
+    line-height:var(--line-height-relaxed, 1.6);margin:0 0 var(--space-8, 2rem);
+  }
+  .era-actions{display:flex;flex-direction:column;gap:var(--space-3, .75rem);align-items:center;}
+  .era-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2, .5rem);
+    min-height:2.75rem;padding:0 var(--space-8, 2rem);width:100%;max-width:20rem;
+    border:none;border-radius:var(--radius-full, 999px);cursor:pointer;
+    font-size:var(--font-size-md, 1rem);font-weight:var(--font-weight-semibold, 600);
+    background:var(--accent, #3b82f6);color:var(--text-on-accent, #fff);
+    transition:transform var(--motion-fast, 140ms) var(--motion-curve-organic, ease),
+               filter var(--motion-fast, 140ms) ease;
+  }
+  .era-btn:hover{filter:brightness(1.05);}
+  .era-btn:active{transform:scale(.98);}
+  .era-btn:focus-visible{outline:none;box-shadow:var(--shadow-focus, 0 0 0 3px rgba(59,130,246,.4));}
+  .era-btn[disabled]{opacity:.6;cursor:default;}
+  .era-link{
+    font-size:var(--font-size-sm, .875rem);color:var(--text-muted, #888);
+    text-decoration:none;
+  }
+  .era-link:hover{text-decoration:underline;}
+  .era-confirm{
+    display:flex;align-items:center;justify-content:center;gap:var(--space-2, .5rem);
+    margin-bottom:var(--space-6, 1.5rem);padding:var(--space-3, .75rem) var(--space-4, 1rem);
+    border-radius:var(--radius-md, 10px);
+    background:var(--status-success-bg, rgba(16,185,129,.12));
+    color:var(--text-primary, #111);font-size:var(--font-size-sm, .875rem);
+  }
+  .era-confirm i{color:var(--status-success, #10b981);}
+</style>
+{% endblock %}
+{% block content %}
+<main class="era-wrap" aria-labelledby="era-title">
+  <div class="era-card neu-raised-sm">
+    {% if just_requested or was_pending or already_requested %}
+      <div class="era-confirm" role="status">
+        <i class="fas fa-check-circle" aria-hidden="true"></i>
+        <span>
+          {% if just_requested %}
+            Pedido enviado aos gestores. Você será avisado quando o acesso for liberado.
+          {% else %}
+            Seu pedido de acesso já está na fila dos gestores.
+          {% endif %}
+        </span>
+      </div>
+    {% endif %}
+
+    <div class="era-icon" aria-hidden="true"><i class="fas fa-envelope"></i></div>
+    <h1 id="era-title" class="era-title">Módulo de E-mail restrito</h1>
+    <p class="era-text">
+      O e-mail do escritório fica disponível apenas para gestores
+      (administradores). Se você precisa enviar ou ler e-mails por aqui,
+      solicite acesso — os gestores receberão uma notificação e poderão
+      liberar seu perfil.
+    </p>
+
+    <div class="era-actions">
+      {% if already_requested %}
+        <button type="button" class="era-btn" disabled aria-disabled="true">
+          <i class="fas fa-clock" aria-hidden="true"></i>
+          <span>Acesso solicitado</span>
+        </button>
+      {% else %}
+        <form method="post" action="{{ PREFIX }}/emails/request-access" style="width:100%;display:flex;justify-content:center;">
+          <button type="submit" class="era-btn">
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+            <span>Solicitar acesso ao e-mail</span>
+          </button>
+        </form>
+      {% endif %}
+      <a href="{{ PREFIX }}/dashboard" class="era-link">Voltar ao painel</a>
+    </div>
+  </div>
+</main>
+{% endblock %}

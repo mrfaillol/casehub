@@ -6,10 +6,9 @@ the experience without dragging in the upload-centric
 ``GoogleDriveHandler`` surface.
 
 Auth is **session-only** (browser cookie via ``get_current_user``) — these
-endpoints never accept a Bearer token. The Drive service itself is a
-shared-app credential (same as ``GoogleDriveHandler`` uses today), so the
-session check guards the in-app surface; broader per-user OAuth scoping
-ships in a follow-up if the alpha needs it.
+endpoints never accept a Bearer token. The Drive service is resolved with
+``request.state.org_id``, so tenant subdomains use their own OAuth token
+instead of falling back to the default organization.
 
 Error contract — exhaustive on purpose:
 - 401: not authenticated (missing/invalid session cookie).
@@ -113,6 +112,7 @@ async def list_drive_folder(
     user, err = _ensure_auth(request, db)
     if err is not None:
         return err
+    org_id = getattr(request.state, "org_id", None)
 
     try:
         result = list_folder(
@@ -120,6 +120,7 @@ async def list_drive_folder(
             page_size=page_size,
             page_token=page_token,
             include_trashed=include_trashed,
+            org_id=org_id,
         )
     except DriveNotAvailable as exc:
         logger.warning("[DRIVE LIST] service unavailable: %s", exc)
@@ -146,9 +147,10 @@ async def get_drive_file(
     user, err = _ensure_auth(request, db)
     if err is not None:
         return err
+    org_id = getattr(request.state, "org_id", None)
 
     try:
-        payload = get_file(file_id)
+        payload = get_file(file_id, org_id=org_id)
     except DriveNotAvailable as exc:
         return JSONResponse(
             {"error": "drive_unavailable", "detail": str(exc)},
@@ -171,9 +173,10 @@ async def drive_breadcrumb(
     user, err = _ensure_auth(request, db)
     if err is not None:
         return err
+    org_id = getattr(request.state, "org_id", None)
 
     try:
-        trail = breadcrumb(file_id, max_depth=max_depth)
+        trail = breadcrumb(file_id, max_depth=max_depth, org_id=org_id)
     except DriveNotAvailable as exc:
         return JSONResponse(
             {"error": "drive_unavailable", "detail": str(exc)},

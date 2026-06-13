@@ -31,12 +31,20 @@ class Task(Base):
     # Assignment
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+    # Privacy (Victor 03/06: "listas privadas bem claras"). Tarefa privada só é
+    # visível ao CRIADOR e ao RESPONSÁVEL (assignee), sempre org-scoped. Default
+    # 'org' preserva o comportamento atual (toda a org vê) p/ não quebrar tarefas
+    # existentes. visibility: 'org' | 'private'.
+    visibility = Column(String(20), default="org", server_default="org")
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
     # Tags (comma-separated labels) and estimated hours
     tags = Column(String, nullable=True)  # e.g. "urgente,documentos,prazo"
     estimated_hours = Column(Float, nullable=True)  # estimated hours for column stats
 
     # Dates
     due_date = Column(Date)
+    due_time = Column(String(5), nullable=True)  # "HH:MM" — horário do prazo (reloginho Trello). Date+hora exibidos no card.
     reminder_date = Column(Date)
     completed_at = Column(DateTime(timezone=True))
 
@@ -46,7 +54,9 @@ class Task(Base):
     # Relationships
     client = relationship("Client", backref="tasks")
     case = relationship("Case", backref="tasks")
-    assignee = relationship("User", backref="assigned_tasks")
+    # Disambiguate: two FKs to users.id (assigned_to + created_by) require explicit foreign_keys.
+    assignee = relationship("User", foreign_keys=[assigned_to], backref="assigned_tasks")
+    creator = relationship("User", foreign_keys=[created_by], backref="created_tasks")
     subtasks = relationship("Task", backref=backref("parent_task", remote_side=[id]))
     comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan", order_by="TaskComment.created_at.asc()")
 

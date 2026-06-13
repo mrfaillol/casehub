@@ -7,6 +7,7 @@ by product/org/user so repeated requests inside the same minute avoid duplicate
 database work.
 """
 import json
+import re
 import logging
 import threading
 import time
@@ -17,6 +18,8 @@ from dateutil.relativedelta import relativedelta
 from sqlalchemy import func, text
 
 from config import settings
+_HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
 from models import BillingItem, Case, Client, Document, Reminder, Task, TimeEntry, User
 from models.tenant import tenant_query
 
@@ -306,27 +309,35 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
         Case.updated_at <= previous_month_end,
     ).count()
 
-    def _appointment_count(start_day, end_day) -> int:
+    def _appointment_count(start_day, end_day, appt_type=None) -> int:
         try:
-            return db.execute(
-                text("""
-                    SELECT COUNT(*)
-                    FROM appointments
-                    WHERE org_id = :org_id
-                      AND date >= :start_day
-                      AND date <= :end_day
-                """),
-                {"org_id": org_id, "start_day": start_day, "end_day": end_day},
-            ).scalar() or 0
+            sql = """
+                SELECT COUNT(*)
+                FROM appointments
+                WHERE org_id = :org_id
+                  AND date >= :start_day
+                  AND date <= :end_day
+            """
+            params = {"org_id": org_id, "start_day": start_day, "end_day": end_day}
+            if appt_type is not None:
+                sql += " AND type = :appt_type"
+                params["appt_type"] = appt_type
+            return db.execute(text(sql), params).scalar() or 0
         except Exception as exc:
             logger.warning("Basic dashboard appointments unavailable: %s", exc)
             return 0
 
     appointment_week = _appointment_count(week_start, week_end)
     appointment_previous = _appointment_count(week_start - timedelta(days=7), week_end - timedelta(days=7))
+    # Audiências: appointments com type 'audiencia' (taxonomia migrations/2026-04-06_appointments.sql)
+    hearing_week = _appointment_count(week_start, week_end, appt_type="audiencia")
+    hearing_previous = _appointment_count(
+        week_start - timedelta(days=7), week_end - timedelta(days=7), appt_type="audiencia"
+    )
 
     case_series = []
     appointment_series = []
+    hearing_series = []
     closed_series = []
     day_labels = []
     for offset in range(13, -1, -1):
@@ -338,6 +349,7 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
             Case.created_at < next_day,
         ).count())
         appointment_series.append(float(_appointment_count(day, day)))
+        hearing_series.append(float(_appointment_count(day, day, appt_type="audiencia")))
         closed_series.append(tenant_query(db, Case, org_id).filter(
             Case.status.in_(closed_statuses),
             Case.updated_at >= day,
@@ -409,38 +421,97 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
                 "urgent": (due - today).days <= 2,
             })
 
-    users = tenant_query(db, User, org_id).filter(User.enabled.is_(True)).order_by(User.name.asc()).limit(5).all()
-    team = []
+    # Audiências próximas (semana corrente) — appointments com type 'audiencia'.
+    hearings_week = []
+    try:
+        hearing_rows = db.execute(
+            text("""
+                SELECT a.title, a.date, a.time_start, a.client_name,
+                       COALESCE(c.case_number, c.numero_processo, '') AS processo
+                FROM appointments a
+                LEFT JOIN cases c ON c.id = a.case_id
+                WHERE a.org_id = :org_id
+                  AND a.type = 'audiencia'
+                  AND a.date BETWEEN :start AND :end
+                ORDER BY a.date ASC, a.time_start ASC NULLS LAST
+                LIMIT 5
+            """),
+            {"org_id": org_id, "start": today, "end": today + timedelta(days=7)},
+        ).fetchall()
+        for row in hearing_rows:
+            hdate = row.date
+            ref_bits = [b for b in (row.processo, row.client_name) if b]
+            hearings_week.append({
+                "day": hdate.day,
+                "month": hdate.strftime("%b"),
+                "title": row.title or "Audiência",
+                "case_ref": " · ".join(ref_bits) or "Sem processo",
+                "time": row.time_start.strftime("%H:%M") if row.time_start else "",
+                "urgent": (hdate - today).days <= 2,
+            })
+    except Exception as exc:
+        logger.warning("Basic dashboard hearings unavailable: %s", exc)
+
+    # Presença real (não mais fake): só usuários com last_activity nos últimos
+    # 5 minutos contam como "online agora". Usa o timestamp real de cada um —
+    # nada de cravar now() em todo mundo. Quem nunca foi visto (last_activity
+    # NULL) ou está parado >5min simplesmente não aparece.
     now = datetime.now()
-    for member in users:
+    presence_window = now - timedelta(minutes=5)
+    team = []
+    try:
+        online_users = (
+            tenant_query(db, User, org_id)
+            .filter(User.enabled.is_(True))
+            .filter(User.last_activity.isnot(None))
+            .filter(User.last_activity >= presence_window)
+            .order_by(User.last_activity.desc())
+            .limit(8)
+            .all()
+        )
+    except Exception as exc:
+        # Coluna pode não existir até a migration ser aplicada — degrada para
+        # lista vazia (estado honesto "Ninguém online agora") em vez de 500.
+        logger.warning("Real presence unavailable (last_activity): %s", exc)
+        online_users = []
+    for member in online_users:
         display_name = member.name or ""
-        if display_name.strip().lower().startswith("daniela"):
-            display_name = "[usuário] Fontainha"
+        seen = member.last_activity or now
+        member_color = getattr(member, "color", None) or "#1C2447"
+        if not _HEX_COLOR.match(str(member_color)):
+            member_color = "#1C2447"
         team.append({
             "initials": _initials(display_name),
+            "photo_url": member.photo_url,
+            "color": member_color,
             "name": display_name,
             "city": member.department or "Escritório",
-            "hour": now.hour,
-            "minute": now.minute,
+            "hour": seen.hour,
+            "minute": seen.minute,
             "status": "online",
         })
 
+    # Atividade/auditoria do escritório: NÃO vazar para advogado/estagiário/staff.
+    # Só gestor (admin) e superadmin recebem dados; demais cargos ficam com a
+    # lista vazia (e o card é ocultado no template por gating de user_type).
+    user_type = getattr(user, "user_type", None)
     activity = []
-    recent_clients = tenant_query(db, Client, org_id).order_by(Client.created_at.desc()).limit(3).all()
-    for client in recent_clients:
-        activity.append({
-            "time": client.created_at.strftime("%d/%m") if client.created_at else "recente",
-            "actor": "Sistema",
-            "verb": "cadastrou cliente",
-            "target": client.full_name,
-        })
-    for task in pending_tasks[:3]:
-        activity.append({
-            "time": task.created_at.strftime("%d/%m") if task.created_at else "recente",
-            "actor": task.assignee.name.split()[0] if task.assignee else "Equipe",
-            "verb": "tem tarefa",
-            "target": task.title or "sem título",
-        })
+    if user_type in ("admin", "superadmin"):
+        recent_clients = tenant_query(db, Client, org_id).order_by(Client.created_at.desc()).limit(3).all()
+        for client in recent_clients:
+            activity.append({
+                "time": client.created_at.strftime("%d/%m") if client.created_at else "recente",
+                "actor": "Sistema",
+                "verb": "cadastrou cliente",
+                "target": client.full_name,
+            })
+        for task in pending_tasks[:3]:
+            activity.append({
+                "time": task.created_at.strftime("%d/%m") if task.created_at else "recente",
+                "actor": task.assignee.name.split()[0] if task.assignee else "Equipe",
+                "verb": "tem tarefa",
+                "target": task.title or "sem título",
+            })
 
     recent_case_rows = tenant_query(db, Case, org_id).order_by(Case.updated_at.desc().nullslast(), Case.created_at.desc()).limit(8).all()
     recent_cases = []
@@ -475,34 +546,90 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
             "next_date": next_date,
         })
 
+    # Totais para os KPIs operacionais (não limitados às 5 linhas dos cards).
+    open_tasks_total = tenant_query(db, Task, org_id).filter(Task.status != "completed").count()
+    overdue_tasks_total = tenant_query(db, Task, org_id).filter(
+        Task.status != "completed",
+        Task.due_date.isnot(None),
+        Task.due_date < today,
+    ).count()
+    deadlines_week_total = len(deadlines_week)
+    today_appointments = _appointment_count(today, today)
+
     dashboard = {
         "user_first_name": (user.name.split()[0] if user and user.name else "Doutor"),
         "date_label": _pt_date_label(today),
+        # KPIs reordenados (Example User/Maria 02/06): operação do dia em destaque
+        # — tarefas, compromissos do dia, prazos, audiências — e os indicadores
+        # de volume (novos casos / casos fechados) rebaixados a secundário.
         "metrics": [
             {
+                "label": "Tarefas em aberto",
+                "route": "/tasks/kanban", "go_label": "Ir para tarefas",
+                "value": open_tasks_total,
+                "unit": "",
+                "secondary": False,
+                "delta": {
+                    "label": (f"{overdue_tasks_total} atrasadas" if overdue_tasks_total else "em dia"),
+                    "direction": ("down" if overdue_tasks_total else "flat"),
+                },
+                "sparkline": None,
+            },
+            {
+                "label": "Compromissos (hoje)",
+                "route": "/calendar/agenda", "go_label": "Ir para agenda",
+                "value": today_appointments,
+                "unit": "",
+                "secondary": False,
+                "delta": {
+                    "label": f"{appointment_week} na semana",
+                    "direction": "flat",
+                },
+                "sparkline": _sparkline([float(v) for v in appointment_series]),
+            },
+            {
+                "label": "Prazos (7 dias)",
+                "route": "/controladoria", "go_label": "Ir para prazos",
+                "value": deadlines_week_total,
+                "unit": "",
+                "secondary": False,
+                "delta": {
+                    "label": "vencimentos próximos",
+                    "direction": "flat",
+                },
+                "sparkline": None,
+            },
+            {
+                "label": "Audiências (semana)",
+                "route": "/calendar/agenda", "go_label": "Ir para agenda",
+                "value": hearing_week,
+                "unit": "",
+                "secondary": False,
+                "delta": _pct_delta(float(hearing_week), float(hearing_previous)),
+                "sparkline": _sparkline([float(v) for v in hearing_series]),
+            },
+            {
                 "label": "Novos casos (14d)",
+                "route": "/cases", "go_label": "Ver processos",
                 "value": new_cases,
                 "unit": "",
+                "secondary": True,
                 "delta": _pct_delta(float(new_cases), float(previous_cases)),
                 "sparkline": _sparkline([float(v) for v in case_series]),
             },
             {
-                "label": "Compromissos (semana)",
-                "value": appointment_week,
-                "unit": "",
-                "delta": _pct_delta(float(appointment_week), float(appointment_previous)),
-                "sparkline": _sparkline([float(v) for v in appointment_series]),
-            },
-            {
                 "label": "Casos fechados (mês)",
+                "route": "/cases", "go_label": "Ver processos",
                 "value": closed_month,
                 "unit": "",
+                "secondary": True,
                 "delta": _pct_delta(float(closed_month), float(closed_previous)),
                 "sparkline": _sparkline([float(v) for v in closed_series]),
             },
         ],
         "tasks_today": tasks_today,
         "deadlines_week": deadlines_week,
+        "hearings_week": hearings_week,
         "team": team,
         "activity": activity[:6],
         "recent_cases": recent_cases,
@@ -514,9 +641,9 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
                 "e tarefas sem responsável claro."
             ),
             "bullets": [
-                f"{len(tasks_today)} tarefas em destaque no painel.",
+                f"{open_tasks_total} tarefas em aberto ({overdue_tasks_total} atrasadas).",
                 f"{len(deadlines_week)} prazos ou lembretes nos próximos 7 dias.",
-                f"{appointment_week} compromissos agendados nesta semana.",
+                f"{hearing_week} audiências e {appointment_week} compromissos nesta semana.",
                 f"{closed_month} casos fechados no mês.",
             ],
         },

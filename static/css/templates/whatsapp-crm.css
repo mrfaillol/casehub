@@ -148,6 +148,46 @@
   flex-direction: column;
 }
 
+/* `[hidden]` does NOT hide an element whose class sets `display` (the host also
+   carries .wac-panel-host{display:flex} / .wac-pipeline-host{display:flex}).
+   Make the hidden attribute authoritative so closing the CRM panel/funnel
+   actually hides it even if the JS leaves the layout class on the node. */
+#wacPanelHost[hidden],
+#wacPipelineHost[hidden] { display: none !important; }
+
+/* The funnel kanban needs a full-width canvas — its 6 columns cannot live in
+   the 300px `.wa-client-info-panel` slot (chat.html stamps that class on the
+   host, giving position:absolute / width:300px). Promote #wacPipelineHost to a
+   dedicated drawer layer that spans the conversation area to the right of the
+   sidebar, so every column can breathe. ID + !important beat the shared
+   `.wa-client-info-panel` base rule. The 300px contact panel (#wacPanelHost)
+   keeps its slot. */
+#wacPipelineHost {
+  position: fixed;
+  /* Desktop: span from the right of the 380px conversation sidebar to the
+     viewport edge, under the 56px chat header. Literal layout offsets mirror
+     .wa-sidebar{width:380px} / .wa-chat-header{min-height:56px} in
+     whatsapp-chat.css; surfaces/elevation/z stay token-driven. */
+  inset: 56px 0 0 380px;
+  width: auto;
+  max-width: none;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--surface-card, var(--surface-base));
+  box-shadow: var(--elevation-3);
+  z-index: var(--z-modal);
+  overflow: hidden;
+}
+#wacPipelineHost:not([hidden]) { display: flex; }
+/* Mobile (<=768px): the sidebar stacks into a column, so the funnel takes the
+   whole viewport. */
+@media (max-width: 768px) {
+  #wacPipelineHost { inset: 0; }
+}
+
 .wac-panel {
   display: flex;
   flex-direction: column;

@@ -209,10 +209,7 @@ class DataJudClient:
         self.timeout = 30.0
 
     def _headers(self) -> Dict[str, str]:
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==",
-        }
+        headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"APIKey {self.api_key}"
         return headers

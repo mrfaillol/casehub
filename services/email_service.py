@@ -119,6 +119,211 @@ class EmailService:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def send_via_google(
+        self,
+        org_id: int,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str] = None,
+    ) -> dict:
+        """Send via the org's connected Google (Gmail API) office account.
+
+        Best-effort OAuth send: no SMTP password, sender = the office account
+        connected for this org. Returns the GoogleCalendarService status dict
+        (e.g. {'success': False, 'error': 'needs_gmail_consent'}). Never raises;
+        never logs token material. Used as the primary path when SMTP is not
+        configured."""
+        if not org_id:
+            return {"success": False, "error": "no_org"}
+        try:
+            self._validate_email_input(to_email, subject)
+        except ValueError as e:
+            logger.warning(f"Email validation failed: {e}")
+            return {"success": False, "error": str(e)}
+        try:
+            from services.google_calendar import GoogleCalendarService
+            gcal = GoogleCalendarService(org_id=org_id)
+            return gcal.send_email_as_office(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content,
+            )
+        except Exception as e:  # noqa: BLE001 — best-effort, never crash caller
+            logger.warning("Google send routing failed for org %s: %s", org_id, type(e).__name__)
+            return {"success": False, "error": "google_send_failed"}
+
+    def _deliver(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str] = None,
+        org_id: Optional[int] = None,
+    ) -> dict:
+        """Deliver a transactional e-mail, preferring SMTP when configured and
+        falling back to the org's Google office account (Gmail API/OAuth).
+
+        Routing:
+          - SMTP configured  → SMTP (legacy path preserved as fallback).
+          - SMTP NOT configured + org_id given → Gmail API as the office account.
+          - neither available → {'success': False, 'error': 'no_transport'}.
+        """
+        if self.is_configured():
+            return self.send_email(to_email, subject, html_content, text_content=text_content)
+        if org_id:
+            return self.send_via_google(org_id, to_email, subject, html_content, text_content=text_content)
+        return {"success": False, "error": "no_transport"}
+
+    def send_welcome_credentials(
+        self,
+        to_email: str,
+        user_name: str,
+        login_email: str,
+        password: str,
+        login_url: str,
+        org_name: Optional[str] = None,
+        org_id: Optional[int] = None,
+    ) -> dict:
+        """Send welcome email with login credentials to a newly created user.
+
+        Used when an admin/superadmin creates a user. Plain, welcoming
+        language for non-technical recipients. The password is delivered
+        only through this channel (per Victor's request); it is never logged.
+        """
+        org = org_name or settings.ORG_NAME
+        subject = f"Seu acesso ao CaseHub — {org}"
+        first_name = (user_name or "").strip().split(" ")[0] or "Olá"
+
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="pt-br">
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: #1C2447; color: #fff; padding: 24px; text-align: center; border-radius: 8px 8px 0 0; }}
+                .content {{ padding: 24px; background: #f8f9fa; }}
+                .creds {{ background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 16px 20px; margin: 18px 0; }}
+                .creds p {{ margin: 6px 0; }}
+                .label {{ color: #6c757d; font-size: 13px; }}
+                .value {{ font-size: 16px; font-weight: bold; color: #1C2447; word-break: break-all; }}
+                .btn {{ display: inline-block; padding: 12px 24px; background: #1C2447; color: #fff !important; text-decoration: none; border-radius: 6px; font-weight: bold; }}
+                .footer {{ padding: 20px; text-align: center; font-size: 12px; color: #888; }}
+                .tip {{ font-size: 13px; color: #6c757d; margin-top: 16px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Bem-vindo(a) ao CaseHub</h1>
+                </div>
+                <div class="content">
+                    <p>{first_name}, sua conta no CaseHub de <strong>{org}</strong> foi criada.</p>
+                    <p>Use os dados abaixo para entrar:</p>
+                    <div class="creds">
+                        <p><span class="label">Endereço de acesso (login):</span><br>
+                           <span class="value">{login_email}</span></p>
+                        <p><span class="label">Senha:</span><br>
+                           <span class="value">{password}</span></p>
+                    </div>
+                    <p style="text-align:center; margin: 24px 0;">
+                        <a href="{login_url}" class="btn">Entrar no CaseHub</a>
+                    </p>
+                    <p class="tip">Se o botão não funcionar, copie e cole este endereço no navegador:<br>{login_url}</p>
+                    <p class="tip">Por segurança, recomendamos trocar sua senha após o primeiro acesso, em Configurações.</p>
+                </div>
+                <div class="footer">
+                    <p>Este e-mail foi enviado automaticamente porque sua conta foi criada no CaseHub.</p>
+                    <p>{org}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text = (
+            f"{first_name}, sua conta no CaseHub de {org} foi criada.\n\n"
+            f"Endereço de acesso (login): {login_email}\n"
+            f"Senha: {password}\n\n"
+            f"Entre por: {login_url}\n\n"
+            f"Por segurança, recomendamos trocar sua senha após o primeiro acesso."
+        )
+
+        # Prefer SMTP if ever configured; otherwise send as the org's Google
+        # office account (Gmail API/OAuth). The password is delivered only
+        # through this channel and is never logged.
+        return self._deliver(to_email, subject, html, text_content=text, org_id=org_id)
+
+    def send_password_reset(
+        self,
+        to_email: str,
+        reset_url: str,
+        org_name: Optional[str] = None,
+        org_id: Optional[int] = None,
+        expiry_hours: int = 1,
+    ) -> dict:
+        """Send a password-reset link to a user who requested one.
+
+        Mirrors send_welcome_credentials: plain, welcoming PT-BR language for
+        non-technical recipients, delivered via SMTP when configured and
+        otherwise as the org's connected Google office account (Gmail API/OAuth).
+        Never raises. The reset_url must be host-derived (the tenant subdomain),
+        never settings.BASE_URL, so the link points back to the right host.
+        """
+        org = org_name or settings.ORG_NAME
+        subject = f"Redefinição de senha — CaseHub {org}"
+
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="pt-br">
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: #1C2447; color: #fff; padding: 24px; text-align: center; border-radius: 8px 8px 0 0; }}
+                .content {{ padding: 24px; background: #f8f9fa; }}
+                .btn {{ display: inline-block; padding: 12px 24px; background: #1C2447; color: #fff !important; text-decoration: none; border-radius: 6px; font-weight: bold; }}
+                .footer {{ padding: 20px; text-align: center; font-size: 12px; color: #888; }}
+                .tip {{ font-size: 13px; color: #6c757d; margin-top: 16px; word-break: break-all; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Redefinição de senha</h1>
+                </div>
+                <div class="content">
+                    <p>Recebemos um pedido para redefinir a senha da sua conta no CaseHub de <strong>{org}</strong>.</p>
+                    <p>Clique no botão abaixo para criar uma nova senha (o link é válido por {expiry_hours} hora):</p>
+                    <p style="text-align:center; margin: 24px 0;">
+                        <a href="{reset_url}" class="btn">Criar nova senha</a>
+                    </p>
+                    <p class="tip">Se o botão não funcionar, copie e cole este endereço no navegador:<br>{reset_url}</p>
+                    <p class="tip">Se você não pediu essa redefinição, pode ignorar este e-mail com segurança — sua senha continua a mesma.</p>
+                </div>
+                <div class="footer">
+                    <p>Este e-mail foi enviado automaticamente a pedido de redefinição de senha no CaseHub.</p>
+                    <p>{org}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text = (
+            f"Recebemos um pedido para redefinir a senha da sua conta no CaseHub de {org}.\n\n"
+            f"Crie uma nova senha por este link (válido por {expiry_hours} hora):\n"
+            f"{reset_url}\n\n"
+            f"Se você não pediu essa redefinição, pode ignorar este e-mail — sua senha continua a mesma."
+        )
+
+        # Delivered only through this channel; the reset link is never logged.
+        return self._deliver(to_email, subject, html, text_content=text, org_id=org_id)
+
     def send_deadline_reminder(
         self,
         to_email: str,

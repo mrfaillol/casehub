@@ -66,8 +66,8 @@ test('Visual audit of all CaseHub Lite pages', async ({ page, context }) => {
   const emailInput = page.locator('input[name="email"], input[type="email"], input[name="username"]').first();
   const passInput = page.locator('input[name="password"], input[type="password"]').first();
 
-  await emailInput.fill('victor@example.com');
-  await passInput.fill('REDACTED');
+  await emailInput.fill('victor@vingren.me');
+  await passInput.fill('demo123');
 
   // Click submit
   const submitBtn = page.locator('button[type="submit"], input[type="submit"], button:has-text("Login"), button:has-text("Entrar")').first();

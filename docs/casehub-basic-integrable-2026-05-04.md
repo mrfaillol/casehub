@@ -1,7 +1,7 @@
 # CaseHub Basic Integrable Plan Implementation - 2026-05-04
 
 This document is the implementation ledger for the CaseHub Basic plan that uses
-the ILC legacy tree as a comparison source while keeping `mrfaillol/casehub`
+the ILC legacy tree as a comparison source while keeping `mrfaillol/casehub-prod`
 `main` as the product source of truth.
 
 ## Current GitHub State
@@ -11,7 +11,7 @@ publication:
 
 | Item | State |
 | --- | --- |
-| `mrfaillol/casehub@main` | `b8d0ed4` - `Tighten CaseHub release notice on mobile` |
+| `mrfaillol/casehub-prod@main` | `b8d0ed4` - `Tighten CaseHub release notice on mobile` |
 | `casehub#216` | merged; PDPJ/Google Calendar work is already on `main` |
 | `casehub#223` | open draft; tracks Bootstrap modal backdrop error; `halt-guard` and `scope-guard` green; merge state blocked while draft |
 | `trabalho-workspace#73` | open draft; MCP curation docs, `scope-guard` green, `claude-review` failing |
@@ -78,7 +78,7 @@ script gained storage-state support and route-ready synchronization:
 
 ```bash
 CASEHUB_AUDIT_SKIP_AUTH=1 \
-CASEHUB_COMPARISON_BASE_URLS="main=https://app.example.com,legacy=http://127.0.0.1:8017" \
+CASEHUB_COMPARISON_BASE_URLS="main=https://dev.vingren.me,legacy=http://127.0.0.1:8017" \
 npm run audit:basic-comparison
 ```
 
@@ -87,7 +87,7 @@ Local report:
 
 | Target | Routes/viewports | Page errors | Console errors | Failed requests | Bad responses | Horizontal overflow |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `main` / `https://app.example.com` | 32 | 0 | 0 | 0 | 0 | 0 |
+| `main` / `https://dev.vingren.me` | 32 | 0 | 0 | 0 | 0 | 0 |
 | `legacy` / `http://127.0.0.1:8017` | 32 | 0 | 4 | 0 | 4 | 0 |
 
 Legacy bad responses were the expected missing current route

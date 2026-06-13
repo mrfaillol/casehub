@@ -11,8 +11,11 @@ from fastapi import HTTPException
 
 from routes.tasks import (
     _assigned_user_ids_for_tasks,
+    _can_manage_shared_kanban,
+    _can_view_team_private_kanban,
     _canonical_kanban_status,
     _status_for_kanban_column,
+    _visible_column_where_sql,
 )
 
 
@@ -161,3 +164,30 @@ class TestKanbanStatusAliases:
 
     def test_status_for_done_custom_column_defaults_to_completed(self):
         assert _status_for_kanban_column("revisao-final", is_done=True) == "completed"
+
+
+class TestKanbanColumnVisibility:
+    @pytest.mark.parametrize("role", ["admin", "superadmin", "owner", "manager", "gestor"])
+    def test_manager_roles_can_manage_shared_and_view_team_private(self, role):
+        user = SimpleNamespace(role=role, user_type=None)
+
+        assert _can_manage_shared_kanban(user) is True
+        assert _can_view_team_private_kanban(user) is True
+
+    def test_regular_user_cannot_view_team_private_columns(self):
+        user = SimpleNamespace(role="paralegal", user_type=None)
+
+        assert _can_manage_shared_kanban(user) is False
+        assert _can_view_team_private_kanban(user) is False
+
+    def test_default_visible_column_sql_limits_private_columns_to_owner(self):
+        sql = _visible_column_where_sql()
+
+        assert "owner_user_id = :user_id" in sql
+        assert ":include_team_private" not in sql
+
+    def test_admin_visible_column_sql_can_include_team_private_columns(self):
+        sql = _visible_column_where_sql(include_team_private=True)
+
+        assert ":include_team_private = 1" in sql
+        assert "owner_user_id = :user_id" in sql

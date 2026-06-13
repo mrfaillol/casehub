@@ -103,6 +103,80 @@ class GeminiProvider(AIProvider):
             return None
 
 
+
+
+# Fallback list for OpenRouter free models — tried in order, skipped on 429/503.
+_OPENROUTER_FREE_FALLBACKS = [
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-31b-it:free",
+    "qwen/qwen3-next-80b-a3b-instruct:free",
+    "moonshotai/kimi-k2.6:free",
+    "meta-llama/llama-3.2-3b-instruct:free",
+]
+
+
+class OpenRouterProvider(AIProvider):
+    """OpenRouter adapter (OpenAI-compatible). Tries primary model then free fallbacks on 429."""
+
+    name = "openrouter"
+    _URL = "https://openrouter.ai/api/v1/chat/completions"
+
+    def __init__(self, api_key: str, model: str = "meta-llama/llama-3.3-70b-instruct:free"):
+        self._api_key = api_key
+        self._model = model
+
+    async def _try_model(self, client: "httpx.AsyncClient", model: str,
+                         payload: dict) -> Optional[str]:
+        """Attempt a single model call. Returns text or None; raises on 429/503 to signal skip."""
+        payload = {**payload, "model": model}
+        resp = await client.post(
+            self._URL,
+            headers={"Authorization": f"Bearer {self._api_key}",
+                     "HTTP-Referer": "https://casehub.sampletenantadvogados.com.br",
+                     "X-Title": "CaseHub"},
+            json=payload,
+        )
+        if resp.status_code in (429, 503):
+            logger.info("[wa-crm-ai] OpenRouter model %s rate-limited (%s), trying next", model, resp.status_code)
+            raise httpx.HTTPStatusError("rate-limited", request=resp.request, response=resp)
+        if resp.status_code != 200:
+            logger.warning("[wa-crm-ai] OpenRouter HTTP %s (model=%s)", resp.status_code, model)
+            return None
+        data = resp.json()
+        text = (data.get("choices", [{}])[0].get("message", {}).get("content"))
+        return text.strip() if text else None
+
+    async def generate(self, prompt: str, *, temperature: float = 0.7,
+                       max_tokens: int = 300) -> Optional[str]:
+        base_payload = {
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        models = [self._model] + [m for m in _OPENROUTER_FREE_FALLBACKS if m != self._model]
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                for model in models:
+                    try:
+                        result = await self._try_model(client, model, base_payload)
+                        if result is not None:
+                            if model != self._model:
+                                logger.info("[wa-crm-ai] OpenRouter fallback used: %s", model)
+                            return result
+                    except httpx.HTTPStatusError:
+                        continue
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("[wa-crm-ai] OpenRouter model %s error: %s", model, e)
+                        continue
+            logger.warning("[wa-crm-ai] OpenRouter: all models exhausted / rate-limited")
+            return None
+        except httpx.TimeoutException:
+            logger.warning("[wa-crm-ai] OpenRouter timeout")
+            return None
+        except Exception as e:  # noqa: BLE001
+            logger.warning("[wa-crm-ai] OpenRouter error: %s", e)
+            return None
+
 def _provider_choice() -> str:
     return (os.getenv("CASEHUB_AI_PROVIDER", "") or "").strip().lower()
 
@@ -124,5 +198,13 @@ def get_ai_provider() -> AIProvider:
         if key:
             return GeminiProvider(key)
         logger.info("[wa-crm-ai] CASEHUB_AI_PROVIDER=gemini but no GEMINI_API_KEY — disabled")
+    if choice == "openrouter":
+        key = os.getenv("OPENROUTER_API_KEY", "")
+        _default_model = "meta-llama/llama-3.3-70b-instruct"
+        _raw_model = os.getenv("CASEHUB_AI_MODEL", _default_model)
+        model = _raw_model if "/" in _raw_model else _default_model
+        if key:
+            return OpenRouterProvider(key, model)
+        logger.info("[wa-crm-ai] CASEHUB_AI_PROVIDER=openrouter but no OPENROUTER_API_KEY — disabled")
     # Unset / unknown / keyless -> AI off.
     return NullProvider()

@@ -1,0 +1,688 @@
+{% extends "app/base.html" %}
+{% set active_module = 'reports' %}
+{% block title %}Relatórios financeiros · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{#- Formatação brasileira de R$ sem depender de filtro custom (server passa floats). -#}
+{%- macro brl(v) -%}
+{%- set n = (v or 0) | round(2) -%}
+{%- set s = '%.2f'|format(n|abs) -%}
+{%- set parts = s.split('.') -%}
+{%- set int_part = parts[0] -%}
+{%- set frac = parts[1] -%}
+{%- set ns = namespace(out='') -%}
+{%- set L = int_part|length -%}
+{%- for i in range(L) -%}
+  {%- set pos = L - i -%}
+  {%- set ns.out = ns.out ~ int_part[i] -%}
+  {%- if pos > 1 and (pos - 1) % 3 == 0 -%}{%- set ns.out = ns.out ~ '.' -%}{%- endif -%}
+{%- endfor -%}
+{%- if n < 0 -%}-{%- endif -%}R$&nbsp;{{ ns.out }},{{ frac }}
+{%- endmacro -%}
+
+{%- macro sort_th(key, label, align='left') -%}
+  {%- set active = lanc_sort == key -%}
+  {%- set next_dir = 'asc' if active and lanc_direction == 'desc' else 'desc' -%}
+  <th style="text-align:{{ align }}">
+    <a class="ch-rf__sort {% if active %}is-active{% endif %}"
+       href="{{ PREFIX }}/reports/financeiro?ano={{ ano }}&page={{ lanc_page }}&sort={{ key }}&direction={{ next_dir }}#rf-lanc"
+       aria-label="Ordenar por {{ label }}">
+      <span>{{ label }}</span>
+      <span aria-hidden="true">{{ '↓' if active and lanc_direction == 'desc' else ('↑' if active else '↕') }}</span>
+    </a>
+  </th>
+{%- endmacro -%}
+
+{%- set MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'] -%}
+{%- set PALETTE = ['#1E4890','#6D9EEB','#6FBE54','#E0A800','#C0552B','#7E57C2','#26A69A','#EC407A'] -%}
+
+{% block extra_head %}
+<style>
+.ch-rf{display:grid;gap:var(--space-5);padding-bottom:var(--space-6)}
+.ch-rf__hero{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap}
+.ch-rf__hero h1{font-size:var(--fs-xl);font-weight:700;color:var(--fg-default);margin:0}
+.ch-rf__hero p{color:var(--fg-muted);font-size:var(--fs-sm);margin:6px 0 0;max-width:60ch}
+.ch-rf__eyebrow{text-transform:uppercase;letter-spacing:.08em;font-size:var(--fs-xs);font-weight:700;color:var(--fg-muted)}
+.ch-rf__yearform{display:flex;align-items:center;gap:var(--space-2)}
+.ch-rf__yearform label{font-size:var(--fs-sm);color:var(--fg-muted)}
+.ch-rf__yearform select{min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-app);color:var(--fg-default);font-size:var(--fs-sm)}
+.ch-rf__kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-3)}
+.ch-rf__kpi{padding:var(--space-4);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-card);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs)}
+.ch-rf__kpi span{display:block;color:var(--fg-muted);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em}
+.ch-rf__kpi strong{display:block;margin-top:8px;color:var(--fg-default);font-size:var(--fs-xl);line-height:1;font-variant-numeric:tabular-nums}
+.ch-rf__kpi.is-pos strong{color:var(--accent-fg,#006B3A)}
+.ch-rf__kpi.is-neg strong{color:var(--c-danger,#C0552B)}
+.ch-rf__kpi small{display:block;margin-top:6px;color:var(--fg-muted);font-size:var(--fs-xs)}
+.ch-rf__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:var(--space-4)}
+.ch-rf__card{padding:var(--space-4) var(--space-5);border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-card);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs)}
+.ch-rf__card--full{grid-column:1/-1}
+.ch-rf__card h2{font-size:var(--fs-md);font-weight:700;color:var(--fg-default);margin:0 0 4px}
+.ch-rf__card .ch-rf__sub{color:var(--fg-muted);font-size:var(--fs-xs);margin:0 0 var(--space-4)}
+/* Barras verticais (resumo mensal) — SVG-free, puro CSS grid */
+.ch-rf__bars{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;align-items:end;height:200px;margin-top:var(--space-3)}
+.ch-rf__barcol{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px;height:100%}
+.ch-rf__barpair{display:flex;align-items:flex-end;gap:2px;width:100%;height:100%;justify-content:center}
+.ch-rf__bar{width:42%;min-height:2px;border-radius:3px 3px 0 0;transition:height .25s cubic-bezier(.2,.8,.2,1)}
+.ch-rf__bar--rec{background:var(--c-green,#6FBE54)}
+.ch-rf__bar--desp{background:color-mix(in srgb,var(--c-danger,#C0552B) 78%,transparent)}
+.ch-rf__barlabel{font-size:10px;color:var(--fg-muted);font-variant-numeric:tabular-nums}
+.ch-rf__legend{display:flex;gap:var(--space-4);flex-wrap:wrap;margin-top:var(--space-3);font-size:var(--fs-xs);color:var(--fg-muted)}
+.ch-rf__legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+/* Donut (conic-gradient) — mesmo idioma do pie da Controladoria */
+.ch-rf__donutwrap{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
+.ch-rf__donut{flex:0 0 auto;width:140px;height:140px;border-radius:50%;position:relative}
+.ch-rf__donut::after{content:'';position:absolute;inset:26px;border-radius:50%;background:var(--surface-card)}
+.ch-rf__keys{display:grid;gap:8px;min-width:180px;flex:1 1 200px}
+.ch-rf__key{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--fg-default)}
+.ch-rf__key i{flex:0 0 auto;width:11px;height:11px;border-radius:3px}
+.ch-rf__key span{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-rf__key b{font-variant-numeric:tabular-nums;color:var(--fg-muted);font-weight:600}
+/* Barras horizontais (categorias, clientes, responsáveis) */
+.ch-rf__hbars{display:grid;gap:10px;margin-top:var(--space-2)}
+.ch-rf__hbar{display:grid;grid-template-columns:1fr;gap:4px}
+.ch-rf__hbar__top{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-sm);color:var(--fg-default)}
+.ch-rf__hbar__top b{font-variant-numeric:tabular-nums;color:var(--fg-muted);font-weight:600;white-space:nowrap}
+.ch-rf__track{height:10px;border-radius:999px;background:color-mix(in srgb,var(--line) 60%,transparent);overflow:hidden}
+.ch-rf__fill{height:100%;border-radius:999px}
+/* Tabelas */
+.ch-rf__table{width:100%;border-collapse:collapse;margin-top:var(--space-3);font-size:var(--fs-sm)}
+.ch-rf__table th,.ch-rf__table td{padding:8px 10px;text-align:right;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);font-variant-numeric:tabular-nums}
+.ch-rf__table th:first-child,.ch-rf__table td:first-child{text-align:left;font-variant-numeric:normal}
+.ch-rf__table thead th{color:var(--fg-muted);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+.ch-rf__table tfoot td{font-weight:700;color:var(--fg-default);border-top:2px solid var(--line)}
+.ch-rf__pos{color:var(--accent-fg,#006B3A)}
+.ch-rf__neg{color:var(--c-danger,#C0552B)}
+.ch-rf__note{margin-top:var(--space-3);padding:10px 12px;border-left:3px solid var(--c-blue,#6D9EEB);background:color-mix(in srgb,var(--c-blue,#6D9EEB) 8%,transparent);border-radius:var(--radius-sm);color:var(--fg-muted);font-size:var(--fs-xs);line-height:1.5}
+.ch-rf__empty{color:var(--fg-muted);font-size:var(--fs-sm);padding:var(--space-3) 0}
+/* Hero actions + botões (Fitts: alvo ≥44px) */
+.ch-rf__heroactions{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.ch-rf__btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-card);color:var(--fg-default);font-size:var(--fs-sm);font-weight:600;cursor:pointer;text-decoration:none;transition:background .15s cubic-bezier(.2,.8,.2,1),border-color .15s}
+.ch-rf__btn:hover{background:color-mix(in srgb,var(--line) 30%,transparent)}
+.ch-rf__btn i,.ch-rf__btn svg{width:18px;height:18px}
+.ch-rf__btn--primary{background:var(--c-navy,#1E4890);border-color:var(--c-navy,#1E4890);color:#fff}
+.ch-rf__btn--primary:hover{background:color-mix(in srgb,var(--c-navy,#1E4890) 88%,#000)}
+/* Tabela editável de lançamentos */
+.ch-rf__lanc{width:100%;border-collapse:collapse;margin-top:var(--space-3);font-size:var(--fs-sm)}
+.ch-rf__lanc th,.ch-rf__lanc td{padding:6px 8px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);text-align:left;vertical-align:middle}
+.ch-rf__lanc thead th{color:var(--fg-muted);font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.04em;font-weight:700;white-space:nowrap}
+.ch-rf__sort{display:inline-flex;align-items:center;gap:5px;color:inherit;text-decoration:none}
+.ch-rf__sort:hover,.ch-rf__sort.is-active{color:var(--fg-default)}
+.ch-rf__lanc td.num{text-align:right;font-variant-numeric:tabular-nums}
+.ch-rf__lanc tr.is-deleted{opacity:.45}
+.ch-rf__lanc tr.is-deleted td:not(.ch-rf__rowact){text-decoration:line-through}
+.ch-rf__lanc-row--receita td{background:color-mix(in srgb,#0f7f45 13%,transparent)}
+.ch-rf__lanc-row--receita:hover td{background:color-mix(in srgb,#0f7f45 21%,transparent)}
+.ch-rf__lanc-row--despesa td{background:color-mix(in srgb,#9f1239 12%,transparent)}
+.ch-rf__lanc-row--despesa:hover td{background:color-mix(in srgb,#9f1239 20%,transparent)}
+.ch-rf__cell{min-width:60px;border:1px solid transparent;border-radius:var(--radius-sm);padding:4px 6px;background:transparent;color:inherit;font:inherit;width:100%}
+.ch-rf__cell:focus{outline:none;border-color:var(--c-blue,#6D9EEB);background:var(--surface-app)}
+.ch-rf__cell[type=number]{text-align:right}
+select.ch-rf__cell{min-height:34px}
+.ch-rf__rowact{white-space:nowrap;text-align:right}
+.ch-rf__iconbtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-card);color:var(--fg-muted);cursor:pointer}
+.ch-rf__iconbtn:hover{color:var(--fg-default);background:color-mix(in srgb,var(--line) 30%,transparent)}
+.ch-rf__iconbtn i,.ch-rf__iconbtn svg{width:16px;height:16px}
+.ch-rf__iconbtn--danger:hover{color:var(--c-danger,#C0552B);border-color:var(--c-danger,#C0552B)}
+.ch-rf__pager{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);margin-top:var(--space-3);flex-wrap:wrap;font-size:var(--fs-sm);color:var(--fg-muted)}
+.ch-rf__pager a{color:var(--c-navy,#1E4890);text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;padding:0 10px}
+.ch-rf__tablewrap{overflow-x:auto}
+.ch-rf__saved{color:var(--accent-fg,#006B3A);font-size:var(--fs-xs);margin-left:8px}
+.ch-rf__dialog{width:min(820px,calc(100vw - 32px));border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface-card);color:var(--fg-default);box-shadow:0 24px 80px rgba(0,0,0,.22);padding:0}
+.ch-rf__dialog::backdrop{background:rgba(0,31,62,.28);backdrop-filter:blur(3px)}
+.ch-rf__dialog-head,.ch-rf__dialog-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);padding:var(--space-4);border-bottom:1px solid var(--line)}
+.ch-rf__dialog-foot{justify-content:flex-end;border-top:1px solid var(--line);border-bottom:0}
+.ch-rf__dialog-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);padding:var(--space-4)}
+.ch-rf__dialog-body .is-full{grid-column:1/-1}
+.ch-rf__dialog .ch-field{margin:0}
+@media(max-width:720px){.ch-rf__dialog-body{grid-template-columns:1fr}}
+@media (max-width:640px){.ch-rf__bars{height:150px}.ch-rf__barlabel{display:none}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ch-rf">
+
+  <header class="ch-rf__hero">
+    <div>
+      <p class="ch-rf__eyebrow">Relatórios · Inteligência financeira</p>
+      <h1>Dinheiro × produtividade do escritório</h1>
+      <p>Cruzamento da planilha financeira com a produtividade da Controladoria. Visão executiva preparada para a reunião — receita, despesa, resultado e prazos concluídos no mesmo período.</p>
+    </div>
+    <div class="ch-rf__heroactions">
+      <form class="ch-rf__yearform" method="get" action="{{ PREFIX }}/reports/financeiro">
+        <label for="rf-ano">Ano</label>
+        <select id="rf-ano" name="ano" onchange="this.form.submit()" aria-label="Selecionar ano">
+          {% for a in anos_disponiveis %}
+          <option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% if can_edit_financeiro %}
+      <button type="button" class="ch-rf__btn" data-rf-new aria-label="Adicionar lançamento financeiro">
+        <i data-lucide="plus" aria-hidden="true"></i><span>Novo lançamento</span>
+      </button>
+      {# Export org-scoped do ano selecionado. Lei de Fitts: botão alvo amplo, ícone+texto. #}
+      <a class="ch-rf__btn ch-rf__btn--primary" href="{{ PREFIX }}/reports/financeiro/export.xlsx?ano={{ ano }}"
+         aria-label="Exportar lançamentos de {{ ano }} em Excel">
+        <i data-lucide="file-down" aria-hidden="true"></i><span>Exportar .xlsx</span>
+      </a>
+      {% endif %}
+    </div>
+  </header>
+
+  {# ── KPIs do ano: caixa realizado vs em aberto (F-DasR/F-DasD/F-Resu) ── #}
+  <section class="ch-rf__kpis" aria-label="Resumo do ano {{ ano }}">
+    <div class="ch-rf__kpi is-pos"><span>Recebido {{ ano }}</span><strong>{{ brl(tot_receita_liq) }}</strong><small>Receitas já recebidas (liquidadas)</small></div>
+    <div class="ch-rf__kpi"><span>A receber</span><strong>{{ brl(a_receber) }}</strong><small>Receita prevista ainda em aberto</small></div>
+    <div class="ch-rf__kpi is-neg"><span>Pago {{ ano }}</span><strong>{{ brl(tot_despesa_liq) }}</strong><small>Despesas já pagas (liquidadas)</small></div>
+    <div class="ch-rf__kpi"><span>A pagar</span><strong>{{ brl(a_pagar) }}</strong><small>Despesa prevista ainda em aberto</small></div>
+    <div class="ch-rf__kpi {% if (tot_receita_liq - tot_despesa_liq) >= 0 %}is-pos{% else %}is-neg{% endif %}"><span>Caixa realizado</span><strong>{{ brl(tot_receita_liq - tot_despesa_liq) }}</strong><small>Recebido − pago</small></div>
+    <div class="ch-rf__kpi {% if tot_resultado >= 0 %}is-pos{% else %}is-neg{% endif %}"><span>Resultado previsto</span><strong>{{ brl(tot_resultado) }}</strong><small>Receita − despesa (tudo)</small></div>
+  </section>
+
+  {# ── Contas a receber / a pagar por mês (F-DasR / F-DasD) ─────── #}
+  <div class="ch-rf__grid">
+    {% for blk in [
+      {'id':'rf-receber','t':'Contas a receber','sub':'Recebido vs em aberto por mês — destaque para o que está em atraso.','d':contas_receber,'rec':true},
+      {'id':'rf-pagar','t':'Contas a pagar','sub':'Pago vs em aberto por mês — destaque para o que está em atraso.','d':contas_pagar,'rec':false}
+    ] %}
+    <section class="ch-rf__card" aria-labelledby="{{ blk.id }}">
+      <h2 id="{{ blk.id }}">{{ blk.t }}</h2>
+      <p class="ch-rf__sub">{{ blk.sub }}</p>
+      {% if blk.d.linhas %}
+      <div class="ch-rf__kpis" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:var(--space-3)">
+        <div class="ch-rf__kpi {{ 'is-pos' if blk.rec else 'is-neg' }}"><span>{{ 'Recebido' if blk.rec else 'Pago' }}</span><strong style="font-size:var(--fs-md)">{{ brl(blk.d.tot.liquidado) }}</strong></div>
+        <div class="ch-rf__kpi"><span>Em aberto</span><strong style="font-size:var(--fs-md)">{{ brl(blk.d.tot.aberto) }}</strong></div>
+        <div class="ch-rf__kpi {% if blk.d.tot.vencido > 0 %}is-neg{% endif %}"><span>Em atraso</span><strong style="font-size:var(--fs-md)">{{ brl(blk.d.tot.vencido) }}</strong><small>Vencido e não {{ 'recebido' if blk.rec else 'pago' }}</small></div>
+      </div>
+      <table class="ch-rf__table">
+        <thead><tr><th>Mês</th><th>{{ 'Recebido' if blk.rec else 'Pago' }}</th><th>Em aberto</th><th>Em atraso</th><th>Total</th></tr></thead>
+        <tbody>
+          {% for r in blk.d.linhas %}
+          <tr>
+            <td>{{ MESES[r.mes-1] }}</td>
+            <td>{{ brl(r.liquidado) }}</td>
+            <td>{{ brl(r.aberto) }}</td>
+            <td class="{% if r.vencido > 0 %}ch-rf__neg{% endif %}">{% if r.vencido > 0 %}{{ brl(r.vencido) }}{% else %}—{% endif %}</td>
+            <td>{{ brl(r.total) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot><tr><td>Total {{ ano }}</td><td>{{ brl(blk.d.tot.liquidado) }}</td><td>{{ brl(blk.d.tot.aberto) }}</td><td class="{% if blk.d.tot.vencido > 0 %}ch-rf__neg{% endif %}">{% if blk.d.tot.vencido > 0 %}{{ brl(blk.d.tot.vencido) }}{% else %}—{% endif %}</td><td>{{ brl(blk.d.tot.total) }}</td></tr></tfoot>
+      </table>
+      {% set p = parcelamento.receita if blk.rec else parcelamento.despesa %}
+      {% if p.qtd > 0 %}<p class="ch-rf__sub" style="margin:var(--space-3) 0 0">{{ p.qtd }} lançamento(s) parcelado(s) em aberto · {{ brl(p.total) }} a {{ 'entrar' if blk.rec else 'sair' }}.</p>{% endif %}
+      {% else %}<p class="ch-rf__empty">Sem contas {{ 'a receber' if blk.rec else 'a pagar' }} com vencimento em {{ ano }}.</p>{% endif %}
+    </section>
+    {% endfor %}
+  </div>
+
+  {# ── (a) Resumo mensal: barras + tabela ──────────────────────── #}
+  {%- set maxbar = namespace(v=1) -%}
+  {%- for r in resumo_mensal -%}
+    {%- if r.receita > maxbar.v %}{% set maxbar.v = r.receita %}{% endif -%}
+    {%- if r.despesa > maxbar.v %}{% set maxbar.v = r.despesa %}{% endif -%}
+  {%- endfor -%}
+  <section class="ch-rf__card ch-rf__card--full" aria-labelledby="rf-mensal">
+    <h2 id="rf-mensal">Resumo mensal {{ ano }}</h2>
+    <p class="ch-rf__sub">Recebimentos, despesas e resultado por mês (espelha a aba F-Resu da planilha).</p>
+    <div class="ch-rf__bars" role="img" aria-label="Barras de receita e despesa por mês">
+      {% for r in resumo_mensal %}
+      <div class="ch-rf__barcol">
+        <div class="ch-rf__barpair">
+          <div class="ch-rf__bar ch-rf__bar--rec" style="height:{{ ((r.receita / maxbar.v) * 100) | round(1) }}%" title="{{ MESES[r.mes-1] }} · Receita {{ brl(r.receita) }}"></div>
+          <div class="ch-rf__bar ch-rf__bar--desp" style="height:{{ ((r.despesa / maxbar.v) * 100) | round(1) }}%" title="{{ MESES[r.mes-1] }} · Despesa {{ brl(r.despesa) }}"></div>
+        </div>
+        <span class="ch-rf__barlabel">{{ MESES[r.mes-1] }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="ch-rf__legend">
+      <span><i style="background:var(--c-green,#6FBE54)"></i>Recebimentos</span>
+      <span><i style="background:color-mix(in srgb,var(--c-danger,#C0552B) 78%,transparent)"></i>Despesas</span>
+    </div>
+    <table class="ch-rf__table">
+      <thead><tr><th>Mês</th><th>Recebimentos</th><th>Despesas</th><th>Resultado</th></tr></thead>
+      <tbody>
+        {% for r in resumo_mensal %}
+        <tr>
+          <td>{{ MESES[r.mes-1] }}</td>
+          <td>{{ brl(r.receita) }}</td>
+          <td>{{ brl(r.despesa) }}</td>
+          <td class="{% if r.resultado >= 0 %}ch-rf__pos{% else %}ch-rf__neg{% endif %}">{{ brl(r.resultado) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><td>Total {{ ano }}</td><td>{{ brl(tot_receita) }}</td><td>{{ brl(tot_despesa) }}</td><td class="{% if tot_resultado >= 0 %}ch-rf__pos{% else %}ch-rf__neg{% endif %}">{{ brl(tot_resultado) }}</td></tr></tfoot>
+    </table>
+  </section>
+
+  <div class="ch-rf__grid">
+    {# ── (b1) Receita por tipo (donut conic-gradient) ──────────── #}
+    {%- set rt_total = namespace(v=0) -%}{%- for r in receita_tipo %}{% set rt_total.v = rt_total.v + r.valor %}{% endfor -%}
+    <section class="ch-rf__card" aria-labelledby="rf-rectipo">
+      <h2 id="rf-rectipo">Receita por tipo</h2>
+      <p class="ch-rf__sub">Honorários e demais categorias de receita.</p>
+      {% if rt_total.v > 0 %}
+      {%- set acc = namespace(deg=0, stops='') -%}
+      {%- for r in receita_tipo[:8] -%}
+        {%- set frac = (r.valor / rt_total.v) * 360 -%}
+        {%- set col = PALETTE[loop.index0 % 8] -%}
+        {%- set acc.stops = acc.stops ~ col ~ ' ' ~ (acc.deg|round(2)) ~ 'deg ' ~ ((acc.deg+frac)|round(2)) ~ 'deg' ~ ('' if loop.last else ', ') -%}
+        {%- set acc.deg = acc.deg + frac -%}
+      {%- endfor -%}
+      <div class="ch-rf__donutwrap">
+        <div class="ch-rf__donut" style="background:conic-gradient({{ acc.stops }})" role="img" aria-label="Distribuição de receita por tipo"></div>
+        <div class="ch-rf__keys">
+          {% for r in receita_tipo[:8] %}
+          <div class="ch-rf__key"><i style="background:{{ PALETTE[loop.index0 % 8] }}"></i><span>{{ r.label }}</span><b>{{ ((r.valor / rt_total.v)*100)|round(0)|int }}%</b></div>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}<p class="ch-rf__empty">Sem receitas registradas em {{ ano }}.</p>{% endif %}
+    </section>
+
+    {# ── (b2) PF vs PJ ─────────────────────────────────────────── #}
+    {%- set pp_total = namespace(v=0) -%}{%- for r in pf_pj %}{% set pp_total.v = pp_total.v + r.valor %}{% endfor -%}
+    <section class="ch-rf__card" aria-labelledby="rf-pfpj">
+      <h2 id="rf-pfpj">Receita PF vs PJ</h2>
+      <p class="ch-rf__sub">Pessoa física vs pessoa jurídica.</p>
+      {% if pp_total.v > 0 %}
+      <div class="ch-rf__hbars">
+        {% for r in pf_pj %}
+        <div class="ch-rf__hbar">
+          <div class="ch-rf__hbar__top"><span>{{ r.label }}</span><b>{{ brl(r.valor) }} · {{ ((r.valor/pp_total.v)*100)|round(0)|int }}%</b></div>
+          <div class="ch-rf__track"><div class="ch-rf__fill" style="width:{{ ((r.valor/pp_total.v)*100)|round(1) }}%;background:{{ PALETTE[loop.index0 % 8] }}"></div></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="ch-rf__empty">Sem dados de tipo de cliente em {{ ano }}.</p>{% endif %}
+    </section>
+
+    {# ── (b3) Top 8 clientes por receita ───────────────────────── #}
+    <section class="ch-rf__card" aria-labelledby="rf-clientes">
+      <h2 id="rf-clientes">Top clientes por receita</h2>
+      <p class="ch-rf__sub">Maiores geradores de receita no ano.</p>
+      {% if top_clientes and top_clientes[0].valor > 0 %}
+      {%- set tc_max = top_clientes[0].valor -%}
+      <div class="ch-rf__hbars">
+        {% for r in top_clientes %}
+        <div class="ch-rf__hbar">
+          <div class="ch-rf__hbar__top"><span>{{ r.label }}</span><b>{{ brl(r.valor) }}</b></div>
+          <div class="ch-rf__track"><div class="ch-rf__fill" style="width:{{ ((r.valor/tc_max)*100)|round(1) }}%;background:var(--c-navy,#1E4890)"></div></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="ch-rf__empty">Sem receitas por cliente em {{ ano }}.</p>{% endif %}
+    </section>
+
+    {# ── (c) Despesa por categoria ─────────────────────────────── #}
+    <section class="ch-rf__card" aria-labelledby="rf-despesa">
+      <h2 id="rf-despesa">Despesa por categoria</h2>
+      <p class="ch-rf__sub">Para onde o dinheiro está indo (top 10).</p>
+      {% if despesa_categoria and despesa_categoria[0].valor > 0 %}
+      {%- set dc_max = despesa_categoria[0].valor -%}
+      <div class="ch-rf__hbars">
+        {% for r in despesa_categoria %}
+        <div class="ch-rf__hbar">
+          <div class="ch-rf__hbar__top"><span>{{ r.label }}</span><b>{{ brl(r.valor) }}</b></div>
+          <div class="ch-rf__track"><div class="ch-rf__fill" style="width:{{ ((r.valor/dc_max)*100)|round(1) }}%;background:color-mix(in srgb,var(--c-danger,#C0552B) 80%,transparent)"></div></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}<p class="ch-rf__empty">Sem despesas registradas em {{ ano }}.</p>{% endif %}
+    </section>
+  </div>
+
+  {# ── (d) CRUZAMENTO produtividade × financeiro ─────────────────── #}
+  {%- set pmax = namespace(v=1) -%}{%- for r in cruzamento %}{% if r.concluidos > pmax.v %}{% set pmax.v = r.concluidos %}{% endif %}{% endfor -%}
+  <section class="ch-rf__card ch-rf__card--full" aria-labelledby="rf-cruz">
+    <h2 id="rf-cruz">Produtividade × resultado por mês</h2>
+    <p class="ch-rf__sub">Prazos concluídos (Controladoria) ao lado do resultado financeiro do mesmo período.</p>
+    <table class="ch-rf__table">
+      <thead><tr><th>Mês</th><th>Prazos concluídos</th><th>Recebimentos</th><th>Resultado</th><th>Resultado / prazo</th></tr></thead>
+      <tbody>
+        {% for r in cruzamento %}
+        <tr>
+          <td>{{ MESES[r.mes-1] }}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">
+              <span>{{ r.concluidos }}</span>
+              <span class="ch-rf__track" style="width:90px"><span class="ch-rf__fill" style="display:block;height:10px;width:{{ ((r.concluidos/pmax.v)*100)|round(1) }}%;background:var(--c-blue,#6D9EEB)"></span></span>
+            </div>
+          </td>
+          <td>{{ brl(r.receita) }}</td>
+          <td class="{% if r.resultado >= 0 %}ch-rf__pos{% else %}ch-rf__neg{% endif %}">{{ brl(r.resultado) }}</td>
+          <td>{% if r.resultado_por_prazo is not none %}{{ brl(r.resultado_por_prazo) }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><td>Ano {{ ano }}</td><td style="text-align:right">{{ tot_concluidos }}</td><td>{{ brl(tot_receita) }}</td><td class="{% if tot_resultado >= 0 %}ch-rf__pos{% else %}ch-rf__neg{% endif %}">{{ brl(tot_resultado) }}</td><td>{% if resultado_por_prazo_ano is not none %}{{ brl(resultado_por_prazo_ano) }}{% else %}—{% endif %}</td></tr></tfoot>
+    </table>
+
+    <div class="ch-rf__grid" style="margin-top:var(--space-4)">
+      <div>
+        <h2 style="font-size:var(--fs-sm)">Prazos concluídos por responsável ({{ ano }})</h2>
+        {% if prazos_resp and prazos_resp[0].qtd > 0 %}
+        {%- set pr_max = prazos_resp[0].qtd -%}
+        <div class="ch-rf__hbars">
+          {% for r in prazos_resp %}
+          <div class="ch-rf__hbar">
+            <div class="ch-rf__hbar__top"><span>{{ r.nome }}</span><b>{{ r.qtd }}</b></div>
+            <div class="ch-rf__track"><div class="ch-rf__fill" style="width:{{ ((r.qtd/pr_max)*100)|round(1) }}%;background:var(--c-blue,#6D9EEB)"></div></div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}<p class="ch-rf__empty">Sem prazos concluídos em {{ ano }}.</p>{% endif %}
+      </div>
+    </div>
+
+    <p class="ch-rf__note">
+      <strong>Como ler:</strong> o cruzamento é por <strong>período (mês)</strong>, que é o vínculo confiável entre as duas bases.
+      A referência de processo da planilha financeira é texto livre e <strong>não casa 1&#8209;a&#8209;1</strong> com o número CNJ dos prazos da Controladoria, então não há vínculo direto processo&nbsp;&rarr;&nbsp;receita: "resultado por prazo" é um indicador de período (resultado financeiro do mês ÷ prazos concluídos no mês), não um valor cobrado por processo.
+    </p>
+  </section>
+
+  {# ── (e) Lançamentos editáveis (gated) ───────────────────────────── #}
+  {% if can_edit_financeiro %}
+  <section class="ch-rf__card ch-rf__card--full" id="rf-lanc" aria-labelledby="rf-lanc-h"
+           data-prefix="{{ PREFIX }}">
+    <h2 id="rf-lanc-h">Lançamentos {{ ano }}</h2>
+    <p class="ch-rf__sub">
+      Edite um lançamento clicando no campo (salva ao sair do campo). "Arquivar" remove
+      o lançamento dos totais sem apagar o histórico — pode ser restaurado.
+      Mostrando {{ lancamentos|length }} de {{ lanc_total }} lançamento(s).
+    </p>
+    <div class="ch-rf__tablewrap">
+      <table class="ch-rf__lanc" aria-label="Lançamentos financeiros editáveis">
+        <thead>
+          <tr>
+            {{ sort_th('tipo', 'Tipo') }}{{ sort_th('categoria', 'Categoria') }}{{ sort_th('cliente', 'Cliente') }}{{ sort_th('pf_pj', 'PF/PJ') }}
+            {{ sort_th('descricao', 'Descrição') }}{{ sort_th('previsto', 'Previsto') }}{{ sort_th('efetivo', 'Efetivo') }}{{ sort_th('liquidado', 'Liquidado') }}
+            {{ sort_th('valor', 'Valor', 'right') }}<th></th>
+          </tr>
+        </thead>
+        <tbody data-rf-lanc-body>
+          {% if lancamentos %}
+          {% for l in lancamentos %}
+          <tr data-id="{{ l.id }}" data-row-active="{{ '1' if l.ativo else '0' }}" class="ch-rf__lanc-row ch-rf__lanc-row--{{ l.kind }} {% if not l.ativo %}is-deleted{% endif %}">
+            <td>
+              <select class="ch-rf__cell" data-field="kind" aria-label="Tipo do lançamento">
+                <option value="receita" {% if l.kind == 'receita' %}selected{% endif %}>Receita</option>
+                <option value="despesa" {% if l.kind == 'despesa' %}selected{% endif %}>Despesa</option>
+              </select>
+            </td>
+            <td><input class="ch-rf__cell" data-field="tipo" value="{{ l.tipo }}" aria-label="Categoria"></td>
+            <td><input class="ch-rf__cell" data-field="cliente" value="{{ l.cliente }}" aria-label="Cliente"></td>
+            <td>
+              <select class="ch-rf__cell" data-field="tipo_cliente" aria-label="PF ou PJ">
+                <option value="" {% if not l.tipo_cliente %}selected{% endif %}>—</option>
+                <option value="PF" {% if l.tipo_cliente == 'PF' %}selected{% endif %}>PF</option>
+                <option value="PJ" {% if l.tipo_cliente == 'PJ' %}selected{% endif %}>PJ</option>
+              </select>
+            </td>
+            <td><input class="ch-rf__cell" data-field="descricao" value="{{ l.descricao }}" aria-label="Descrição"></td>
+            <td><input class="ch-rf__cell" type="date" data-field="data_prevista" value="{{ l.data_prevista }}" aria-label="Data prevista"></td>
+            <td><input class="ch-rf__cell" type="date" data-field="data_efetiva" value="{{ l.data_efetiva }}" aria-label="Data efetiva"></td>
+            <td style="text-align:center">
+              <input type="checkbox" data-field="settled" {% if l.settled %}checked{% endif %} aria-label="Liquidado">
+            </td>
+            <td class="num"><input class="ch-rf__cell" type="number" step="0.01" min="0" data-field="valor" value="{{ '%.2f'|format(l.valor) }}" aria-label="Valor"></td>
+            <td class="ch-rf__rowact">
+              {% if l.ativo %}
+              <button type="button" class="ch-rf__iconbtn ch-rf__iconbtn--danger" data-action="delete"
+                      title="Arquivar lançamento" aria-label="Arquivar lançamento">
+                <i data-lucide="archive" aria-hidden="true"></i>
+              </button>
+              {% else %}
+              <button type="button" class="ch-rf__iconbtn" data-action="restore"
+                      title="Restaurar lançamento" aria-label="Restaurar lançamento">
+                <i data-lucide="archive-restore" aria-hidden="true"></i>
+              </button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr data-rf-empty><td colspan="10" class="ch-rf__empty">Sem lançamentos em {{ ano }}.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% if lanc_pages > 1 %}
+    <nav class="ch-rf__pager" aria-label="Paginação dos lançamentos">
+      {% if lanc_page > 1 %}<a href="{{ PREFIX }}/reports/financeiro?ano={{ ano }}&page={{ lanc_page - 1 }}&sort={{ lanc_sort }}&direction={{ lanc_direction }}#rf-lanc">&larr; Anteriores</a>{% else %}<span></span>{% endif %}
+      <span>Página {{ lanc_page }} de {{ lanc_pages }}</span>
+      {% if lanc_page < lanc_pages %}<a href="{{ PREFIX }}/reports/financeiro?ano={{ ano }}&page={{ lanc_page + 1 }}&sort={{ lanc_sort }}&direction={{ lanc_direction }}#rf-lanc">Próximos &rarr;</a>{% else %}<span></span>{% endif %}
+    </nav>
+    {% endif %}
+  </section>
+  <dialog class="ch-rf__dialog" id="rf-new-dialog" aria-labelledby="rf-new-title">
+    <form method="dialog" class="ch-rf__dialog-head">
+      <h2 id="rf-new-title" style="margin:0;font-size:var(--fs-md);">Novo lançamento</h2>
+      <button type="submit" class="ch-rf__iconbtn" aria-label="Fechar"><i data-lucide="x" aria-hidden="true"></i></button>
+    </form>
+    <form id="rf-new-form">
+      <div class="ch-rf__dialog-body">
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-kind">Tipo</label>
+          <select class="ch-input" id="rf-new-kind" name="kind" required>
+            <option value="receita">Receita</option>
+            <option value="despesa">Despesa</option>
+          </select>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-valor">Valor</label>
+          <input class="ch-input" id="rf-new-valor" name="valor" type="number" min="0" step="0.01" required>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-tipo">Categoria</label>
+          <input class="ch-input" id="rf-new-tipo" name="tipo" autocomplete="off">
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-cliente">Cliente</label>
+          <input class="ch-input" id="rf-new-cliente" name="cliente" autocomplete="off">
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-pfpj">PF/PJ</label>
+          <select class="ch-input" id="rf-new-pfpj" name="tipo_cliente">
+            <option value="">—</option>
+            <option value="PF">PF</option>
+            <option value="PJ">PJ</option>
+          </select>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-parcela">Parcela</label>
+          <input class="ch-input" id="rf-new-parcela" name="parcela" placeholder="Ex.: 1 de 3" autocomplete="off">
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-previsto">Previsto</label>
+          <input class="ch-input" id="rf-new-previsto" name="data_prevista" type="date">
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-efetivo">Efetivo</label>
+          <input class="ch-input" id="rf-new-efetivo" name="data_efetiva" type="date">
+        </div>
+        <label class="ch-chip" style="align-self:end;cursor:pointer;">
+          <input type="checkbox" name="settled" style="accent-color:var(--c-green-d);margin-right:6px;"> Liquidado
+        </label>
+        <div class="ch-field">
+          <label class="ch-field__label" for="rf-new-processo">Processo ref.</label>
+          <input class="ch-input" id="rf-new-processo" name="processo_ref" autocomplete="off">
+        </div>
+        <div class="ch-field is-full">
+          <label class="ch-field__label" for="rf-new-desc">Descrição</label>
+          <textarea class="ch-textarea" id="rf-new-desc" name="descricao" rows="3"></textarea>
+        </div>
+      </div>
+      <footer class="ch-rf__dialog-foot">
+        <button type="button" class="ch-rf__btn" data-rf-new-close>Cancelar</button>
+        <button type="submit" class="ch-rf__btn ch-rf__btn--primary"><i data-lucide="check" aria-hidden="true"></i><span>Salvar</span></button>
+      </footer>
+    </form>
+  </dialog>
+  {% endif %}
+
+</div>
+
+<script>
+  if (window.lucide && typeof window.lucide.createIcons === 'function') { window.lucide.createIcons(); }
+
+  // ── Edição inline dos lançamentos financeiros (gated server-side) ──
+  (function () {
+    var sec = document.getElementById('rf-lanc');
+    if (!sec) return;
+    var PREFIX = sec.getAttribute('data-prefix') || '';
+
+    function post(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {})
+      });
+    }
+
+    function flash(el, ok) {
+      el.style.transition = 'background .4s';
+      el.style.background = ok ? 'color-mix(in srgb, var(--c-green,#6FBE54) 22%, transparent)'
+                               : 'color-mix(in srgb, var(--c-danger,#C0552B) 22%, transparent)';
+      setTimeout(function () { el.style.background = ''; }, 600);
+    }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+      });
+    }
+    function sel(value, expected) { return String(value || '') === String(expected || '') ? ' selected' : ''; }
+    function rowHtml(item) {
+      var kind = item.kind || 'receita';
+      var active = item.ativo !== false;
+      return '<tr data-id="'+esc(item.id)+'" data-row-active="'+(active?'1':'0')+'" class="ch-rf__lanc-row ch-rf__lanc-row--'+esc(kind)+(active?'':' is-deleted')+'">'+
+        '<td><select class="ch-rf__cell" data-field="kind" aria-label="Tipo do lançamento">'+
+          '<option value="receita"'+sel(kind,'receita')+'>Receita</option>'+
+          '<option value="despesa"'+sel(kind,'despesa')+'>Despesa</option>'+
+        '</select></td>'+
+        '<td><input class="ch-rf__cell" data-field="tipo" value="'+esc(item.tipo)+'" aria-label="Categoria"></td>'+
+        '<td><input class="ch-rf__cell" data-field="cliente" value="'+esc(item.cliente)+'" aria-label="Cliente"></td>'+
+        '<td><select class="ch-rf__cell" data-field="tipo_cliente" aria-label="PF ou PJ">'+
+          '<option value=""'+sel(item.tipo_cliente,'')+'>—</option>'+
+          '<option value="PF"'+sel(item.tipo_cliente,'PF')+'>PF</option>'+
+          '<option value="PJ"'+sel(item.tipo_cliente,'PJ')+'>PJ</option>'+
+        '</select></td>'+
+        '<td><input class="ch-rf__cell" data-field="descricao" value="'+esc(item.descricao)+'" aria-label="Descrição"></td>'+
+        '<td><input class="ch-rf__cell" type="date" data-field="data_prevista" value="'+esc(item.data_prevista)+'" aria-label="Data prevista"></td>'+
+        '<td><input class="ch-rf__cell" type="date" data-field="data_efetiva" value="'+esc(item.data_efetiva)+'" aria-label="Data efetiva"></td>'+
+        '<td style="text-align:center"><input type="checkbox" data-field="settled" '+(item.settled?'checked':'')+' aria-label="Liquidado"></td>'+
+        '<td class="num"><input class="ch-rf__cell" type="number" step="0.01" min="0" data-field="valor" value="'+Number(item.valor || 0).toFixed(2)+'" aria-label="Valor"></td>'+
+        '<td class="ch-rf__rowact"><button type="button" class="ch-rf__iconbtn ch-rf__iconbtn--danger" data-action="delete" title="Arquivar lançamento" aria-label="Arquivar lançamento"><i data-lucide="archive" aria-hidden="true"></i></button></td>'+
+      '</tr>';
+    }
+
+    // Salvar campo ao perder foco (input/select) ou ao mudar (checkbox/select).
+    function saveCell(cell) {
+      var tr = cell.closest('tr[data-id]');
+      if (!tr) return;
+      var id = tr.getAttribute('data-id');
+      var field = cell.getAttribute('data-field');
+      if (!field) return;
+      var value;
+      if (cell.type === 'checkbox') value = cell.checked;
+      else value = cell.value;
+      post(PREFIX + '/reports/financeiro/' + encodeURIComponent(id) + '/update',
+           { field: field, value: value })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          flash(cell, res.ok);
+          if (res.ok && field === 'kind') {
+            tr.classList.remove('ch-rf__lanc-row--receita', 'ch-rf__lanc-row--despesa');
+            tr.classList.add('ch-rf__lanc-row--' + String(value || 'receita'));
+          }
+          if (!res.ok && res.j && res.j.error) { alert(res.j.error); }
+        })
+        .catch(function () { flash(cell, false); });
+    }
+
+    sec.addEventListener('change', function (ev) {
+      var cell = ev.target.closest('[data-field]');
+      if (cell && (cell.tagName === 'SELECT' || cell.type === 'checkbox' || cell.type === 'date')) {
+        saveCell(cell);
+      }
+    });
+    sec.addEventListener('blur', function (ev) {
+      var cell = ev.target.closest('input.ch-rf__cell[data-field]');
+      if (cell && cell.type !== 'checkbox' && cell.type !== 'date') { saveCell(cell); }
+    }, true);
+
+    var dialog = document.getElementById('rf-new-dialog');
+    var form = document.getElementById('rf-new-form');
+    var body = sec.querySelector('[data-rf-lanc-body]');
+    var openBtn = document.querySelector('[data-rf-new]');
+    if (openBtn && dialog) {
+      openBtn.addEventListener('click', function () {
+        if (typeof dialog.showModal === 'function') dialog.showModal();
+        else dialog.setAttribute('open', '');
+      });
+    }
+    if (dialog) dialog.addEventListener('click', function (ev) {
+      if (ev.target.closest('[data-rf-new-close]')) {
+        ev.preventDefault();
+        dialog.close();
+      }
+    });
+    if (form) {
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var fd = new FormData(form);
+        var payload = {};
+        ['kind','valor','tipo','cliente','tipo_cliente','parcela','data_prevista','data_efetiva','processo_ref','descricao'].forEach(function (key) {
+          payload[key] = fd.get(key) || '';
+        });
+        payload.settled = fd.get('settled') === 'on';
+        var submit = form.querySelector('[type="submit"]');
+        if (submit) submit.disabled = true;
+        post(PREFIX + '/reports/financeiro/items', payload)
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) { alert((res.j && res.j.error) || 'Falha ao criar lançamento'); return; }
+            if (body) {
+              var empty = body.querySelector('[data-rf-empty]');
+              if (empty) empty.remove();
+              body.insertAdjacentHTML('afterbegin', rowHtml(res.j.item));
+              if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+            }
+            form.reset();
+            if (dialog) dialog.close();
+          })
+          .catch(function () { alert('Falha ao criar lançamento'); })
+          .finally(function () { if (submit) submit.disabled = false; });
+      });
+    }
+
+    // Arquivar / restaurar.
+    sec.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('[data-action]');
+      if (!btn) return;
+      var tr = btn.closest('tr[data-id]');
+      if (!tr) return;
+      var id = tr.getAttribute('data-id');
+      var action = btn.getAttribute('data-action');
+      if (action === 'delete' && !confirm('Arquivar este lançamento? Ele sai dos totais mas pode ser restaurado.')) return;
+      post(PREFIX + '/reports/financeiro/' + encodeURIComponent(id) + '/' + action, {})
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { alert((res.j && res.j.error) || ('Falha ao ' + (action === 'delete' ? 'arquivar' : 'restaurar') + ' lançamento')); return; }
+          var active = action === 'restore';
+          tr.classList.toggle('is-deleted', !active);
+          tr.setAttribute('data-row-active', active ? '1' : '0');
+          btn.setAttribute('data-action', active ? 'delete' : 'restore');
+          btn.setAttribute('title', active ? 'Arquivar lançamento' : 'Restaurar lançamento');
+          btn.setAttribute('aria-label', active ? 'Arquivar lançamento' : 'Restaurar lançamento');
+          btn.classList.toggle('ch-rf__iconbtn--danger', active);
+          btn.innerHTML = '<i data-lucide="'+(active ? 'archive' : 'archive-restore')+'" aria-hidden="true"></i>';
+          if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+        })
+        .catch(function () { alert('Falha ao ' + (action === 'delete' ? 'arquivar' : 'restaurar') + ' lançamento'); });
+    });
+  })();
+</script>
+{% endblock %}

@@ -114,7 +114,7 @@ a:hover {{ opacity: 0.8; }}
 <body><div class="card">
 <h1>Modo Demo</h1>
 <p>{DEMO_BLOCK_MESSAGE}</p>
-<a href="https://app.example.com">Conhecer o CaseHub</a>
+<a href="https://casehub.vingren.me">Conhecer o CaseHub</a>
 <a href="javascript:history.back()" class="back">Voltar</a>
 </div></body></html>"""
     )

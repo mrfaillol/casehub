@@ -54,6 +54,73 @@ def get_org_token_path(org_id: int, integration: str, account_name: str = "defau
     return org_dir / f"{integration}_token_{safe_account}.json"
 
 
+def get_org_user_credentials_dir(org_id: int, user_id: int) -> Path:
+    """Return `credentials/org_{org_id}/users/{user_id}/` path. Creates if missing.
+
+    Per-USER credential storage lives in a dedicated `users/` subtree so it can
+    never collide with the org-account token namespace
+    (`calendar_token_{account}.json`) used by the office (center/info) slots.
+    Each user directory is 0700 (only the app process reads it).
+    """
+    if not user_id or int(user_id) <= 0:
+        raise ValueError(f"user_id required and positive, got {user_id!r}")
+    user_dir = get_org_credentials_dir(org_id) / "users" / str(int(user_id))
+    user_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        os.chmod(user_dir, 0o700)
+        os.chmod(user_dir.parent, 0o700)
+    except OSError:
+        pass
+    return user_dir
+
+
+def get_org_user_token_path(
+    org_id: int, user_id: int, integration: str = "calendar"
+) -> Path:
+    """Return per-USER token path scoped to org + user + integration.
+
+    Example:
+        get_org_user_token_path(4, 12, "calendar")
+            → credentials/org_4/users/12/calendar_token.json
+
+    One token per integration per user (no account_name slot — the user only
+    connects their own single Google account per integration).
+    """
+    safe_integration = "".join(
+        c for c in (integration or "") if c.isalnum() or c in ("-", "_")
+    ) or "calendar"
+    return get_org_user_credentials_dir(org_id, user_id) / f"{safe_integration}_token.json"
+
+
+def save_org_user_token(org_id: int, user_id: int, content: str, integration: str = "calendar") -> Path:
+    """Write per-user token JSON with 0600 perms. Returns the path."""
+    path = get_org_user_token_path(org_id, user_id, integration)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            fd = None
+            handle.write(content)
+    finally:
+        if fd is not None:
+            os.close(fd)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    return path
+
+
+def delete_org_user_token(org_id: int, user_id: int, integration: str = "calendar") -> bool:
+    """Remove the per-user token file. Returns True if a file was deleted."""
+    path = get_org_user_token_path(org_id, user_id, integration)
+    if path.exists():
+        path.unlink(missing_ok=True)
+        return True
+    return False
+
+
 def get_org_drive_token_path(org_id: int) -> Path:
     """Drive uses single token per org (no account_name slot in legacy code)."""
     return get_org_credentials_dir(org_id) / "drive_token.json"

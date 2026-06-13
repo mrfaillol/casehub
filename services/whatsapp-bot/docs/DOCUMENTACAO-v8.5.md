@@ -325,7 +325,7 @@ FACEBOOK_ACCESS_TOKEN=...
 
 ### Reiniciar bot:
 ```bash
-cd /var/www/legacy.example/whatsapp-bot
+cd /var/www/immigrant.law/whatsapp-bot
 pm2 restart whatsapp-bot
 ```
 
@@ -341,7 +341,7 @@ pm2 status
 
 ### Verificar versao:
 ```bash
-head -10 /var/www/legacy.example/whatsapp-bot/bot-flow.js
+head -10 /var/www/immigrant.law/whatsapp-bot/bot-flow.js
 ```
 
 ---
@@ -376,7 +376,7 @@ head -10 /var/www/legacy.example/whatsapp-bot/bot-flow.js
 ## 11. ESTRUTURA DE ARQUIVOS
 
 ```
-/var/www/legacy.example/whatsapp-bot/
+/var/www/immigrant.law/whatsapp-bot/
 ├── server.js              # Servidor principal
 ├── bot-flow.js            # Logica de conversa
 ├── languages.js           # Mensagens multilíngue

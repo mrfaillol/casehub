@@ -83,7 +83,7 @@
 | **Ação** | Solicitar key gratuita no portal CNJ |
 | **URL** | https://datajud-wiki.cnj.jus.br/api-publica/acesso/ |
 | **Variável `.env`** | `DATAJUD_API_KEY` |
-| **Formato** | String alfanumérica (ex: `cDZHYzlZa0JadVREZDM...`) |
+| **Formato** | String alfanumérica recebida do CNJ (ex: `<DATAJUD_API_KEY>`) |
 | **Se ausente** | Degradação graceful -- consulta DataJud desabilitada. Monitoramento de processos via CNJ indisponível, mas busca via Escavador ainda funciona se configurado. |
 
 **Passo a passo:**

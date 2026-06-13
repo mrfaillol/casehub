@@ -1,0 +1,450 @@
+/* CaseHub App · Notifications center (Central de Notificações)
+ *
+ * Neu refino 2026-06-09 (Victor: tela estava FLAT, fora do padrão neu):
+ *   superfície do MESMO material (--surface-app) com relevo pareado
+ *   (--shadow-dark-sm / --shadow-light-sm) — zero borda dura, zero glass/bootstrap.
+ *   Toggles e checkbox com relevo afundado (inset). Ritmo de espaçamento em
+ *   var(--space-*), alinhamento rigoroso, hover só transform/opacity (GPU).
+ *
+ * Namespace .ntf-* para não colidir com .ch-tabs (navegação do shell).
+ */
+
+/* ─────────── Layout de duas colunas ─────────── */
+.ntf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+.ntf-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+@media (max-width: 900px) {
+  .ntf-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ─────────── Banners (sucesso / aviso) — relevo afundado ─────────── */
+.ntf-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--surface-card-2);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  color: var(--fg-default);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+.ntf-notice__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  margin-top: 1px;
+}
+.ntf-notice__icon svg { width: 18px; height: 18px; }
+.ntf-notice__body { min-width: 0; flex: 1; }
+.ntf-notice__body strong { color: var(--fg-strong); }
+.ntf-notice__dismiss {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--fg-faint);
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-out),
+              background var(--motion-fast) var(--ease-out);
+}
+.ntf-notice__dismiss:hover { color: var(--fg-default); background: var(--surface-app); }
+.ntf-notice__dismiss svg { width: 15px; height: 15px; }
+.ntf-notice--ok    { color: var(--accent-fg); }
+.ntf-notice--ok .ntf-notice__icon { color: var(--accent-fg); }
+.ntf-notice--warn  { color: var(--c-warn); }
+.ntf-notice--warn .ntf-notice__icon { color: var(--c-warn); }
+
+/* ─────────── Sub-abas da página (Preferências / Histórico / Novidades) ───────────
+ * Trilho neu: pílula afundada que abriga botões; o ativo "sobe" com relevo. */
+.ntf-tabs {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ntf-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--motion-fast) var(--ease-out),
+              background var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+}
+.ntf-tab svg { width: 16px; height: 16px; }
+.ntf-tab:hover { color: var(--fg-default); }
+.ntf-tab.is-active {
+  color: var(--fg-default);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+}
+.ntf-tabpanel[hidden] { display: none; }
+
+/* ─────────── Linha de preferência (label + toggle) ─────────── */
+.ntf-prefs { display: flex; flex-direction: column; }
+.ntf-pref {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+}
+.ntf-pref + .ntf-pref { border-top: 1px solid var(--line); }
+.ntf-pref__text { min-width: 0; }
+.ntf-pref__title {
+  display: block;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--fg-default);
+  margin: 0;
+}
+.ntf-pref__desc {
+  display: block;
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--fg-muted);
+  line-height: var(--lh-snug);
+}
+
+/* Toggle neu — relevo afundado no trilho, botão com relevo saliente.
+ * Reaproveita a linguagem de .ch-a11y-switch. */
+.ntf-switch {
+  position: relative;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 30px;
+  cursor: pointer;
+}
+.ntf-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px; height: 1px;
+  pointer-events: none;
+}
+.ntf-switch__track {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  transition: background var(--motion-fast) var(--ease-out);
+}
+.ntf-switch__track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-dark-xs);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.ntf-switch input:checked + .ntf-switch__track { background: var(--c-green-d); }
+.ntf-switch input:checked + .ntf-switch__track::after { transform: translateX(22px); }
+.ntf-switch input:focus-visible + .ntf-switch__track { box-shadow: var(--focus-ring); }
+
+/* ─────────── Rodapé de ações do form ─────────── */
+.ntf-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+/* ─────────── Lista de histórico / novidades ─────────── */
+.ntf-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ntf-item {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-app);
+  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+  transition: transform var(--motion-fast) var(--ease-out),
+              box-shadow var(--motion-fast) var(--ease-out);
+}
+@media (hover: hover) { .ntf-item:hover { transform: translateY(-1px); box-shadow: var(--shadow-pop); } }
+.ntf-item--unread { position: relative; }
+.ntf-item--unread::before {
+  content: "";
+  position: absolute;
+  top: var(--space-4);
+  left: 0;
+  width: 3px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--c-pollen);
+}
+.ntf-item__icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  background: var(--surface-card-2);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ntf-item__icon svg { width: 18px; height: 18px; }
+.ntf-item--unread .ntf-item__icon { color: var(--accent-fg); }
+.ntf-item--release .ntf-item__icon { color: var(--c-green-d); }
+.ntf-item__body { flex: 1; min-width: 0; }
+.ntf-item__title {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--fg-default);
+  letter-spacing: -0.01em;
+}
+.ntf-item__msg {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--fg-muted);
+  line-height: var(--lh-snug);
+}
+.ntf-item__msg--pre { white-space: pre-line; }
+.ntf-item__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.ntf-item__date {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--fg-faint);
+}
+.ntf-item__date svg { width: 13px; height: 13px; }
+.ntf-item__action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--accent-fg);
+  text-decoration: none;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+.ntf-item__action:hover { opacity: 0.78; }
+.ntf-item__action svg { width: 14px; height: 14px; }
+
+/* ─────────── Info side cards: cronograma / SMTP ─────────── */
+.ntf-info-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ntf-info-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--fg-muted);
+}
+.ntf-info-list li svg { width: 15px; height: 15px; flex: 0 0 15px; color: var(--fg-faint); }
+.ntf-info-list li.is-due svg { color: var(--c-danger); }
+
+.ntf-divider {
+  height: 1px;
+  margin: var(--space-4) 0;
+  background: var(--line);
+  border: none;
+}
+
+.ntf-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.ntf-status svg { width: 16px; height: 16px; }
+.ntf-status--ok   { color: var(--accent-fg); }
+.ntf-status--warn { color: var(--c-warn); }
+
+.ntf-smtp-keys {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ntf-smtp-keys li {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--fg-muted);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--surface-card-2);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+
+/* ─────────── Empty state ─────────── */
+.ntf-empty {
+  text-align: center;
+  padding: var(--space-12) var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ntf-empty__icon {
+  display: inline-flex;
+  color: var(--fg-faint);
+  margin-bottom: var(--space-3);
+}
+.ntf-empty__icon svg { width: 36px; height: 36px; }
+.ntf-empty__title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--fg-default);
+}
+.ntf-empty__sub {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--fg-muted);
+}
+
+/* ─────────── Browser-notif status pill ─────────── */
+.ntf-perm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--surface-card-2);
+  color: var(--fg-muted);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ntf-perm svg { width: 13px; height: 13px; }
+.ntf-perm--ok     { color: var(--accent-fg); }
+.ntf-perm--danger { color: var(--c-danger); }
+.ntf-perm--warn   { color: var(--c-warn); }
+
+.ntf-btn-stack { display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* ─────────── Upcoming: colunas de cartões ─────────── */
+.ntf-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.ntf-stack { display: flex; flex-direction: column; }
+.ntf-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.ntf-row + .ntf-row { border-top: 1px solid var(--line); }
+.ntf-row__link {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--fg-default);
+  text-decoration: none;
+}
+.ntf-row__link:hover { color: var(--accent-fg); }
+.ntf-row__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--fg-faint);
+}
+.ntf-row__sub svg { width: 12px; height: 12px; }
+.ntf-row__sub--due { color: var(--c-danger); }
+
+.ntf-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  background: var(--surface-card-2);
+  color: var(--fg-muted);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+
+/* Tabela de agendamento — neu, zebra suave, sem grid bootstrap */
+.ntf-table { width: 100%; border-collapse: collapse; }
+.ntf-table thead th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  font-weight: 700;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.ntf-table tbody td {
+  padding: var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--fg-default);
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.ntf-table tbody tr:last-child td { border-bottom: none; }
+.ntf-table__empty { text-align: center; color: var(--fg-faint); padding: var(--space-6); }

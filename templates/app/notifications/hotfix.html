@@ -1,0 +1,130 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}Novidades e atualizações · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block extra_head %}
+{# Estilo escopado nesta página → não passa pela cadeia de cache de sub-css.
+   Usa apenas tokens que RESOLVEM no app (ver static/css/app/_tokens.css). #}
+<style>
+  .hf-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-4); flex-wrap: wrap;
+    margin-bottom: var(--space-6);
+  }
+  .hf-head__title {
+    display: flex; align-items: center; gap: var(--space-3);
+    font-size: 1.35rem; font-weight: 700; color: var(--fg-default); margin: 0;
+  }
+  .hf-head__title i { color: var(--c-green-d); width: 1.4rem; height: 1.4rem; }
+  .hf-head__sub { color: var(--fg-muted); font-size: 0.9rem; margin: var(--space-1) 0 0; }
+  .hf-back {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--line); border-radius: var(--radius-pill);
+    color: var(--fg-muted); background: var(--surface-card);
+    font-size: 0.85rem; text-decoration: none;
+    transition: transform 160ms cubic-bezier(.2,.7,.3,1), opacity 160ms ease;
+  }
+  .hf-back:hover { transform: translateY(-1px); opacity: 0.92; }
+  .hf-back i { width: 1rem; height: 1rem; }
+
+  .hf-list { display: flex; flex-direction: column; gap: var(--space-4); }
+
+  .hf-item {
+    position: relative;
+    background: var(--surface-card);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--c-green);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: var(--space-5) var(--space-6);
+    transition: transform 180ms cubic-bezier(.2,.7,.3,1);
+  }
+  .hf-item:hover { transform: translateY(-1px); }
+  .hf-item--urgent { border-left-color: var(--c-danger); }
+  .hf-item--warning { border-left-color: var(--c-warn); }
+
+  .hf-item__top {
+    display: flex; align-items: center; gap: var(--space-3);
+    flex-wrap: wrap; margin-bottom: var(--space-2);
+  }
+  .hf-item__title {
+    font-size: 1.02rem; font-weight: 650; color: var(--fg-default); margin: 0;
+    flex: 1 1 auto; min-width: 0;
+  }
+  .hf-badge {
+    display: inline-flex; align-items: center; gap: var(--space-1);
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 2px var(--space-2); border-radius: var(--radius-pill);
+    color: var(--c-green-d); background: color-mix(in srgb, var(--c-green) 16%, transparent);
+  }
+  .hf-item__date { color: var(--fg-faint); font-size: 0.8rem; white-space: nowrap; }
+  .hf-item__msg {
+    color: var(--fg-muted); font-size: 0.94rem; line-height: 1.5; margin: 0;
+    white-space: pre-line;
+  }
+  .hf-item__link {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    margin-top: var(--space-3); font-size: 0.85rem; color: var(--c-green-d);
+    text-decoration: none;
+    transition: opacity 160ms ease;
+  }
+  .hf-item__link:hover { opacity: 0.8; }
+  .hf-item__link i { width: 0.9rem; height: 0.9rem; }
+
+  .hf-empty {
+    text-align: center; padding: var(--space-12) var(--space-6);
+    color: var(--fg-muted);
+    background: var(--surface-card); border: 1px dashed var(--line);
+    border-radius: var(--radius-md);
+  }
+  .hf-empty i { width: 2.2rem; height: 2.2rem; color: var(--fg-faint); margin-bottom: var(--space-3); }
+  .hf-empty__title { font-weight: 600; color: var(--fg-default); margin: 0 0 var(--space-1); }
+  .hf-empty__sub { font-size: 0.9rem; margin: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hf-head">
+  <div>
+    <h2 class="hf-head__title"><i data-lucide="sparkles"></i> Novidades e atualizações</h2>
+    <p class="hf-head__sub">O que mudou no CaseHub a cada melhoria — em linguagem simples.</p>
+  </div>
+  <a href="{{ PREFIX }}/notifications" class="hf-back">
+    <i data-lucide="bell"></i> Central de notificações
+  </a>
+</div>
+
+{% if hotfixes %}
+<div class="hf-list">
+  {% for n in hotfixes %}
+  <article class="hf-item{% if n.severity == 'urgent' %} hf-item--urgent{% elif n.severity == 'warning' %} hf-item--warning{% endif %}">
+    <div class="hf-item__top">
+      <h3 class="hf-item__title">{{ n.title }}</h3>
+      <span class="hf-badge"><i data-lucide="badge-check" style="width:0.8rem;height:0.8rem;"></i> Atualização</span>
+      {% if n.created_at %}
+      <time class="hf-item__date" datetime="{{ n.created_at.isoformat() }}">
+        {{ n.created_at.strftime('%d/%m/%Y · %H:%M') }}
+      </time>
+      {% endif %}
+    </div>
+    {% if n.message %}
+    <p class="hf-item__msg">{{ n.message }}</p>
+    {% endif %}
+    {% if n.action_url %}
+    <a href="{{ n.action_url }}" class="hf-item__link">
+      <i data-lucide="arrow-right"></i> Ver no sistema
+    </a>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="hf-empty">
+  <i data-lucide="sparkles"></i>
+  <p class="hf-empty__title">Nenhuma novidade por aqui ainda</p>
+  <p class="hf-empty__sub">Quando lançarmos melhorias, elas aparecem nesta página.</p>
+</div>
+{% endif %}
+{% endblock %}

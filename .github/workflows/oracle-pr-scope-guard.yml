@@ -1,0 +1,313 @@
+name: oracle-pr-scope-guard
+
+# Validates every PR opened by the army-claude bot before merge is allowed.
+# Aligned with ruling draft 2026-04-28-army-gitops-pipeline.
+# Required by branch protection for every PR. Human PRs complete as a no-op;
+# PRs labeled `agent:army-claude` OR with branch `agent/army-claude/<id>` run
+# the full envelope/scope validation (Codex round-3: branch pattern is the
+# trust signal, label is convenience hint - prevents label-removal bypass).
+#
+# KNOWN LIMITATION (Codex review P2 round 2): pull_request runs from forks get
+# a read-only GITHUB_TOKEN, so createCommitStatus fails. The catch block now
+# fails loudly via core.setFailed (not silent warning).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+# T2: concurrency group por PR — cancela run anterior quando novo push chega.
+# Sem isso, free tier 2000min/mes estoura com pushes consecutivos.
+concurrency:
+  group: army-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scope-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Classify PR
+        id: scope
+        env:
+          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          labels="$LABELS_JSON"
+          head_ref="$HEAD_REF"
+          # Codex review P2 round 3: detect by branch pattern OR label so
+          # label removal cannot bypass validation.
+          is_army=false
+          if echo "$labels" | grep -q '"agent:army-claude"'; then is_army=true; fi
+          if [[ "$head_ref" =~ ^agent/army-claude/[a-zA-Z0-9_-]+$ ]]; then is_army=true; fi
+          is_wing=false
+          if echo "$labels" | grep -qE '"agent:(codex-wing|gemini-wing)"'; then is_wing=true; fi
+          if [[ "$head_ref" =~ ^agent/(codex-wing|gemini-wing)/[a-zA-Z0-9_-]+$ ]]; then is_wing=true; fi
+          # Responsibility partition (mutex with multi-agent.responsible).
+          if [[ "$is_army" == "true" ]] || [[ "$is_wing" != "true" ]]; then
+            responsible=true
+          else
+            responsible=false
+          fi
+          echo "is_army=$is_army" >> "$GITHUB_OUTPUT"
+          echo "responsible=$responsible" >> "$GITHUB_OUTPUT"
+
+      - name: Post pending scope-guard status (decouple from Copilot bot)
+        if: steps.scope.outputs.responsible == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.payload.pull_request.head.sha,
+                context: 'scope-guard',
+                state: 'pending',
+                description: 'Scope-guard validation in progress',
+                target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+            } catch (e) {
+              core.setFailed(
+                `createCommitStatus pending failed: ${e.message}. ` +
+                `If this is a fork PR, GITHUB_TOKEN is read-only on pull_request; ` +
+                `convert to in-repo branch or add a pull_request_target aggregator.`
+              );
+            }
+
+      - name: Human PR no-op
+        if: steps.scope.outputs.is_army != 'true'
+        run: |
+          echo "Human/non-army PR: required scope-guard check passes without army envelope validation."
+
+      - name: Checkout
+        if: steps.scope.outputs.is_army == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract envelope id from PR title
+        if: steps.scope.outputs.is_army == 'true'
+        id: envelope
+        run: |
+          set -euo pipefail
+          title="${{ github.event.pull_request.title }}"
+          if [[ ! "$title" =~ ^\[army-claude-([a-zA-Z0-9_-]+)\] ]]; then
+            echo "::error::PR title missing [army-claude-<id>] header"
+            exit 1
+          fi
+          echo "id=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate branch name
+        if: steps.scope.outputs.is_army == 'true'
+        run: |
+          set -euo pipefail
+          branch="${{ github.head_ref }}"
+          envelope_id="${{ steps.envelope.outputs.id }}"
+          expected="agent/army-claude/${envelope_id}"
+          if [[ "$branch" != "$expected" ]]; then
+            echo "::error::Branch '$branch' does not match expected '$expected'"
+            exit 1
+          fi
+
+      - name: Reject blocklisted paths universally (S2)
+        if: steps.scope.outputs.is_army == 'true'
+        run: |
+          set -euo pipefail
+          BLOCKLIST=(
+            '\.env'
+            '\.env\.'
+            '\.key$'
+            '\.pem$'
+            'id_rsa'
+            'id_ed25519'
+            'id_ecdsa'
+            'secrets/'
+            'credentials/'
+            '\.npmrc$'
+            '\.pypirc$'
+            'github-app\.pem'
+            '\.htpasswd'
+            '\.aws/'
+            '\.ssh/'
+            '^kubeconfig|/kubeconfig'
+            '\.gpg$'
+            '\.netrc$'
+            'service-account.*\.json$'
+            '\.p12$'
+            '\.pfx$'
+            '\.jks$'
+            '\.keystore$'
+            'authorized_keys$'
+          )
+          changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          for path in $changed; do
+            for pattern in "${BLOCKLIST[@]}"; do
+              if [[ "$path" =~ $pattern ]]; then
+                echo "::error file=$path::Blocklisted path; army-claude cannot modify"
+                exit 1
+              fi
+            done
+          done
+          echo "✓ no blocklisted paths (24 patterns checked)"
+
+      - name: Validate diff against envelope paths_allowed
+        if: steps.scope.outputs.is_army == 'true'
+        run: |
+          set -euo pipefail
+          envelope_id="${{ steps.envelope.outputs.id }}"
+          paths_allowed=$(printf '%s' '${{ github.event.pull_request.body }}' \
+            | awk '/^```paths_allowed$/,/^```$/{ if (!/^```/) print }')
+          if [[ -z "$paths_allowed" ]]; then
+            echo "::error::PR body missing paths_allowed block"
+            exit 1
+          fi
+          changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          violations=()
+          while IFS= read -r path; do
+            allowed=false
+            while IFS= read -r allowed_path; do
+              if [[ "$path" == $allowed_path || "$path" == $allowed_path/* ]]; then
+                allowed=true
+                break
+              fi
+            done <<< "$paths_allowed"
+            $allowed || violations+=("$path")
+          done <<< "$changed"
+          if [[ ${#violations[@]} -gt 0 ]]; then
+            echo "::error::Scope violation; paths outside envelope:"
+            printf '  - %s\n' "${violations[@]}"
+            exit 1
+          fi
+          echo "✓ all $(echo "$changed" | wc -l) changed paths are within scope"
+
+      - name: Run sanitize.sh fixture (S1 defesa em profundidade)
+        if: steps.scope.outputs.is_army == 'true'
+        run: |
+          set -euo pipefail
+          if [[ -x scripts/army-gitops/sanitize.test.sh ]]; then
+            bash scripts/army-gitops/sanitize.test.sh
+          else
+            echo "::warning::sanitize.test.sh missing or not executable; pre_pilot_d5 condition J1 not met"
+          fi
+
+      - name: Sanitize commit messages (S7 bidi/zwj/ANSI included)
+        if: steps.scope.outputs.is_army == 'true'
+        run: |
+          set -euo pipefail
+          msgs=$(git log --format=%s origin/${{ github.base_ref }}..HEAD)
+          fail=false
+          while IFS= read -r msg; do
+            if [[ "$msg" =~ \` ]] || [[ "$msg" =~ \$\( ]]; then
+              echo "::error::Commit message contains backtick or \$(: $msg"
+              fail=true
+            fi
+            if [[ "$msg" =~ '<'[a-zA-Z]+'>' ]] || [[ "$msg" =~ '</'[a-zA-Z]+'>' ]]; then
+              echo "::error::Commit message contains HTML tag: $msg"
+              fail=true
+            fi
+            if [[ "$msg" =~ \[.*\]\(.*\) ]]; then
+              echo "::error::Commit message contains markdown link: $msg"
+              fail=true
+            fi
+            if printf '%s' "$msg" | LC_ALL=C grep -qE $'(\xe2\x80[\xaa-\xae]|\xe2\x81[\xa6-\xa9]|\xe2\x80[\x8b-\x8d]|\xef\xbb\xbf|\x1b\[)'; then
+              echo "::error::Commit message contains bidi/zero-width/ANSI control: $msg"
+              fail=true
+            fi
+            if [[ ${#msg} -gt 200 ]]; then
+              echo "::error::Commit message exceeds 200 chars: $msg"
+              fail=true
+            fi
+          done <<< "$msgs"
+          $fail && exit 1
+          echo "✓ commit messages clean"
+
+      - name: Reject force-push and main targeting (G2 hard-fail)
+        if: steps.scope.outputs.is_army == 'true'
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.base_ref }}" != "main" ]]; then
+            echo "::error::PR base must be main; got '${{ github.base_ref }}'"
+            exit 1
+          fi
+          if [[ "${{ github.event.action }}" == "synchronize" ]]; then
+            before="${{ github.event.before }}"
+            after="${{ github.event.after }}"
+            if ! git merge-base --is-ancestor "$before" "$after" 2>/dev/null; then
+              echo "::error::Force-push detected (before $before not ancestor of after $after); G2 violation"
+              exit 1
+            fi
+          fi
+          echo "✓ targets main, no force-push (G2 hard-fail active)"
+
+      - name: Post audit comment (S5)
+        if: always() && steps.scope.outputs.is_army == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const envelopeId = '${{ steps.envelope.outputs.id }}';
+            const status = '${{ job.status }}';
+            const branch = context.payload.pull_request.head.ref;
+            const body = [
+              '### Army Gitops audit',
+              '',
+              `**Envelope ID:** \`${envelopeId}\``,
+              `**Branch:** \`${branch}\``,
+              `**Worker ID:** see PR body`,
+              `**App installation:** \`${context.payload.installation?.id ?? 'n/a'}\``,
+              `**Sanitizer (S1+S7):** ${status === 'success' ? '✅' : '❌'}`,
+              `**Blocklist (S2):** ${status === 'success' ? '✅ 24 patterns' : '❌'}`,
+              `**Scope guard (G5):** ${status === 'success' ? '✅' : '❌'}`,
+              `**Force-push (G2):** ${status === 'success' ? '✅ none' : '❌ detected'}`,
+              `**Overall:** ${status === 'success' ? '✅ ready for review' : '❌ blocked'}`,
+              '',
+              `Ruling: [\`2026-04-28-army-gitops-pipeline\`](https://github.com/${context.repo.owner}/trabalho-workspace/blob/main/agents/knowledge/council/rulings/2026-04-28-army-gitops-pipeline.json)`,
+              '',
+              `cc @openai-code-agent (codex co-watcher)`,
+              '— `oracle-pr-scope-guard` (auto)',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Post final scope-guard status
+        if: always() && steps.scope.outputs.responsible == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobStatus = '${{ job.status }}';
+            if (jobStatus === 'cancelled') {
+              core.info('Job cancelled (likely superseded by newer run); skipping status post.');
+              return;
+            }
+            const state = jobStatus === 'success' ? 'success' : 'failure';
+            const description = state === 'success'
+              ? 'Scope-guard passed (no agent label = no-op, or all validations green)'
+              : `Scope-guard ${jobStatus} — see workflow logs`;
+            try {
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: context.payload.pull_request.head.sha,
+                context: 'scope-guard',
+                state,
+                description,
+                target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              });
+            } catch (e) {
+              core.setFailed(
+                `createCommitStatus final failed: ${e.message}. ` +
+                `If this is a fork PR, GITHUB_TOKEN is read-only on pull_request; ` +
+                `convert to in-repo branch or add a pull_request_target aggregator.`
+              );
+            }

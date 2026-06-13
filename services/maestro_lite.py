@@ -13,7 +13,69 @@ logger = logging.getLogger(__name__)
 
 import os
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
-DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "hermes3:8b")
+
+
+async def generate_text(prompt, *, temperature=0.4, max_tokens=400, num_ctx=8192, model=None):
+    """Geração CRUA via Ollama local (/api/generate), SEM os short-circuits do
+    MaestroLite.chat (jurisprudência/prazo/law-guard). Usada pelo bloco CRM do
+    WhatsApp p/ resumir a conversa e sugerir próximas mensagens (Victor 10/06):
+    local-first, zero transferência externa. Retorna str ou None.
+    """
+    import logging
+    import httpx
+    _log = logging.getLogger(__name__)
+    mdl = model or DEFAULT_MODEL
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+            resp = await client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": mdl,
+                    "prompt": prompt,
+                    "stream": False,
+                    "keep_alive": "30m",
+                    "options": {
+                        "temperature": temperature,
+                        "top_p": 0.9,
+                        "num_ctx": num_ctx,
+                        "num_predict": max_tokens,
+                        "repeat_penalty": 1.1,
+                    },
+                },
+            )
+            resp.raise_for_status()
+            text = (resp.json().get("response") or "").strip()
+            return text or None
+    except Exception as e:  # noqa: BLE001
+        _log.warning("maestro_lite.generate_text falhou (%s): %s", mdl, e)
+        return None
+
+ALLOWED_CHAT_HISTORY_ROLES = {"user", "assistant"}
+MAX_CHAT_HISTORY_MESSAGES = 10
+MAX_CHAT_HISTORY_CONTENT_CHARS = 2000
+
+
+def sanitize_chat_history(history):
+    """Keep user-supplied chat history from injecting system/tool messages."""
+    if not isinstance(history, list):
+        return []
+
+    sanitized = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        if role not in ALLOWED_CHAT_HISTORY_ROLES:
+            continue
+        content = item.get("content")
+        if not isinstance(content, str):
+            continue
+        sanitized.append({
+            "role": role,
+            "content": content[:MAX_CHAT_HISTORY_CONTENT_CHARS],
+        })
+    return sanitized[-MAX_CHAT_HISTORY_MESSAGES:]
 
 
 def repo_aware_enabled() -> bool:
@@ -48,7 +110,7 @@ PRODUCT_QUESTION_RE = re.compile(
     r")\b"
 )
 
-# F44 Fase 2 (FR-1 pré-[parceiro] 30/05): regex detecta citação de artigo/lei na
+# F44 Fase 2 (FR-1 pré-Example User 30/05): regex detecta citação de artigo/lei na
 # pergunta do usuário. Quando casa, prepend de bloco extra ANTI-ALUCINAÇÃO ao
 # system prompt — modelo llama3.2:3b alucinou Art. 212 CPC na reunião QA
 # (2026-05-27), retornando texto sobre jurisdição/competência. Pequenos modelos
@@ -171,6 +233,17 @@ class MaestroLite:
             logger.info("maestro_lite: jurisprudence asked, no source — honest refusal")
             return {"response": JURISPRUDENCE_REFUSAL, "model": self.model, "status": "ok"}
 
+        # Calculadora determinística de prazos: se a mensagem identifica data + ato
+        # processual, retorna resposta calculada sem chamar o LLM (rápido e exato).
+        try:
+            from services.prazo_intent import prazo_intent
+            _prazo_resp = prazo_intent(message or "")
+            if _prazo_resp:
+                logger.info("maestro_lite: prazo_intent respondeu deterministicamente")
+                return {"response": _prazo_resp, "model": "prazo_calculator", "status": "ok"}
+        except Exception as _pi_err:  # noqa: BLE001
+            logger.warning("maestro_lite: prazo_intent falhou (%s) -> LLM segue", _pi_err)
+
         messages = [{"role": "system", "content": self.system_prompt}]
 
         if context:
@@ -199,25 +272,63 @@ class MaestroLite:
             messages.append({"role": "system", "content": REPO_AWARE_NO_CONTEXT_GUARD})
             logger.info("maestro_lite: product-ish question, no repo context — anti-invent guard on")
 
-        if history:
-            messages.extend(history[-10:])  # Last 10 messages
+        clean_history = sanitize_chat_history(history)
+        if clean_history:
+            messages.extend(clean_history)
 
         messages.append({"role": "user", "content": message})
 
+        # ── Provider externo (BYO-API, ex.: Gemini) tem prioridade quando
+        # configurado (CASEHUB_AI_PROVIDER=gemini + GEMINI_API_KEY). É rápido e
+        # raciocina de verdade; o Ollama local fica como FALLBACK. Sem chave, o
+        # NullProvider devolve None e o fluxo cai direto no Ollama (inalterado).
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            from services.ai_provider import get_ai_provider, NullProvider
+            _provider = get_ai_provider()
+            if not isinstance(_provider, NullProvider):
+                _tag = {"system": "INSTRUCOES", "assistant": "MAESTRO", "user": "USUARIO"}
+                _prompt = "\n\n".join(
+                    f"[{_tag.get(m.get('role'), 'USUARIO')}]\n{m.get('content','')}"
+                    for m in messages
+                ) + "\n\n[MAESTRO]\n"
+                _ext = await _provider.generate(_prompt, temperature=0.2, max_tokens=800)
+                if _ext:
+                    return {"response": _ext, "model": _provider.name, "status": "ok"}
+                logger.info("maestro_lite: provider %s sem resposta -> fallback Ollama", _provider.name)
+        except Exception as _pe:
+            logger.warning("maestro_lite: provider externo falhou (%s) -> fallback Ollama", _pe)
+
+        try:
+            # Timeout: llama3.2:3b on a CPU-only VPS (Mumbai alpha) needs ~37s of
+            # prompt-eval alone for ~1.8K context tokens + ~1s per 12 generated
+            # tokens (measured 2026-06-03). With firm context attached a real
+            # answer lands at 50-90s; the old 120s ReadTimeout was being hit
+            # silently and surfaced as "assistente offline" on EVERY grounded
+            # firm question — the exact symptom Example User reported (Maestro "não acha
+            # os prazos / não responde"). Raise to 300s so the grounded answer
+            # actually completes. num_predict caps the answer so generation can't
+            # run away. keep_alive holds the model warm between turns (cold reload
+            # costs another ~6s). Pair this with the context trimming in
+            # get_firm_context below — both are needed.
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
                 resp = await client.post(
                     f"{self.ollama_url}/api/chat",
                     # F44 Fase 1: temperature baixa reduz alucinação. Top_p estreito
-                    # mantém respostas determinísticas. num_ctx 4096 cabe firm context.
+                    # mantém respostas determinísticas.
+                    # Fix 2026-06-09: num_ctx 4096 truncava o prompt (~4.7k tok com
+                    # clientes+processos+prazos) e os blocos de PRAZO caíam fora da
+                    # janela -> o modelo respondia "não encontrei" mesmo com prazos
+                    # no sistema. 8192 acomoda o firm_context inteiro com folga.
                     json={
                         "model": self.model,
                         "messages": messages,
                         "stream": False,
+                        "keep_alive": "30m",
                         "options": {
                             "temperature": 0.2,
                             "top_p": 0.85,
-                            "num_ctx": 4096,
+                            "num_ctx": 8192,
+                            "num_predict": 600,
                             "repeat_penalty": 1.15,
                         },
                     }
@@ -301,7 +412,7 @@ class MaestroLite:
                        c.status,
                        c.case_number
                 FROM cases c
-                LEFT JOIN clients cl ON cl.id = c.client_id
+                LEFT JOIN clients cl ON cl.id = c.client_id AND cl.org_id = :oid
                 WHERE c.org_id = :oid
                 ORDER BY COALESCE(c.updated_at, c.created_at) DESC NULLS LAST
                 LIMIT 30
@@ -317,6 +428,13 @@ class MaestroLite:
             pass
 
         try:
+            # Apenas prazos ALÉM de 30 dias (ou sem data). Os prazos dentro de
+            # 30 dias já entram nos blocos "Prazos vencendo em até 7/15/30 dias"
+            # abaixo — listá-los duas vezes inflava o prompt em ~400 tokens (no
+            # alpha VS são 22 prazos só em 7 dias), e o prompt-eval do llama3.2:3b
+            # no VPS CPU-only custa ~37s para ~1.8K tokens (medido 2026-06-03),
+            # estourando o timeout. Este bloco passa a cobrir só o que as janelas
+            # NÃO cobrem, eliminando a duplicação sem perder cobertura.
             result = db.execute(text("""
                 SELECT p.tipo,
                        p.data_vencimento,
@@ -324,48 +442,64 @@ class MaestroLite:
                        COALESCE(p.processo_override, c.case_number, 'sem processo') AS processo,
                        COALESCE(cl.first_name || ' ' || cl.last_name, '') AS cliente
                 FROM prazos_processuais p
-                LEFT JOIN cases c ON c.id = p.case_id
-                LEFT JOIN clients cl ON cl.id = c.client_id
+                LEFT JOIN cases c ON c.id = p.case_id AND c.org_id = :oid
+                LEFT JOIN clients cl ON cl.id = c.client_id AND cl.org_id = :oid
                 WHERE p.org_id = :oid AND COALESCE(p.status, 'pendente') NOT IN ('concluido', 'cancelado')
+                  AND (p.data_vencimento IS NULL OR p.data_vencimento > NOW() + INTERVAL '30 days')
                 ORDER BY p.data_vencimento ASC NULLS LAST
-                LIMIT 20
+                LIMIT 15
             """), {"oid": org_id})
             prazos = list(result)
             if prazos:
-                context_parts.append("Prazos pendentes (próximos 20):")
+                context_parts.append("Outros prazos pendentes (após 30 dias):")
                 for p in prazos:
-                    cliente = f", cliente {p[4]}" if p[4].strip() else ""
-                    context_parts.append(f"  - {p[0]}: vence {p[1]} (processo {p[3]}{cliente}, status {p[2]})")
+                    # tipo é NULL/vazio para a maioria dos prazos importados via
+                    # planilha (PJe/processo_override sem case_id). Renderizar o
+                    # Python None vira a string literal "None: vence ..." no prompt,
+                    # que o modelo pequeno lê como tipo faltando/quebrado. Usar um
+                    # rótulo genérico mantém a linha limpa e citável (2026-06-03).
+                    tipo = (p[0] or "Prazo processual").strip() or "Prazo processual"
+                    cliente = f", cliente {p[4]}" if (p[4] or "").strip() else ""
+                    context_parts.append(f"  - {tipo}: vence {p[1]} (processo {p[3]}{cliente}, status {p[2]})")
         except Exception:
             pass
 
-        # F44 Fase 1: bloco específico "Prazos vencendo em até N dias" — Jaime
-        # testou na reunião com "prazos próximos 15 dias" e Maestro falhou.
-        # Pré-computar window 7/15/30 dias dá ao modelo bloco facilmente citável.
+        # F44 Fase 1: blocos de prazo por janela temporal NÃO-SOBREPOSTOS.
+        # Janelas cumulativas (≤7, ≤15, ≤30) triplicavam cada prazo no prompt —
+        # ~400 tokens extras no alpha VS com 22 prazos. Agora cada prazo aparece
+        # exatamente UMA VEZ na janela mais próxima. Modelo responde igual;
+        # prompt encolhe ~60% neste bloco.
         try:
-            for janela in (7, 15, 30):
+            # (inicio_excl, fim_incl, label)
+            _janelas = [
+                (0, 7,  "Prazos vencendo em até 7 dias"),
+                (7, 15, "Prazos vencendo em 8–15 dias"),
+                (15, 30, "Prazos vencendo em 16–30 dias"),
+            ]
+            for _min, _max, _label in _janelas:
                 result = db.execute(text("""
                     SELECT p.tipo,
                            p.data_vencimento,
                            COALESCE(p.processo_override, c.case_number, 'sem processo') AS processo,
                            COALESCE(cl.first_name || ' ' || cl.last_name, '') AS cliente
                     FROM prazos_processuais p
-                    LEFT JOIN cases c ON c.id = p.case_id
-                    LEFT JOIN clients cl ON cl.id = c.client_id
+                    LEFT JOIN cases c ON c.id = p.case_id AND c.org_id = :oid
+                    LEFT JOIN clients cl ON cl.id = c.client_id AND cl.org_id = :oid
                     WHERE p.org_id = :oid
                       AND COALESCE(p.status, 'pendente') NOT IN ('concluido', 'cancelado')
                       AND p.data_vencimento IS NOT NULL
-                      AND p.data_vencimento <= NOW() + (:dias || ' days')::interval
-                      AND p.data_vencimento >= NOW() - INTERVAL '1 day'
+                      AND p.data_vencimento > NOW() + (:dmin || ' days')::interval
+                      AND p.data_vencimento <= NOW() + (:dmax || ' days')::interval
                     ORDER BY p.data_vencimento ASC
-                    LIMIT 30
-                """), {"oid": org_id, "dias": janela})
+                    LIMIT 20
+                """), {"oid": org_id, "dmin": _min, "dmax": _max})
                 items = list(result)
-                context_parts.append(f"Prazos vencendo em até {janela} dias ({len(items)} encontrado{'s' if len(items) != 1 else ''}):")
+                context_parts.append(f"{_label} ({len(items)} encontrado{'s' if len(items) != 1 else ''}):")
                 if items:
                     for p in items:
-                        cliente = f" — cliente {p[3]}" if p[3].strip() else ""
-                        context_parts.append(f"  - {p[0]}: vence {p[1]} (proc. {p[2]}{cliente})")
+                        tipo = (p[0] or "Prazo processual").strip() or "Prazo processual"
+                        cliente = f" — cliente {p[3]}" if (p[3] or "").strip() else ""
+                        context_parts.append(f"  - {tipo}: vence {p[1]} (proc. {p[2]}{cliente})")
                 else:
                     context_parts.append("  (nenhum)")
         except Exception:
@@ -387,3 +521,249 @@ class MaestroLite:
             pass
 
         return "\n".join(context_parts)
+
+
+# ---------------------------------------------------------------------------
+# Contexto-360 de CLIENTE — bloco "CLIENTE EM FOCO"
+# ---------------------------------------------------------------------------
+# Quando a pergunta cita um cliente do escritório pelo nome, este bloco junta
+# cadastro + processos + prazos + agenda + tarefas abertas do cliente num só
+# lugar, para o modelo responder com dados reais sem caçar pelo contexto geral.
+# Funções NOVAS e autocontidas: os chamadores (routes/assistente.py e
+# routes/team_messages.py) anexam o retorno ao contexto existente com 1 linha.
+# Falha graciosa: qualquer erro → '' (o chat segue sem o bloco, nunca quebra).
+
+CLIENT_CONTEXT_MAX_CHARS = 2500
+
+
+def client_context_enabled() -> bool:
+    """Kill-switch do bloco CLIENTE EM FOCO (default ON).
+
+    ``CASEHUB_MAESTRO_CLIENT_CONTEXT_ENABLED=0`` (ou false/no/off) desliga em
+    runtime sem deploy — bloco some e o chat volta ao contexto anterior.
+    """
+    raw = os.getenv("CASEHUB_MAESTRO_CLIENT_CONTEXT_ENABLED", "1")
+    return str(raw).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _detect_client(db, org_id, message):
+    """Acha o cliente da org citado na mensagem (match mais longo, >=4 chars).
+
+    Candidatos por cliente: nome completo, "primeiro último" e cada parte do
+    nome com >=4 chars. Match case-insensitive com fronteira de palavra (para
+    "Ana" não casar dentro de "banana"). Empate → maior candidato vence.
+    Org-scoped (red line). Retorna a row do cliente ou None.
+    """
+    from sqlalchemy import text
+    msg = (message or "").strip().lower()
+    if len(msg) < 4:
+        return None
+    rows = db.execute(text("""
+        SELECT id, first_name, middle_name, last_name, email, phone, whatsapp,
+               COALESCE(status, 'active') AS status
+        FROM clients
+        WHERE org_id = :oid
+        ORDER BY COALESCE(updated_at, created_at) DESC NULLS LAST
+        LIMIT 2000
+    """), {"oid": org_id}).fetchall()
+    best, best_len = None, 0
+    for r in rows:
+        parts = [(p or "").strip() for p in (r.first_name, r.middle_name, r.last_name)]
+        parts = [p for p in parts if p]
+        if not parts:
+            continue
+        candidates = {" ".join(parts)}
+        if len(parts) >= 2:
+            candidates.add(f"{parts[0]} {parts[-1]}")
+        candidates.update(parts)
+        for cand in candidates:
+            if len(cand) < 4 or len(cand) <= best_len:
+                continue
+            if re.search(r"(?<!\w)" + re.escape(cand.lower()) + r"(?!\w)", msg):
+                best, best_len = r, len(cand)
+    return best
+
+
+def get_client_context(db, org_id, message) -> str:
+    """Bloco "CLIENTE EM FOCO" quando a mensagem cita um cliente da org.
+
+    Cadastro (nome/contato/status) + processos (cases) + prazos (reminders e
+    prazos_processuais via processos do cliente) + agenda (appointments futuros
+    e últimos 3 passados, com data/hora) + tarefas abertas do kanban — TUDO
+    filtrado por org_id. Retorna '' se nenhum cliente citado, feature desligada
+    ou falha. Saída com prefixo "\\n\\n" (pronta para ``contexto += ...``) e
+    limitada a CLIENT_CONTEXT_MAX_CHARS.
+    """
+    try:
+        if org_id is None or not client_context_enabled():
+            return ""
+        from sqlalchemy import text
+
+        def _safe_rollback():
+            try:
+                db.rollback()
+            except Exception:  # noqa: BLE001
+                pass
+
+        cli = _detect_client(db, org_id, message)
+        if cli is None:
+            return ""
+        cid = cli.id
+        full_name = " ".join(
+            p.strip() for p in (cli.first_name, cli.middle_name, cli.last_name) if p and p.strip()
+        )
+        lines = [f"CLIENTE EM FOCO: {full_name}"]
+        detalhes = []
+        if cli.phone:
+            detalhes.append(f"tel {cli.phone}")
+        if cli.whatsapp and cli.whatsapp != cli.phone:
+            detalhes.append(f"whatsapp {cli.whatsapp}")
+        if cli.email:
+            detalhes.append(f"email {cli.email}")
+        detalhes.append(f"status {cli.status}")
+        lines.append("Cadastro: " + ", ".join(detalhes))
+
+        # Processos (cases) do cliente — número BR primeiro, fallback imigração.
+        try:
+            casos = db.execute(text("""
+                SELECT COALESCE(numero_processo, case_number, 'Processo #' || id) AS numero,
+                       COALESCE(tipo_acao, area_of_practice, visa_type, '') AS tipo,
+                       COALESCE(status, 'pendente') AS status
+                FROM cases
+                WHERE org_id = :oid AND client_id = :cid
+                ORDER BY COALESCE(updated_at, created_at) DESC NULLS LAST
+                LIMIT 8
+            """), {"oid": org_id, "cid": cid}).fetchall()
+            if casos:
+                lines.append(f"Processos do cliente ({len(casos)}):")
+                for ca in casos:
+                    tipo = f" — {ca.tipo}" if (ca.tipo or "").strip() else ""
+                    lines.append(f"  - {ca.numero}{tipo} (status {ca.status})")
+            else:
+                lines.append("Processos do cliente: (nenhum)")
+        except Exception:  # noqa: BLE001
+            _safe_rollback()
+
+        # Prazos do cliente: lembretes (reminders.client_id) + prazos
+        # processuais vinculados via processos do cliente. Pendentes apenas.
+        prazo_lines = []
+        try:
+            for r in db.execute(text("""
+                SELECT title, due_date FROM reminders
+                WHERE org_id = :oid AND client_id = :cid
+                  AND COALESCE(is_completed, FALSE) = FALSE
+                ORDER BY due_date ASC
+                LIMIT 5
+            """), {"oid": org_id, "cid": cid}).fetchall():
+                prazo_lines.append(f"  - {r.title}: vence {r.due_date}")
+        except Exception:  # noqa: BLE001
+            _safe_rollback()
+        try:
+            for p in db.execute(text("""
+                SELECT p.tipo, p.data_vencimento,
+                       COALESCE(p.processo_override, c.numero_processo, c.case_number, 'sem processo') AS processo
+                FROM prazos_processuais p
+                JOIN cases c ON c.id = p.case_id AND c.org_id = :oid
+                WHERE p.org_id = :oid AND c.client_id = :cid
+                  AND COALESCE(p.status, 'pendente') NOT IN ('concluido', 'cancelado')
+                ORDER BY p.data_vencimento ASC NULLS LAST
+                LIMIT 5
+            """), {"oid": org_id, "cid": cid}).fetchall():
+                tipo = (p.tipo or "Prazo processual").strip() or "Prazo processual"
+                prazo_lines.append(f"  - {tipo}: vence {p.data_vencimento} (proc. {p.processo})")
+        except Exception:  # noqa: BLE001
+            _safe_rollback()
+        lines.append("Prazos do cliente:")
+        lines.extend(prazo_lines or ["  (nenhum)"])
+
+        # Agenda: appointments não tem client_id — vínculo via case_id de um
+        # processo do cliente OU client_name (texto livre) contendo o nome.
+        nm_first_last = f"{(cli.first_name or '').strip()} {(cli.last_name or '').strip()}".strip().lower()
+        ag_params = {
+            "oid": org_id,
+            "cid": cid,
+            "nm1": f"%{full_name.lower()}%",
+            "nm2": f"%{nm_first_last}%" if len(nm_first_last) >= 4 else f"%{full_name.lower()}%",
+        }
+        ag_filter = """
+                FROM appointments a
+                LEFT JOIN cases c ON c.id = a.case_id AND c.org_id = :oid
+                WHERE a.org_id = :oid
+                  AND (c.client_id = :cid
+                       OR LOWER(COALESCE(a.client_name, '')) LIKE :nm1
+                       OR LOWER(COALESCE(a.client_name, '')) LIKE :nm2)
+        """
+
+        def _fmt_appt(a):
+            hora = f" {str(a.time_start)[:5]}" if a.time_start is not None else ""
+            tipo = f" ({a.type})" if (a.type or "").strip() else ""
+            return f"  - {a.date}{hora} — {a.title}{tipo}"
+
+        try:
+            futuros = db.execute(text(
+                "SELECT a.date, a.time_start, a.title, a.type" + ag_filter +
+                " AND a.date >= CURRENT_DATE"
+                " ORDER BY a.date ASC, a.time_start ASC NULLS LAST LIMIT 6"
+            ), ag_params).fetchall()
+            lines.append("Agenda — próximos compromissos:")
+            lines.extend([_fmt_appt(a) for a in futuros] or ["  (nenhum)"])
+            passados = db.execute(text(
+                "SELECT a.date, a.time_start, a.title, a.type" + ag_filter +
+                " AND a.date < CURRENT_DATE"
+                " ORDER BY a.date DESC, a.time_start DESC NULLS LAST LIMIT 3"
+            ), ag_params).fetchall()
+            lines.append("Agenda — últimos 3 compromissos passados:")
+            lines.extend([_fmt_appt(a) for a in passados] or ["  (nenhum)"])
+        except Exception:  # noqa: BLE001
+            _safe_rollback()
+
+        # Tarefas abertas do kanban (tasks.client_id). Tarefas privadas ficam
+        # fora do contexto (visibility='private' é só criador/responsável); em
+        # DBs antigos sem a coluna, retry sem o filtro preserva o bloco.
+        try:
+            _tasks_sql = """
+                SELECT title, COALESCE(status, 'pending') AS status, due_date
+                FROM tasks
+                WHERE org_id = :oid AND client_id = :cid
+                  AND COALESCE(status, 'pending') != 'completed'
+                  {vis}
+                ORDER BY due_date ASC NULLS LAST
+                LIMIT 8
+            """
+            try:
+                tarefas = db.execute(
+                    text(_tasks_sql.format(vis="AND COALESCE(visibility, 'org') != 'private'")),
+                    {"oid": org_id, "cid": cid},
+                ).fetchall()
+            except Exception:  # noqa: BLE001
+                _safe_rollback()
+                tarefas = db.execute(
+                    text(_tasks_sql.format(vis="")),
+                    {"oid": org_id, "cid": cid},
+                ).fetchall()
+            lines.append("Tarefas abertas do cliente (kanban):")
+            if tarefas:
+                for t in tarefas:
+                    due = f", vence {t.due_date}" if t.due_date else ""
+                    lines.append(f"  - {t.title} (status {t.status}{due})")
+            else:
+                lines.append("  (nenhuma)")
+        except Exception:  # noqa: BLE001
+            _safe_rollback()
+
+        block = "\n".join(lines)
+        if len(block) > CLIENT_CONTEXT_MAX_CHARS:
+            block = block[: CLIENT_CONTEXT_MAX_CHARS - 25]
+            cut = block.rfind("\n")
+            if cut > 0:
+                block = block[:cut]
+            block += "\n  (bloco truncado)"
+        logger.info("maestro_lite: CLIENTE EM FOCO anexado (client_id=%s, %s chars)", cid, len(block))
+        return "\n\n" + block
+    except Exception as exc:  # noqa: BLE001 — nunca quebrar o chat por causa do bloco
+        logger.warning("maestro_lite: get_client_context falhou (%s) — seguindo sem bloco", exc)
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        return ""

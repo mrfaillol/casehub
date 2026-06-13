@@ -139,25 +139,31 @@ def _configured_origin() -> str:
     return configured
 
 
+# Allowlist de raízes de domínio aceitas para return_to user-supplied.
+# Ancoragem por sufixo: "casehub.io" cobre todos os subdomínios CaseHub
+# sem abrir open redirect para domínios externos.
+_REDIRECT_ALLOWED_ROOTS: frozenset[str] = frozenset({
+    "localhost", "127.0.0.1",
+    "casehub.io", "casehub.legal",
+    "casehub.sampletenantadvogados.com.br", "vingren.me",
+})
+
+
 def _return_host_allowed(host: str) -> bool:
-    host = (host or "").split(":")[0].lower()
-    if not host:
+    h = (host or "").split(":")[0].lower()
+    if not h:
         return False
-    if host in {"localhost", "127.0.0.1"}:
+    if h in {"localhost", "127.0.0.1"}:
         return True
-    configured_host = urlparse(_configured_origin()).hostname or ""
-    configured_host = configured_host.lower()
-    if not configured_host:
-        return True
-    return host == configured_host or host.endswith("." + configured_host)
+    return any(h == root or h.endswith("." + root) for root in _REDIRECT_ALLOWED_ROOTS)
 
 
 def _oauth_return_to(request: Request) -> str:
-    origin = _request_origin(request)
-    parsed = urlparse(origin)
-    if not _return_host_allowed(parsed.netloc):
-        origin = _configured_origin() or origin
-    return f"{origin}{PREFIX}/google-calendar/settings"
+    # Always use the request's own origin — return_to is server-generated, not
+    # user-supplied, so _return_host_allowed isn't a useful guard here and was
+    # causing multi-tenant subdomains (sampletenant.casehub.legal) to fall back
+    # to BASE_URL (app.casehub.io), redirecting users to the wrong domain.
+    return f"{_request_origin(request)}{PREFIX}/google-calendar/settings"
 
 
 def _oauth_settings_redirect(payload: Optional[dict], query: str) -> str:
@@ -172,19 +178,47 @@ def _oauth_settings_redirect(payload: Optional[dict], query: str) -> str:
     return f"{return_to}{separator}{query}"
 
 
-def _encode_oauth_state(account_name: str, user, request: Request, org_id: Optional[int] = None) -> str:
+# Per-user connection mode. The office (center/info) flow uses mode="org";
+# a user connecting their own Google account uses mode="user". A fixed safe
+# account slug is used for the per-user slot so the value still satisfies the
+# Sentinela T6 _SAFE_ACCOUNT_ID regex even though it is never written to an
+# office token path (the service routes per-user tokens by user_id).
+USER_ACCOUNT_SLUG = "mine"
+
+
+def _encode_oauth_state(
+    account_name: str,
+    user,
+    request: Optional[Request] = None,
+    org_id: Optional[int] = None,
+    mode: str = "org",
+) -> str:
     """Encode signed OAuth state with org_id binding.
 
     The `org` claim binds the OAuth round-trip to a specific tenant so that
     a callback hitting another subdomain (or a stale state replay across
     tenants) fails the org_mismatch check in `_oauth_state_user_is_valid`.
+
+    `mode` is "org" for the office account slots (center/info) or "user" for a
+    user connecting their own Google account. In user mode the token lands in
+    the per-user credentials subtree keyed by `uid`.
     """
+    mode = "user" if mode == "user" else "org"
     payload = {
-        "account": _account_id(account_name),
+        "account": USER_ACCOUNT_SLUG if mode == "user" else _account_id(account_name),
+        "mode": mode,
         "uid": getattr(user, "id", None),
         "sub": getattr(user, "email", ""),
-        "org": org_id if org_id is not None else getattr(request.state, "org_id", None),
-        "return_to": _oauth_return_to(request),
+        "org": (
+            org_id
+            if org_id is not None
+            else getattr(getattr(request, "state", None), "org_id", None)
+        ),
+        "return_to": (
+            _oauth_return_to(request)
+            if request is not None
+            else f"{PREFIX}/google-calendar/settings"
+        ),
         "iat": int(time.time()),
         "nonce": secrets.token_urlsafe(16),
     }
@@ -217,6 +251,15 @@ def _decode_oauth_state_payload(state: str, user=None) -> Optional[dict]:
             return None
         if payload.get("sub") != getattr(user, "email", ""):
             return None
+
+    mode = "user" if payload.get("mode") == "user" else "org"
+    payload["mode"] = mode
+    if mode == "user":
+        # Per-user flow: account is the fixed safe slug, validated by regex.
+        # The token is routed by uid in the service, not by account_name.
+        if not _SAFE_ACCOUNT_ID.match(str(payload.get("account") or "")):
+            return None
+        return payload
 
     account = _account_id(payload.get("account") or "")
     if account not in ACCOUNT_LABELS:
@@ -295,13 +338,40 @@ def get_context(request: Request, db: Session, **kwargs):
     }
 
 
+def _my_account_context(request: Request, db: Session, user, org_id: Optional[int]) -> Optional[dict]:
+    """Live status of the logged-in user's OWN connected Google account.
+
+    Returns None when there is no logged-in user. Uses a per-user service
+    instance so the token path is the user's isolated subtree, never an
+    office slot.
+    """
+    if not user:
+        return None
+    try:
+        user_service = GoogleCalendarService(
+            db, org_id=org_id, user_id=getattr(user, "id", None)
+        )
+        status = user_service.get_account_status(USER_ACCOUNT_SLUG, verify_live=True)
+    except Exception:  # noqa: BLE001 — page must render even if the per-user probe fails
+        status = {"connected": False, "token_exists": False, "error": "status_unavailable"}
+    status["display_email"] = (
+        status.get("connected_email")
+        or getattr(user, "email", "")
+        or "Sua conta Google"
+    )
+    return status
+
+
 def _settings_payload(request: Request, db: Session, service: GoogleCalendarService, **kwargs) -> dict:
     redirect_uri = _calendar_redirect_uri(request)
     if getattr(service, "setup_error", "") and "error" not in kwargs:
         kwargs["error"] = service.setup_error
+    user = get_current_user(request, db)
+    org_id = getattr(request.state, "org_id", None)
     return {
         **get_context(request, db),
         "accounts": [_calendar_account_context(account) for account in service.get_connected_accounts(verify_live=True)],
+        "my_account": _my_account_context(request, db, user, org_id),
         "redirect_uri": redirect_uri,
         "authorized_redirect_uris": service.get_client_redirect_uris(),
         "sync_options": {
@@ -318,7 +388,7 @@ def _calendar_redirect_uri(request: Request) -> str:
     """Derive OAuth redirect_uri from the current request, never from BASE_URL.
 
     Using `settings.BASE_URL` blindly breaks multi-subdomain tenancy:
-    `cliente.example.com` would callback into the apex host and lose
+    `sampletenant.casehub.legal` would callback into the apex host and lose
     the tenant subdomain (TenantMiddleware uses subdomain to resolve org_id).
 
     We always honor the request's effective scheme/host/port (with proxy
@@ -421,6 +491,55 @@ async def connect_account(
         )
 
 
+@router.get("/connect-mine")
+async def connect_my_account(request: Request, db: Session = Depends(get_db)):
+    """Start OAuth2 flow for the logged-in user's OWN Google account.
+
+    Tokens land in credentials/org_{org}/users/{uid}/calendar_token.json,
+    fully isolated from the office account slots (center/info). Same scopes
+    (calendar.readonly + calendar.events) and the same per-subdomain redirect.
+    """
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    org_id = getattr(request.state, "org_id", None)
+    # Per-user service: token path is keyed by user id, never an office slot.
+    service = GoogleCalendarService(db, org_id=org_id, user_id=getattr(user, "id", None))
+
+    redirect_uri = _calendar_redirect_uri(request)
+    if not service.redirect_uri_allowed(redirect_uri):
+        return templates.TemplateResponse(
+            "calendar/google_settings.html",
+            _settings_payload(
+                request,
+                db,
+                service,
+                oauth_setup_issue={
+                    "code": "redirect_uri_mismatch",
+                    "redirect_uri": redirect_uri,
+                    "message": "O OAuth Client do Google nao lista este endereco de retorno. Corrija no Google Cloud antes de tentar entrar.",
+                },
+            ),
+            status_code=200,
+        )
+
+    try:
+        auth_url = service.get_auth_url(
+            USER_ACCOUNT_SLUG,
+            redirect_uri,
+            state_name=_encode_oauth_state(
+                USER_ACCOUNT_SLUG, user, request, org_id=org_id, mode="user"
+            ),
+        )
+        return RedirectResponse(url=auth_url)
+    except FileNotFoundError as e:
+        return templates.TemplateResponse(
+            "calendar/google_settings.html",
+            _settings_payload(request, db, service, error=str(e)),
+        )
+
+
 @router.get("/callback")
 async def oauth_callback(
     request: Request,
@@ -463,11 +582,15 @@ async def oauth_callback(
         )
 
     account_name = payload["account"]
+    is_user_mode = payload.get("mode") == "user"
     # Instantiate the service against the state's org_id so the token lands
     # in `credentials/org_{state.org}/` — the same tenant that initiated the
     # flow. Cross-checked above via _oauth_state_user_is_valid.
     state_org_id = payload.get("org") or getattr(request.state, "org_id", None)
-    service = GoogleCalendarService(db, org_id=state_org_id)
+    # Per-user mode: bind the token to the authenticated user's id (validated
+    # above via uid match), routing storage to the user's isolated subtree.
+    state_user_id = payload.get("uid") if is_user_mode else None
+    service = GoogleCalendarService(db, org_id=state_org_id, user_id=state_user_id)
     redirect_uri = _calendar_redirect_uri(request)
 
     success = service.handle_oauth_callback(code, account_name, redirect_uri)
@@ -507,6 +630,26 @@ async def disconnect_account(
     )
 
 
+@router.post("/disconnect-mine")
+async def disconnect_my_account(request: Request, db: Session = Depends(get_db)):
+    """Disconnect the logged-in user's OWN Google account (revoke + delete token)."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    service = GoogleCalendarService(
+        db,
+        org_id=getattr(request.state, "org_id", None),
+        user_id=getattr(user, "id", None),
+    )
+    await run_in_threadpool(service.disconnect_account, USER_ACCOUNT_SLUG)
+
+    return RedirectResponse(
+        url=f"{PREFIX}/google-calendar/settings",
+        status_code=302,
+    )
+
+
 @router.get("/events")
 async def get_google_events(
     request: Request,
@@ -519,7 +662,7 @@ async def get_google_events(
 
     B2 (26/05): retorna lista vazia (200) quando Google não está conectado
     OU quando qualquer fetch falha — assim FullCalendar não joga HTTP 500
-    no usuário só por causa de uma integração opcional. [parceiro] reportou
+    no usuário só por causa de uma integração opcional. Example User reportou
     HTTP 500 ao usar a agenda sem Google ([00:51:20] reunião 25/05).
     """
     user = get_current_user(request, db)

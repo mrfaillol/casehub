@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/legal-assistant", tags=["legal-assistant"])
 # Gemini config
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-2.0-flash"
+ALLOWED_HISTORY_ROLES = {"user", "assistant"}
 
 # AILA RAG Search
 AILA_SEARCH_AVAILABLE = False
@@ -99,11 +100,19 @@ def format_history_for_prompt(history: List[Dict[str, str]]) -> str:
         return ""
 
     formatted = []
-    for msg in history[-6:]:  # Last 3 exchanges
-        role = "Usuario" if msg.get('role') == 'user' else "Assistente"
-        formatted.append(f"{role}: {msg.get('content', '')[:200]}")
+    for msg in history:
+        if not isinstance(msg, dict):
+            continue
+        role_value = msg.get("role")
+        if role_value not in ALLOWED_HISTORY_ROLES:
+            continue
+        content = msg.get("content", "")
+        if not isinstance(content, str):
+            continue
+        role = "Usuario" if role_value == "user" else "Assistente"
+        formatted.append(f"{role}: {content[:200]}")
 
-    return "\n".join(formatted)
+    return "\n".join(formatted[-6:])
 
 
 async def query_legal_assistant(

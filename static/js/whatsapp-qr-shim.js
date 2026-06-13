@@ -26,7 +26,7 @@
  *
  * Refs:
  *   - PR casehub#645 backend
- *   - WhatsApp do [parceiro] 2026-05-28 08:27 "O QR não tá aparecendo"
+ *   - WhatsApp do Example User 2026-05-28 08:27 "O QR não tá aparecendo"
  *   - services/whatsapp-bot/whatsapp-client.js v4.0 multi-session F29
  */
 (function () {
@@ -68,10 +68,9 @@
   // while a subdomain tenant worked. Now ANY unknown/transient state retries.
   const READY_STATUSES = new Set(["ready", "connected"]);
 
-  // After this many polls with no QR and no progress, ask the backend to force
-  // a fresh session (POST /api/reconnect → bot clearAndReinitialize). This is
-  // the frontend safety net for a default-org session that came up stale at
-  // boot and never emits a QR on its own.
+  // After this many polls with no QR and no progress, ask the backend for a
+  // soft reconnect (POST /api/reconnect). The bot preserves LocalAuth and only
+  // emits a fresh QR if the saved session cannot reconnect.
   const FORCE_REINIT_AFTER = 4;
 
   let _retryHandle = null;
@@ -93,7 +92,13 @@
     }, ms);
   }
 
-  // Force a brand-new QR when the session is wedged. Uses the existing
+  function _setConnectState(text) {
+    if (typeof window.setConnectStateText === "function") {
+      window.setConnectStateText(text);
+    }
+  }
+
+  // Ask the backend to reconnect when the session is wedged. Uses the existing
   // /api/reconnect route (tenant-scoped via X-Org-Id on the backend). Guarded
   // so we only fire once per stuck streak.
   async function _forceReinit() {
@@ -129,6 +134,7 @@
       if (data && data.qr) {
         _clearRetry();
         _emptyPolls = 0;
+        _setConnectState("Aguardando leitura do QR");
         container.innerHTML =
           '<img src="' +
           _escape(data.qr) +
@@ -139,6 +145,7 @@
       else if (ready) {
         _clearRetry();
         _emptyPolls = 0;
+        _setConnectState("Conectado");
         container.innerHTML =
           '<div class="wa-loading"><div class="wa-spinner" aria-hidden="true"></div>Conectado, carregando conversas…</div>';
       }
@@ -151,11 +158,13 @@
         _emptyPolls += 1;
         if (_emptyPolls >= FORCE_REINIT_AFTER) {
           _emptyPolls = 0;
+          _setConnectState("Reconectando WhatsApp");
           container.innerHTML =
-            '<div class="wa-loading"><div class="wa-spinner" aria-hidden="true"></div>Reiniciando sessão do WhatsApp…</div>';
+            '<div class="wa-loading"><div class="wa-spinner" aria-hidden="true"></div>Reconectando WhatsApp…</div>';
           _forceReinit();
           _scheduleRetry(3500);
         } else {
+          _setConnectState("Aguardando conexão");
           container.innerHTML =
             '<div class="wa-loading"><div class="wa-spinner" aria-hidden="true"></div>Iniciando conexão (até 15s)…</div>';
           _scheduleRetry(2000);
@@ -176,6 +185,7 @@
       );
       container.innerHTML =
         '<div class="wa-loading"><div class="wa-spinner" aria-hidden="true"></div>Aguardando bot do WhatsApp…</div>';
+      _setConnectState("Aguardando bot do WhatsApp");
       _scheduleRetry(3000);
     }
   };

@@ -46,6 +46,29 @@
   flex: 0 0 auto;
 }
 
+/* Date-stamp icon variant (prazos/audiências) — número do dia + mês em mono */
+.ch-list__icon--date strong {
+  font-family: var(--mono); font-size: 11px; line-height: 1;
+  text-align: center; display: block;
+}
+/* Audiência usa identidade âmbar (warn) por padrão para diferenciar de prazo */
+.ch-list__icon--hearing {
+  color: var(--c-warn);
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.22);
+  background: rgba(217, 119, 6, 0.07);
+}
+
+/* Urgência (Example User 02/06): linha e ícone ganham cor de alerta quando crítico.
+   Mesma linguagem da controladoria — rgba direto, robusto, sem tokens vazios. */
+.ch-list__icon--danger {
+  color: var(--c-danger);
+  background: rgba(185, 28, 28, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(185, 28, 28, 0.22);
+}
+.ch-list__row--danger { background: rgba(185, 28, 28, 0.05); }
+.ch-list__row--danger:hover { background: rgba(185, 28, 28, 0.10); }
+.ch-list__row--danger .ch-list__title { color: var(--c-danger); }
+
 /* Table component — wrap forces horizontal scroll INSIDE the wrap,
    not bleeding to viewport. min-width: 0 + max-width: 100% on wrap. */
 .ch-table-wrap {
@@ -58,9 +81,12 @@
 .ch-table {
   width: 100%; border-collapse: separate; border-spacing: 0;
   font-size: var(--fs-sm);
-  background: var(--surface-card);
+  /* Neu polish 2026-06-09: tabela herda o material do card (bone) em vez de
+     painel branco — resolve o clash com .ch-card agora em surface-app. */
+  background: transparent;
 }
 .ch-table thead th {
+  position: relative;
   text-align: left; padding: var(--space-3) var(--space-4);
   font-family: var(--mono); font-size: var(--fs-xs); letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--fg-muted); font-weight: 700;
@@ -68,6 +94,18 @@
   background: var(--surface-card-2);
   white-space: nowrap;
 }
+.ch-col-resize-handle {
+  position: absolute; top: 0; right: -5px;
+  width: 10px; height: 100%;
+  cursor: col-resize; z-index: 3; touch-action: none;
+}
+.ch-table thead th:hover .ch-col-resize-handle,
+.ch-col-resize-handle:hover,
+.ch-col-resize-handle.is-dragging {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 2px;
+}
+@media (max-width: 720px) { .ch-col-resize-handle { display: none; } }
 .ch-table tbody td {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--line);
@@ -77,20 +115,16 @@
 .ch-table tbody tr { transition: background var(--motion-fast) var(--ease-out); }
 .ch-table tbody tr:hover { background: var(--surface-card-2); }
 
-/* Cor de fundo da linha por urgencia — pedido [parceiro] + equipe ([usuário]/Isadora) 02/06/2026:
-   fundo COMPLETO por nivel de urgencia p/ senso de urgencia ("vencido fundo vermelho" — Victor).
-   Tokens semanticos (--danger/--warning/--success) via color-mix p/ adaptar a Glass claro e modo escuro.
-   A divisoria sutil entre linhas (C7) ja vem de .ch-table tbody td { border-bottom: var(--line) }. */
-.ch-prazo-row--vencido   { background: color-mix(in srgb, var(--danger) 12%, var(--surface-card)); }
-.ch-prazo-row--fatal     { background: color-mix(in srgb, var(--danger) 18%, var(--surface-card)); }
-.ch-prazo-row--amarelo   { background: color-mix(in srgb, var(--warning) 12%, var(--surface-card)); }
-.ch-prazo-row--verde     { background: var(--surface-card); }
-.ch-prazo-row--concluido { background: color-mix(in srgb, var(--success) 8%, var(--surface-card)); }
-/* hover aprofunda o MESMO tom, preservando o sinal de urgencia (Doherty: feedback imediato) */
-.ch-table tbody tr.ch-prazo-row--vencido:hover   { background: color-mix(in srgb, var(--danger) 18%, var(--surface-card)); }
-.ch-table tbody tr.ch-prazo-row--fatal:hover     { background: color-mix(in srgb, var(--danger) 26%, var(--surface-card)); }
-.ch-table tbody tr.ch-prazo-row--amarelo:hover   { background: color-mix(in srgb, var(--warning) 18%, var(--surface-card)); }
-.ch-table tbody tr.ch-prazo-row--concluido:hover { background: color-mix(in srgb, var(--success) 12%, var(--surface-card)); }
+/* Cor de fundo por urgencia nos PRAZOS (Example User+equipe 02/06). Pinta o <td> — a <tr> nao
+   renderiza background neste modelo de tabela. rgba direto (robusto, igual aos pills). verde=sem cor. */
+.ch-table tbody tr.ch-prazo-row--vencido   td { background: rgba(185, 28, 28, 0.10); }
+.ch-table tbody tr.ch-prazo-row--fatal     td { background: rgba(185, 28, 28, 0.16); }
+.ch-table tbody tr.ch-prazo-row--amarelo   td { background: rgba(217, 119, 6, 0.12); }
+.ch-table tbody tr.ch-prazo-row--concluido td { background: rgba(0, 140, 77, 0.07); }
+.ch-table tbody tr.ch-prazo-row--vencido:hover   td { background: rgba(185, 28, 28, 0.16); }
+.ch-table tbody tr.ch-prazo-row--fatal:hover     td { background: rgba(185, 28, 28, 0.24); }
+.ch-table tbody tr.ch-prazo-row--amarelo:hover   td { background: rgba(217, 119, 6, 0.18); }
+.ch-table tbody tr.ch-prazo-row--concluido:hover td { background: rgba(0, 140, 77, 0.11); }
 
 /* Mobile card pattern: data-label fallback when collapsed */
 @media (max-width: 720px) {
@@ -115,6 +149,94 @@
     text-transform: uppercase; color: var(--fg-muted); font-weight: 700;
   }
   .ch-table--responsive td:last-child { border-bottom: none; }
+
+  /* ───────────────────────────────────────────────────────────────
+     Clientes — card compacto e legível (override do fallback genérico).
+     Neu: superfície card-2 + par de sombras (xs), sem borda dura.
+     Grid intencional: conteúdo (1fr) + chevron (auto) ancorado à direita,
+     centrado em todo o card. Ritmo de espaçamento consistente, vãos
+     mortos eliminados (sem data-label vazio, sem células multilinha soltas).
+     ─────────────────────────────────────────────────────────────── */
+  .ch-table--clients tbody tr.ch-cli-row {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "name    name go"
+      "status  date go"
+      "contact date go";
+    align-items: center;
+    column-gap: var(--space-3);
+    row-gap: var(--space-2);
+    padding: var(--space-4);
+    margin-bottom: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--surface-card-2);
+    box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+    transition: transform var(--motion-fast) var(--ease-out),
+                box-shadow var(--motion-fast) var(--ease-out);
+  }
+  /* Pressed: relevo afunda (par de sombras → menor) + leve recuo. Theme-safe
+     porque deriva dos tokens neu xs, sem rgba branco cru que estouraria no dark. */
+  .ch-table--clients tbody tr.ch-cli-row:active {
+    transform: translateY(1px) scale(0.997);
+    box-shadow: var(--shadow-dark-xs);
+  }
+
+  /* Reset do fallback dentro do card de cliente: sem flex, sem bordas, sem labels. */
+  .ch-table--clients tbody tr.ch-cli-row td {
+    display: block;
+    padding: 0;
+    border-bottom: none;
+    min-width: 0;
+  }
+  .ch-table--clients tbody tr.ch-cli-row td::before { content: none; }
+
+  /* Nome — destaque, lidera a hierarquia. */
+  .ch-table--clients .ch-cli__name { grid-area: name; }
+  .ch-table--clients .ch-cli__name strong {
+    font-size: var(--fs-base); font-weight: 700; line-height: var(--lh-snug);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ch-table--clients .ch-cli__name .ch-mono { display: block; margin-top: 1px; }
+
+  /* Status — pill à esquerda da linha-meta. */
+  .ch-table--clients .ch-cli__status {
+    grid-area: status;
+    display: flex; align-items: center;
+    justify-self: start;
+  }
+
+  /* Data — mono, ancorada à direita, alinhada ao topo da linha-meta (par com status). */
+  .ch-table--clients .ch-cli__date {
+    grid-area: date;
+    justify-self: end; align-self: start;
+    white-space: nowrap;
+  }
+
+  /* Contato — hierarquia inferior, discreto, sem multilinha solta. */
+  .ch-table--clients .ch-cli__contact {
+    grid-area: contact;
+    color: var(--fg-muted);
+  }
+  .ch-table--clients .ch-cli__contact > div {
+    display: flex; flex-direction: column; gap: 1px;
+    min-width: 0;
+  }
+  .ch-table--clients .ch-cli__contact > div > div {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* Chevron — ancorado à direita, centrado verticalmente no card inteiro. */
+  .ch-table--clients .ch-cli__go {
+    grid-area: go;
+    align-self: center; justify-self: end;
+    text-align: right;
+  }
+  .ch-table--clients .ch-cli__go .ch-chip {
+    min-width: 40px; min-height: 40px;
+  }
 }
 
 .ch-empty {

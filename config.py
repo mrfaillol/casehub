@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     # === Server ===
     HOST: str = "0.0.0.0"
     PORT: int = 8001
-    BASE_URL: str = ""  # Set in .env (e.g., http://REDACTED-HOST:8002)
+    BASE_URL: str = ""  # Set in .env (e.g., http://137.131.237.130:8002)
     PREFIX: str = "/casehub"
     BASE_DIR: str = str(Path(__file__).parent)
     UPLOAD_DIR: str = ""
@@ -96,6 +96,15 @@ class Settings(BaseSettings):
     GOOGLE_CALENDAR_CREATE_MEET: bool = False
     GOOGLE_CALENDAR_EVENT_DETAIL_MODE: str = "details"
     GOOGLE_CALENDAR_EVENT_LANG: str = "pt-BR"
+    # === Google Calendar realtime push (events.watch) — DORMANT (Fase 4) ===
+    # Master kill switch for the push/webhook path. Default OFF: while False the
+    # webhook receiver (/calendar/gcal-webhook) is a 200 no-op and no watch
+    # channels are ever registered. Polling (import_all_connected) stays the
+    # permanent fallback regardless of this flag. Flipping it ON additionally
+    # requires Victor to domain-verify the receiver host in the GCP console
+    # (out of band) before register_watch() will succeed — the code is safe to
+    # deploy with the flag OFF.
+    GOOGLE_CALENDAR_WATCH_ENABLED: bool = False
 
     # === Integrations ===
     MOSKIT_API_KEY: str = ""
