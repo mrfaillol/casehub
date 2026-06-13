@@ -63,6 +63,24 @@
     window.CASEHUB_PREFIX = "{{ PREFIX }}";
   </script>
 
+  <style>
+    .maestro-tab-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      margin-right: 6px;
+      box-shadow: 0 2px 4px rgba(28, 36, 71, 0.2);
+      object-fit: contain;
+    }
+
+  </style>
+
+  {# Acessibilidade: aplica "letra grande" pre-paint a partir do localStorage (anti-FOUC). Example User 02/06. #}
+  <script>try{if(localStorage.getItem('casehub.a11y.large')==='on')document.documentElement.classList.add('ch-a11y-large');}catch(e){}</script>
+
   {# Fonts (woff2 only, font-display swap) #}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -75,6 +93,7 @@
   {# JS modules — defer keeps non-blocking, all bound on DOMContentLoaded #}
   <script defer src="{{ asset_url('js/app/index.js') }}"></script>
   <script defer src="{{ asset_url('js/app/theme.js') }}"></script>
+  <script defer src="{{ asset_url('js/a11y.js') }}"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
   <script defer src="{{ asset_url('js/app/icon.js') }}"></script>
   <script defer src="{{ asset_url('js/app/lucide-shell.js') }}"></script>
@@ -84,6 +103,7 @@
   <script defer src="{{ asset_url('js/app/nav-tabs.js') }}"></script>
   <script defer src="{{ asset_url('js/app/sparkline.js') }}"></script>
   <script defer src="{{ asset_url('js/app/shortcuts.js') }}"></script>
+  <script defer src="{{ asset_url('js/app/table-resize.js') }}"></script>
   <script defer src="{{ asset_url('js/app/palette.js') }}"></script>
   <script defer src="{{ asset_url('js/app/toast.js') }}"></script>
 
@@ -103,7 +123,11 @@
 
           {% if org_slug %}
           <span class="ch-topbar__slug">
+            {% if org_logo %}
+            <img src="{{ org_logo }}" alt="{{ org_name }}" style="width:14px; height:14px; border-radius:50%; object-fit:cover;">
+            {% else %}
             <span class="dot" aria-hidden="true"></span>
+            {% endif %}
             {{ org_slug }}
           </span>
           {% endif %}
@@ -165,6 +189,9 @@
                   <div class="ch-notifications-menu__empty">Abra para carregar notificações recentes.</div>
                 </div>
                 <div class="ch-menu__divider" role="separator"></div>
+                <a href="{{ PREFIX }}/notifications/hotfix" class="ch-menu__item" role="menuitem">
+                  <i data-lucide="helping-hand"></i> Novidades e atualizações
+                </a>
                 <a href="{{ PREFIX }}/notifications/upcoming" class="ch-menu__item" role="menuitem">
                   <i data-lucide="calendar-clock"></i> Próximas notificações
                 </a>
@@ -178,11 +205,11 @@
             </div>
 
             <div style="position: relative;">
-              <button type="button" class="ch-topbar__avatar"
+              <button type="button" class="ch-topbar__avatar{% if user and user.photo_url %} ch-topbar__avatar--photo{% endif %}"
                       data-menu-toggle="ch-user-menu"
                       aria-haspopup="true" aria-expanded="false"
                       aria-label="Menu do usuário">
-                {{ (user.name[0]|upper) if user and user.name else 'U' }}
+                {% if user and user.photo_url %}<img class="ch-topbar__avatar-img" src="{{ user.photo_url }}" alt="{{ user.name }}" />{% else %}{{ (user.name[0]|upper) if user and user.name else 'U' }}{% endif %}
               </button>
               <div id="ch-user-menu" class="ch-menu" role="menu">
                 <div class="ch-menu__header">
@@ -234,16 +261,21 @@
        ícone Lucide por página. Ordem das abas é a fonte do mapa rota→ícone. #}
     <nav class="ch-tabs-wrap" aria-label="Navegação principal (desktop)">
       <div class="ch-shell ch-tabs-shell">
-        <div class="ch-tabs neu-raised-sm" role="tablist" data-nav-tabs>
-          <a href="{{ PREFIX }}/dashboard" class="ch-tab {% if active_module == 'dashboard' %}is-active{% endif %}"
-             role="tab" data-route-key="dashboard" data-pinned="true" aria-label="Painel">
-            <i data-lucide="layout-dashboard"></i> <span class="ch-tab__label">Painel</span>
+        {# Painel = bolha fixa à ESQUERDA (Victor 03/06): não-fechável, fora do rail,
+           espelhando a bolha "Mais" à direita. nav-tabs.js só gerencia .ch-tab do
+           rail, então o Painel aqui fica intocável (sem ×, sem drag, sempre visível). #}
+        <div class="ch-tabs-home">
+          <a href="{{ PREFIX }}/dashboard" class="ch-tabs-home__bubble neu-raised-sm {% if active_module == 'dashboard' %}is-active{% endif %}"
+             aria-label="Painel">
+            <i data-lucide="layout-dashboard"></i> <span class="ch-tabs-home__label">Painel</span>
           </a>
+        </div>
+        <div class="ch-tabs neu-raised-sm" role="tablist" data-nav-tabs>
           <a href="{{ PREFIX }}/controladoria" class="ch-tab {% if active_module == 'controladoria' %}is-active{% endif %}"
              role="tab" data-route-key="controladoria">
             <i data-lucide="scale"></i> <span class="ch-tab__label">Controladoria</span>
           </a>
-          <a href="{{ PREFIX }}/calendar" class="ch-tab {% if active_module == 'agenda' %}is-active{% endif %}"
+          <a href="{{ PREFIX }}/calendar/agenda" class="ch-tab {% if active_module == 'agenda' %}is-active{% endif %}"
              role="tab" data-route-key="agenda">
             <i data-lucide="calendar-days"></i> <span class="ch-tab__label">Agenda</span>
           </a>
@@ -267,16 +299,18 @@
           </a>
           <a href="{{ PREFIX }}/assistente" class="ch-tab {% if active_module == 'maestro' %}is-active{% endif %}"
              role="tab" data-route-key="maestro">
-            <i data-lucide="sparkles"></i> <span class="ch-tab__label">Maestro</span>
+            <i data-lucide="helping-hand"></i> <span class="ch-tab__label">Maestro</span>
           </a>
-          <a href="{{ PREFIX }}/casehub-md" class="ch-tab {% if active_module == 'md' %}is-active{% endif %}"
-             role="tab" data-route-key="md">
-            <i data-lucide="file-pen-line"></i> <span class="ch-tab__label">CaseHub.md</span>
+          {# CaseHub.md saiu da nav primária (feedback Example User 02/06) — agora vive no
+             dropdown "Mais" (catalog.extra). Funcionalidade preservada; rota intacta. #}
+          {# Emails = tab primária gestor-only (Victor 03/06): promovida do dropdown
+             "Mais". Financeiro desceu pro "Mais" (é restrito ao Example User + Victor). #}
+          {% if user and (user.user_type in ['admin', 'superadmin']) %}
+          <a href="{{ PREFIX }}/emails" class="ch-tab {% if active_module == 'emails' %}is-active{% endif %}"
+             role="tab" data-route-key="emails">
+            <i data-lucide="mail"></i> <span class="ch-tab__label">Emails</span>
           </a>
-          <a href="{{ PREFIX }}/billing" class="ch-tab {% if active_module == 'billing' %}is-active{% endif %}"
-             role="tab" data-route-key="billing">
-            <i data-lucide="wallet"></i> <span class="ch-tab__label">Financeiro</span>
-          </a>
+          {% endif %}
           <a href="{{ PREFIX }}/documents" class="ch-tab {% if active_module == 'documents' %}is-active{% endif %}"
              role="tab" data-route-key="documents">
             <i data-lucide="folder-open"></i> <span class="ch-tab__label">Drive</span>
@@ -303,6 +337,16 @@
             <div class="ch-menu__scroll" data-tabs-more-list>
               {# Preenchido por nav-tabs.js a partir das abas ocultas/rotas extras.
                  Fallback estático (no-JS) abaixo: #}
+              <a href="{{ PREFIX }}/casehub-md" class="ch-menu__item {% if active_module == 'md' %}is-active{% endif %}" role="menuitem">
+                <i data-lucide="file-pen-line"></i> CaseHub.md
+              </a>
+              {# Financeiro — sócio-only (superadmin OU allowlist). Desceu de tab
+                 primária pro "Mais" (Victor 03/06): restrito ao Example User + Victor. #}
+              {% if can_view_financeiro|default(true) %}
+              <a href="{{ PREFIX }}/reports/financeiro" class="ch-menu__item {% if active_module == 'billing' %}is-active{% endif %}" role="menuitem">
+                <i data-lucide="wallet"></i> Financeiro
+              </a>
+              {% endif %}
               <a href="{{ PREFIX }}/reports" class="ch-menu__item" role="menuitem">
                 <i data-lucide="chart-column"></i> Relatórios
               </a>
@@ -342,15 +386,23 @@
            .ch-tabs-more do desktop. Desktop (data-bottomnav-desktop) continua usando o
            scroller único com todos os itens + o botão --more interno. #}
         <div class="ch-bottomnav-row">
+          {# Bolha "Painel" (dashboard) — PRIMEIRO filho da row, à ESQUERDA,
+             espelhando a bolha "Mais" à direita (e a .ch-tabs-home do desktop).
+             Pinned/não-fechável: vive FORA da pílula, só ícone + rótulo. O <a>
+             do dashboard saiu de dentro do scroller (onda2 Victor). #}
+          <a href="{{ PREFIX }}/dashboard"
+             class="ch-bottomnav-home {% if active_module == 'dashboard' %}is-active{% endif %}"
+             data-route-key="dashboard" data-pinned="true"
+             aria-label="Painel">
+            <i data-lucide="layout-dashboard"></i>
+            <span class="ch-bottomnav-home__label">Painel</span>
+          </a>
           <div class="ch-bottomnav {% if active_module not in bottom_mobile_primary %}ch-bottomnav--has-active-extra{% endif %}">
             <div class="ch-bottomnav__scroller">
-              <a href="{{ PREFIX }}/dashboard" class="ch-bottomnav__item ch-bottomnav__item--mobile-primary {% if active_module == 'dashboard' %}is-active{% endif %}" data-route-key="dashboard" data-pinned="true">
-                <i data-lucide="layout-dashboard"></i> <span class="ch-bottomnav__label">Painel</span>
-              </a>
               <a href="{{ PREFIX }}/controladoria" class="ch-bottomnav__item ch-bottomnav__item--mobile-primary {% if active_module == 'controladoria' %}is-active{% endif %}" data-route-key="controladoria">
                 <i data-lucide="scale"></i> <span class="ch-bottomnav__label">Controla<wbr>doria</span>
               </a>
-              <a href="{{ PREFIX }}/calendar" class="ch-bottomnav__item ch-bottomnav__item--mobile-primary {% if active_module == 'agenda' %}is-active{% endif %}" data-route-key="agenda">
+              <a href="{{ PREFIX }}/calendar/agenda" class="ch-bottomnav__item ch-bottomnav__item--mobile-primary {% if active_module == 'agenda' %}is-active{% endif %}" data-route-key="agenda">
                 <i data-lucide="calendar-days"></i> <span class="ch-bottomnav__label">Agenda</span>
               </a>
               <a href="{{ PREFIX }}/tasks/kanban" class="ch-bottomnav__item {% if active_module == 'kanban' %}is-active{% endif %}" data-route-key="kanban">
@@ -368,14 +420,14 @@
                 </svg> <span class="ch-bottomnav__label ch-bottomnav__label--nowrap">WhatsApp</span>
               </a>
               <a href="{{ PREFIX }}/assistente" class="ch-bottomnav__item {% if active_module == 'maestro' %}is-active{% endif %}" data-route-key="maestro">
-                <i data-lucide="sparkles"></i> <span class="ch-bottomnav__label">Maestro</span>
+                <img src="/static/img/maestro.png" class="maestro-tab-icon" loading="lazy" width="18" height="18" alt="Maestro"> <span class="ch-bottomnav__label">Maestro</span>
               </a>
-              <a href="{{ PREFIX }}/casehub-md" class="ch-bottomnav__item {% if active_module == 'md' %}is-active{% endif %}" data-route-key="md">
-                <i data-lucide="file-pen-line"></i> <span class="ch-bottomnav__label">CaseHub.md</span>
+              {# CaseHub.md saiu da nav primária (Example User 02/06) — segue no dropdown "Mais" abaixo. #}
+              {% if user and (user.user_type in ['admin', 'superadmin']) %}
+              <a href="{{ PREFIX }}/emails" class="ch-bottomnav__item {% if active_module == 'emails' %}is-active{% endif %}" data-route-key="emails">
+                <i data-lucide="mail"></i> <span class="ch-bottomnav__label">Emails</span>
               </a>
-              <a href="{{ PREFIX }}/billing" class="ch-bottomnav__item {% if active_module == 'billing' %}is-active{% endif %}" data-route-key="billing">
-                <i data-lucide="wallet"></i> <span class="ch-bottomnav__label">Financeiro</span>
-              </a>
+              {% endif %}
               <a href="{{ PREFIX }}/documents" class="ch-bottomnav__item {% if active_module == 'documents' %}is-active{% endif %}" data-route-key="documents">
                 <i data-lucide="folder-open"></i> <span class="ch-bottomnav__label">Drive</span>
               </a>
@@ -420,7 +472,7 @@
             <a href="{{ PREFIX }}/controladoria" class="ch-menu__item" role="menuitem">
               <i data-lucide="scale"></i> Controladoria
             </a>
-            <a href="{{ PREFIX }}/calendar" class="ch-menu__item" role="menuitem">
+            <a href="{{ PREFIX }}/calendar/agenda" class="ch-menu__item" role="menuitem">
               <i data-lucide="calendar-days"></i> Agenda
             </a>
             <a href="{{ PREFIX }}/whatsapp-chat" class="ch-menu__item" role="menuitem">
@@ -439,14 +491,21 @@
               <i data-lucide="users"></i> Clientes
             </a>
             <a href="{{ PREFIX }}/assistente" class="ch-menu__item" role="menuitem">
-              <i data-lucide="sparkles"></i> Maestro
+              <img src="/static/img/maestro.png" class="maestro-tab-icon" loading="lazy" width="18" height="18" alt="Maestro"> Maestro
             </a>
             <a href="{{ PREFIX }}/casehub-md" class="ch-menu__item" role="menuitem">
               <i data-lucide="file-pen-line"></i> CaseHub.md
             </a>
-            <a href="{{ PREFIX }}/billing" class="ch-menu__item" role="menuitem">
+            {% if user and (user.user_type in ['admin', 'superadmin']) %}
+            <a href="{{ PREFIX }}/emails" class="ch-menu__item" role="menuitem">
+              <i data-lucide="mail"></i> Emails
+            </a>
+            {% endif %}
+            {% if can_view_financeiro|default(true) %}
+            <a href="{{ PREFIX }}/reports/financeiro" class="ch-menu__item" role="menuitem">
               <i data-lucide="wallet"></i> Financeiro
             </a>
+            {% endif %}
             <a href="{{ PREFIX }}/documents" class="ch-menu__item" role="menuitem">
               <i data-lucide="folder-open"></i> Drive
             </a>
@@ -503,17 +562,18 @@
     "tabs": [
       {"key":"dashboard","label":"Painel","href":{{ (PREFIX ~ "/dashboard")|tojson }},"icon":"layout-dashboard","pinned":true},
       {"key":"controladoria","label":"Controladoria","href":{{ (PREFIX ~ "/controladoria")|tojson }},"icon":"scale"},
-      {"key":"agenda","label":"Agenda","href":{{ (PREFIX ~ "/calendar")|tojson }},"icon":"calendar-days"},
+      {"key":"agenda","label":"Agenda","href":{{ (PREFIX ~ "/calendar/agenda")|tojson }},"icon":"calendar-days"},
       {"key":"kanban","label":"Kanban","href":{{ (PREFIX ~ "/tasks/kanban")|tojson }},"icon":"kanban-square"},
       {"key":"processes","label":"Processos","href":{{ (PREFIX ~ "/cases")|tojson }},"icon":"briefcase-business"},
       {"key":"clients","label":"Clientes","href":{{ (PREFIX ~ "/clients")|tojson }},"icon":"users"},
       {"key":"whatsapp","label":"WhatsApp","href":{{ (PREFIX ~ "/whatsapp-chat")|tojson }},"icon":"message-circle"},
-      {"key":"maestro","label":"Maestro","href":{{ (PREFIX ~ "/assistente")|tojson }},"icon":"sparkles"},
-      {"key":"md","label":"CaseHub.md","href":{{ (PREFIX ~ "/casehub-md")|tojson }},"icon":"file-pen-line"},
-      {"key":"billing","label":"Financeiro","href":{{ (PREFIX ~ "/billing")|tojson }},"icon":"wallet"},
+      {"key":"maestro","label":"Maestro","href":{{ (PREFIX ~ "/assistente")|tojson }},"icon":"helping-hand"},
+      {% if user and (user.user_type in ['admin', 'superadmin']) %}{"key":"emails","label":"Emails","href":{{ (PREFIX ~ "/emails")|tojson }},"icon":"mail"},{% endif %}
       {"key":"documents","label":"Drive","href":{{ (PREFIX ~ "/documents")|tojson }},"icon":"folder-open"}
     ],
     "extra": [
+      {"key":"md","label":"CaseHub.md","href":{{ (PREFIX ~ "/casehub-md")|tojson }},"icon":"file-pen-line"},
+      {% if can_view_financeiro|default(true) %}{"key":"billing","label":"Financeiro","href":{{ (PREFIX ~ "/reports/financeiro")|tojson }},"icon":"wallet"},{% endif %}
       {"key":"reports","label":"Relatórios","href":{{ (PREFIX ~ "/reports")|tojson }},"icon":"chart-column"},
       {"key":"invoices","label":"Faturas","href":{{ (PREFIX ~ "/invoices")|tojson }},"icon":"receipt-text"},
       {"key":"payments","label":"Pagamentos","href":{{ (PREFIX ~ "/payments")|tojson }},"icon":"credit-card"},
@@ -530,7 +590,7 @@
   </script>
 
   {# Chat de equipe (#equipe) — widget retrátil org-scoped. Backend /api/team-chat (seguro). #}
-  <div class="tc-widget" data-team-chat>
+  <div class="tc-widget" data-team-chat data-maestro-icon="{{ asset_url('brand-kit/maestro/maestro.png') }}">
     <button type="button" class="tc-fab" data-tc-toggle aria-label="Chat da equipe" title="Chat da equipe">
       <span aria-hidden="true">💬</span>
       <span class="tc-fab__badge" data-tc-badge hidden>0</span>
@@ -540,9 +600,18 @@
         <strong data-tc-title>#equipe</strong>
         <span class="tc-panel__spacer"></span>
         <button type="button" class="tc-panel__icon" data-tc-members aria-label="Membros / nova conversa" title="Membros / nova conversa">👥</button>
+        <button type="button" class="tc-panel__icon" data-tc-settings aria-label="Configurações do chat" title="Configurações do chat">⚙️</button>
         <button type="button" class="tc-panel__icon" data-tc-min aria-label="Minimizar" title="Minimizar">–</button>
         <button type="button" class="tc-panel__icon" data-tc-close aria-label="Fechar" title="Fechar">✕</button>
       </header>
+      <div class="tc-settings" data-tc-settings-panel hidden role="dialog" aria-label="Configurações do chat">
+        <div class="tc-settings__title">Tamanho da fonte da conversa</div>
+        <div class="tc-settings__stepper" data-tc-fontsize>
+          <button type="button" data-step="-1" aria-label="Diminuir fonte" title="Diminuir">A−</button>
+          <span class="tc-settings__val" data-tc-fontval>14px</span>
+          <button type="button" data-step="1" aria-label="Aumentar fonte" title="Aumentar">A+</button>
+        </div>
+      </div>
       <div class="tc-channels" data-tc-channels></div>
       <div class="tc-panel__list" data-tc-list aria-live="polite"></div>
       <div class="tc-members" data-tc-members-panel hidden></div>
@@ -556,10 +625,26 @@
   </div>
   <style>
   .tc-widget{position:fixed;right:16px;bottom:16px;z-index:1200}
+  /* Avatares do chat de equipe (Victor 03/06): foto do colega ou inicial colorida. */
+  .tc-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;flex:0 0 26px;display:inline-grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
+  .tc-member{display:flex;align-items:center;gap:8px;width:100%}
+  .tc-member__name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tc-msg__head{display:flex;align-items:center;gap:6px}
+  .tc-msg__avatar{width:18px;height:18px;border-radius:50%;object-fit:cover;flex:0 0 18px;display:inline-grid;place-items:center;font-size:9px;font-weight:700;color:#fff}
   .tc-fab{position:relative;width:52px;height:52px;border-radius:50%;border:0;cursor:pointer;background:var(--surface-card,#fff);box-shadow:var(--shadow-dark-sm,0 4px 14px rgba(0,0,0,.18)),var(--shadow-light-sm,0 1px 0 rgba(255,255,255,.6));font-size:22px;display:grid;place-items:center;transition:transform .15s ease}
   .tc-fab:hover{transform:translateY(-2px)}
   .tc-fab__badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--c-danger,#dc2626);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center}
-  .tc-panel{position:absolute;right:0;bottom:64px;width:340px;max-width:calc(100vw - 32px);height:460px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:var(--radius-lg,16px);box-shadow:var(--shadow-dark-md,0 12px 32px rgba(0,0,0,.22));overflow:hidden}
+  .tc-panel{--tc-msg-font:14px;position:absolute;right:0;bottom:64px;width:340px;max-width:calc(100vw - 32px);height:460px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:var(--radius-lg,20px);box-shadow:var(--shadow-dark-md,0 12px 32px rgba(0,0,0,.22));overflow:hidden}
+  .tc-settings{position:absolute;top:52px;right:10px;z-index:6;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:12px;box-shadow:var(--shadow-dark-md,0 8px 24px rgba(0,0,0,.18));padding:10px 12px;min-width:180px}
+  .tc-settings[hidden]{display:none}
+  .tc-settings__title{font-size:11px;color:var(--fg-muted,#888);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+  .tc-settings__stepper{display:flex;align-items:center;gap:8px}
+  .tc-settings__stepper button{flex:0 0 auto;width:34px;height:30px;border:1px solid var(--line,#e5e7eb);background:var(--surface-app,#f6f7f9);border-radius:8px;cursor:pointer;color:var(--fg-default,#111);font-weight:700;line-height:1}
+  .tc-settings__stepper button:hover{border-color:var(--c-blue,#1E4890)}
+  .tc-settings__stepper button:disabled{opacity:.4;cursor:default}
+  .tc-settings__stepper button[data-step="-1"]{font-size:12px}
+  .tc-settings__stepper button[data-step="1"]{font-size:17px}
+  .tc-settings__val{flex:1 1 auto;text-align:center;font-size:13px;color:var(--fg-default,#111);font-variant-numeric:tabular-nums}
   .tc-panel__head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line,#e5e7eb);flex:0 0 auto}
   .tc-panel__head strong{color:var(--fg-default,#111);font-size:15px}
   .tc-panel__sub{flex:1 1 auto;color:var(--fg-muted,#888);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -570,9 +655,13 @@
   .tc-panel__icon:hover{color:var(--fg-default,#111)}
   .tc-channels{display:flex;gap:6px;padding:8px 10px;overflow-x:auto;border-bottom:1px solid var(--line,#e5e7eb);flex:0 0 auto}
   .tc-channels:empty{display:none}
-  .tc-chip{position:relative;flex:0 0 auto;border:1px solid var(--line,#e5e7eb);background:var(--surface-app,#f6f7f9);color:var(--fg-muted,#666);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;white-space:nowrap}
-  .tc-chip.is-active{background:color-mix(in srgb,var(--c-blue,#6D9EEB) 18%,transparent);color:var(--fg-default,#111);border-color:transparent;font-weight:700}
+  .tc-chip{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line,#e5e7eb);background:var(--surface-app,#f6f7f9);color:var(--fg-muted,#666);border-radius:999px;padding:3px 10px;font-size:11px;line-height:1.1;cursor:pointer;white-space:nowrap}
+  .tc-chip.is-active{background:color-mix(in srgb,var(--c-blue,#1E4890) 18%,transparent);color:var(--fg-default,#111);border-color:transparent;font-weight:700}
   .tc-chip__dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c-danger,#dc2626);margin-left:5px;vertical-align:middle}
+  .tc-chip__av{width:16px;height:16px;border-radius:50%;object-fit:cover;flex:0 0 auto;display:block}
+  .tc-chip__av--initial{display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;line-height:1}
+  /* Maestro: logo (mãos brancas, PNG transparente) cabe inteiro sobre o fundo roxo; fotos humanas continuam em cover */
+  .tc-chip__av[src*="maestro"],.tc-msg__avatar[src*="maestro"],.tc-avatar[src*="maestro"]{object-fit:contain}
   .tc-members{flex:1 1 auto;overflow-y:auto;padding:8px;background:var(--surface-card,#fff)}
   .tc-members[hidden]{display:none}
   .tc-members__head{color:var(--fg-muted,#888);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:4px 6px}
@@ -584,23 +673,38 @@
   .tc-msg{display:flex;flex-direction:column;align-items:flex-start;max-width:82%}
   .tc-msg.is-mine{align-self:flex-end;align-items:flex-end}
   .tc-msg__author{font-size:11px;font-weight:700;margin-bottom:1px}
-  .tc-msg__bubble{padding:7px 11px;border-radius:12px;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);color:var(--fg-default,#111);font-size:14px;line-height:1.35;word-break:break-word;white-space:pre-wrap}
-  .tc-msg.is-mine .tc-msg__bubble{background:color-mix(in srgb,var(--c-blue,#6D9EEB) 18%,transparent);border-color:transparent}
+  .tc-msg__bubble{padding:7px 11px;border-radius:12px;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);color:var(--fg-default,#111);font-size:var(--tc-msg-font,14px);line-height:1.35;word-break:break-word;white-space:pre-wrap}
+  .tc-msg.is-mine .tc-msg__bubble{background:color-mix(in srgb,var(--c-blue,#1E4890) 18%,transparent);border-color:transparent}
+  .tc-msg.is-maestro .tc-msg__bubble{background:color-mix(in srgb,var(--c-blue,#1E4890) 8%,var(--surface-card,#fff));border-color:color-mix(in srgb,var(--c-blue,#1E4890) 26%,var(--line,#e5e7eb))}
+  .tc-msg__avatar--maestro{width:24px;height:30px;flex-basis:24px;border-radius:6px;background:transparent!important;overflow:visible;box-shadow:none}
+  .tc-msg__avatar--maestro img{width:100%;height:100%;object-fit:contain;display:block}
   .tc-msg__time{font-size:10px;color:var(--fg-muted,#aaa);margin-top:2px}
   .tc-panel__form{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line,#e5e7eb);flex:0 0 auto}
   .tc-panel__input{flex:1 1 auto;min-width:0;padding:9px 12px;border:1px solid var(--line,#e5e7eb);border-radius:999px;background:var(--surface-app,#f6f7f9);color:var(--fg-default,#111);font-size:14px}
-  .tc-panel__send{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;background:var(--c-blue,#6D9EEB);color:#fff;font-size:15px}
+  .tc-panel__send{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;background:var(--c-blue,#1E4890);color:#fff;font-size:15px}
   .tc-panel__attach{flex:0 0 auto;width:34px;height:38px;border:0;background:none;cursor:pointer;font-size:18px;color:var(--fg-muted,#888)}
   .tc-panel__attach:hover{color:var(--fg-default,#111)}
   .tc-panel__attach:disabled{opacity:.5;cursor:default}
   .tc-msg__img{max-width:200px;max-height:220px;border-radius:10px;display:block;cursor:pointer;border:1px solid var(--line,#e5e7eb)}
   .tc-msg__audio{max-width:230px;height:36px}
-  .tc-msg__file{display:inline-flex;align-items:center;gap:6px;max-width:230px;padding:8px 11px;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:var(--surface-card,#fff);color:var(--c-blue,#6D9EEB);text-decoration:none;font-size:13px;word-break:break-all}
-  .tc-msg.is-mine .tc-msg__file{background:color-mix(in srgb,var(--c-blue,#6D9EEB) 14%,transparent)}
-  @media (max-width:879px){.tc-widget{bottom:74px}}
+  .tc-msg__file{display:inline-flex;align-items:center;gap:6px;max-width:230px;padding:8px 11px;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:var(--surface-card,#fff);color:var(--c-blue,#1E4890);text-decoration:none;font-size:13px;word-break:break-all}
+  .tc-msg.is-mine .tc-msg__file{background:color-mix(in srgb,var(--c-blue,#1E4890) 14%,transparent)}
+  @media (max-width:879px){.tc-widget{bottom:calc(var(--bottomnav-h, 54px) + 46px);right:14px}}
   </style>
   <script defer src="{{ asset_url('js/app/team-chat.js') }}"></script>
 
   {% block extra_js %}{% endblock %}
+
+  {# Compose modal — disponível em toda a app quando Gmail OAuth está habilitado #}
+  {% if gmail_send_enabled %}
+  {% include "partials/compose_modal.html" %}
+  <link rel="stylesheet" href="{{ asset_url('css/app/compose-modal.css') }}">
+  <script>
+    window.__composeProvider = "gmail";
+    window.__composeAccount  = {{ gmail_send_account|tojson }};
+    window.PREFIX = {{ PREFIX|tojson }};
+  </script>
+  <script defer src="{{ asset_url('js/app/compose-modal.js') }}"></script>
+  {% endif %}
 </body>
 </html>

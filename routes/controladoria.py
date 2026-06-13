@@ -18,10 +18,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Stre
 from sqlalchemy.orm import Session
 from sqlalchemy import bindparam, text
 from datetime import date, datetime, timedelta
-from typing import Any, Optional
+from typing import Any, List, Optional
 import logging
 import io
 import re
+import json
+import unicodedata
 
 logger = logging.getLogger(__name__)
 
@@ -30,17 +32,26 @@ from auth import get_current_user
 from config import settings
 from models import get_db, Case
 from models.tenant import tenant_query
+from middleware.permissions import has_permission
 from services.prazos_cpc import (
     calcular_prazo,
+    calcular_prazo_corrido,
     calcular_prazo_detalhado,
+    eh_dia_util,
     prazos_comuns,
     proximo_dia_util,
 )
+from services.calendario_judicial import inferir_tribunal, normalizar_tribunal
 
 router = APIRouter(prefix="/controladoria", tags=["controladoria"])
 
 CONTROLADORIA_RENDER_LIMIT = 300
 CONTROLADORIA_CASE_OPTION_LIMIT = 250
+BRAZIL_UFS = {
+    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
+    "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC",
+    "SP", "SE", "TO",
+}
 
 TRIBUNAL_PATTERNS = {
     "TRT3": "%.5.03.%",
@@ -58,11 +69,82 @@ TRIBUNAL_PATTERNS = {
 }
 
 
+def _initials(name: Optional[str]) -> str:
+    parts = [p for p in re.split(r"\s+", (name or "").strip()) if p]
+    if not parts:
+        return "?"
+    return "".join(part[0].upper() for part in parts[:2])
+
+
+def _user_key(name: Optional[str]) -> str:
+    raw = (name or "").strip()
+    raw = re.sub(r"^(dr\.?|dra\.?|doutor|doutora)\s+", "", raw, flags=re.IGNORECASE)
+    normalized = unicodedata.normalize("NFKD", raw)
+    normalized = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", normalized).strip().lower()
+
+
+def _user_payload(row) -> dict:
+    return {
+        "id": row.id,
+        "name": row.name or "",
+        "initials": _initials(row.name),
+        "photo_url": row.photo_url or "",
+        "color": row.color or "#1C2447",
+    }
+
+
+def _parse_oab_number(value: Optional[str]) -> tuple[str, str]:
+    """Return (number, uf) from common OAB formats without logging the raw value."""
+    raw = (value or "").strip().upper()
+    if not raw:
+        return "", "MG"
+    number = "".join(re.findall(r"\d+", raw))
+    uf = ""
+    for match in re.findall(r"[A-Z]{2}", raw):
+        if match in BRAZIL_UFS:
+            uf = match
+            break
+    return number, uf or "MG"
+
+
+def _get_user_directory(db: Session, org_id: int) -> dict:
+    rows = db.execute(
+        text("""
+            SELECT id, name, email, color, photo_url
+            FROM users
+            WHERE org_id = :org_id AND enabled = TRUE
+            ORDER BY name
+        """),
+        {"org_id": org_id},
+    ).fetchall()
+    by_id = {}
+    by_name = {}
+    users = []
+    for row in rows:
+        payload = _user_payload(row)
+        by_id[payload["id"]] = payload
+        key = _user_key(payload["name"])
+        if key:
+            by_name[key] = payload
+        users.append(payload)
+    return {"users": users, "by_id": by_id, "by_name": by_name}
+
+
+def _resolve_responsavel(directory: dict, user_id: Optional[int], name: Optional[str]) -> Optional[dict]:
+    if user_id and user_id in directory.get("by_id", {}):
+        return directory["by_id"][user_id]
+    key = _user_key(name)
+    if key:
+        return directory.get("by_name", {}).get(key)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _business_days_between(start: date, end: date) -> int:
+def _business_days_between(start: date, end: date, estado: str = "MG", tribunal: Optional[str] = None) -> int:
     """Count business days (Mon-Fri) between start and end (signed).
     Positive = end is in the future, negative = end is in the past."""
     if start == end:
@@ -73,7 +155,7 @@ def _business_days_between(start: date, end: date) -> int:
     current = a
     while current < b:
         current += timedelta(days=1)
-        if current.weekday() < 5:  # Mon-Fri
+        if eh_dia_util(current, estado, tribunal=tribunal):
             count += 1
     return count * sign
 
@@ -81,6 +163,88 @@ def _business_days_between(start: date, end: date) -> int:
 def _get_org_id(request: Request) -> int:
     """Extract org_id from request state (set by TenantMiddleware)."""
     return getattr(request.state, "org_id", 1)
+
+
+# Example User 03/06: "horário específico para vencimento de prazos processuais".
+# Regex p/ validar "HH:MM" (00:00–23:59). Mesmo formato do due_time do Kanban.
+_HORA_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def _ensure_controladoria_schema(db):
+    """Schema aditivo idempotente p/ Controladoria — mantém DBs antigas do alpha
+    compatíveis sem migração manual (mesmo padrão de _ensure_kanban_schema).
+    Roda nos caminhos lazy que leem/escrevem prazos."""
+    bind = db.get_bind()
+    dialect = bind.dialect.name if bind is not None else "sqlite"
+    additions = [
+        ("prazos_processuais", "processo_override", "VARCHAR"),
+        ("prazos_processuais", "cliente_override", "VARCHAR"),
+        # hora_vencimento: horário do prazo ("HH:MM", nullable). Example User 03/06.
+        ("prazos_processuais", "hora_vencimento", "VARCHAR(5)"),
+        # dias_corridos: prazo administrativo contado em dias corridos (não úteis).
+        # Reunião Ricardo/Example User 10/06 — processos administrativos (INSS etc).
+        ("prazos_processuais", "dias_corridos", "BOOLEAN DEFAULT FALSE"),
+        # parte_contraria_override: permite editar parte contrária em prazos avulsos
+        # (sem case_id). Análogo a processo_override/cliente_override. 11/06.
+        ("prazos_processuais", "parte_contraria_override", "VARCHAR"),
+    ]
+    for table, column, definition in additions:
+        try:
+            if dialect == "postgresql":
+                exists = db.execute(
+                    text("""
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = :table AND column_name = :column
+                    """),
+                    {"table": table, "column": column},
+                ).first()
+            else:
+                exists = any(row[1] == column for row in db.execute(text(f"PRAGMA table_info({table})")).fetchall())
+            if not exists:
+                db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+                db.commit()
+        except Exception:
+            db.rollback()
+
+
+def _get_org_id_strict(request: Request):
+    """org_id SEM fallback — para escrita sensivel (meta). Ruling 2026-06-03 (Sentinela):
+    proibido gravar em org 1 por inercia; retorna None se ausente -> handler responde 400."""
+    return getattr(request.state, "org_id", None)
+
+
+# Meta mensal de produtividade: por org em organizations.settings JSONB (existente —
+# ruling 2026-06-03/Janitor: reusar o store JSONB, NAO criar tabela org_settings que
+# nao existe no alpha). Sugestao/original (Example User 02/06) = 100.
+META_KEY = "controladoria_meta_mensal"
+META_SUGERIDA = 100
+
+
+def _org_settings(db: Session, org_id) -> dict:
+    """Le organizations.settings JSONB como dict (org-scoped)."""
+    raw = db.execute(
+        text("SELECT settings FROM organizations WHERE id = :oid"),
+        {"oid": org_id},
+    ).scalar()
+    if raw is None:
+        return {}
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return dict(raw) if raw else {}
+
+
+def _get_meta(db: Session, org_id: int) -> int:
+    """Le a meta mensal da org de organizations.settings JSONB (fallback = META_SUGERIDA)."""
+    try:
+        v = int(str(_org_settings(db, org_id).get(META_KEY, "")).strip() or 0)
+        if 1 <= v <= 100000:
+            return v
+    except Exception:
+        pass
+    return META_SUGERIDA
 
 
 def _utc_now_iso() -> str:
@@ -242,14 +406,14 @@ def _controladoria_api_card(
     }
 
 
-def _controladoria_api_status_cards() -> list[dict]:
+def _controladoria_api_status_cards(org_id: Optional[int] = None) -> List[dict]:
     """Operator-facing integration truth for the Controladoria header."""
-    cards: list[dict] = []
+    cards: List[dict] = []
 
     try:
         from services.comunicaapi import pdpj_auth
 
-        auth = pdpj_auth.public_status()
+        auth = pdpj_auth.public_status(org_id)
         if auth.get("token_cached"):
             cards.append(_controladoria_api_card(
                 "PDPJ/CNJ",
@@ -332,6 +496,7 @@ async def _try_comunicaapi_provider(
     uf_oab: str,
     data_inicio: str,
     data_fim: str,
+    org_id: Optional[int] = None,
 ) -> dict:
     provider = "ComunicaAPI PJE/CNJ"
     try:
@@ -350,21 +515,23 @@ async def _try_comunicaapi_provider(
             uf_oab,
             data_inicio=data_inicio or None,
             data_fim=data_fim or None,
+            org_id=org_id,
         )
     except Exception as e:
         return {
             "items": [],
             "attempt": _provider_attempt(provider, "failed", "Erro inesperado na ComunicaAPI.", error=e),
             "auth_status": "error",
-            "grant_attempted": getattr(pdpj_auth, "_last_grant_type", None) or "client_credentials",
+            "grant_attempted": pdpj_auth._state(org_id).last_grant_type or "client_credentials",
         }
 
     items = resultado.get("items", [])
     error_code = resultado.get("error", "")
     source = resultado.get("source", provider)
     status = "ok" if items else ("failed" if error_code else "empty")
-    auth_status = "configured" if getattr(pdpj_auth, "is_configured", False) else "missing_credentials"
-    grant_attempted = getattr(pdpj_auth, "_last_grant_type", None)
+    auth_snapshot = pdpj_auth.public_status(org_id)
+    auth_status = "configured" if auth_snapshot.get("configured") else "missing_credentials"
+    grant_attempted = pdpj_auth._state(org_id).last_grant_type
     if not grant_attempted:
         grant_attempted = "none" if auth_status == "missing_credentials" else "client_credentials"
     for item in items:
@@ -492,13 +659,14 @@ async def _search_intimacoes_oab_chain(
     uf_oab: str,
     data_inicio: str,
     data_fim: str,
+    org_id: Optional[int] = None,
 ) -> dict:
     """Search intimation sources in a transparent, operator-visible order."""
     attempts = []
     auth_status = "unknown"
     grant_attempted = "none"
 
-    comunica = await _try_comunicaapi_provider(numero_oab, uf_oab, data_inicio, data_fim)
+    comunica = await _try_comunicaapi_provider(numero_oab, uf_oab, data_inicio, data_fim, org_id=org_id)
     attempts.append(comunica["attempt"])
     auth_status = comunica.get("auth_status", auth_status)
     grant_attempted = comunica.get("grant_attempted", grant_attempted)
@@ -597,11 +765,16 @@ async def _search_intimacoes_oab_chain(
             "code": comunica["attempt"]["error"] or "upstream_failed",
         }
 
+    primary_failure_reason = comunica["attempt"].get("reason") or "PDPJ/ComunicaAPI falhou."
+
     return {
         "items": [],
         "provider": "Nenhuma API",
         "provider_status": "failed",
-        "reason": "Nenhuma fonte retornou intimacoes ou resultados para a OAB/periodo informado.",
+        "reason": (
+            f"{primary_failure_reason} "
+            "Fallbacks nao retornaram intimacoes ou resultados para a OAB/periodo informado."
+        ),
         "last_error": comunica["attempt"]["error"],
         "fallback_active": True,
         "fallback_chain": attempts,
@@ -615,35 +788,17 @@ async def _search_intimacoes_oab_chain(
 
 def _get_stats(db: Session, org_id: int) -> dict:
     """Compute stat card values."""
-    hoje = date.today()
-    proximos_limite = hoje + timedelta(days=7)
-
     base = "SELECT COUNT(*) FROM prazos_processuais WHERE org_id = :org_id"
-
     total = db.execute(text(base), {"org_id": org_id}).scalar() or 0
-
-    fatais_hoje = db.execute(
-        text(base + " AND data_vencimento = :hoje AND status NOT IN ('concluido')"),
-        {"org_id": org_id, "hoje": hoje},
-    ).scalar() or 0
-
-    proximos = db.execute(
-        text(
-            base + " AND data_vencimento > :hoje AND data_vencimento <= :limite "
-            "AND status NOT IN ('concluido')"
-        ),
-        {"org_id": org_id, "hoje": hoje, "limite": proximos_limite},
-    ).scalar() or 0
-
-    vencidos = db.execute(
-        text(base + " AND data_vencimento < :hoje AND status NOT IN ('concluido', 'perdido')"),
-        {"org_id": org_id, "hoje": hoje},
-    ).scalar() or 0
-
     concluidos = db.execute(
         text(base + " AND status = 'concluido'"),
         {"org_id": org_id},
     ).scalar() or 0
+
+    ativos = _get_prazos(db, org_id)
+    fatais_hoje = sum(1 for p in ativos if p["urgencia"] == "fatal")
+    vencidos = sum(1 for p in ativos if p["urgencia"] == "vencido" and p["status"] != "perdido")
+    proximos = sum(1 for p in ativos if p["urgencia"] == "amarelo")
 
     return {
         "total": total,
@@ -667,8 +822,8 @@ def _append_prazos_filters(
     if search:
         query += """
             AND (
-                LOWER(COALESCE(c.case_number, '')) LIKE LOWER(:search)
-                OR LOWER(COALESCE(c.numero_processo, '')) LIKE LOWER(:search)
+                LOWER(c.case_number) LIKE LOWER(:search)
+                OR LOWER(c.numero_processo) LIKE LOWER(:search)
                 OR LOWER(COALESCE(p.processo_override, '')) LIKE LOWER(:search)
                 OR LOWER(COALESCE(p.cliente_override, '')) LIKE LOWER(:search)
                 OR LOWER(COALESCE(cl.first_name, '') || ' ' || COALESCE(cl.last_name, '')) LIKE LOWER(:search)
@@ -697,14 +852,18 @@ def _append_prazos_filters(
     # C1 fix: Filtro por tribunal — mapear codigo para pattern do no processo
     if tribunal:
         if tribunal in TRIBUNAL_PATTERNS:
-            query += " AND COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE :trib_pat"
+            query += (
+                " AND (UPPER(COALESCE(c.tribunal, '')) = :tribunal_code "
+                "OR COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE :trib_pat)"
+            )
+            params["tribunal_code"] = tribunal.upper()
             params["trib_pat"] = TRIBUNAL_PATTERNS[tribunal]
         elif tribunal == "Outro":
             known_pats = " AND ".join(
                 f"COALESCE(p.processo_override, c.numero_processo, c.case_number, '') NOT LIKE '{v}'"
                 for v in TRIBUNAL_PATTERNS.values()
             )
-            query += f" AND ({known_pats})"
+            query += f" AND (COALESCE(c.tribunal, '') = '' AND {known_pats})"
 
     return query
 
@@ -717,20 +876,26 @@ def _get_prazos(
     mes: str = "",
     tribunal: str = "",
     limit: Optional[int] = None,
+    sort: str = "",
+    direction: str = "asc",
 ) -> list:
     """Fetch prazos with optional filters, joined with cases."""
+    _ensure_controladoria_schema(db)
     query = """
         SELECT
             p.id, p.case_id, p.tipo, p.data_intimacao, p.data_inicio,
-            p.data_vencimento, p.dias_prazo, p.responsavel, p.status,
+            p.data_vencimento, p.hora_vencimento, p.dias_prazo, p.responsavel, p.status,
             p.descricao, p.uf, p.dobro, p.created_at, p.tipo_peticao,
+            COALESCE(p.dias_corridos, FALSE) AS dias_corridos,
+            p.responsavel_user_id,
             COALESCE(p.ordem, 0) AS ordem,
             COALESCE(p.processo_override, c.numero_processo, c.case_number) AS processo,
             COALESCE(p.cliente_override, TRIM(COALESCE(cl.first_name, '') || ' ' || COALESCE(cl.last_name, '')), c.case_name) AS cliente,
-            c.case_name AS parte_contraria
+            COALESCE(CASE WHEN p.case_id IS NULL THEN NULLIF(p.parte_contraria_override, '') END, NULLIF(c.polo_passivo, ''), '') AS parte_contraria,
+            COALESCE(NULLIF(c.tribunal, ''), '') AS tribunal_cadastrado
         FROM prazos_processuais p
-        LEFT JOIN cases c ON p.case_id = c.id
-        LEFT JOIN clients cl ON c.client_id = cl.id
+        LEFT JOIN cases c ON p.case_id = c.id AND c.org_id = :org_id
+        LEFT JOIN clients cl ON c.client_id = cl.id AND cl.org_id = :org_id
         WHERE p.org_id = :org_id
     """
     params = {"org_id": org_id}
@@ -744,60 +909,121 @@ def _get_prazos(
         tribunal=tribunal,
     )
 
-    query += (
-        " ORDER BY COALESCE(p.ordem, 999999),"
-        " CASE WHEN p.data_vencimento IS NULL THEN 1 ELSE 0 END ASC,"
-        " p.data_vencimento ASC, p.id ASC"
+    sort = (sort or "").lower()
+    direction_sql = "DESC" if (direction or "").lower() == "desc" else "ASC"
+    tribunal_expr = (
+        "COALESCE(NULLIF(c.tribunal, ''), "
+        "CASE "
+        "WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.5.03.%' THEN 'TRT3' "
+        "WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.4.06.%' THEN 'TRF6' "
+        "WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.4.02.%' THEN 'TRF2' "
+        "WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.8.13.%' THEN 'TJMG' "
+        "WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.8.26.%' THEN 'TJSP' "
+        "ELSE 'Outro' END)"
     )
+    sort_exprs = {
+        "urgencia": "p.data_vencimento",
+        "tribunal": tribunal_expr,
+        "processo": "COALESCE(p.processo_override, c.numero_processo, c.case_number, '')",
+        "cliente": "COALESCE(p.cliente_override, TRIM(COALESCE(cl.first_name, '') || ' ' || COALESCE(cl.last_name, '')), c.case_name, '')",
+        "tipo": "COALESCE(p.tipo, '')",
+        "inicio": "p.data_intimacao",
+        "dias": "p.dias_prazo",
+        "parte_contraria": "COALESCE(c.polo_passivo, '')",
+        "observacao": "COALESCE(p.descricao, '')",
+        "vencimento": "p.data_vencimento",
+        "responsavel": "COALESCE(p.responsavel, '')",
+        "status": "COALESCE(p.status, '')",
+    }
+    if sort in sort_exprs:
+        sort_expr = sort_exprs[sort]
+        is_pg = (db.get_bind().dialect.name == "postgresql") if db.get_bind() is not None else False
+        if is_pg:
+            query += f" ORDER BY {sort_expr} {direction_sql} NULLS LAST, p.id ASC"
+        else:
+            query += f" ORDER BY CASE WHEN {sort_expr} IS NULL THEN 1 ELSE 0 END, {sort_expr} {direction_sql}, p.id ASC"
+    else:
+        query += (
+            " ORDER BY COALESCE(p.ordem, 999999),"
+            " CASE WHEN p.data_vencimento IS NULL THEN 1 ELSE 0 END ASC,"
+            " p.data_vencimento ASC, p.id ASC"
+        )
     if limit is not None:
         query += " LIMIT :limit"
         params["limit"] = limit
 
     rows = db.execute(text(query), params).fetchall()
-    hoje = date.today()
-    alerta_3dias = hoje + timedelta(days=3)
+    if not rows:
+        return []
 
+    hoje = date.today()
     alerta_7dias = hoje + timedelta(days=7)
     prazos = []
+    user_dir = _get_user_directory(db, org_id)
     for row in rows:
         venc = row.data_vencimento
+        uf = row.uf or "MG"
+        processo = row.processo or ""
+        tribunal_codigo = normalizar_tribunal(row.tribunal_cadastrado or inferir_tribunal(processo))
+        if tribunal_codigo == "CNJ" and not row.tribunal_cadastrado:
+            tribunal_codigo = "Outro"
+        # Prazo administrativo (dias corridos): sem deslocamento p/ dia útil e
+        # dias restantes em dias de calendário. Reunião 10/06.
+        eh_corrido = bool(row.dias_corridos)
+        venc_efetivo = venc
+        prazo_suspenso = False
+        if isinstance(venc, date) and not eh_corrido:
+            venc_efetivo = proximo_dia_util(venc, uf, tribunal=tribunal_codigo)
+            prazo_suspenso = venc_efetivo != venc
         dias_restantes = None
-        if isinstance(venc, date):
-            dias_restantes = _business_days_between(hoje, venc)
+        if isinstance(venc_efetivo, date):
+            if eh_corrido:
+                dias_restantes = (venc_efetivo - hoje).days
+            else:
+                dias_restantes = _business_days_between(hoje, venc_efetivo, uf, tribunal_codigo)
 
         # Urgencia: TODA linha ativa recebe uma cor
         if row.status == "concluido":
             urgencia = "concluido"
         elif row.status == "perdido":
             urgencia = "vencido"  # perdido = vermelho
-        elif not isinstance(venc, date):
+        elif not isinstance(venc_efetivo, date):
             urgencia = "verde"  # sem data = assume ok
-        elif venc < hoje:
+        elif venc_efetivo < hoje:
             urgencia = "vencido"
-        elif venc == hoje:
+        elif venc_efetivo == hoje:
             urgencia = "fatal"
-        elif venc <= alerta_7dias:
+        elif venc_efetivo <= alerta_7dias:
             urgencia = "amarelo"  # <=7 dias
         else:
             urgencia = "verde"  # >7 dias
 
+        responsavel_user = _resolve_responsavel(user_dir, row.responsavel_user_id, row.responsavel)
+
         prazos.append({
             "id": row.id,
             "case_id": row.case_id,
-            "processo": row.processo or "—",
+            "processo": processo or "—",
             "cliente": row.cliente or "—",
             "parte_contraria": row.parte_contraria or "—",
             "tipo": row.tipo,
             "data_intimacao": row.data_intimacao,
             "data_inicio": row.data_inicio,
             "data_vencimento": venc,
+            "hora_vencimento": row.hora_vencimento or "",
+            "data_vencimento_efetiva": venc_efetivo,
+            "prazo_suspenso": prazo_suspenso,
             "dias_prazo": row.dias_prazo,
             "dias_restantes": dias_restantes,
             "responsavel": row.responsavel or "—",
+            "responsavel_user": responsavel_user,
+            "responsavel_user_id": responsavel_user["id"] if responsavel_user else None,
             "status": row.status,
             "descricao": row.descricao or "",
-            "uf": row.uf,
+            "uf": uf,
+            "tribunal": tribunal_codigo,
             "dobro": row.dobro,
+            "dias_corridos": eh_corrido,
             "urgencia": urgencia,
             "tipo_peticao": row.tipo_peticao or "",
             "ordem": row.ordem or 0,
@@ -815,29 +1041,15 @@ def _get_prazos_vencidos_total(
     tribunal: str = "",
 ) -> int:
     """Count overdue deadlines using the same filters and predicate as the table."""
-    query = """
-        SELECT COUNT(*)
-        FROM prazos_processuais p
-        LEFT JOIN cases c ON p.case_id = c.id
-        LEFT JOIN clients cl ON c.client_id = cl.id
-        WHERE p.org_id = :org_id
-    """
-    params = {"org_id": org_id, "hoje": date.today()}
-    query = _append_prazos_filters(
-        query,
-        params,
+    prazos = _get_prazos(
+        db,
+        org_id,
         search=search,
         status_filter=status_filter,
         mes=mes,
         tribunal=tribunal,
     )
-    query += """
-        AND (
-            p.status = 'perdido'
-            OR (p.data_vencimento < :hoje AND COALESCE(p.status, '') != 'concluido')
-        )
-    """
-    return db.execute(text(query), params).scalar() or 0
+    return sum(1 for prazo in prazos if prazo.get("urgencia") == "vencido")
 
 
 def _get_responsaveis(db: Session, org_id: int) -> list:
@@ -853,20 +1065,30 @@ def _get_responsaveis(db: Session, org_id: int) -> list:
     return [r[0] for r in rows if r[0]]
 
 
-def _get_produtividade_setores(db: Session, org_id: int) -> list[dict]:
+def _get_produtividade_setores(db: Session, org_id: int) -> List[dict]:
     rows = db.execute(
         text("""
-            SELECT COALESCE(NULLIF(responsavel, ''), 'Sem responsável') AS setor,
+            SELECT COALESCE(NULLIF(u.name, ''), NULLIF(p.responsavel, ''), 'Sem responsável') AS setor,
+                   u.id AS user_id,
+                   u.photo_url,
+                   u.color,
                    COUNT(*) AS total,
-                   SUM(CASE WHEN COALESCE(status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS pendentes,
-                   SUM(CASE WHEN status = 'concluido' THEN 1 ELSE 0 END) AS concluidos,
-                   SUM(CASE WHEN data_vencimento < CURRENT_DATE AND COALESCE(status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS vencidos,
-                   SUM(CASE WHEN data_vencimento >= CURRENT_DATE
-                             AND data_vencimento <= CURRENT_DATE + INTERVAL '7 days'
-                             AND COALESCE(status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS proximos
-            FROM prazos_processuais
-            WHERE org_id = :org_id
-            GROUP BY COALESCE(NULLIF(responsavel, ''), 'Sem responsável')
+                   SUM(CASE WHEN COALESCE(p.status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS pendentes,
+                   SUM(CASE WHEN p.status = 'concluido' THEN 1 ELSE 0 END) AS concluidos,
+                   SUM(CASE WHEN p.data_vencimento < CURRENT_DATE AND COALESCE(p.status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS vencidos,
+                   SUM(CASE WHEN p.data_vencimento >= CURRENT_DATE
+                             AND p.data_vencimento <= CURRENT_DATE + INTERVAL '7 days'
+                             AND COALESCE(p.status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS proximos
+            FROM prazos_processuais p
+            LEFT JOIN users u
+              ON u.org_id = p.org_id
+             AND u.enabled = TRUE
+             AND (
+                u.id = p.responsavel_user_id
+                OR (p.responsavel_user_id IS NULL AND LOWER(TRIM(u.name)) = LOWER(TRIM(COALESCE(p.responsavel, ''))))
+             )
+            WHERE p.org_id = :org_id
+            GROUP BY COALESCE(NULLIF(u.name, ''), NULLIF(p.responsavel, ''), 'Sem responsável'), u.id, u.photo_url, u.color
             ORDER BY vencidos DESC, pendentes DESC, total DESC, setor ASC
             LIMIT 8
         """),
@@ -882,6 +1104,10 @@ def _get_produtividade_setores(db: Session, org_id: int) -> list[dict]:
         em_dia = max(total - vencidos, 0)
         data.append({
             "setor": row.setor,
+            "user_id": row.user_id,
+            "photo_url": row.photo_url or "",
+            "color": row.color or "#1C2447",
+            "initials": _initials(row.setor),
             "total": total,
             "pendentes": pendentes,
             "concluidos": concluidos,
@@ -906,6 +1132,8 @@ async def controladoria_dashboard(
     status: str = "",
     mes: str = "",
     tribunal: str = "",
+    sort: str = "",
+    direction: str = "asc",
     db: Session = Depends(get_db),
 ):
     """Dashboard principal da Controladoria."""
@@ -914,6 +1142,7 @@ async def controladoria_dashboard(
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
     org_id = _get_org_id(request)
+    _ensure_controladoria_schema(db)  # lazy: garante hora_vencimento em DBs antigas
     stats = _get_stats(db, org_id)
     prazos_render = _get_prazos(
         db,
@@ -923,6 +1152,8 @@ async def controladoria_dashboard(
         mes=mes,
         tribunal=tribunal,
         limit=CONTROLADORIA_RENDER_LIMIT + 1,
+        sort=sort,
+        direction=direction,
     )
     prazos_truncated = len(prazos_render) > CONTROLADORIA_RENDER_LIMIT
     prazos = prazos_render[:CONTROLADORIA_RENDER_LIMIT]
@@ -931,7 +1162,7 @@ async def controladoria_dashboard(
     tribunal_rows = db.execute(
         text("""
             SELECT DISTINCT
-                CASE
+                COALESCE(NULLIF(c.tribunal, ''), CASE
                     WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.5.03.%' THEN 'TRT3'
                     WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.5.01.%' THEN 'TRT1'
                     WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.4.06.%' THEN 'TRF6'
@@ -939,7 +1170,7 @@ async def controladoria_dashboard(
                     WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.8.13.%' THEN 'TJMG'
                     WHEN COALESCE(p.processo_override, c.numero_processo, c.case_number, '') LIKE '%.8.26.%' THEN 'TJSP'
                     ELSE 'Outro'
-                END AS tribunal
+                END) AS tribunal
             FROM prazos_processuais p
             LEFT JOIN cases c ON p.case_id = c.id
             WHERE p.org_id = :org_id AND p.status NOT IN ('concluido')
@@ -981,10 +1212,29 @@ async def controladoria_dashboard(
 
     # Users da org para dropdown de responsável
     org_users = db.execute(
-        text("SELECT id, name, email, user_type FROM users WHERE org_id = :org_id AND enabled = TRUE ORDER BY name"),
+        text("SELECT id, name, email, user_type, color, photo_url, oab_number FROM users WHERE org_id = :org_id AND enabled = TRUE ORDER BY name"),
         {"org_id": org_id},
     ).fetchall()
-    users_list = [{"id": u.id, "name": u.name, "initials": "".join(w[0].upper() for w in u.name.split()[:2])} for u in org_users]
+    users_list = []
+    oab_options = []
+    for u in org_users:
+        oab_numero, oab_uf = _parse_oab_number(getattr(u, "oab_number", "") or "")
+        users_list.append({
+            "id": u.id,
+            "name": u.name,
+            "initials": _initials(u.name),
+            "photo_url": u.photo_url or "",
+            "color": u.color or "#1C2447",
+            "oab_number": oab_numero,
+            "oab_uf": oab_uf if oab_numero else "",
+        })
+        if oab_numero:
+            oab_options.append({
+                "user_id": u.id,
+                "name": u.name or "Advogado",
+                "numero": oab_numero,
+                "uf": oab_uf,
+            })
 
     # Opções pros dropdowns de inline-edit Cliente/Processo (29/05 Victor): clicar
     # a célula abre um <select> com os existentes (tenant-isolado) + "cadastrar novo".
@@ -1005,6 +1255,17 @@ async def controladoria_dashboard(
         for c in cases_query
     ]
 
+    prazos_concluidos = _get_prazos(
+        db,
+        org_id,
+        status_filter="concluido",
+        search=search,
+        tribunal=tribunal,
+        limit=500,
+        sort="data_vencimento",
+        direction="desc",
+    )
+
     comuns = prazos_comuns()
     org_ctx = inject_org_context(request)
 
@@ -1017,6 +1278,7 @@ async def controladoria_dashboard(
             "stats": stats,
             "prazos": prazos,
             "prazos_truncated": prazos_truncated,
+            "prazos_concluidos": prazos_concluidos,
             "controladoria_render_limit": CONTROLADORIA_RENDER_LIMIT,
             "prazos_vencidos": prazos_vencidos,
             "prazos_vencidos_total": prazos_vencidos_total,
@@ -1026,14 +1288,17 @@ async def controladoria_dashboard(
             "controladoria_case_option_limit": CONTROLADORIA_CASE_OPTION_LIMIT,
             "prazos_comuns": comuns,
             "org_users": users_list,
+            "oab_options": oab_options,
             "clientes_opc": clientes_opc,
             "processos_opc": processos_opc,
             "produtividade_setores": _get_produtividade_setores(db, org_id),
-            "api_status_cards": _controladoria_api_status_cards(),
+            "api_status_cards": _controladoria_api_status_cards(org_id),
             "search": search,
             "status_filter": status,
             "mes_filter": mes,
             "tribunal_filter": tribunal,
+            "sort_key": sort,
+            "sort_direction": "desc" if direction.lower() == "desc" else "asc",
             "tribunais_disponiveis": tribunais_disponiveis,
             **org_ctx,
         },
@@ -1105,8 +1370,13 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    # Ruling 2026-06-03 (CWE-862): exige cargo com escrita (gestor/advogado/estagiario),
+    # nao basta estar logado. has_permission via cookie auth (require_permission e bearer).
+    if not has_permission(user.user_type or "", "cases.edit"):
+        return JSONResponse({"error": "Permissao negada para criar prazo"}, status_code=403)
 
     org_id = _get_org_id(request)
+    _ensure_controladoria_schema(db)
 
     try:
         data = await request.json()
@@ -1118,6 +1388,7 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
     case_id = data.get("case_id")
     processo_manual = data.get("processo_manual", "").strip()
     cliente_manual = data.get("cliente_manual", "").strip()
+    parte_contraria_manual = data.get("parte_contraria_manual", "").strip()
 
     # Prazo avulso: o advogado pode informar apenas o número do processo,
     # sem obrigar cadastro completo em cases.
@@ -1129,6 +1400,7 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
     data_intimacao_str = data.get("data_intimacao", "")
     dias_prazo = data.get("dias_prazo")
     responsavel = data.get("responsavel", "").strip()
+    responsavel_user_id = data.get("responsavel_user_id") or data.get("responsavel_id")
     uf = data.get("uf", "MG").upper()
     descricao = data.get("descricao", "").strip()
     dobro = data.get("dobro", False)
@@ -1136,10 +1408,46 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
     if isinstance(dobro, str):
         dobro = dobro.lower() in ("true", "1", "on", "sim")
 
+    # Reunião 10/06 (Ricardo/Example User) — prazo administrativo em dias corridos
+    # (INSS etc): conta dias de calendário, sem dia útil/feriado/tribunal.
+    dias_corridos = data.get("dias_corridos", False)
+    if isinstance(dias_corridos, str):
+        dias_corridos = dias_corridos.lower() in ("true", "1", "on", "sim")
+
+    # Tribunal explícito (reunião 10/06): UF sozinha é ambígua (MG -> TJMG/TRT3/TRF6).
+    # Quando informado, tem prioridade sobre a inferência por número/UF.
+    tribunal_param = (data.get("tribunal") or "").strip()
+
+    # Example User 02/06 (C11) — "enviar pro chat" opcional + DESATIVAVEL (default = nao avisa).
+    # Checkbox de form chega como "on"; JSON pode mandar true/1. Ausente = false.
+    notificar_chat = data.get("notificar_chat", False)
+    if isinstance(notificar_chat, str):
+        notificar_chat = notificar_chat.lower() in ("true", "1", "on", "sim")
+
+    try:
+        responsavel_user_id = int(responsavel_user_id) if responsavel_user_id else None
+    except (TypeError, ValueError):
+        responsavel_user_id = None
+    if responsavel_user_id:
+        user_row = db.execute(
+            text("SELECT id, name FROM users WHERE id = :id AND org_id = :org_id AND enabled = TRUE"),
+            {"id": responsavel_user_id, "org_id": org_id},
+        ).fetchone()
+        if user_row:
+            responsavel = user_row.name
+        else:
+            responsavel_user_id = None
+
     if not tipo:
         return JSONResponse({"error": "Tipo de prazo e obrigatorio"}, status_code=400)
     if not data_intimacao_str:
         return JSONResponse({"error": "Data de intimacao e obrigatoria"}, status_code=400)
+
+    # Example User 03/06: horário opcional do vencimento ("HH:MM"). Vazio = sem hora.
+    hora_vencimento = (data.get("hora_vencimento") or "").strip()
+    if hora_vencimento and not _HORA_RE.match(hora_vencimento):
+        return JSONResponse({"error": "Horario invalido (use HH:MM)"}, status_code=400)
+    hora_vencimento = hora_vencimento or None
 
     try:
         data_intimacao = date.fromisoformat(data_intimacao_str)
@@ -1159,20 +1467,48 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
         except (TypeError, ValueError):
             return JSONResponse({"error": "Dias do prazo deve ser um numero"}, status_code=400)
 
+    case_tribunal = ""
+    case_processo = ""
+    if case_id:
+        case_row = db.execute(
+            text("""
+                SELECT tribunal, numero_processo, case_number
+                FROM cases
+                WHERE id = :case_id AND org_id = :org_id
+            """),
+            {"case_id": int(case_id), "org_id": org_id},
+        ).fetchone()
+        if case_row:
+            case_tribunal = case_row.tribunal or ""
+            case_processo = case_row.numero_processo or case_row.case_number or ""
+    processo_ref = processo_override or case_processo
+    tribunal_inferido = inferir_tribunal(processo_ref)
+    # Tribunal explícito do formulário > tribunal do case > inferência por número.
+    tribunal_codigo = normalizar_tribunal(tribunal_param or case_tribunal or tribunal_inferido)
+    if tribunal_codigo == "CNJ" and not (tribunal_param or case_tribunal) and tribunal_inferido == "CNJ":
+        tribunal_codigo = "Outro"
+
     # Calcular datas
-    data_inicio = proximo_dia_util(data_intimacao + timedelta(days=1), uf)
-    data_vencimento = calcular_prazo(data_intimacao, dias_prazo, uf, dobro)
+    if dias_corridos:
+        # Administrativo: dias corridos (calendário); começa no dia seguinte.
+        data_inicio = data_intimacao + timedelta(days=1)
+        data_vencimento = calcular_prazo_corrido(data_intimacao, dias_prazo)
+    else:
+        data_inicio = proximo_dia_util(data_intimacao + timedelta(days=1), uf, tribunal=tribunal_codigo)
+        data_vencimento = calcular_prazo(data_intimacao, dias_prazo, uf, dobro, tribunal=tribunal_codigo)
 
     # Inserir no banco
     try:
         db.execute(
             text("""
                 INSERT INTO prazos_processuais
-                    (case_id, org_id, tipo, data_intimacao, data_inicio, data_vencimento,
-                     dias_prazo, responsavel, status, descricao, uf, dobro, processo_override, cliente_override)
+                    (case_id, org_id, tipo, data_intimacao, data_inicio, data_vencimento, hora_vencimento,
+                     dias_prazo, responsavel, responsavel_user_id, status, descricao, uf, dobro, dias_corridos,
+                     processo_override, cliente_override, parte_contraria_override)
                 VALUES
-                    (:case_id, :org_id, :tipo, :data_intimacao, :data_inicio, :data_vencimento,
-                     :dias_prazo, :responsavel, 'pendente', :descricao, :uf, :dobro, :processo_override, :cliente_override)
+                    (:case_id, :org_id, :tipo, :data_intimacao, :data_inicio, :data_vencimento, :hora_vencimento,
+                     :dias_prazo, :responsavel, :responsavel_user_id, 'pendente', :descricao, :uf, :dobro, :dias_corridos,
+                     :processo_override, :cliente_override, :parte_contraria_override)
             """),
             {
                 "case_id": int(case_id) if case_id else None,
@@ -1181,13 +1517,17 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
                 "data_intimacao": data_intimacao,
                 "data_inicio": data_inicio,
                 "data_vencimento": data_vencimento,
+                "hora_vencimento": hora_vencimento,
                 "dias_prazo": dias_prazo,
                 "responsavel": responsavel or None,
+                "responsavel_user_id": responsavel_user_id,
                 "descricao": descricao or None,
                 "uf": uf,
                 "dobro": dobro,
+                "dias_corridos": dias_corridos,
                 "processo_override": processo_override,
                 "cliente_override": cliente_manual or None,
+                "parte_contraria_override": parte_contraria_manual or None,
             },
         )
         db.commit()
@@ -1201,6 +1541,46 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
         tipo, data_intimacao, data_vencimento, responsavel,
     )
 
+    # Example User 02/06 (C11) — opcao "enviar pro chat": ao criar o prazo, avisa a equipe.
+    # DESATIVAVEL: so' roda quando notificar_chat=true. Best-effort (nunca derruba o
+    # fluxo). Reusa o sininho (Notification + poller que ja' toca som) e o chat real
+    # (#equipe via team_messages), org-scoped por construcao.
+    if notificar_chat:
+        proc_label = (processo_override or "").strip()
+        resp_label = (responsavel or "").strip()
+        titulo = "Novo prazo criado"
+        partes = [f"Prazo '{tipo}'"]
+        if proc_label:
+            partes.append(f"no processo {proc_label}")
+        if resp_label:
+            partes.append(f"para {resp_label}")
+        partes.append(f"— vence em {data_vencimento.isoformat()}")
+        msg = " ".join(partes)
+
+        # (1) Sininho + som: notificacao in-app para toda a equipe da org.
+        try:
+            from services.notifications.in_app import create_notification_for_all_staff
+            create_notification_for_all_staff(
+                db=db,
+                title=titulo,
+                notification_type="deadline_approaching",
+                message=msg,
+                severity="info",
+                org_id=org_id,
+                action_url=f"{PREFIX}/controladoria",
+            )
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error("Falha ao notificar equipe sobre novo prazo: %s", e)
+
+        # (2) Chat de equipe: posta no #equipe (sem duplicar o sistema de chat).
+        try:
+            from routes.team_messages import post_system_message_to_equipe
+            post_system_message_to_equipe(db, org_id, user.id, f"{titulo}: {msg}")
+        except Exception as e:
+            logger.error("Falha ao postar novo prazo no chat de equipe: %s", e)
+
     # Se veio de JSON, retorna JSON. Se form, redireciona.
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
@@ -1213,8 +1593,11 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
                 "data_vencimento": data_vencimento.isoformat(),
                 "dias_prazo": dias_prazo,
                 "responsavel": responsavel,
+                "responsavel_user_id": responsavel_user_id,
                 "processo": processo_override,
                 "cliente": cliente_manual,
+                "parte_contraria": parte_contraria_manual,
+                "tribunal": tribunal_codigo,
             },
         })
     return RedirectResponse(url=f"{PREFIX}/controladoria", status_code=303)
@@ -1328,7 +1711,7 @@ async def buscar_comunicaapi(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"error": "Numero OAB obrigatorio"}, status_code=400)
 
     try:
-        resultado = await _search_intimacoes_oab_chain(numero_oab, uf_oab, data_inicio, data_fim)
+        resultado = await _search_intimacoes_oab_chain(numero_oab, uf_oab, data_inicio, data_fim, org_id=org_id)
         intimacoes = resultado.get("items", [])
         failed = resultado.get("provider_status") == "failed"
         payload = {
@@ -1377,6 +1760,8 @@ async def importar_intimacoes(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    if not has_permission(user.user_type or "", "cases.edit"):
+        return JSONResponse({"error": "Permissao negada"}, status_code=403)
 
     org_id = _get_org_id(request)
 
@@ -1459,7 +1844,8 @@ async def importar_intimacoes(request: Request, db: Session = Depends(get_db)):
 
         # Calculate vencimento using extracted or default days
         try:
-            dt_vencimento = calcular_prazo(dt_intimacao, dias_prazo, estado="MG")
+            tribunal_codigo = normalizar_tribunal(tribunal or inferir_tribunal(numero_processo))
+            dt_vencimento = calcular_prazo(dt_intimacao, dias_prazo, estado="MG", tribunal=tribunal_codigo)
         except Exception:
             dt_vencimento = dt_intimacao + timedelta(days=int(dias_prazo * 1.4))
 
@@ -1511,6 +1897,8 @@ async def concluir_prazo(prazo_id: int, request: Request, db: Session = Depends(
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    if not has_permission(user.user_type or "", "cases.edit"):
+        return JSONResponse({"error": "Permissao negada"}, status_code=403)
 
     org_id = _get_org_id(request)
 
@@ -1632,9 +2020,21 @@ async def api_datajud_busca(
 async def api_produtividade(
     request: Request,
     mes: str = Query(None, description="Mes no formato YYYY-MM"),
+    groupby: str = Query("urgencia", description="Eixo do donut: urgencia | status | responsavel | tipo"),
     db: Session = Depends(get_db),
 ):
-    """Retorna dados de produtividade por tipo de peticao para o pie chart."""
+    """Painel holístico da controladoria.
+
+    Victor 03/06: o donut precisa refletir a CONTROLADORIA COMO UM TODO usando dados que
+    EXISTEM. `groupby` controla o eixo do donut:
+      - urgencia    (default): distribuição da carteira ATIVA por cor (fatal/vencido/amarelo/verde)
+                    — mesma regra de cor das linhas (rota _get_prazos), sobre TODOS os prazos.
+      - status      : distribuição de TODOS os prazos por status (pendente/concluido/perdido).
+      - responsavel : carga da carteira ativa por responsável (NULL -> 'Sem responsável').
+      - tipo        : LEGADO — petições concluídas no mês por tipo (tipo quase sempre NULL).
+    Sempre devolve `carteira` (a foto do todo) + `por_responsavel` (concluídos-no-mês) + meta.
+    Org-scoped em toda query.
+    """
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
@@ -1658,17 +2058,20 @@ async def api_produtividade(
     period_start = date(ano, m, 1)
     period_end = date(ano + 1, 1, 1) if m == 12 else date(ano, m + 1, 1)
 
-    # C2 ([parceiro] 02/06): um prazo concluido conta na produtividade do mes quando a
+    # C2 (Example User 02/06): um prazo concluido conta na produtividade do mes quando a
     # DATA DE CONCLUSAO **ou** a DATA DE VENCIMENTO cai no mes. Antes so contava por
     # data_conclusao (com updated_at de fallback), entao prazos concluidos com
     # vencimento em maio/01-jun ficavam de fora da contagem mensal.
     rows = db.execute(
         text("""
-            SELECT tipo_peticao, COUNT(*) as qtd
+            -- FIX (Victor 03/06): a produtividade agrupava por tipo_peticao E excluía NULL,
+            -- mas o sistema preenche a coluna `tipo` (tipo_peticao fica NULL) -> contava 0
+            -- mesmo com prazos concluídos (dessincronizado da lista). Agora usa o tipo real
+            -- (tipo_peticao -> tipo -> 'Sem tipo') e NÃO exclui concluídos sem tipo.
+            SELECT COALESCE(NULLIF(tipo_peticao,''), NULLIF(tipo,''), 'Sem tipo') AS tipo_peticao, COUNT(*) as qtd
             FROM prazos_processuais
             WHERE org_id = :org_id
               AND status = 'concluido'
-              AND tipo_peticao IS NOT NULL AND tipo_peticao != ''
               AND (
                   (data_conclusao IS NOT NULL AND data_conclusao >= :period_start AND data_conclusao < :period_end)
                   OR
@@ -1676,7 +2079,7 @@ async def api_produtividade(
                   OR
                   (data_conclusao IS NULL AND data_vencimento IS NULL AND updated_at >= :period_start AND updated_at < :period_end)
               )
-            GROUP BY tipo_peticao
+            GROUP BY COALESCE(NULLIF(tipo_peticao,''), NULLIF(tipo,''), 'Sem tipo')
             ORDER BY qtd DESC
         """),
         {"org_id": org_id, "period_start": period_start, "period_end": period_end},
@@ -1688,15 +2091,189 @@ async def api_produtividade(
         tipos[row.tipo_peticao] = row.qtd
         total += row.qtd
 
-    META = 100  # meta mensal configuravel
+    # Concluidos por responsavel no mes (MESMA janela de contagem dos tipos) — alimenta o
+    # grafico de barras horizontais ao lado do donut (Victor 03/06: preencher o espaco
+    # horizontal vazio com mais informacao = accountability por pessoa). Org-scoped.
+    resp_rows = db.execute(
+        text("""
+            SELECT COALESCE(NULLIF(responsavel, ''), 'Sem responsável') AS nome, COUNT(*) AS qtd
+            FROM prazos_processuais
+            WHERE org_id = :org_id
+              AND status = 'concluido'
+              AND (
+                  (data_conclusao IS NOT NULL AND data_conclusao >= :period_start AND data_conclusao < :period_end)
+                  OR
+                  (data_vencimento IS NOT NULL AND data_vencimento >= :period_start AND data_vencimento < :period_end)
+                  OR
+                  (data_conclusao IS NULL AND data_vencimento IS NULL AND updated_at >= :period_start AND updated_at < :period_end)
+              )
+            GROUP BY COALESCE(NULLIF(responsavel, ''), 'Sem responsável')
+            ORDER BY qtd DESC
+            LIMIT 8
+        """),
+        {"org_id": org_id, "period_start": period_start, "period_end": period_end},
+    ).fetchall()
+    por_responsavel = [{"nome": r.nome, "qtd": int(r.qtd or 0)} for r in resp_rows]
+
+    # --- A FOTO DO TODO (carteira) — reusa _get_stats (org-scoped, all-time) + o total mensal.
+    # Victor 03/06: KPIs holísticos no topo do painel. eficiencia_geral = concluídos/total da carteira.
+    carteira_stats = _get_stats(db, org_id)
+    c_total = int(carteira_stats.get("total") or 0)
+    carteira = {
+        "total": c_total,
+        "pendentes": max(c_total - int(carteira_stats.get("concluidos") or 0), 0),
+        "concluidos_total": int(carteira_stats.get("concluidos") or 0),
+        "concluidos_mes": total,
+        "vencidos": int(carteira_stats.get("vencidos") or 0),
+        "fatais_hoje": int(carteira_stats.get("fatais_hoje") or 0),
+        "proximos": int(carteira_stats.get("proximos") or 0),
+        "eficiencia_geral": round((int(carteira_stats.get("concluidos") or 0) / c_total) * 100) if c_total else 0,
+    }
+
+    # --- DONUT: eixo escolhido. urgencia/status/responsavel = carteira REAL (dados preenchidos);
+    # tipo = legado (concluídos-no-mês). dist = {label: qtd} ordenado; dist_order preserva a ordem.
+    gb = (groupby or "urgencia").strip().lower()
+    if gb not in ("urgencia", "status", "responsavel", "tipo"):
+        gb = "urgencia"
+
+    dist: dict = {}
+    dist_order: list = []
+    dist_label = "Por urgência"
+    if gb == "tipo":
+        # Mantém a semântica antiga (concluídos no mês por tipo) já calculada em `tipos`.
+        dist = dict(tipos)
+        dist_order = list(tipos.keys())
+        dist_label = "Por tipo (concluídos no mês)"
+    elif gb == "responsavel":
+        # Carga da carteira ATIVA (não concluído/perdido) por responsável — mostra quem segura o quê.
+        r2 = db.execute(
+            text("""
+                SELECT COALESCE(NULLIF(responsavel, ''), 'Sem responsável') AS k, COUNT(*) AS qtd
+                FROM prazos_processuais
+                WHERE org_id = :org_id
+                  AND COALESCE(status, 'pendente') NOT IN ('concluido', 'perdido')
+                GROUP BY COALESCE(NULLIF(responsavel, ''), 'Sem responsável')
+                ORDER BY qtd DESC LIMIT 10
+            """),
+            {"org_id": org_id},
+        ).fetchall()
+        for row in r2:
+            dist[row.k] = int(row.qtd or 0)
+            dist_order.append(row.k)
+        dist_label = "Carteira ativa por responsável"
+    elif gb == "status":
+        s2 = db.execute(
+            text("""
+                SELECT COALESCE(NULLIF(status, ''), 'pendente') AS k, COUNT(*) AS qtd
+                FROM prazos_processuais
+                WHERE org_id = :org_id
+                GROUP BY COALESCE(NULLIF(status, ''), 'pendente')
+            """),
+            {"org_id": org_id},
+        ).fetchall()
+        _STATUS_LABEL = {"pendente": "Pendente", "concluido": "Concluído", "perdido": "Perdido", "em_andamento": "Em andamento"}
+        raw = {row.k: int(row.qtd or 0) for row in s2}
+        for k in sorted(raw, key=lambda x: -raw[x]):
+            label = _STATUS_LABEL.get(k, k.replace("_", " ").capitalize())
+            dist[label] = raw[k]
+            dist_order.append(label)
+        dist_label = "Por status"
+    else:  # urgencia — MESMA regra de cor das linhas (_get_prazos): fatal/vencido/amarelo/verde.
+        u = db.execute(
+            text("""
+                SELECT
+                  SUM(CASE WHEN status = 'perdido'
+                            OR (status <> 'concluido' AND data_vencimento IS NOT NULL AND data_vencimento < CURRENT_DATE)
+                           THEN 1 ELSE 0 END) AS vencido,
+                  SUM(CASE WHEN status <> 'concluido' AND status <> 'perdido'
+                            AND data_vencimento = CURRENT_DATE THEN 1 ELSE 0 END) AS fatal,
+                  SUM(CASE WHEN status <> 'concluido' AND status <> 'perdido'
+                            AND data_vencimento > CURRENT_DATE
+                            AND data_vencimento <= CURRENT_DATE + INTERVAL '7 days' THEN 1 ELSE 0 END) AS amarelo,
+                  SUM(CASE WHEN status <> 'concluido' AND status <> 'perdido'
+                            AND (data_vencimento IS NULL OR data_vencimento > CURRENT_DATE + INTERVAL '7 days')
+                           THEN 1 ELSE 0 END) AS verde,
+                  SUM(CASE WHEN status = 'concluido' THEN 1 ELSE 0 END) AS concluido
+                FROM prazos_processuais
+                WHERE org_id = :org_id
+            """),
+            {"org_id": org_id},
+        ).fetchone()
+        # Ordem semântica de gravidade (Lei de Miller: poucas faixas, fáceis de ler).
+        for label, key in (("Fatal hoje", "fatal"), ("Vencidos", "vencido"),
+                           ("Próx. 7 dias", "amarelo"), ("Em dia", "verde"), ("Concluídos", "concluido")):
+            qtd = int(getattr(u, key) or 0) if u else 0
+            if qtd:
+                dist[label] = qtd
+                dist_order.append(label)
+        dist_label = "Carteira por urgência"
+
+    META = _get_meta(db, org_id)
 
     return JSONResponse({
         "total": total,
         "mes": mes,
+        "groupby": gb,
+        "dist": dist,
+        "dist_order": dist_order,
+        "dist_label": dist_label,
+        "carteira": carteira,
         "tipos": tipos,
+        "por_responsavel": por_responsavel,
         "meta_batida": total >= META,
         "meta": META,
+        "meta_sugerida": META_SUGERIDA,
+        "pode_editar_meta": has_permission(user.user_type or "", "settings.edit"),
     })
+
+
+@router.post("/meta")
+async def atualizar_meta(request: Request, db: Session = Depends(get_db)):
+    """Atualiza a meta mensal de produtividade da org (Example User 02/06: gestor edita a meta).
+    Ruling 2026-06-03: role-gated (settings.edit = gestor/super_admin), org-scoped SEM
+    fallback->1, input validado, audit log. Storage em org_settings (existente)."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    if not has_permission(user.user_type or "", "settings.edit"):
+        return JSONResponse(
+            {"error": "Permissao negada: apenas gestor/administrador pode editar a meta"},
+            status_code=403,
+        )
+    org_id = _get_org_id_strict(request)
+    if not org_id:
+        return JSONResponse({"error": "Organizacao nao identificada"}, status_code=400)
+    try:
+        data = await request.json()
+        meta = int(data.get("meta"))
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "Meta invalida (use um numero inteiro)"}, status_code=400)
+    if meta < 1 or meta > 100000:
+        return JSONResponse({"error": "Meta fora da faixa permitida (1 a 100000)"}, status_code=400)
+    try:
+        old = _get_meta(db, org_id)
+        settings = _org_settings(db, org_id)
+        settings[META_KEY] = meta
+        db.execute(
+            text("UPDATE organizations SET settings = :s WHERE id = :oid"),
+            {"s": json.dumps(settings), "oid": org_id},
+        )
+        db.commit()
+        try:
+            from services.audit import log_action
+            log_action(
+                db, action="controladoria.meta_update", entity_type="org_settings",
+                entity_id=org_id, user_id=user.id,
+                description=f"Meta mensal {old} -> {meta} (org {org_id})",
+                details={"de": old, "para": meta, "org_id": org_id}, request=request,
+            )
+        except Exception as _audit_err:
+            logger.warning("meta_update sem audit log: %s", _audit_err)
+        return JSONResponse({"success": True, "meta": meta, "meta_sugerida": META_SUGERIDA})
+    except Exception as e:
+        db.rollback()
+        logger.error("Erro ao salvar meta: %s", e)
+        return JSONResponse({"error": "Falha ao salvar a meta"}, status_code=500)
 
 
 @router.post("/reordenar")
@@ -1705,6 +2282,8 @@ async def reordenar_prazos(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    if not has_permission(user.user_type or "", "cases.edit"):
+        return JSONResponse({"error": "Permissao negada"}, status_code=403)
 
     org_id = _get_org_id(request)
     try:
@@ -1741,6 +2320,8 @@ async def update_prazo(prazo_id: int, request: Request, db: Session = Depends(ge
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    if not has_permission(user.user_type or "", "cases.edit"):
+        return JSONResponse({"error": "Permissao negada"}, status_code=403)
 
     org_id = _get_org_id(request)
 
@@ -1752,18 +2333,46 @@ async def update_prazo(prazo_id: int, request: Request, db: Session = Depends(ge
     field = data.get("field")
     value = data.get("value")
 
+    # Parte contrária: se há case_id grava em cases.polo_passivo; se avulso
+    # (sem case_id) grava em prazos_processuais.parte_contraria_override. 11/06.
+    if field == "parte_contraria":
+        row = db.execute(
+            text("SELECT case_id FROM prazos_processuais WHERE id = :id AND org_id = :org_id"),
+            {"id": prazo_id, "org_id": org_id},
+        ).fetchone()
+        if not row:
+            return JSONResponse({"error": "Prazo nao encontrado"}, status_code=404)
+        novo = (value or "").strip() or None
+        if row.case_id:
+            db.execute(
+                text("UPDATE cases SET polo_passivo = :v WHERE id = :cid AND org_id = :org_id"),
+                {"v": novo, "cid": row.case_id, "org_id": org_id},
+            )
+        else:
+            db.execute(
+                text(
+                    "UPDATE prazos_processuais SET parte_contraria_override = :v, "
+                    "updated_at = CURRENT_TIMESTAMP WHERE id = :id AND org_id = :org_id"
+                ),
+                {"v": novo, "id": prazo_id, "org_id": org_id},
+            )
+        db.commit()
+        return JSONResponse({"success": True, "field": field, "value": novo or "—"})
+
     # Whitelist of editable fields
     allowed_fields = {
         "descricao": "descricao",
         "status": "status",
         "tipo": "tipo",
         "responsavel": "responsavel",
+        "responsavel_user_id": "responsavel_user_id",
         "processo": "processo_override",
         "cliente": "cliente_override",
         "dias_prazo": "dias_prazo",
         "data_inicio": "data_inicio",
         "data_intimacao": "data_intimacao",
         "tipo_peticao": "tipo_peticao",
+        "hora_vencimento": "hora_vencimento",
     }
 
     if field not in allowed_fields:
@@ -1773,31 +2382,121 @@ async def update_prazo(prazo_id: int, request: Request, db: Session = Depends(ge
         )
 
     # Validate status values
-    if field == "status" and value not in ("pendente", "em_andamento", "concluido", "perdido"):
+    if field == "status" and value not in ("pendente", "em_andamento", "concluido", "perdido", "aguarda_correcao"):
         return JSONResponse({"error": f"Status invalido: {value}"}, status_code=400)
+
+    # Example User 03/06: horário do vencimento ("HH:MM"); vazio limpa a hora.
+    if field == "hora_vencimento":
+        value = (value or "").strip()
+        if value and not _HORA_RE.match(value):
+            return JSONResponse({"error": "Horario invalido (use HH:MM)"}, status_code=400)
+        value = value or None
+
+    if field == "responsavel_user_id":
+        try:
+            user_id = int(value) if value not in (None, "", "—") else None
+        except (TypeError, ValueError):
+            return JSONResponse({"error": "Responsavel invalido"}, status_code=400)
+
+        if user_id:
+            user_row = db.execute(
+                text("""
+                    SELECT id, name, color, photo_url
+                    FROM users
+                    WHERE id = :user_id AND org_id = :org_id AND enabled = TRUE
+                """),
+                {"user_id": user_id, "org_id": org_id},
+            ).fetchone()
+            if not user_row:
+                return JSONResponse({"error": "Usuario nao encontrado"}, status_code=404)
+            responsavel_nome = user_row.name
+        else:
+            user_row = None
+            responsavel_nome = None
+
+        result = db.execute(
+            text("""
+                UPDATE prazos_processuais
+                SET responsavel_user_id = :responsavel_user_id,
+                    responsavel = :responsavel,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id AND org_id = :org_id
+            """),
+            {
+                "responsavel_user_id": user_id,
+                "responsavel": responsavel_nome,
+                "id": prazo_id,
+                "org_id": org_id,
+            },
+        )
+        db.commit()
+        if result.rowcount == 0:
+            return JSONResponse({"error": "Prazo nao encontrado"}, status_code=404)
+        payload = {
+            "success": True,
+            "field": field,
+            "value": user_id,
+            "responsavel": responsavel_nome or "—",
+            "responsavel_user": None,
+        }
+        if user_row:
+            payload["responsavel_user"] = {
+                "id": user_row.id,
+                "name": user_row.name,
+                "initials": _initials(user_row.name),
+                "photo_url": user_row.photo_url or "",
+                "color": user_row.color or "#1C2447",
+            }
+        return JSONResponse(payload)
 
     col = allowed_fields[field]
 
-    # P8 fix: Ao editar dias_prazo, recalcular data_vencimento
+    # P8 fix + reunião 10/06: ao editar dias_prazo OU data_intimacao (Dia de Início),
+    # recalcular data_vencimento e data_inicio — respeitando dias corridos (administrativo).
     extra_updates = ""
     extra_params = {}
-    if field == "dias_prazo":
-        try:
-            new_dias = int(value)
-            # Buscar data_inicio e uf atuais do prazo
-            prazo_row = db.execute(
-                text("SELECT data_inicio, data_intimacao, uf, dobro FROM prazos_processuais WHERE id = :id AND org_id = :org_id"),
-                {"id": prazo_id, "org_id": org_id},
-            ).fetchone()
-            if prazo_row and prazo_row.data_intimacao:
-                uf = prazo_row.uf or "MG"
-                dobro = prazo_row.dobro or False
-                new_vencimento = calcular_prazo(prazo_row.data_intimacao, new_dias, uf, dobro)
-                extra_updates = ", data_vencimento = :new_venc"
-                extra_params["new_venc"] = new_vencimento
-                value = new_dias
-        except (TypeError, ValueError):
-            pass
+    if field in ("dias_prazo", "data_intimacao"):
+        prazo_row = db.execute(
+            text("""
+                SELECT p.data_inicio, p.data_intimacao, p.dias_prazo, p.uf, p.dobro,
+                       COALESCE(p.dias_corridos, FALSE) AS dias_corridos, p.processo_override,
+                       c.tribunal, c.numero_processo, c.case_number
+                FROM prazos_processuais p
+                LEFT JOIN cases c ON p.case_id = c.id
+                WHERE p.id = :id AND p.org_id = :org_id
+            """),
+            {"id": prazo_id, "org_id": org_id},
+        ).fetchone()
+        if prazo_row:
+            try:
+                if field == "dias_prazo":
+                    new_dias = int(value)
+                    base_intimacao = prazo_row.data_intimacao
+                    value = new_dias
+                else:  # data_intimacao (Dia de Início)
+                    base_intimacao = date.fromisoformat(value) if value else prazo_row.data_intimacao
+                    new_dias = prazo_row.dias_prazo or 15
+                if base_intimacao and new_dias and new_dias > 0:
+                    uf = prazo_row.uf or "MG"
+                    dobro = prazo_row.dobro or False
+                    if bool(prazo_row.dias_corridos):
+                        new_venc = calcular_prazo_corrido(base_intimacao, new_dias)
+                        new_inicio = base_intimacao + timedelta(days=1)
+                    else:
+                        processo_ref = prazo_row.processo_override or prazo_row.numero_processo or prazo_row.case_number
+                        tribunal_inferido = inferir_tribunal(processo_ref)
+                        tribunal_codigo = normalizar_tribunal(prazo_row.tribunal or tribunal_inferido)
+                        if tribunal_codigo == "CNJ" and not prazo_row.tribunal and tribunal_inferido == "CNJ":
+                            tribunal_codigo = "Outro"
+                        new_venc = calcular_prazo(base_intimacao, new_dias, uf, dobro, tribunal=tribunal_codigo)
+                        new_inicio = proximo_dia_util(base_intimacao + timedelta(days=1), uf, tribunal=tribunal_codigo)
+                    extra_updates = ", data_vencimento = :new_venc, data_inicio = :new_inicio"
+                    extra_params["new_venc"] = new_venc
+                    extra_params["new_inicio"] = new_inicio
+            except (TypeError, ValueError):
+                pass
+    elif field == "responsavel":
+        extra_updates = ", responsavel_user_id = NULL"
 
     try:
         result = db.execute(
@@ -1819,6 +2518,8 @@ async def update_prazo(prazo_id: int, request: Request, db: Session = Depends(ge
     resp = {"success": True, "field": field, "value": value}
     if extra_params.get("new_venc"):
         resp["new_vencimento"] = str(extra_params["new_venc"])
+    if extra_params.get("new_inicio"):
+        resp["new_inicio"] = str(extra_params["new_inicio"])
 
     logger.info("Prazo %d atualizado: %s = %s %s", prazo_id, field, value,
                 f"(vencimento recalculado: {extra_params.get('new_venc')})" if extra_params.get("new_venc") else "")
@@ -1831,6 +2532,9 @@ async def excluir_prazo(prazo_id: int, request: Request, db: Session = Depends(g
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    # Ruling 2026-06-03 (CWE-862): exclusao exige cargo com delete (gestor/advogado).
+    if not has_permission(user.user_type or "", "cases.delete"):
+        return JSONResponse({"error": "Permissao negada para excluir prazo"}, status_code=403)
 
     org_id = _get_org_id(request)
 
@@ -1859,6 +2563,8 @@ async def bulk_concluir(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    if not has_permission(user.user_type or "", "cases.edit"):
+        return JSONResponse({"error": "Permissao negada"}, status_code=403)
 
     org_id = _get_org_id(request)
     try:
@@ -1866,7 +2572,7 @@ async def bulk_concluir(request: Request, db: Session = Depends(get_db)):
     except Exception:
         return JSONResponse({"error": "JSON invalido"}, status_code=400)
 
-    ids = data.get("ids", [])
+    ids = [int(i) for i in data.get("ids", []) if str(i).isdigit()]
     if not ids:
         return JSONResponse({"error": "Nenhum prazo selecionado"}, status_code=400)
 
@@ -1892,6 +2598,9 @@ async def bulk_excluir(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    # Ruling 2026-06-03 (CWE-862): exclusao em massa exige cargo com delete.
+    if not has_permission(user.user_type or "", "cases.delete"):
+        return JSONResponse({"error": "Permissao negada para excluir prazos"}, status_code=403)
 
     org_id = _get_org_id(request)
     try:
@@ -1899,7 +2608,7 @@ async def bulk_excluir(request: Request, db: Session = Depends(get_db)):
     except Exception:
         return JSONResponse({"error": "JSON invalido"}, status_code=400)
 
-    ids = data.get("ids", [])
+    ids = [int(i) for i in data.get("ids", []) if str(i).isdigit()]
     if not ids:
         return JSONResponse({"error": "Nenhum prazo selecionado"}, status_code=400)
 
@@ -1918,13 +2627,15 @@ async def duplicar_prazo(prazo_id: int, request: Request, db: Session = Depends(
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    if not has_permission(user.user_type or "", "cases.edit"):
+        return JSONResponse({"error": "Permissao negada"}, status_code=403)
 
     org_id = _get_org_id(request)
 
     row = db.execute(
         text(
             "SELECT case_id, tipo, data_intimacao, data_inicio, data_vencimento, "
-            "dias_prazo, responsavel, descricao, uf, dobro "
+            "dias_prazo, responsavel, responsavel_user_id, descricao, uf, dobro "
             "FROM prazos_processuais WHERE id = :id AND org_id = :org_id"
         ),
         {"id": prazo_id, "org_id": org_id},
@@ -1937,15 +2648,15 @@ async def duplicar_prazo(prazo_id: int, request: Request, db: Session = Depends(
         text(
             "INSERT INTO prazos_processuais "
             "(case_id, org_id, tipo, data_intimacao, data_inicio, data_vencimento, "
-            "dias_prazo, responsavel, status, descricao, uf, dobro) "
+            "dias_prazo, responsavel, responsavel_user_id, status, descricao, uf, dobro) "
             "VALUES (:case_id, :org_id, :tipo, :di, :ds, :dv, :dp, :resp, "
-            "'pendente', :desc, :uf, :dobro) RETURNING id"
+            ":resp_user_id, 'pendente', :desc, :uf, :dobro) RETURNING id"
         ),
         {
             "case_id": row.case_id, "org_id": org_id, "tipo": row.tipo,
             "di": row.data_intimacao, "ds": row.data_inicio,
             "dv": row.data_vencimento, "dp": row.dias_prazo,
-            "resp": row.responsavel, "desc": row.descricao,
+            "resp": row.responsavel, "resp_user_id": row.responsavel_user_id, "desc": row.descricao,
             "uf": row.uf, "dobro": row.dobro,
         },
     )

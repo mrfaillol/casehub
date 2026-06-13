@@ -365,7 +365,7 @@ class TestOrganizationModel:
         db.add(org)
         db.commit()
         db.refresh(org)
-        assert org.plan == "starter"
+        assert org.plan == "office"
 
     def test_from_email_property(self, db):
         org = Organization(

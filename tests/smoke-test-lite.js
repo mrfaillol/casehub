@@ -7,7 +7,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 
-const BASE = 'http://REDACTED-HOST:8002/casehub';
+const BASE = 'http://137.131.237.130:8002/casehub';
 const SHOTS = path.join(__dirname, '..', 'test-results', 'smoke-screenshots');
 const RESULTS = [];
 let shotNum = 0;
@@ -39,8 +39,8 @@ test.describe('Smoke Tests - CaseHub Lite', () => {
     const emailInput = page.locator('input[name="email"], input[type="email"]').first();
     const passInput = page.locator('input[name="password"], input[type="password"]').first();
     if (await emailInput.count() > 0) {
-      await emailInput.fill('victor@example.com');
-      await passInput.fill('REDACTED');
+      await emailInput.fill('victor@vingren.me');
+      await passInput.fill('demo123');
       await page.locator('button[type="submit"], button:has-text("Login")').first().click();
       await page.waitForTimeout(3000);
     }

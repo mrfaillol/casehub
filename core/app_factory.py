@@ -264,7 +264,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
                 "connect-src 'self' https://cdn.jsdelivr.net; "
                 "frame-src 'self' https:; "
-                "frame-ancestors 'self' https://example.com"
+                "frame-ancestors 'self' https://vingren.me"
             )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -292,6 +292,13 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
             except Exception:
                 pass
 
+        # Real presence touch: bump last_activity for the authenticated user so
+        # the dashboard "Online agora" reflects who is genuinely active. Throttled
+        # to at most once / PRESENCE_TOUCH_SECONDS per email to avoid a DB write
+        # on every request on the live alpha. Best-effort: never block the request.
+        if user_email:
+            self._touch_presence(user_email)
+
         set_audit_context(
             user_id=user_id,
             user_email=user_email,
@@ -300,6 +307,44 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
             user_agent=ua,
         )
         return await call_next(request)
+
+    # email -> monotonic deadline of next allowed DB write
+    _presence_seen: dict = {}
+    _presence_lock = threading.Lock()
+    PRESENCE_TOUCH_SECONDS = 60
+
+    def _touch_presence(self, email: str) -> None:
+        import time as _time
+        now_mono = _time.monotonic()
+        with AuditContextMiddleware._presence_lock:
+            deadline = AuditContextMiddleware._presence_seen.get(email, 0.0)
+            if now_mono < deadline:
+                return
+            AuditContextMiddleware._presence_seen[email] = now_mono + self.PRESENCE_TOUCH_SECONDS
+        db = None
+        try:
+            from models.base import SessionLocal
+            from sqlalchemy import update as _sql_update
+            db = SessionLocal()
+            db.execute(
+                _sql_update(User)
+                .where(User.email == email)
+                .values(last_activity=datetime.now())
+            )
+            db.commit()
+        except Exception as exc:
+            logger.warning("presence touch failed for %s: %s", email, exc)
+            # Allow a retry sooner on failure (e.g. column not yet migrated).
+            with AuditContextMiddleware._presence_lock:
+                AuditContextMiddleware._presence_seen.pop(email, None)
+            if db is not None:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+        finally:
+            if db is not None:
+                db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +468,7 @@ CORE_ROUTERS = [
     "settings", "payments", "alerts", "triggers",
     "global_alerts", "contacts", "sso", "referrals", "bulk",
     "client_relationships",
-    "google_calendar", "gmail", "drive_explorer", "maestro_learn", "integrations", "integrations_gateway", "email_templates_v2", "branding",
+    "google_calendar", "gmail", "drive_explorer", "drive_upload", "maestro_learn", "integrations", "integrations_gateway", "email_templates_v2", "branding",
     "onboarding", "superadmin", "password_reset", "subscription",
     "tribunal", "prazos", "files", "checklist",
     "email_worker_status", "leads_analytics", "leads_scoring", "tickets",
@@ -697,6 +742,7 @@ def _run_pending_migrations():
             # Onboarding/subdomain rollout. These columns are mapped by the ORM,
             # so existing databases must receive them before the startup admin
             # query loads User rows.
+            ("users", "last_activity", "TIMESTAMP"),
             ("users", "onboarding_completed_at", "TIMESTAMP"),
             ("users", "onboarding_tour_step", "VARCHAR(50)"),
             ("users", "email_verified_at", "TIMESTAMP"),
@@ -713,10 +759,22 @@ def _run_pending_migrations():
             ("prazos_processuais", "cliente_override", "VARCHAR(255)"),
             ("prazos_processuais", "data_conclusao", "DATE"),
             ("prazos_processuais", "ordem", "INTEGER DEFAULT 0"),
+            ("prazos_processuais", "responsavel_user_id", "INTEGER"),
             ("appointments", "case_id", "INTEGER"),
             ("appointments", "prazo_id", "INTEGER"),
             ("appointments", "task_id", "INTEGER"),
             ("appointments", "gcal_event_id", "VARCHAR(255)"),
+            # Perícia (aba Peric/Pe-Das1 planilha VS, 03/06): local físico/online
+            # da perícia e o status de acompanhamento. Nullable/additive — só são
+            # preenchidos quando type='pericia'.
+            ("appointments", "local", "VARCHAR(255)"),
+            ("appointments", "pericia_status", "VARCHAR(50)"),
+            # Listas privadas no Kanban (03/06): visibility/created_by ficam no MODEL
+            # Task -> são SELECTadas em TODA query de tarefa (Painel inclusive). Por isso
+            # PRECISAM ser garantidas no STARTUP (não só no _ensure lazy do kanban_view),
+            # senão Painel/qualquer página com query de task dá 500 UndefinedColumn.
+            ("tasks", "visibility", "VARCHAR(20) DEFAULT 'org'"),
+            ("tasks", "created_by", "INTEGER"),
             ("kanban_columns", "visibility", "VARCHAR(20) DEFAULT 'shared'"),
             ("kanban_columns", "owner_user_id", "INTEGER"),
             ("kanban_columns", "is_archived", f"BOOLEAN DEFAULT {false_default}"),
@@ -774,6 +832,12 @@ def _run_pending_migrations():
             ("case_step_progress", "notes", "TEXT"),
             ("case_step_progress", "created_at", timestamp_add_default),
             ("case_step_progress", "updated_at", "TIMESTAMP"),
+            # financial_entries soft-delete flag (Financeiro editável, 2026-06-04).
+            # Soft-delete em dado financeiro real: "excluir" = ativo=FALSE; reads
+            # agregam só ativo IS NOT FALSE. additive, default TRUE (linhas legadas
+            # permanecem ativas). updated_at p/ trilha de edição inline.
+            ("financial_entries", "ativo", f"BOOLEAN DEFAULT {true_default}"),
+            ("financial_entries", "updated_at", "TIMESTAMP"),
         ]:
             try:
                 _add_column_if_missing(table_name, column_name, definition)
@@ -804,6 +868,26 @@ def _run_pending_migrations():
                 updated_at TIMESTAMP DEFAULT {now_default},
                 UNIQUE(definition_id, entity_id, entity_type)
             )""",
+            # Google Calendar realtime push (events.watch) channel registry.
+            # DORMANT until GOOGLE_CALENDAR_WATCH_ENABLED is flipped ON; created
+            # eagerly so the (no-op) webhook receiver can SELECT safely on day
+            # one. Org-scoped: every channel row carries the authoritative org_id
+            # + account that owns it, so the PUBLIC webhook never has to trust
+            # the request host/body to decide which tenant to import for. The
+            # channel_token is stored ONLY as a SHA-256 hash (never the secret
+            # itself) so a DB leak cannot be replayed against Google's webhook.
+            # last_message_number gives per-channel replay/out-of-order dedupe.
+            f"""CREATE TABLE IF NOT EXISTS gcal_watch_channels (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                account_name VARCHAR(50) NOT NULL,
+                channel_id VARCHAR(255) NOT NULL,
+                resource_id VARCHAR(512),
+                channel_token_hash VARCHAR(64) NOT NULL,
+                expiration TIMESTAMP,
+                last_message_number BIGINT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT {now_default}
+            )""",
             f"""CREATE TABLE IF NOT EXISTS audit_log (
                 id {pk},
                 org_id INTEGER,
@@ -816,6 +900,37 @@ def _run_pending_migrations():
                 details TEXT,
                 ip_address VARCHAR(100),
                 user_agent VARCHAR(500),
+                created_at TIMESTAMP DEFAULT {now_default}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS org_ai_policies (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                feature VARCHAR(50) NOT NULL DEFAULT 'maestro',
+                provider VARCHAR(50) NOT NULL DEFAULT 'ollama',
+                model VARCHAR(120),
+                endpoint_url TEXT,
+                enabled BOOLEAN DEFAULT {true_default},
+                created_at TIMESTAMP DEFAULT {now_default},
+                updated_at TIMESTAMP DEFAULT {now_default}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS org_ai_provider_credentials (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                provider VARCHAR(50) NOT NULL,
+                secret_ref VARCHAR(200),
+                encrypted_secret TEXT,
+                created_at TIMESTAMP DEFAULT {now_default},
+                updated_at TIMESTAMP DEFAULT {now_default}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS maestro_inferences (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                user_id INTEGER,
+                message_sha256 VARCHAR(64) NOT NULL,
+                response_sha256 VARCHAR(64),
+                model VARCHAR(120),
+                provider VARCHAR(50) NOT NULL DEFAULT 'ollama',
+                status VARCHAR(50),
                 created_at TIMESTAMP DEFAULT {now_default}
             )""",
             # Basic module tables. Keep these bootstrap-safe for clean SQLite
@@ -839,6 +954,7 @@ def _run_pending_migrations():
                 cliente_override VARCHAR(255),
                 data_conclusao DATE,
                 ordem INTEGER DEFAULT 0,
+                responsavel_user_id INTEGER,
                 created_at TIMESTAMP DEFAULT {now_default},
                 updated_at TIMESTAMP DEFAULT {now_default}
             )""",
@@ -988,15 +1104,39 @@ def _run_pending_migrations():
                 updated_at TIMESTAMP DEFAULT {now_default},
                 UNIQUE(case_id, step_id)
             )""",
+            # Proc-M: movimentações/andamentos MANUAIS de processo (04/06). Aditiva,
+            # org-scoped, SEM relationship ORM em Case -> nunca é SELECTada em queries
+            # de caso (evita o lazy _ensure 500). org_id NOT NULL: toda linha pertence
+            # a um tenant; a rota valida que o caso é do org antes de inserir.
+            f"""CREATE TABLE IF NOT EXISTS case_movements (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                case_id INTEGER NOT NULL,
+                data DATE NOT NULL DEFAULT CURRENT_DATE,
+                tipo VARCHAR(50) NOT NULL DEFAULT 'Andamento',
+                descricao TEXT NOT NULL,
+                created_by INTEGER,
+                created_at TIMESTAMP DEFAULT {now_default},
+                updated_at TIMESTAMP
+            )""",
             # Indexes
             "CREATE INDEX IF NOT EXISTS ix_cases_numero_processo ON cases (numero_processo)",
             "CREATE INDEX IF NOT EXISTS ix_prazos_org_status_venc ON prazos_processuais (org_id, status, data_vencimento)",
             "CREATE INDEX IF NOT EXISTS ix_appointments_org_date ON appointments (org_id, date)",
+            # channel_id is the primary lookup key the webhook validates against;
+            # it must be globally unique (Google routes by it). The org+account
+            # index supports stop_watch/re-registration housekeeping.
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_gcal_watch_channel_id ON gcal_watch_channels (channel_id)",
+            "CREATE INDEX IF NOT EXISTS ix_gcal_watch_org_account ON gcal_watch_channels (org_id, account_name)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_org_ai_policies_org_feature ON org_ai_policies (org_id, feature)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_org_ai_provider_credentials_org_provider ON org_ai_provider_credentials (org_id, provider)",
+            "CREATE INDEX IF NOT EXISTS ix_maestro_inferences_org_created ON maestro_inferences (org_id, created_at)",
             "CREATE INDEX IF NOT EXISTS ix_kanban_columns_org_position ON kanban_columns (org_id, position)",
             "CREATE INDEX IF NOT EXISTS ix_kanban_columns_owner_visibility ON kanban_columns (org_id, owner_user_id, visibility)",
             "CREATE INDEX IF NOT EXISTS ix_task_kanban_placements_column ON task_kanban_placements (org_id, user_id, column_id, position)",
             "CREATE INDEX IF NOT EXISTS ix_users_onboarding_completed_at ON users (onboarding_completed_at)",
             "CREATE INDEX IF NOT EXISTS ix_users_email_verified_at ON users (email_verified_at)",
+            "CREATE INDEX IF NOT EXISTS ix_users_last_activity ON users (last_activity)",
             "CREATE INDEX IF NOT EXISTS ix_organizations_created_via ON organizations (created_via)",
             "CREATE INDEX IF NOT EXISTS ix_email_verifications_token ON email_verifications (token)",
             "CREATE INDEX IF NOT EXISTS ix_email_verifications_user_id ON email_verifications (user_id)",
@@ -1015,6 +1155,7 @@ def _run_pending_migrations():
             "CREATE INDEX IF NOT EXISTS ix_process_steps_process_order ON process_steps (process_id, step_number)",
             "CREATE INDEX IF NOT EXISTS ix_case_process_tracking_case ON case_process_tracking (case_id)",
             "CREATE INDEX IF NOT EXISTS ix_case_step_progress_case ON case_step_progress (case_id)",
+            "CREATE INDEX IF NOT EXISTS ix_case_movements_org_case_data ON case_movements (org_id, case_id, data DESC, id DESC)",
             # whatsapp_messages: composite index for the legacy WhatsApp dashboard
             # top-N query (WHERE org_id=? ORDER BY created_at DESC LIMIT 10). The
             # single-column (org_id) index alone still forces a sort of every org
@@ -1241,6 +1382,34 @@ def create_app(product: str = "immigration") -> FastAPI:
         except Exception as e:
             logger.error("Surveillance worker failed to start: %s", e)
 
+        # Maestro Sentinel: dispara run_sentinel_all_orgs uma vez por dia às 08:00 BRT (11:00 UTC)
+        if os.getenv("MAESTRO_SENTINEL_ENABLED", "1").lower() not in {"0", "false", "no", "off"}:
+            try:
+                import asyncio as _aio
+                from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+                from services.maestro_sentinel import run_sentinel_all_orgs as _sentinel
+
+                async def _sentinel_daily():
+                    loop = _aio.get_event_loop()
+                    while True:
+                        try:
+                            now = _dt.now(_tz.utc)
+                            target = now.replace(hour=11, minute=0, second=0, microsecond=0)
+                            if now >= target:
+                                target += _td(days=1)
+                            await _aio.sleep((target - now).total_seconds())
+                            await loop.run_in_executor(None, _sentinel)
+                        except _aio.CancelledError:
+                            break
+                        except Exception as _e:
+                            logger.warning("sentinel daily: erro (%s) — aguarda 1h", _e)
+                            await _aio.sleep(3600)
+
+                asyncio.create_task(_sentinel_daily())
+                logger.info("Maestro Sentinel agendado (08:00 BRT / 11:00 UTC diário)")
+            except Exception as _se:
+                logger.warning("Maestro Sentinel falhou ao inicializar: %s", _se)
+
         # Notion cache warm
         if os.getenv("NOTION_TOKEN"):
             try:
@@ -1324,7 +1493,7 @@ def create_app(product: str = "immigration") -> FastAPI:
 
     @app.get(f"{PREFIX}/showcase", response_class=HTMLResponse)
     async def showcase_page(request: Request):
-        """Read-only login preview for embedding on example.com — no auth, no form action."""
+        """Read-only login preview for embedding on vingren.me — no auth, no form action."""
         ctx = get_context(request)
         ctx["showcase"] = True
         ctx["product"] = "lite"
@@ -1332,7 +1501,7 @@ def create_app(product: str = "immigration") -> FastAPI:
         ctx["org_slug"] = "showcase"
         ctx["org_settings"] = {}
         resp = templates.TemplateResponse("login.html", ctx)
-        # Allow iframe from example.com
+        # Allow iframe from vingren.me
         resp.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
@@ -1340,7 +1509,7 @@ def create_app(product: str = "immigration") -> FastAPI:
             "img-src 'self' data: https:; "
             "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
             "connect-src 'self' https://cdn.jsdelivr.net; "
-            "frame-ancestors 'self' https://example.com https://app.example.com"
+            "frame-ancestors 'self' https://vingren.me https://www.vingren.me"
         )
         if "X-Frame-Options" in resp.headers:
             del resp.headers["X-Frame-Options"]
@@ -1606,22 +1775,17 @@ def create_app(product: str = "immigration") -> FastAPI:
 
     @app.get(f"{PREFIX}/calendar", response_class=HTMLResponse)
     async def calendar_canonical(request: Request, db: Session = Depends(get_db)):
-        from models import User as _User
-        from models.tenant import tenant_query as _tenant_query
+        # 03/06 (Example User/Victor): a tela canônica da aba Agenda é /calendar/agenda
+        # (lista + calendário logo abaixo, com seletor de visualização Lista+Calendário /
+        # Só lista / Só calendário). Este handler prevalece sobre routes/calendar.py, então
+        # o redirect TEM que estar aqui: qualquer hit em /calendar (aba antiga persistida,
+        # bookmark, ?view=) cai em /calendar/agenda preservando a query string.
         user = get_current_user(request, db)
         if not user:
-            return RedirectResponse(url=f"{PREFIX}/login?next={PREFIX}/calendar", status_code=302)
-        # 29/05 (Victor): CALENDÁRIO (grid) é o default ao abrir /calendar —
-        # reverte o B3 (26/05). Este handler prevalece sobre routes/calendar.py.
-        # Lista continua em /calendar/agenda ou via ?view=list.
-        view = (request.query_params.get("view") or "").strip().lower()
-        if view in {"list", "lista", "agenda"}:
-            return RedirectResponse(url=f"{PREFIX}/calendar/agenda", status_code=302)
-        users = _tenant_query(db, _User, request.state.org_id).filter(_User.enabled == True).all()
-        return templates.TemplateResponse("app/calendar/index.html", {
-            **get_context(request, db, user=user),
-            "user": user, "today": date.today(), "users": users,
-        })
+            return RedirectResponse(url=f"{PREFIX}/login?next={PREFIX}/calendar/agenda", status_code=302)
+        q = request.url.query
+        target = f"{PREFIX}/calendar/agenda" + (f"?{q}" if q else "")
+        return RedirectResponse(url=target, status_code=302)
 
     @app.get(f"{PREFIX}/billing", response_class=HTMLResponse)
     async def billing_canonical(request: Request, db: Session = Depends(get_db)):
@@ -1692,34 +1856,25 @@ def create_app(product: str = "immigration") -> FastAPI:
         user = get_current_user(request, db)
         if not user:
             return RedirectResponse(url=f"{PREFIX}/login?next={PREFIX}/md", status_code=302)
-        # Empty list placeholder — model will be added when feature ships.
-        return templates.TemplateResponse("app/md/index.html", {
-            **get_context(request, db, user=user),
-            "user": user, "today": date.today(),
-            "docs": [], "drive_connected": False,
-        })
+        # Template app/md/index.html não existe — módulo ainda não enviado.
+        # Short-circuit para o dashboard evita 500 (TemplateNotFound).
+        return RedirectResponse(url=f"{PREFIX}/dashboard", status_code=302)
 
     @app.get(f"{PREFIX}/md/new", response_class=HTMLResponse)
     async def md_new_canonical(request: Request, db: Session = Depends(get_db)):
         user = get_current_user(request, db)
         if not user:
             return RedirectResponse(url=f"{PREFIX}/login?next={PREFIX}/md/new", status_code=302)
-        return templates.TemplateResponse("app/md/editor.html", {
-            **get_context(request, db, user=user),
-            "user": user, "today": date.today(), "doc": None,
-        })
+        # Template app/md/editor.html não existe — short-circuit p/ dashboard.
+        return RedirectResponse(url=f"{PREFIX}/dashboard", status_code=302)
 
     @app.get(f"{PREFIX}/md/{{doc_id}}", response_class=HTMLResponse)
     async def md_detail_canonical(doc_id: str, request: Request, db: Session = Depends(get_db)):
         user = get_current_user(request, db)
         if not user:
             return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
-        # Placeholder: render editor with empty doc until backend model lands.
-        return templates.TemplateResponse("app/md/editor.html", {
-            **get_context(request, db, user=user),
-            "user": user, "today": date.today(),
-            "doc": {"id": doc_id, "title": "", "content": "", "category": "outro"},
-        })
+        # Template app/md/editor.html não existe — short-circuit p/ dashboard.
+        return RedirectResponse(url=f"{PREFIX}/dashboard", status_code=302)
 
 
     @app.post("/api/v1/auth/login")

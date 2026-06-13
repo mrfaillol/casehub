@@ -182,7 +182,7 @@ const ALLOWED_SHELL_COMMANDS = [
 
 // Telefones de administradores autorizados
 const ADMIN_PHONES = [
-  'REDACTED-PHONE',
+  '5532991513405',
   '5519998523218',
   '19405550000' // placeholder para o +1 (940)
 ];

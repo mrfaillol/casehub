@@ -193,6 +193,10 @@ class MessagingHubService:
 
         params = {}
 
+        if self.org_id:
+            query += " AND um.org_id = :org_id"
+            params['org_id'] = self.org_id
+
         if channel:
             query += " AND um.channel = :channel"
             params['channel'] = channel
@@ -277,6 +281,8 @@ class MessagingHubService:
         """
         Get messages for a specific thread.
         """
+        if not self.org_id:
+            return []
         query = """
             SELECT
                 um.*,
@@ -285,6 +291,7 @@ class MessagingHubService:
             LEFT JOIN clients c ON c.id = um.client_id
             WHERE um.channel = :channel
             AND (um.from_identifier = :contact OR um.to_identifier = :contact)
+            AND um.org_id = :org_id
             ORDER BY um.message_at ASC
             LIMIT :limit OFFSET :offset
         """
@@ -293,6 +300,7 @@ class MessagingHubService:
             result = self.db.execute(text(query), {
                 'channel': channel,
                 'contact': contact,
+                'org_id': self.org_id,
                 'limit': limit,
                 'offset': offset
             }).fetchall()
@@ -555,8 +563,8 @@ class MessagingHubService:
 
     def mark_as_read(self, message_id: int) -> bool:
         """Mark a message as read."""
-        query = "UPDATE unified_messages SET is_read = TRUE WHERE id = :id"
-        self.db.execute(text(query), {'id': message_id})
+        query = "UPDATE unified_messages SET is_read = TRUE WHERE id = :id AND org_id = :org_id"
+        self.db.execute(text(query), {'id': message_id, 'org_id': self.org_id})
         self.db.commit()
         return True
 
@@ -568,11 +576,13 @@ class MessagingHubService:
             WHERE channel = :channel
             AND (from_identifier = :contact OR to_identifier = :contact)
             AND is_read = FALSE
+            AND org_id = :org_id
         """
         try:
             result = self.db.execute(text(query), {
                 'channel': channel,
-                'contact': contact
+                'contact': contact,
+                'org_id': self.org_id
             })
             self.db.commit()
         except SQLAlchemyError as exc:
@@ -586,10 +596,10 @@ class MessagingHubService:
         query = """
             UPDATE unified_messages
             SET is_starred = NOT is_starred
-            WHERE id = :id
+            WHERE id = :id AND org_id = :org_id
             RETURNING is_starred
         """
-        result = self.db.execute(text(query), {'id': message_id})
+        result = self.db.execute(text(query), {'id': message_id, 'org_id': self.org_id})
         row = result.fetchone()
         self.db.commit()
         return row.is_starred if row else False
@@ -599,11 +609,12 @@ class MessagingHubService:
         query = """
             UPDATE unified_messages
             SET client_id = :client_id
-            WHERE id = :id
+            WHERE id = :id AND org_id = :org_id
         """
         self.db.execute(text(query), {
             'id': message_id,
-            'client_id': client_id
+            'client_id': client_id,
+            'org_id': self.org_id
         })
         self.db.commit()
         return True
@@ -613,11 +624,12 @@ class MessagingHubService:
         query = """
             UPDATE unified_messages
             SET case_id = :case_id
-            WHERE id = :id
+            WHERE id = :id AND org_id = :org_id
         """
         self.db.execute(text(query), {
             'id': message_id,
-            'case_id': case_id
+            'case_id': case_id,
+            'org_id': self.org_id
         })
         self.db.commit()
         return True

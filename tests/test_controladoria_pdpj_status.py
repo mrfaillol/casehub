@@ -71,8 +71,20 @@ def test_prazos_filters_keep_todos_unrestricted():
     assert "p.status = :status_filter" not in query
 
 
-def test_prazos_vencidos_total_uses_filtered_overdue_predicate():
-    db = _CaptureDB(7)
+def test_prazos_vencidos_total_uses_filtered_overdue_predicate(monkeypatch):
+    calls = []
+
+    def fake_get_prazos(db, org_id, **kwargs):
+        calls.append({"db": db, "org_id": org_id, **kwargs})
+        return [
+            {"urgencia": "vencido"},
+            {"urgencia": "fatal"},
+            {"urgencia": "vencido"},
+            {"urgencia": "verde"},
+        ]
+
+    db = object()
+    monkeypatch.setattr(controladoria, "_get_prazos", fake_get_prazos)
 
     total = controladoria._get_prazos_vencidos_total(
         db,
@@ -83,18 +95,24 @@ def test_prazos_vencidos_total_uses_filtered_overdue_predicate():
         tribunal="TRT3",
     )
 
-    assert total == 7
-    assert "LOWER(c.case_number)" in db.query
-    assert "p.status = 'perdido'" in db.query
-    assert "COALESCE(p.status, '') != 'concluido'" in db.query
-    assert "p.status NOT IN ('concluido')" not in db.query
-    assert db.params["search"] == "%cliente%"
-    assert db.params["ano"] == 2026
-    assert db.params["mes"] == 5
-    assert db.params["trib_pat"] == "%.5.03.%"
+    assert total == 2
+    assert calls == [{
+        "db": db,
+        "org_id": 1,
+        "search": "cliente",
+        "status_filter": "todos",
+        "mes": "2026-05",
+        "tribunal": "TRT3",
+    }]
 
 
-def test_prazos_limit_sorts_null_deadlines_last():
+def test_prazos_limit_sorts_null_deadlines_last(monkeypatch):
+    monkeypatch.setattr(controladoria, "_ensure_controladoria_schema", lambda db: None)
+    monkeypatch.setattr(
+        controladoria,
+        "_get_user_directory",
+        lambda db, org_id: {"users": [], "by_id": {}, "by_name": {}},
+    )
     db = _CaptureDB([])
 
     prazos = controladoria._get_prazos(db, 1, limit=10)
@@ -244,6 +262,82 @@ async def test_oab_chain_failure_is_visible_and_sanitized(monkeypatch):
     assert "super-secret-value" not in serialized
     assert "eyJabcdef" not in serialized
     assert "<redacted>" in serialized
+
+
+@pytest.mark.asyncio
+async def test_comunicaapi_auth_status_uses_requested_org(monkeypatch):
+    from services import comunicaapi as comunica_mod
+
+    calls = []
+
+    async def buscar_por_oab(*args, **kwargs):
+        return {
+            "items": [],
+            "error": "http_403",
+            "source": "ComunicaAPI PJE/CNJ (HTTP 403)",
+        }
+
+    class FakeAuth:
+        def public_status(self, org_id=None):
+            calls.append(org_id)
+            return {"configured": org_id == 4}
+
+        def _state(self, org_id=None):
+            return SimpleNamespace(last_grant_type="client_credentials")
+
+    monkeypatch.setattr(comunica_mod, "comunicaapi_client", SimpleNamespace(buscar_por_oab=buscar_por_oab))
+    monkeypatch.setattr(comunica_mod, "pdpj_auth", FakeAuth())
+
+    result = await controladoria._try_comunicaapi_provider(
+        "209176",
+        "RJ",
+        "2026-06-01",
+        "2026-06-05",
+        org_id=4,
+    )
+
+    assert result["auth_status"] == "configured"
+    assert result["grant_attempted"] == "client_credentials"
+    assert calls == [4]
+
+
+@pytest.mark.asyncio
+async def test_oab_chain_keeps_primary_pdpj_failure_reason(monkeypatch):
+    async def comunica(*args, **kwargs):
+        return {
+            "items": [],
+            "attempt": _attempt(
+                "ComunicaAPI PJE/CNJ",
+                "failed",
+                "ComunicaAPI/CNJ negou acesso ao recurso.",
+                error="http_403",
+            ),
+            "auth_status": "configured",
+            "grant_attempted": "client_credentials",
+            "source": "ComunicaAPI PJE/CNJ (HTTP 403)",
+        }
+
+    async def empty_provider(*args, **kwargs):
+        return {"items": [], "attempt": _attempt("Fallback", "empty", "sem itens")}
+
+    monkeypatch.setattr(controladoria, "_try_comunicaapi_provider", comunica)
+    monkeypatch.setattr(controladoria, "_try_datajud_provider", empty_provider)
+    monkeypatch.setattr(controladoria, "_try_escavador_provider", empty_provider)
+    monkeypatch.setattr(controladoria, "_try_jusbrasil_provider", empty_provider)
+
+    result = await controladoria._search_intimacoes_oab_chain(
+        "209176",
+        "RJ",
+        "2026-06-01",
+        "2026-06-05",
+        org_id=4,
+    )
+
+    assert result["provider_status"] == "failed"
+    assert result["code"] == "http_403"
+    assert result["auth_status"] == "configured"
+    assert "ComunicaAPI/CNJ negou acesso" in result["reason"]
+    assert "Fallbacks nao retornaram" in result["reason"]
 
 
 @pytest.mark.asyncio

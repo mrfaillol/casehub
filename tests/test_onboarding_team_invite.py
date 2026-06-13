@@ -16,7 +16,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import event
 
 import routes.onboarding as onboarding
-from models import User
+from models import Organization, User
 
 _ORG_ID = 23
 
@@ -40,10 +40,25 @@ def _seed_existing(db, emails):
     db.commit()
 
 
+def _seed_org(db):
+    org = db.query(Organization).filter(Organization.id == _ORG_ID).first()
+    if org is None:
+        org = Organization(
+            id=_ORG_ID,
+            uuid="team-invite-org",
+            name="Test Org",
+            slug="team-invite-org",
+            is_active=True,
+        )
+        db.add(org)
+        db.commit()
+    return org
+
+
 def _run(db, monkeypatch, request_stub, emails_form):
-    monkeypatch.setattr(onboarding, "_get_setup_org_id", lambda req: _ORG_ID)
-    monkeypatch.setattr(onboarding, "_get_setup_org",
-                        lambda d, req: {"name": "Test Org"})
+    _seed_org(db)
+    user = type("UserStub", (), {"id": 501, "email": "admin@test.com", "org_id": _ORG_ID})()
+    monkeypatch.setattr(onboarding, "get_current_user", lambda req, d: user)
     sent = []
     monkeypatch.setattr(onboarding, "send_email",
                         lambda **kwargs: sent.append(kwargs["to_email"]))
@@ -85,9 +100,9 @@ def test_setup_team_invite_batches_existence_check(db, monkeypatch, request_stub
 
 def test_setup_team_invite_empty_form(db, monkeypatch, request_stub):
     """Empty email list -> redirect with error, no DB writes."""
-    monkeypatch.setattr(onboarding, "_get_setup_org_id", lambda req: _ORG_ID)
-    monkeypatch.setattr(onboarding, "_get_setup_org",
-                        lambda d, req: {"name": "Test Org"})
+    _seed_org(db)
+    user = type("UserStub", (), {"id": 501, "email": "admin@test.com", "org_id": _ORG_ID})()
+    monkeypatch.setattr(onboarding, "get_current_user", lambda req, d: user)
 
     result = asyncio.run(onboarding.setup_team_invite(request_stub, emails="", db=db))
 

@@ -110,6 +110,7 @@
   box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
   display: flex; flex-direction: column;
   max-height: calc(100vh - var(--topbar-h) - var(--bottomnav-h) - var(--space-12));
+  max-height: calc(100dvh - var(--topbar-h) - var(--bottomnav-h) - var(--space-12));
   overflow: hidden;
   transition: box-shadow var(--motion-mid) var(--ease-out);
 }
@@ -122,7 +123,8 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   background: transparent;
-  border-bottom: 1px solid var(--line);
+  /* Neu polish 2026-06-09: divisor vira hairline suave (sem borda dura). */
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--fg-default) 6%, transparent);
 }
 .ch-column__meta {
   display: flex;
@@ -163,10 +165,6 @@
   transition: transform var(--motion-fast) var(--ease-out),
               color var(--motion-fast) var(--ease-out),
               box-shadow var(--motion-fast) var(--ease-out);
-}
-.ch-column__icon:hover {
-  color: var(--fg-default);
-  transform: translateY(-1px);
 }
 .ch-column__icon:active {
   transform: none;
@@ -214,14 +212,19 @@
 }
 
 .ch-column__quickadd {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
   padding: var(--space-3);
-  border-top: 1px solid var(--line);
+  /* Neu polish 2026-06-09: divisor vira hairline suave (sem borda dura). */
+  box-shadow: 0 -1px 0 color-mix(in srgb, var(--fg-default) 6%, transparent);
   background: transparent;
 }
 
+.ch-column__quickadd .ch-input {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .ch-column__quickadd .ch-input,
 .ch-column__quickadd .ch-btn {
   min-height: 40px;
@@ -230,69 +233,156 @@
   padding: 0;
 }
 
-/* ─────────── Card = raised neumorphic tile ─────────── */
+/* ─────────── Card = estilo Trello (Example User, 10/06) ─────────── */
+/* Lei de Fitts: alvo drag ≥ card inteiro (display:block).
+   Gestalt proximidade: stripe de cor no topo identifica o responsável;
+   footer agrupa meta-data de forma consistente.
+   Cartão branco (surface-card) contrasta com a coluna (surface-app/bone). */
 .ch-task-card {
   display: block;
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-card);
+  position: relative;
+  overflow: hidden;
   border-radius: var(--radius-md);
-  border: none;
-  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  border: 1px solid var(--line);
+  background: var(--surface-card);
+  box-shadow: 0 1px 3px rgba(0,0,0,.10), 0 1px 1px rgba(0,0,0,.06);
   text-decoration: none; color: var(--fg-default);
-  transition: transform var(--motion-fast) var(--ease-out),
-              box-shadow var(--motion-fast) var(--ease-out);
+  transition: box-shadow var(--motion-fast) var(--ease-out),
+              transform var(--motion-fast) var(--ease-out);
   scroll-snap-align: start;
   contain: layout style;
 }
-.ch-task-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
+@media (hover: hover) {
+  .ch-task-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,.13), 0 1px 4px rgba(0,0,0,.08);
+    transform: translateY(-1px);
+  }
+  .ch-column__icon:hover {
+    color: var(--fg-default);
+    transform: translateY(-1px);
+  }
 }
 .ch-task-card[draggable="true"] { cursor: grab; }
-/* Picking a card up presses it inward — tactile grab feedback. */
-.ch-task-card[draggable="true"]:active {
-  cursor: grabbing;
-  transform: none;
-  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
-}
+.ch-task-card[draggable="true"]:active { cursor: grabbing; transform: none; }
 .ch-task-card.is-dragging {
   opacity: 0.55;
   transform: rotate(1.5deg) scale(0.98);
-  box-shadow: var(--shadow-pop);
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
 }
 
+/* Stripe de cor no topo — indica responsável (como etiqueta Trello).
+   Altura 4px, ocupa a largura total, cor via --owner-color. */
+.ch-task-card__stripe {
+  display: block;
+  height: 4px;
+  background: var(--owner-color, var(--c-navy));
+  opacity: .85;
+}
+
+/* Corpo do card com padding */
+.ch-task-card__body {
+  padding: var(--space-3) var(--space-3) var(--space-2);
+}
+
+/* Título — texto proeminente, clean */
 .ch-task-card__title {
   margin: 0 0 var(--space-2); font-size: var(--fs-sm); font-weight: 600;
   color: var(--fg-default); line-height: var(--lh-snug);
 }
-.ch-task-card__meta {
-  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+
+/* Pills compactas (priority, client, tags) */
+.ch-task-card__pillrow {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: var(--space-1);
   font-size: var(--fs-xs); color: var(--fg-muted);
-  font-family: var(--mono); letter-spacing: 0.06em;
 }
-.ch-task-card__meta .ch-pill { padding: 3px 9px; font-size: 9.5px; }
+.ch-task-card__pillrow .ch-pill { padding: 2px 8px; font-size: 9.5px; }
+.ch-task-card__tag {
+  text-transform: none; letter-spacing: 0.02em; font-weight: 600;
+  font-family: var(--font-body, inherit); color: var(--fg-muted);
+  background: var(--surface-app); border: none;
+  padding: 2px 7px; border-radius: var(--radius-pill);
+}
+
+/* Footer: due date à esquerda, avatar à direita (estilo Trello) */
 .ch-task-card__footer {
-  margin-top: var(--space-3);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--line);
   display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-1) var(--space-3) var(--space-2);
   gap: var(--space-2);
-  font-size: var(--fs-xs);
+  min-height: 28px;
 }
-.ch-task-card__assignee {
-  display: inline-flex; align-items: center; gap: var(--space-2);
-  color: var(--fg-muted);
+
+/* Avatar no rodapé — pequeno círculo com cor do responsável */
+.ch-task-card__avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  flex: none; object-fit: cover;
+  border: 2px solid var(--surface-card);
+  box-shadow: 0 0 0 1.5px var(--line);
 }
-/* Raised avatar chip */
-.ch-task-card__assignee-dot {
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--c-navy); color: var(--c-paper);
-  font-size: 9px; font-family: var(--mono); font-weight: 700;
+.ch-task-card__avatar--initials {
   display: inline-flex; align-items: center; justify-content: center;
-  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  background: var(--owner-color, var(--c-navy)); color: var(--c-paper);
+  font-size: 9px; font-family: var(--mono); font-weight: 700;
+  line-height: 1;
 }
-[data-theme="dark"] .ch-task-card__assignee-dot {
-  background: var(--c-pollen); color: var(--fg-on-pollen);
+
+/* ── Privacidade de TAREFA (Victor 03/06: "listas privadas bem claras") ──
+   Card privado: cadeado + faixa lateral discreta. Sinal claro mas sem ruído. */
+.ch-task-card__lock {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-bottom: var(--space-2);
+  padding: 2px 8px; border-radius: var(--radius-pill);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-navy, var(--fg-default));
+  background: color-mix(in srgb, var(--c-navy, #1c2447) 9%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-navy, #1c2447) 24%, transparent);
+}
+.ch-task-card__lock svg { flex: none; }
+/* Faixa lateral: reforça "é privada" no relance, sem competir com a cor do responsável.
+   Neu polish 2026-06-09: accent INTERNO arredondado (::before) em vez de borda crua. */
+.ch-task-card.is-private-task::before {
+  content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: color-mix(in srgb, var(--c-navy, #1c2447) 55%, transparent);
+}
+
+/* Toggle de privacidade no quick-add: alvo ≥24px (Fitts), discreto até ativar. */
+.ch-quickadd__private {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; flex: none; cursor: pointer;
+  border-radius: var(--radius-md); color: var(--fg-faint);
+  transition: color 150ms ease, background 150ms ease;
+}
+.ch-quickadd__private:hover { color: var(--fg-muted); background: var(--surface-app); }
+.ch-quickadd__private input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ch-quickadd__private:has(input:checked) {
+  color: var(--c-navy, var(--fg-default));
+  background: color-mix(in srgb, var(--c-navy, #1c2447) 12%, transparent);
+}
+.ch-quickadd__private:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--c-navy, #1c2447) 45%, transparent);
+  outline-offset: 1px;
+}
+
+/* Toggle de privacidade no modal: linha clicável inteira (Fitts), checkbox + texto. */
+.ch-task-modal__privacy {
+  display: flex; align-items: center; gap: var(--space-2);
+  cursor: pointer; min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface-app);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.ch-task-modal__privacy:has(input:checked) {
+  border-color: color-mix(in srgb, var(--c-navy, #1c2447) 45%, transparent);
+  background: color-mix(in srgb, var(--c-navy, #1c2447) 7%, transparent);
+}
+.ch-task-modal__privacy input { width: 16px; height: 16px; flex: none; cursor: pointer; }
+.ch-task-modal__privacy-text {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-sm); color: var(--fg-default);
 }
 
 /* Drop target — inset well glow on the receiving column. */
@@ -306,8 +396,71 @@
 }
 
 @media (max-width: 720px) {
-  .ch-column { flex: 0 0 250px; }
-  .ch-board { gap: var(--space-3); padding-bottom: var(--space-3); }
+  /* ── Mobile: colunas empilhadas verticalmente (padrão Notion/Linear mobile).
+     Cada coluna vira seção full-width; column body limitado a 320px (≈6 cards)
+     com scroll interno — usuário vê todas as colunas em scroll vertical único. ── */
+  .ch-board {
+    flex-direction: column;
+    overflow-x: visible;
+    scroll-snap-type: none;
+    align-items: stretch;
+    gap: var(--space-4);
+    padding-bottom: var(--space-8);
+  }
+  .ch-column {
+    flex: none;
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
+    scroll-snap-align: none;
+  }
+  .ch-column__body {
+    max-height: 320px;
+  }
+
+  /* ── Card mobile: row layout (estilo Things/OmniFocus).
+     Trocamos o bloco Trello (stripe no topo + body + footer empilhados) por
+     uma linha horizontal de 48px: borda lateral colorida | título | avatar.
+     Garante legibilidade mesmo com 10+ cards por coluna. ── */
+  .ch-task-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 48px;
+    padding: var(--space-2) var(--space-3);
+    border-left: 4px solid var(--owner-color, var(--c-navy));
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    contain: none; /* libera o contain para o flex funcionar */
+  }
+  /* Stripe no topo: substituída pela borda lateral acima */
+  .ch-task-card__stripe { display: none; }
+
+  /* Corpo: ocupa toda a largura disponível, título truncado numa linha */
+  .ch-task-card__body {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0;
+  }
+  .ch-task-card__title {
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: var(--fs-sm);
+  }
+  .ch-task-card__lock    { display: none; }
+  .ch-task-card__pillrow { display: none; }
+
+  /* Footer: só avatar (sem prazo — muito denso no row) */
+  .ch-task-card__footer {
+    flex: 0 0 auto;
+    padding: 0;
+    min-height: 0;
+    gap: 0;
+  }
+  .ch-task-card__due { display: none; }
+
+  /* Linha quick-add e toolbar */
   .ch-kanban-create,
   .ch-kanban-create__form {
     align-items: stretch;

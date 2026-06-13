@@ -210,7 +210,7 @@ async def test_page(request: Request, db: Session = Depends(get_db)):
         info = {
             "package_id": "TEST-DEMO",
             "token": "test-token-demo",
-            "passphrase": "REDACTED",
+            "passphrase": "demo123",
             "message": "Este é um pacote de demonstração para testar o sistema."
         }
     else:

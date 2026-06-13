@@ -59,6 +59,7 @@ ALLOWED_KINDS = {
     "email_attachments",
     "ai_sources",
     "team_chat",  # midia do chat de equipe — gated por MEMBERSHIP do canal (DM privado)
+    "appointment_attachments",
 }
 
 
@@ -115,8 +116,18 @@ def _check_email_attachment(db: Session, org_id: int, filename: str) -> bool:
 
 
 def _check_avatar(db: Session, user: User, filename: str) -> bool:
-    photo = (user.photo_url or "") if user else ""
-    return bool(photo) and photo.rsplit("/", 1)[-1] == filename
+    # Avatares são visíveis para colegas do MESMO tenant (topbar, kanban, chat de
+    # equipe) — não são secretos dentro da org. Autoriza se QUALQUER usuário da org
+    # do requester usa este arquivo como foto. O isolamento entre orgs continua
+    # garantido pelo serve_upload, que resolve o arquivo só em uploads/org_<requester>/.
+    if not user or not getattr(user, "org_id", None):
+        return False
+    from sqlalchemy import text as _text
+    row = db.execute(
+        _text("SELECT 1 FROM users WHERE org_id = :o AND photo_url LIKE :suf LIMIT 1"),
+        {"o": user.org_id, "suf": "%/" + filename},
+    ).first()
+    return row is not None
 
 
 def _check_logo(db: Session, org_id: int, filename: str) -> bool:
@@ -176,6 +187,26 @@ def _check_team_chat(db: Session, org_id: int, user_id: int, filename: str) -> b
         return False
 
 
+def _appointment_attachment_name(db: Session, org_id: int, filename: str) -> Optional[str]:
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT filename
+                FROM appointment_attachments
+                WHERE org_id = :org_id
+                  AND file_path LIKE :suffix
+                LIMIT 1
+                """
+            ),
+            {"org_id": org_id, "suffix": f"%/{filename}"},
+        ).first()
+        return row[0] if row else None
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("appointment_attachments check failed: %s", exc)
+        return None
+
+
 @router.get("/uploads/{kind}/{filename:path}")
 async def serve_upload(
     kind: str,
@@ -229,6 +260,7 @@ async def serve_upload(
 
     # Per-kind tenancy check.
     authorized = False
+    download_filename: Optional[str] = None
     if kind == "email_attachments":
         authorized = _check_email_attachment(db, org_id, filename)
     elif kind == "avatars":
@@ -241,6 +273,9 @@ async def serve_upload(
         authorized = _check_ai_source(db, org_id, filename)
     elif kind == "team_chat":
         authorized = _check_team_chat(db, org_id, user.id, filename)
+    elif kind == "appointment_attachments":
+        download_filename = _appointment_attachment_name(db, org_id, filename)
+        authorized = download_filename is not None
 
     if not authorized:
         logger.warning(
@@ -254,4 +289,8 @@ async def serve_upload(
 
     # nosniff: impede o browser de reinterpretar o conteudo (ex.: svg-em-png) como HTML
     # e executar — Sentinela 2026-05-29-team-chat-media. Aplica a todos os kinds.
-    return FileResponse(str(real_path), headers={"X-Content-Type-Options": "nosniff"})
+    response_kwargs = {"headers": {"X-Content-Type-Options": "nosniff"}}
+    if kind == "appointment_attachments" and download_filename:
+        response_kwargs["filename"] = download_filename
+        response_kwargs["content_disposition_type"] = "attachment"
+    return FileResponse(str(real_path), **response_kwargs)

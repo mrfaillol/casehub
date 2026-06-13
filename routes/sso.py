@@ -34,7 +34,7 @@ def _build_request_base(request: Request) -> str:
     """Build base URL (scheme://host[:port]) from the incoming request.
 
     Preserves the subdomain so OAuth redirect_uri matches the tenant the user
-    started from (e.g. ``cliente.example.com``). Falls back to
+    started from (e.g. ``sampletenant.casehub.legal``). Falls back to
     ``request.url.hostname`` when the proxy header is missing.
 
     ``X-Forwarded-Host`` / ``X-Forwarded-Proto`` are trusted because the
@@ -135,7 +135,7 @@ async def sso_login(
     state = sso_service.generate_state()
 
     # Build redirect URI from the live request so the subdomain is preserved
-    # (cliente.example.com stays on cliente-alpha instead of falling
+    # (sampletenant.casehub.legal stays on sampletenant instead of falling
     # back to the apex BASE_URL, which would resolve to the default org).
     base = _build_request_base(request)
     redirect_uri = f"{base}{PREFIX}/sso/callback/{provider}"
@@ -338,10 +338,35 @@ async def sso_callback(
                     return response
 
             else:
-                # No user found - redirect to login with error
+                # Conta Google sem usuário próprio. SÓ a conta COMPARTILHADA
+                # autorizada do tenant (allow-list em org_settings
+                # 'sso_shared_accounts', csv) vê a tela de seleção de usuário —
+                # qualquer outra conta Google recebe o erro padrão, senão
+                # viraria enumeração de usuários do escritório (security review
+                # 09/06). A pessoa escolhe seu usuário e confirma com a PRÓPRIA
+                # senha (form posta no /login normal — sem bypass de auth).
+                _sso_mail = (user_info.get("email") or "").strip().lower()
+                _allow_row = db.execute(
+                    text("SELECT value FROM org_settings WHERE org_id = :oid AND key = 'sso_shared_accounts'"),
+                    {"oid": request.state.org_id},
+                ).fetchone()
+                _allowed = {e.strip().lower() for e in (_allow_row[0] if _allow_row and _allow_row[0] else "").split(",") if e.strip()}
+                if _sso_mail and _sso_mail in _allowed:
+                    org_users = (
+                        tenant_query(db, User, request.state.org_id)
+                        .filter(User.enabled.is_(True))
+                        .order_by(User.name.asc())
+                        .all()
+                    )
+                    return templates.TemplateResponse("app/sso/tenant_select.html", {
+                        "request": request,
+                        "PREFIX": PREFIX,
+                        "users": org_users,
+                        "sso_email": _sso_mail,
+                    })
                 return RedirectResponse(
-                    url=f"{PREFIX}/login?error=no_account&email={user_info['email']}",
-                    status_code=302
+                    url=f"{PREFIX}/login?error=no_account",
+                    status_code=302,
                 )
 
     except Exception as e:

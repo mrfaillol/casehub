@@ -3,6 +3,7 @@
 {% block title %}Processes · Case_Progress · {{ org_name|default('CaseHub') }}{% endblock %}
 {% block extra_head %}
   <link rel="stylesheet" href="/static/css/templates/processes-case-progress.css">
+  <link rel="stylesheet" href="/static/css/templates/processes-case-movements.css?v=20260604">
 {% endblock %}
 {% block content %}
 <div class="case-progress-main" aria-labelledby="case-progress-title">
@@ -463,6 +464,163 @@
 
   {% endif %}
 
+  {# ==================== PROC-M: MOVIMENTAÇÕES / ANDAMENTOS (MANUAL) ==================== #}
+  <section class="case-movs" aria-labelledby="case-movs-title">
+    <header class="case-movs-header">
+      <h2 id="case-movs-title" class="case-movs-title">
+        <i data-lucide="history" aria-hidden="true"></i>
+        <span>Movimentações do Processo</span>
+      </h2>
+      <span class="case-movs-count">{{ movements|length }} registro{{ '' if movements|length == 1 else 's' }}</span>
+    </header>
+
+    {# Add form — Fitts: campo largo + ação primária próxima. Date defaulta hoje. #}
+    <form
+      class="case-movs-add"
+      action="{{ PREFIX }}/processes/case/{{ case.id }}/movements/add"
+      method="POST"
+      aria-label="Adicionar movimentação"
+    >
+      <div class="case-movs-add-row">
+        <div class="case-movs-field case-movs-field--date">
+          <label for="mov-data" class="case-movs-label">Data</label>
+          <input type="date" id="mov-data" name="data" class="case-movs-input" value="{{ today }}">
+        </div>
+        <div class="case-movs-field case-movs-field--tipo">
+          <label for="mov-tipo" class="case-movs-label">Tipo</label>
+          <select id="mov-tipo" name="tipo" class="case-movs-input">
+            {% for t in movement_types %}
+            <option value="{{ t }}">{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="case-movs-field">
+        <label for="mov-descricao" class="case-movs-label">Descrição</label>
+        <textarea
+          id="mov-descricao"
+          name="descricao"
+          class="case-movs-input case-movs-textarea"
+          rows="2"
+          required
+          aria-required="true"
+          placeholder="Ex.: Juntada de petição inicial, audiência de conciliação designada para…"
+        ></textarea>
+      </div>
+      <div class="case-movs-add-actions">
+        <button type="submit" class="case-movs-btn case-movs-btn--primary">
+          <i data-lucide="plus" aria-hidden="true"></i>
+          <span>Adicionar movimentação</span>
+        </button>
+      </div>
+    </form>
+
+    {% if movements %}
+    <ol class="case-movs-timeline" aria-label="Linha do tempo de movimentações">
+      {% for mov in movements %}
+      <li class="case-movs-item" id="mov-item-{{ mov.id }}">
+        <span class="case-movs-marker" aria-hidden="true">
+          <i data-lucide="circle-dot"></i>
+        </span>
+        <div class="case-movs-body">
+          <div class="case-movs-meta">
+            <span class="case-movs-date">
+              <i data-lucide="calendar" aria-hidden="true"></i>
+              {{ mov.data.strftime('%d/%m/%Y') if mov.data else '—' }}
+            </span>
+            <span class="case-movs-tag case-movs-tag--{{ mov.tipo|lower|replace('ç','c')|replace('ã','a')|replace('í','i') }}">{{ mov.tipo }}</span>
+            {% if mov.author_name %}
+            <span class="case-movs-author">
+              <i data-lucide="user" aria-hidden="true"></i>
+              {{ mov.author_name }}
+            </span>
+            {% endif %}
+          </div>
+          <p class="case-movs-desc">{{ mov.descricao }}</p>
+
+          <div class="case-movs-actions">
+            <button
+              type="button"
+              class="case-movs-action"
+              aria-label="Editar movimentação de {{ mov.data.strftime('%d/%m/%Y') if mov.data else '' }}"
+              aria-expanded="false"
+              data-mov-edit-toggle="{{ mov.id }}"
+            >
+              <i data-lucide="pencil" aria-hidden="true"></i>
+              <span>Editar</span>
+            </button>
+            <form
+              action="{{ PREFIX }}/processes/case/{{ case.id }}/movements/{{ mov.id }}/delete"
+              method="POST"
+              class="case-movs-action-form"
+              onsubmit="return confirm('Excluir esta movimentação? Esta ação não pode ser desfeita.');"
+            >
+              <button type="submit" class="case-movs-action case-movs-action--danger" aria-label="Excluir movimentação">
+                <i data-lucide="trash-2" aria-hidden="true"></i>
+                <span>Excluir</span>
+              </button>
+            </form>
+          </div>
+
+          {# Inline edit form — escondido até toggle. #}
+          <form
+            id="mov-edit-{{ mov.id }}"
+            class="case-movs-edit"
+            action="{{ PREFIX }}/processes/case/{{ case.id }}/movements/{{ mov.id }}/edit"
+            method="POST"
+            hidden
+          >
+            <div class="case-movs-add-row">
+              <div class="case-movs-field case-movs-field--date">
+                <label for="mov-edit-data-{{ mov.id }}" class="case-movs-label">Data</label>
+                <input
+                  type="date"
+                  id="mov-edit-data-{{ mov.id }}"
+                  name="data"
+                  class="case-movs-input"
+                  value="{{ mov.data.strftime('%Y-%m-%d') if mov.data else '' }}"
+                >
+              </div>
+              <div class="case-movs-field case-movs-field--tipo">
+                <label for="mov-edit-tipo-{{ mov.id }}" class="case-movs-label">Tipo</label>
+                <select id="mov-edit-tipo-{{ mov.id }}" name="tipo" class="case-movs-input">
+                  {% for t in movement_types %}
+                  <option value="{{ t }}" {% if t == mov.tipo %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="case-movs-field">
+              <label for="mov-edit-desc-{{ mov.id }}" class="case-movs-label">Descrição</label>
+              <textarea
+                id="mov-edit-desc-{{ mov.id }}"
+                name="descricao"
+                class="case-movs-input case-movs-textarea"
+                rows="2"
+                required
+                aria-required="true"
+              >{{ mov.descricao }}</textarea>
+            </div>
+            <div class="case-movs-add-actions">
+              <button type="button" class="case-movs-btn case-movs-btn--ghost" data-mov-edit-cancel="{{ mov.id }}">Cancelar</button>
+              <button type="submit" class="case-movs-btn case-movs-btn--primary">
+                <i data-lucide="check" aria-hidden="true"></i>
+                <span>Salvar</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <div class="case-movs-empty">
+      <i data-lucide="inbox" class="case-movs-empty-icon" aria-hidden="true"></i>
+      <p class="case-movs-empty-text">Nenhuma movimentação registrada ainda. Use o formulário acima para registrar o primeiro andamento deste processo.</p>
+    </div>
+    {% endif %}
+  </section>
+
 </div>
 {% endblock %}
 {% block extra_js %}
@@ -473,6 +631,37 @@ document.addEventListener('DOMContentLoaded', function () {
     triggers.forEach(function (el) {
       new bootstrap.Tooltip(el);
     });
+  }
+
+  // Proc-M: inline edit toggle for movements.
+  function setEdit(id, open) {
+    var form = document.getElementById('mov-edit-' + id);
+    var btn = document.querySelector('[data-mov-edit-toggle="' + id + '"]');
+    if (!form) return;
+    form.hidden = !open;
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) {
+      var ta = form.querySelector('textarea');
+      if (ta) ta.focus();
+    }
+  }
+  document.querySelectorAll('[data-mov-edit-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-mov-edit-toggle');
+      var form = document.getElementById('mov-edit-' + id);
+      setEdit(id, form ? form.hidden : true);
+    });
+  });
+  document.querySelectorAll('[data-mov-edit-cancel]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      setEdit(btn.getAttribute('data-mov-edit-cancel'), false);
+    });
+  });
+
+  // Re-mount Lucide icons for the movements section (shell mounts on its own,
+  // but this is idempotent and covers any race with deferred lucide load).
+  if (window.CHLucide && typeof window.CHLucide.mount === 'function') {
+    window.CHLucide.mount();
   }
 });
 </script>

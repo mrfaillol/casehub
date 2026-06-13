@@ -23,6 +23,80 @@
   </div>
 </section>
 
+{# ─── Faixa "Agenda da semana" (pedido Example User 03/06: unificar Kanban × Agenda de forma SUTIL) ───
+   Widget DISCRETO e read-only: mostra os compromissos da SEMANA corrente dentro do Kanban,
+   sem o usuário sair da tela. Dados via fetch client-side a GET /calendar/events
+   (filter_type=appointments, org-scoped — routes/calendar.py). Best-effort: se a agenda
+   falhar, fica oculto e o Kanban segue intacto. Lei de Miller: só a semana, nada de sobrecarga.
+   Lei de Hick: um único atalho "ver agenda" pra aprofundar. Colapsável (estado em localStorage). #}
+<section class="ch-agenda-strip" id="chAgendaStrip" data-collapsed="0" hidden aria-label="Próximos compromissos da agenda">
+  <button type="button" class="ch-agenda-strip__toggle" id="chAgendaToggle" aria-expanded="true" aria-controls="chAgendaList">
+    <span class="ch-agenda-strip__lead">
+      <span data-icon="calendar" data-icon-size="14" aria-hidden="true"></span>
+      <span class="ch-agenda-strip__label">Agenda da semana</span>
+      <span class="ch-agenda-strip__count" id="chAgendaCount" aria-hidden="true"></span>
+    </span>
+    <span class="ch-agenda-strip__chev" data-icon="expand" data-icon-size="12" aria-hidden="true"></span>
+  </button>
+  <div class="ch-agenda-strip__list" id="chAgendaList" role="list">
+    <span class="ch-agenda-strip__empty" id="chAgendaEmpty" hidden>Sem compromissos esta semana.</span>
+  </div>
+  <a class="ch-agenda-strip__more" href="{{ PREFIX }}/calendar/agenda">ver agenda <span data-icon="expand" data-icon-size="11" aria-hidden="true"></span></a>
+</section>
+
+<style>
+  /* Faixa Agenda — escopo local, tokens semânticos. Compacta e discreta:
+     não compete com as colunas do Kanban (peso visual baixo, surface sutil). */
+  /* Neu polish 2026-06-09: faixa = poço recuado (inset xs) do material poço (surface-card-2),
+     sem borda dura — coerente com .ch-column__body e .ch-kpi-mini do base. */
+  .ch-agenda-strip{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;
+    margin-bottom:var(--space-4);padding:var(--space-2) var(--space-3);
+    background:var(--surface-card-2);border:none;border-radius:var(--radius-md);
+    box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);
+    animation:chAgendaIn 180ms cubic-bezier(.22,.61,.36,1);}
+  @keyframes chAgendaIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:none;}}
+  .ch-agenda-strip__toggle{display:inline-flex;align-items:center;gap:var(--space-2);
+    background:none;border:0;padding:4px 2px;cursor:pointer;color:var(--fg-default);min-height:32px;}
+  .ch-agenda-strip__lead{display:inline-flex;align-items:center;gap:var(--space-2);}
+  .ch-agenda-strip__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--fg-muted);}
+  .ch-agenda-strip__count{font-size:var(--fs-xs);color:var(--fg-faint);font-variant-numeric:tabular-nums;}
+  .ch-agenda-strip__chev{color:var(--fg-faint);transition:transform 160ms cubic-bezier(.22,.61,.36,1);}
+  .ch-agenda-strip[data-collapsed="1"] .ch-agenda-strip__chev{transform:rotate(-90deg);}
+  .ch-agenda-strip[data-collapsed="1"] .ch-agenda-strip__list{display:none;}
+  .ch-agenda-strip__list{display:flex;align-items:center;gap:var(--space-2);flex:1 1 auto;
+    flex-wrap:wrap;min-width:0;}
+  /* Neu polish 2026-06-09: cada compromisso = pílula com relevo soft (par xs) do
+     MESMO material base (surface-app), flutuando sobre o poço da faixa. A cor do
+     compromisso vira um ponto-accent delicado (color-mix 55%), nunca borda crua. */
+  /* Cor por pessoa (estilo Trello — Example User=roxo etc.): a pílula recebe a cor do
+     responsável de forma SUTIL (fill 18% + hairline 30%) via --appt-color, setado
+     no item pelo JS. Fallback p/ surface-app quando o user não tem cor. */
+  .ch-agenda-item{display:inline-flex;align-items:center;gap:6px;
+    padding:3px 10px 3px 9px;border-radius:var(--radius-pill);
+    border:1px solid color-mix(in srgb, var(--appt-color,transparent) 30%, transparent);
+    background:color-mix(in srgb, var(--appt-color,transparent) 18%, var(--surface-app));
+    box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs);
+    font-size:var(--fs-xs);color:var(--fg-default);max-width:100%;
+    transition:transform 150ms ease,box-shadow 150ms ease;}
+  .ch-agenda-item::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;
+    background:color-mix(in srgb, var(--appt-color,var(--fg-faint)) 55%, transparent);}
+  .ch-agenda-item:hover{transform:translateY(-1px);
+    box-shadow:var(--shadow-dark-sm),var(--shadow-light-sm);}
+  .ch-agenda-item__when{font-variant-numeric:tabular-nums;color:var(--fg-muted);white-space:nowrap;}
+  .ch-agenda-item__title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:18ch;}
+  /* Chip de nome carrega a cor do responsável (texto + fundo bem sutil), reforçando
+     o reconhecimento por pessoa quando não há foto. */
+  .ch-agenda-item__who{white-space:nowrap;font-weight:600;
+    color:color-mix(in srgb, var(--appt-color,var(--fg-faint)) 70%, var(--fg-muted));}
+  .ch-agenda-item__avatar{flex:none;width:16px;height:16px;border-radius:50%;object-fit:cover;}
+  .ch-agenda-strip__empty{font-size:var(--fs-xs);color:var(--fg-faint);}
+  .ch-agenda-strip__more{margin-left:auto;display:inline-flex;align-items:center;gap:4px;
+    font-size:var(--fs-xs);font-weight:600;color:var(--fg-muted);text-decoration:none;white-space:nowrap;}
+  .ch-agenda-strip__more:hover{color:var(--fg-default);}
+  @media (max-width:640px){.ch-agenda-item__title{max-width:12ch;}}
+</style>
+
 {% if tasks_capped %}
 <div class="ch-card ch-card--compact" style="margin-bottom: var(--space-4); border-color: var(--c-warn-soft); background: rgba(217, 119, 6, 0.06);">
   <p style="margin: 0; font-size: var(--fs-sm); color: var(--fg-default);">
@@ -33,19 +107,37 @@
 {% endif %}
 
 <section class="ch-kanban-create" aria-label="Controles do quadro">
-  {# Dual toggle: view = columns visibility | user filter = assigned_to #}
+  {# Escopo do quadro: dois eixos distintos agrupados sob rótulos claros.
+     "Listas" controla quais COLUNAS aparecem (view=all/shared/private).
+     "Responsável" filtra os CARTÕES pelo dono (user=''/me).
+     Antes eram dois <nav> de pílulas idênticas — "Equipe" vs "Toda equipe" lia
+     como redundância (pedido Example User 02/06). Agora cada eixo tem caption própria. #}
   {% set current_user_filter = request.query_params.get('user', '') %}
-  <nav class="ch-kanban-switch" aria-label="Visualização do Kanban">
-    <a class="{% if kanban_view_mode == 'all' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=all{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="Listas compartilhadas + suas listas privadas">Tudo</a>
-    <a class="{% if kanban_view_mode == 'shared' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=shared{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="Apenas listas compartilhadas do escritório">Equipe</a>
-    <a class="{% if kanban_view_mode == 'private' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=private{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="Apenas suas listas privadas">Meu quadro</a>
-  </nav>
-  <nav class="ch-kanban-switch" aria-label="Filtro de responsável" style="margin-left: var(--space-2, 8px);">
-    <a class="{% if not current_user_filter %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view={{ kanban_view_mode }}" title="Tarefas de toda a equipe">Toda equipe</a>
-    <a class="{% if current_user_filter == 'me' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view={{ kanban_view_mode }}&user=me" title="Apenas tarefas atribuídas a você">Meus tasks</a>
-  </nav>
-  <form id="chColumnForm" class="ch-kanban-create__form">
-    <input class="ch-input" name="name" placeholder="Nova lista" required />
+  <div class="ch-kanban-scope" role="group" aria-label="Escopo do quadro"
+       style="display:inline-flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;">
+    <div style="display:inline-flex;flex-direction:column;gap:4px;">
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-faint);">Listas</span>
+      <nav class="ch-kanban-switch" aria-label="Quais listas exibir">
+        <a class="{% if kanban_view_mode == 'all' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=all{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="{% if can_view_team_private_kanban %}Listas compartilhadas + listas privadas da equipe{% else %}Listas compartilhadas + suas listas privadas{% endif %}">Todas</a>
+        <a class="{% if kanban_view_mode == 'shared' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=shared{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="Apenas listas compartilhadas do escritório">Do escritório</a>
+        <a class="{% if kanban_view_mode == 'private' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=private{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="{% if can_view_team_private_kanban %}Listas privadas da equipe{% else %}Apenas suas listas privadas{% endif %}">{% if can_view_team_private_kanban %}Privadas{% else %}Minhas{% endif %}</a>
+      </nav>
+    </div>
+    <div style="display:inline-flex;flex-direction:column;gap:4px;">
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-faint);">Responsável</span>
+      <nav class="ch-kanban-switch" aria-label="Filtrar cartões por responsável">
+        <a class="{% if not current_user_filter %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view={{ kanban_view_mode }}" title="Tarefas de toda a equipe">Todos</a>
+        <a class="{% if current_user_filter == 'me' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view={{ kanban_view_mode }}&user=me" title="Apenas tarefas atribuídas a você">Só as minhas</a>
+      </nav>
+    </div>
+  </div>
+  <form id="chColumnForm" class="ch-kanban-create__form" autocomplete="off">
+    {# V4 (pedido Example User 02/06): impedir que o navegador / gerenciador de senhas
+       sugira nomes/e-mails (PII) no campo de nova lista. autocomplete=off +
+       atributos de ignore (data-1p/lp/bw-ignore) cobrem 1Password/LastPass/Bitwarden. #}
+    <input class="ch-input" name="list_name" id="chColumnNameInput" placeholder="Nova lista" required
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+           data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" />
     <select class="ch-select" name="visibility" aria-label="Tipo de lista">
       <option value="private">Privada</option>
       {% if can_manage_shared_kanban %}
@@ -59,7 +151,7 @@
 
 <div class="ch-board" id="chBoard">
   {% for col in (kanban_columns or []) %}
-  <section class="ch-column {% if col.is_private %}is-private{% endif %}" data-column-id="{{ col.id }}" data-column-status="{{ col.status }}" data-column-slug="{{ col.slug }}" data-column-private="{{ '1' if col.is_private else '0' }}">
+  <section class="ch-column {% if col.is_private %}is-private{% endif %}" data-column-id="{{ col.id }}" data-column-status="{{ col.status }}" data-column-slug="{{ col.slug }}" data-column-private="{{ '1' if col.is_private else '0' }}" data-column-readonly="{{ '0' if col.can_add_cards else '1' }}">
     <header class="ch-column__header">
       <div>
         <h2 class="ch-column__name">
@@ -71,7 +163,7 @@
           <span>{{ col.tasks|length }}{% if col.hours %} · {{ col.hours }}h{% endif %}</span>
         </div>
       </div>
-      {% if col.is_owner or can_manage_shared_kanban %}
+      {% if col.can_manage %}
       <div class="ch-column__tools">
         <button class="ch-column__icon" type="button" data-column-rename="{{ col.id }}" title="Renomear lista" aria-label="Renomear lista"><span data-icon="edit"></span></button>
         <button class="ch-column__icon" type="button" data-column-delete="{{ col.id }}" title="Remover lista" aria-label="Remover lista"><span data-icon="trash"></span></button>
@@ -80,9 +172,34 @@
     </header>
     <div class="ch-column__body" data-drop-zone="true">
       {% for t in col.tasks %}
-      <a class="ch-task-card" href="{{ PREFIX }}/tasks/{{ t.id }}" draggable="true" data-task-id="{{ t.id }}">
+      {# ─── Card estilo Notion (Example User 03/06) ───────────────────────────────
+         Lei de Gestalt (proximidade) + Miller (chunking): agrupamos por CLASSE.
+         Classes diferentes empilham VERTICALMENTE (cada uma na sua linha);
+         itens da MESMA classe ficam lado a lado (HORIZONTAL). Cada classe só
+         aparece se houver dado, mantendo o card arejado.
+         Avatar do responsável: foto que o usuário subiu (assignee.photo_url);
+         se não houver, iniciais num círculo com a cor do usuário (assignee.color).
+      ─────────────────────────────────────────────────────────────────── #}
+      {% set _ass = t.assignee %}
+      {% set _ass_color = (_ass.color if _ass and _ass.color else 'var(--c-navy)') %}
+      {% set _is_private = (t.visibility == 'private') %}
+      <a class="ch-task-card{% if _is_private %} is-private-task{% endif %}" href="{{ PREFIX }}/tasks/{{ t.id }}" draggable="{{ 'true' if col.can_add_cards else 'false' }}" data-task-id="{{ t.id }}"{% if _is_private %} data-task-private="1"{% endif %} style="--owner-color:{{ _ass_color }};">
+        {# Stripe de cor no topo — identifica responsável (estilo Trello) #}
+        <span class="ch-task-card__stripe" aria-hidden="true"></span>
+        <div class="ch-task-card__body">
+        {# Privacidade: cadeado discreto #}
+        {% if _is_private %}
+        <span class="ch-task-card__lock" title="Tarefa privada — visível só para você e o responsável" aria-label="Tarefa privada">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+          Privada
+        </span>
+        {% endif %}
+        {# Título proeminente #}
         <p class="ch-task-card__title">{{ t.title or 'Sem título' }}</p>
-        <div class="ch-task-card__meta">
+
+        {# Pills compactas: Prioridade + Cliente/Caso (uma linha) #}
+        {% if t.priority or t.client_id or t.case_id %}
+        <div class="ch-task-card__pillrow">
           {% if t.priority == 'high' or t.priority == 'urgent' %}
             <span class="ch-pill ch-pill--danger"><span class="dot"></span>{{ t.priority }}</span>
           {% elif t.priority == 'medium' %}
@@ -90,24 +207,60 @@
           {% elif t.priority %}
             <span class="ch-pill"><span class="dot"></span>{{ t.priority }}</span>
           {% endif %}
-          {% if t.due_date %}
-            <span>{{ t.due_date.strftime('%d/%m') }}</span>
+          {% if t.client_id %}
+          <span class="ch-pill ch-pill--info">{{ (t.client.full_name if t.client else 'Cliente #'+t.client_id|string) }}</span>
           {% endif %}
-        </div>
-        {% if t.assignee or t.case_id %}
-        <div class="ch-task-card__footer">
-          {% if t.assignee %}
-          <span class="ch-task-card__assignee">
-            <span class="ch-task-card__assignee-dot">{{ t.assignee.name[0]|upper if t.assignee.name else '?' }}</span>
-            {{ t.assignee.name.split()[0] if t.assignee.name else 'Não atribuída' }}
-          </span>
-          {% else %}<span></span>{% endif %}
           {% if t.case_id %}
-          <span class="ch-mono" style="font-size: 10px; color: var(--fg-faint);">
-            {{ t.case.case_number if t.case else 'caso #'+t.case_id|string }}
-          </span>
+          <span class="ch-pill"><span class="ch-mono">{{ t.case.case_number if t.case else 'caso #'+t.case_id|string }}</span></span>
           {% endif %}
         </div>
+        {% endif %}
+        </div>{# /body #}
+
+        {# Footer estilo Trello: prazo à esquerda, avatar à direita #}
+        {# Prazo — DATA + HORÁRIO juntos (reloginho), cor por urgência #}
+        {% if t.due_date %}
+          {% set _due_days = (t.due_date - now()).days %}
+          {% set _due_done = col.is_done %}
+          {% set _due_hm = (' ' + t.due_time) if t.due_time else '' %}
+          {% if _due_done %}
+            {% set _due_bg = 'transparent' %}{% set _due_fg = 'var(--fg-faint)' %}{% set _due_bd = 'var(--line)' %}{% set _due_label = t.due_date.strftime('%d/%m') + _due_hm %}
+          {% elif _due_days < 0 %}
+            {% set _due_bg = 'rgba(185, 28, 28, 0.12)' %}{% set _due_fg = 'var(--c-danger)' %}{% set _due_bd = 'rgba(185, 28, 28, 0.30)' %}{% set _due_label = 'Atrasada · ' + t.due_date.strftime('%d/%m') + _due_hm %}
+          {% elif _due_days == 0 %}
+            {% set _due_bg = 'rgba(217, 119, 6, 0.14)' %}{% set _due_fg = 'var(--c-warn)' %}{% set _due_bd = 'rgba(217, 119, 6, 0.32)' %}{% set _due_label = 'Hoje' + _due_hm %}
+          {% elif _due_days <= 7 %}
+            {% set _due_bg = 'rgba(217, 119, 6, 0.08)' %}{% set _due_fg = 'var(--c-warn)' %}{% set _due_bd = 'rgba(217, 119, 6, 0.22)' %}{% set _due_label = (('Amanhã') if _due_days == 1 else (_due_days|string + ' dias')) + ' · ' + t.due_date.strftime('%d/%m') + _due_hm %}
+          {% else %}
+            {% set _due_bg = 'transparent' %}{% set _due_fg = 'var(--fg-muted)' %}{% set _due_bd = 'var(--line)' %}{% set _due_label = t.due_date.strftime('%d/%m') + _due_hm %}
+          {% endif %}
+        <div class="ch-task-card__footer">
+          <span class="ch-task-card__due"
+                style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:var(--radius-pill);background:{{ _due_bg }};color:{{ _due_fg }};border:1px solid {{ _due_bd }};font-size:9.5px;font-weight:600;letter-spacing:0.02em;white-space:nowrap;"
+                title="Vencimento: {{ t.due_date.strftime('%d/%m/%Y') }}{{ (' às ' + t.due_time) if t.due_time else '' }}">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>{{ _due_label }}
+          </span>
+          {# Avatar no footer direito (só se houver prazo — senão footer fica vazio e é omitido) #}
+          {% if _ass %}
+          {% if _ass.photo_url %}
+          <img class="ch-task-card__avatar" src="{{ _ass.photo_url }}" alt="{{ _ass.name or '' }}" loading="lazy" decoding="async" title="{{ _ass.name or 'Responsável' }}" />
+          {% else %}
+          <span class="ch-task-card__avatar ch-task-card__avatar--initials" title="{{ _ass.name or 'Responsável' }}" aria-label="{{ _ass.name or 'Responsável' }}">{{ _ass.name[0]|upper if _ass.name else '?' }}</span>
+          {% endif %}
+          {% endif %}
+        </div>{# /footer #}
+        {% else %}
+        {# Sem prazo: avatar solto no rodapé se houver responsável #}
+        {% if _ass %}
+        <div class="ch-task-card__footer">
+          <span></span>
+          {% if _ass.photo_url %}
+          <img class="ch-task-card__avatar" src="{{ _ass.photo_url }}" alt="{{ _ass.name or '' }}" loading="lazy" decoding="async" title="{{ _ass.name or 'Responsável' }}" />
+          {% else %}
+          <span class="ch-task-card__avatar ch-task-card__avatar--initials" title="{{ _ass.name or 'Responsável' }}" aria-label="{{ _ass.name or 'Responsável' }}">{{ _ass.name[0]|upper if _ass.name else '?' }}</span>
+          {% endif %}
+        </div>
+        {% endif %}
         {% endif %}
       </a>
       {% else %}
@@ -116,10 +269,19 @@
       </div>
       {% endfor %}
     </div>
-    <form class="ch-column__quickadd" data-quick-add="{{ col.id }}" data-status="{{ col.status }}">
-      <input class="ch-input" name="title" placeholder="Adicionar cartão..." aria-label="Adicionar cartão em {{ col.name }}" />
+    {% if col.can_add_cards %}
+    <form class="ch-column__quickadd" data-quick-add="{{ col.id }}" data-status="{{ col.status }}" autocomplete="off">
+      <input class="ch-input" name="title" placeholder="Adicionar cartão..." aria-label="Adicionar cartão em {{ col.name }}"
+             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+             data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" />
+      {# Toggle de privacidade no quick-add: tarefa privada só p/ você + responsável. #}
+      <label class="ch-quickadd__private" title="Tarefa privada — só você e o responsável veem">
+        <input type="checkbox" name="private" value="1" aria-label="Tornar tarefa privada em {{ col.name }}" />
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+      </label>
       <button class="ch-btn ch-btn--ghost" type="submit" aria-label="Adicionar cartão em {{ col.name }}"><span data-icon="plus" aria-hidden="true"></span></button>
     </form>
+    {% endif %}
   </section>
   {% else %}
   <section class="ch-card" style="flex: 1;">
@@ -132,7 +294,7 @@
   {% endfor %}
 </div>
 
-{# ─── Quick-edit modal (Trello-style, pedido [parceiro] 25/05) ─── #}
+{# ─── Quick-edit modal (Trello-style, pedido Example User 25/05) ─── #}
 <div class="ch-overlay" id="ch-task-modal" hidden aria-hidden="true">
   <div class="ch-modal ch-modal--lg" role="dialog" aria-modal="true" aria-labelledby="ch-task-modal-title">
     <header class="ch-modal__header">
@@ -145,12 +307,14 @@
       </button>
     </header>
     <div class="ch-modal__body">
-      <form id="ch-task-modal-form" style="display: flex; flex-direction: column; gap: var(--space-4);">
+      <form id="ch-task-modal-form" style="display: flex; flex-direction: column; gap: var(--space-4);" autocomplete="off">
         <input type="hidden" name="task_id" id="ch-task-modal-id" />
 
         <div class="ch-field">
           <label class="ch-field__label" for="ch-task-modal-title-input">Título</label>
-          <input class="ch-input" id="ch-task-modal-title-input" name="title" type="text" required />
+          <input class="ch-input" id="ch-task-modal-title-input" name="title" type="text" required
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" />
         </div>
 
         <div class="ch-field">
@@ -171,7 +335,11 @@
           </div>
           <div class="ch-field">
             <label class="ch-field__label" for="ch-task-modal-due">Vencimento</label>
-            <input class="ch-input ch-mono" id="ch-task-modal-due" name="due_date" type="date" />
+            {# Item 1: data + horário do prazo (reloginho Trello). Hora opcional; quando preenchida o card mostra "DD/MM HH:MM". #}
+            <div style="display:flex;gap:var(--space-2);">
+              <input class="ch-input ch-mono" id="ch-task-modal-due" name="due_date" type="date" style="flex:1;min-width:0;" />
+              <input class="ch-input ch-mono" id="ch-task-modal-due-time" name="due_time" type="time" style="width:7.5rem;flex:none;" aria-label="Horário do prazo" />
+            </div>
           </div>
         </div>
 
@@ -188,13 +356,57 @@
           <div class="ch-field">
             <label class="ch-field__label" for="ch-task-modal-tags">Tags</label>
             <input class="ch-input" id="ch-task-modal-tags" name="tags" type="text"
-                   placeholder="ex: urgente, prazo" />
+                   placeholder="ex: urgente, prazo"
+                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" />
           </div>
         </div>
 
-        <div class="ch-field" id="ch-task-modal-context" hidden>
-          <label class="ch-field__label">Vínculos</label>
-          <p style="margin: 0; font-size: var(--fs-sm); color: var(--fg-muted);" id="ch-task-modal-context-text"></p>
+        {# Privacidade da tarefa (Victor 03/06): toggle claro. Privada = só criador + responsável veem. #}
+        <div class="ch-field">
+          <label class="ch-field__label" for="ch-task-modal-private">Privacidade</label>
+          <label class="ch-task-modal__privacy" for="ch-task-modal-private">
+            <input type="checkbox" id="ch-task-modal-private" name="is_private" />
+            <span class="ch-task-modal__privacy-text">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+              Tarefa privada — visível só para você e o responsável
+            </span>
+          </label>
+        </div>
+
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field">
+            <label class="ch-field__label" for="ch-task-modal-client">Cliente</label>
+            <select class="ch-select" id="ch-task-modal-client" name="client_id">
+              <option value="">Sem cliente</option>
+              {% for c in clients or [] %}
+              <option value="{{ c.id }}">{{ c.first_name }} {{ c.last_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="ch-field">
+            <label class="ch-field__label" for="ch-task-modal-case">Processo</label>
+            <select class="ch-select" id="ch-task-modal-case" name="case_id">
+              <option value="">Sem processo</option>
+              {% for cs in cases or [] %}
+              <option value="{{ cs.id }}">{{ cs.case_number or cs.case_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        {# Subtarefas (checklist estilo Notion): marcar/desmarcar + adicionar. #}
+        <div class="ch-field">
+          <label class="ch-field__label">Subtarefas <span id="ch-task-modal-subtask-count" style="color: var(--fg-faint);"></span></label>
+          <ul id="ch-task-modal-subtasks" style="list-style:none; margin:0 0 var(--space-2); padding:0; display:flex; flex-direction:column; gap:var(--space-1);"></ul>
+          <div style="display:flex; gap:var(--space-2);">
+            <input class="ch-input" id="ch-task-modal-subtask-input" type="text" placeholder="Adicionar subtarefa…"
+                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" />
+            <button class="ch-btn ch-btn--ghost" type="button" id="ch-task-modal-subtask-add" aria-label="Adicionar subtarefa">
+              <span data-icon="plus" data-icon-size="14"></span>
+            </button>
+          </div>
         </div>
       </form>
 
@@ -216,9 +428,14 @@
       <a class="ch-btn ch-btn--ghost" id="ch-task-modal-full" href="#">
         <span data-icon="expand" data-icon-size="14"></span> Abrir página completa
       </a>
+      {# Item 2: excluir tarefa. Fitts — alvo ≥40px de altura e separado dos botões positivos p/ evitar clique acidental. #}
+      <button type="button" class="ch-btn ch-btn--ghost" id="ch-task-modal-delete"
+              style="color:var(--c-danger);min-height:40px;" title="Excluir tarefa">
+        <span data-icon="trash" data-icon-size="14"></span> Excluir
+      </button>
       <span style="flex: 1;"></span>
-      <button type="button" class="ch-btn ch-btn--ghost" data-task-modal-close>Cancelar</button>
-      <button type="button" class="ch-btn ch-btn--primary" id="ch-task-modal-save">
+      <button type="button" class="ch-btn ch-btn--ghost" data-task-modal-close style="min-height:40px;">Cancelar</button>
+      <button type="button" class="ch-btn ch-btn--primary" id="ch-task-modal-save" style="min-height:40px;">
         <span data-icon="check" data-icon-size="14"></span> Salvar
       </button>
     </footer>
@@ -265,7 +482,7 @@
       e.preventDefault();
       var data = new FormData(columnForm);
       postJson(prefix + '/tasks/api/columns', 'POST', {
-        name: data.get('name'),
+        name: data.get('list_name'),
         visibility: data.get('visibility'),
         color: data.get('color')
       }).then(function (result) {
@@ -292,6 +509,7 @@
 
   board.querySelectorAll('.ch-column').forEach(function (col) {
     col.addEventListener('dragover', function (e) {
+      if (col.getAttribute('data-column-readonly') === '1') return;
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       col.classList.add('is-drop-target');
@@ -300,6 +518,7 @@
       if (e.target === col) col.classList.remove('is-drop-target');
     });
     col.addEventListener('drop', function (e) {
+      if (col.getAttribute('data-column-readonly') === '1') return;
       e.preventDefault();
       col.classList.remove('is-drop-target');
       var taskId = dragId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
@@ -326,22 +545,33 @@
     var input = form.querySelector('input[name="title"]');
     var title = input && input.value.trim();
     if (!title) return;
+    var privEl = form.querySelector('input[name="private"]');
     postJson(prefix + '/tasks/api/quick-add', 'POST', {
       title: title,
       column_id: form.getAttribute('data-quick-add'),
-      status: form.getAttribute('data-status')
+      status: form.getAttribute('data-status'),
+      visibility: (privEl && privEl.checked) ? 'private' : 'org'
     }).then(function () { window.location.reload(); })
       .catch(function (err) { notify(err.message, 'error'); });
   });
 
   // B6 (26/05): swap prompt() por edição inline ao clicar no botão "edit".
-  // [parceiro] reunião 25/05 [01:09:27] pediu UX ágil tipo Trello — modal/prompt
+  // Example User reunião 25/05 [01:09:27] pediu UX ágil tipo Trello — modal/prompt
   // pesado é "burocrático demais". Foco salva via PATCH, Esc cancela.
   function startInlineRename(target, colId, currentText, onSave) {
     var input = document.createElement('input');
     input.type = 'text';
     input.value = currentText;
     input.className = 'ch-input ch-inline-rename';
+    // V4: bloquear sugestão de PII (nomes/e-mails) no rename de lista.
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('spellcheck', 'false');
+    input.setAttribute('data-1p-ignore', '');
+    input.setAttribute('data-lpignore', 'true');
+    input.setAttribute('data-bwignore', '');
+    input.setAttribute('data-form-type', 'other');
     input.style.cssText = 'width:100%;min-width:140px;font-weight:inherit;font-size:inherit;padding:2px 6px;';
     var prev = target.innerHTML;
     target.innerHTML = '';
@@ -366,7 +596,7 @@
     input.addEventListener('blur', save);
   }
 
-  // ─── Quick-edit modal (Trello-style, pedido [parceiro] 25/05) ───
+  // ─── Quick-edit modal (Trello-style, pedido Example User 25/05) ───
   // Single click no card → abre modal inline. Double click no título → edit
   // inline rápido (legado B6 mantido para muscle-memory). Drag/drop continua.
   // Modal substitui navegação full-page que era fricção visível na demo.
@@ -374,6 +604,7 @@
   var modalForm = document.getElementById('ch-task-modal-form');
   var modalCommentForm = document.getElementById('ch-task-modal-comment-form');
   var modalSaveBtn = document.getElementById('ch-task-modal-save');
+  var modalDeleteBtn = document.getElementById('ch-task-modal-delete');
   var modalFullLink = document.getElementById('ch-task-modal-full');
   var _modalCurrentTaskId = null;
   var _modalDirty = false;
@@ -414,17 +645,16 @@
       document.getElementById('ch-task-modal-desc').value = data.description || '';
       document.getElementById('ch-task-modal-priority').value = data.priority || 'medium';
       document.getElementById('ch-task-modal-due').value = data.due_date ? data.due_date.slice(0, 10) : '';
+      document.getElementById('ch-task-modal-due-time').value = data.due_time || '';
       document.getElementById('ch-task-modal-assignee').value = data.assigned_to || '';
       document.getElementById('ch-task-modal-tags').value = data.tags || '';
+      var privModalEl = document.getElementById('ch-task-modal-private');
+      if (privModalEl) privModalEl.checked = (data.visibility === 'private' || data.is_private === true);
 
-      // Context (client/case)
-      var ctxLines = [];
-      if (data.client_name) ctxLines.push('Cliente: ' + data.client_name);
-      if (data.case_name) ctxLines.push('Processo: ' + data.case_name);
-      if (ctxLines.length) {
-        document.getElementById('ch-task-modal-context-text').textContent = ctxLines.join(' · ');
-        ctx.hidden = false;
-      }
+      // Vínculos: selects de Cliente/Processo + checklist de subtarefas
+      document.getElementById('ch-task-modal-client').value = data.client_id || '';
+      document.getElementById('ch-task-modal-case').value = data.case_id || '';
+      renderSubtasks(data.subtasks || []);
 
       // Comments
       var commentsEl = document.getElementById('ch-task-modal-comments');
@@ -456,6 +686,74 @@
     return wrap;
   }
 
+  // ── Subtarefas (checklist Notion no modal) ──────────────────
+  function _subtaskCount() {
+    var ul = document.getElementById('ch-task-modal-subtasks');
+    var countEl = document.getElementById('ch-task-modal-subtask-count');
+    if (!ul || !countEl) return;
+    var total = ul.querySelectorAll('li').length;
+    var done = ul.querySelectorAll('input[type="checkbox"]:checked').length;
+    countEl.textContent = total ? '(' + done + '/' + total + ')' : '';
+  }
+
+  function renderSubtaskRow(s) {
+    var li = document.createElement('li');
+    li.style.cssText = 'display:flex; align-items:center; gap:var(--space-2);';
+    li.setAttribute('data-subtask-id', s.id);
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = (s.status === 'completed');
+    var span = document.createElement('span');
+    span.textContent = s.title;
+    function paint(done) {
+      span.style.cssText = 'font-size: var(--fs-sm);' + (done ? 'text-decoration: line-through; color: var(--fg-faint);' : '');
+    }
+    paint(cb.checked);
+    cb.addEventListener('change', function () {
+      cb.disabled = true;
+      postJson(prefix + '/tasks/api/' + s.id + '/subtask/toggle', 'POST', {})
+        .then(function (r) { paint(r && r.status === 'completed'); _subtaskCount(); })
+        .catch(function () { cb.checked = !cb.checked; notify('Erro ao atualizar subtarefa', 'error'); })
+        .then(function () { cb.disabled = false; });
+    });
+    li.appendChild(cb);
+    li.appendChild(span);
+    return li;
+  }
+
+  function renderSubtasks(subs) {
+    var ul = document.getElementById('ch-task-modal-subtasks');
+    if (!ul) return;
+    ul.innerHTML = '';
+    (subs || []).forEach(function (s) { ul.appendChild(renderSubtaskRow(s)); });
+    _subtaskCount();
+  }
+
+  function addSubtask() {
+    if (!_modalCurrentTaskId) return;
+    var input = document.getElementById('ch-task-modal-subtask-input');
+    var title = (input && input.value || '').trim();
+    if (!title) return;
+    postJson(prefix + '/tasks/api/' + _modalCurrentTaskId + '/subtask', 'POST', { title: title })
+      .then(function (r) {
+        if (r && r.subtask) {
+          document.getElementById('ch-task-modal-subtasks').appendChild(renderSubtaskRow(r.subtask));
+          input.value = '';
+          _subtaskCount();
+        }
+      })
+      .catch(function () { notify('Erro ao adicionar subtarefa', 'error'); });
+  }
+
+  (function wireSubtaskAdd() {
+    var btn = document.getElementById('ch-task-modal-subtask-add');
+    var input = document.getElementById('ch-task-modal-subtask-input');
+    if (btn) btn.addEventListener('click', addSubtask);
+    if (input) input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); addSubtask(); }
+    });
+  })();
+
   function closeTaskModal() {
     if (!modal) return;
     if (_modalDirty) {
@@ -477,8 +775,12 @@
       description: document.getElementById('ch-task-modal-desc').value,
       priority: document.getElementById('ch-task-modal-priority').value,
       due_date: document.getElementById('ch-task-modal-due').value || null,
+      due_time: document.getElementById('ch-task-modal-due-time').value || null,
       assigned_to: document.getElementById('ch-task-modal-assignee').value || null,
-      tags: document.getElementById('ch-task-modal-tags').value
+      tags: document.getElementById('ch-task-modal-tags').value,
+      client_id: document.getElementById('ch-task-modal-client').value || null,
+      case_id: document.getElementById('ch-task-modal-case').value || null,
+      visibility: (document.getElementById('ch-task-modal-private') && document.getElementById('ch-task-modal-private').checked) ? 'private' : 'org'
     };
     if (!payload.title) {
       notify('Título não pode ficar vazio', 'warning');
@@ -489,11 +791,32 @@
       .then(function () {
         notify('Tarefa salva', 'success');
         _modalDirty = false;
-        // Refresh card title in place to avoid full reload
+        // Refresh card title + privacy badge in place to avoid full reload
         var card = document.querySelector('.ch-task-card[data-task-id="' + _modalCurrentTaskId + '"]');
         if (card) {
           var titleEl = card.querySelector('.ch-task-card__title');
           if (titleEl) titleEl.textContent = payload.title;
+          var wasPrivate = card.getAttribute('data-task-private') === '1';
+          var nowPrivate = payload.visibility === 'private';
+          if (wasPrivate !== nowPrivate) {
+            if (nowPrivate) {
+              card.classList.add('is-private-task');
+              card.setAttribute('data-task-private', '1');
+              if (!card.querySelector('.ch-task-card__lock')) {
+                var lock = document.createElement('span');
+                lock.className = 'ch-task-card__lock';
+                lock.title = 'Tarefa privada — visível só para você e o responsável';
+                lock.setAttribute('aria-label', 'Tarefa privada');
+                lock.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg> Privada';
+                card.insertBefore(lock, card.firstChild);
+              }
+            } else {
+              card.classList.remove('is-private-task');
+              card.removeAttribute('data-task-private');
+              var existingLock = card.querySelector('.ch-task-card__lock');
+              if (existingLock) existingLock.parentNode.removeChild(existingLock);
+            }
+          }
         }
         if (closeAfter) {
           modal.hidden = true;
@@ -520,6 +843,30 @@
   }
   if (modalSaveBtn) {
     modalSaveBtn.addEventListener('click', function () { saveTaskModal(true); });
+  }
+  // Item 2: excluir tarefa com confirmação (Doherty: feedback imediato; remove o card sem reload da página).
+  if (modalDeleteBtn) {
+    modalDeleteBtn.addEventListener('click', function () {
+      if (!_modalCurrentTaskId) return;
+      if (!confirm('Excluir esta tarefa? Esta ação não pode ser desfeita.')) return;
+      var taskId = _modalCurrentTaskId;
+      modalDeleteBtn.disabled = true;
+      postJson(prefix + '/tasks/api/' + taskId + '/delete', 'DELETE', {})
+        .then(function () {
+          notify('Tarefa excluída', 'success');
+          var card = document.querySelector('.ch-task-card[data-task-id="' + taskId + '"]');
+          if (card && card.parentElement) card.parentElement.removeChild(card);
+          // Fecha sem auto-save (evita recriar campos da tarefa apagada).
+          _modalDirty = false;
+          modal.hidden = true;
+          modal.removeAttribute('data-open');
+          modal.setAttribute('aria-hidden', 'true');
+          document.body.style.overflow = '';
+          _modalCurrentTaskId = null;
+        })
+        .catch(function (err) { notify(err.message || 'Erro ao excluir', 'error'); })
+        .then(function () { modalDeleteBtn.disabled = false; });
+    });
   }
   if (modalForm) {
     modalForm.addEventListener('input', function () { _modalDirty = true; });
@@ -573,6 +920,15 @@
       input.type = 'text';
       input.value = original;
       input.className = 'ch-input';
+      // V4: bloquear sugestão de PII (nomes/e-mails) no rename inline do cartão.
+      input.setAttribute('autocomplete', 'off');
+      input.setAttribute('autocorrect', 'off');
+      input.setAttribute('autocapitalize', 'off');
+      input.setAttribute('spellcheck', 'false');
+      input.setAttribute('data-1p-ignore', '');
+      input.setAttribute('data-lpignore', 'true');
+      input.setAttribute('data-bwignore', '');
+      input.setAttribute('data-form-type', 'other');
       input.style.cssText = 'width:100%;padding:2px 6px;font-weight:inherit;font-size:inherit;';
       titleEl.innerHTML = '';
       titleEl.appendChild(input);
@@ -625,6 +981,133 @@
         .catch(function (err) { notify(err.message, 'error'); });
     }
   });
+})();
+</script>
+
+<script>
+/* ─── Faixa "Agenda da semana" no Kanban (Example User 03/06) ───
+   Isolado e best-effort: fetch read-only a /calendar/events (org-scoped, server-side).
+   Qualquer falha => strip fica oculto; o Kanban acima já funciona independente disto.
+   Não cria/edita compromissos nem duplica dados — só lista a semana corrente. */
+(function () {
+  'use strict';
+  var strip = document.getElementById('chAgendaStrip');
+  if (!strip) return;
+  var prefix = window.CASEHUB_PREFIX || '{{ PREFIX }}';
+  var listEl = document.getElementById('chAgendaList');
+  var emptyEl = document.getElementById('chAgendaEmpty');
+  var countEl = document.getElementById('chAgendaCount');
+  var toggle = document.getElementById('chAgendaToggle');
+
+  // Colapso persistido (Doherty: estado lembrado, sem re-decidir a cada visita).
+  // Mobile (< 640px): default collapsed para não ocupar vertical; desktop: expanded.
+  var COLLAPSE_KEY = 'ch-kanban-agenda-collapsed';
+  try {
+    var stored = localStorage.getItem(COLLAPSE_KEY);
+    var isMobile = window.innerWidth < 640;
+    var shouldCollapse = stored === '1' || (stored === null && isMobile);
+    if (shouldCollapse) {
+      strip.setAttribute('data-collapsed', '1');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+  } catch (e) {}
+  toggle.addEventListener('click', function () {
+    var collapsed = strip.getAttribute('data-collapsed') === '1';
+    strip.setAttribute('data-collapsed', collapsed ? '0' : '1');
+    toggle.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
+    try { localStorage.setItem(COLLAPSE_KEY, collapsed ? '0' : '1'); } catch (e) {}
+  });
+
+  // Semana corrente: segunda 00:00 → domingo 23:59 (Miller: janela curta, sem sobrecarga).
+  function weekRange() {
+    var now = new Date();
+    var dow = (now.getDay() + 6) % 7; // 0 = segunda
+    var mon = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow);
+    var sun = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+    function iso(d) {
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+    }
+    return { start: iso(mon), end: iso(sun) };
+  }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+  var WD = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+  function whenLabel(ev) {
+    var ext = ev.extendedProps || {};
+    var d = null;
+    if (ext.date) {
+      var p = String(ext.date).split('-');
+      if (p.length === 3) d = new Date(+p[0], +p[1] - 1, +p[2]);
+    }
+    var day = d ? (WD[d.getDay()] + ' ' + pad(d.getDate()) + '/' + pad(d.getMonth() + 1)) : '';
+    var hm = ext.timeStart || '';
+    return (day + (hm ? ' ' + hm : '')).trim();
+  }
+
+  function render(events) {
+    // Ordena por data+hora; só compromissos da semana já filtrados pelo backend.
+    events.sort(function (a, b) {
+      return String(a.start || '').localeCompare(String(b.start || ''));
+    });
+    if (!events.length) {
+      emptyEl.hidden = false;
+      strip.hidden = false;
+      return;
+    }
+    emptyEl.hidden = true;
+    var frag = document.createDocumentFragment();
+    events.forEach(function (ev) {
+      var ext = ev.extendedProps || {};
+      var item = document.createElement('div');
+      item.className = 'ch-agenda-item';
+      item.setAttribute('role', 'listitem');
+      var color = ev.color || ext.userColor || '';
+      if (color) item.style.setProperty('--appt-color', color);
+      var who;
+      if (ext.userPhotoUrl && /^https?:\/\//i.test(String(ext.userPhotoUrl))) {
+        who = '<img class="ch-agenda-item__avatar" src="' + esc(ext.userPhotoUrl) +
+              '" alt="' + esc(ext.userName || '') + '" title="' + esc(ext.userName || '') +
+              '" loading="lazy" width="16" height="16" />';
+      } else if (ext.userName) {
+        who = '<span class="ch-agenda-item__who">· ' + esc(ext.userName) + '</span>';
+      } else {
+        who = '';
+      }
+      item.innerHTML =
+        '<span class="ch-agenda-item__when">' + esc(whenLabel(ev)) + '</span>' +
+        '<span class="ch-agenda-item__title">' + esc(ev.title || 'Compromisso') + '</span>' +
+        who;
+      item.title = (whenLabel(ev) + ' — ' + (ev.title || '') + (ext.userName ? ' · ' + ext.userName : '')).trim();
+      frag.appendChild(item);
+    });
+    listEl.insertBefore(frag, emptyEl);
+    countEl.textContent = events.length;
+    strip.hidden = false;
+  }
+
+  var wk = weekRange();
+  var url = prefix + '/calendar/events?start=' + encodeURIComponent(wk.start) +
+            '&end=' + encodeURIComponent(wk.end) + '&filter_type=appointments';
+  fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+    .then(function (r) { if (!r.ok) throw new Error('agenda ' + r.status); return r.json(); })
+    .then(function (data) {
+      var events = Array.isArray(data) ? data.filter(function (e) {
+        return e && e.extendedProps && e.extendedProps.type === 'appointment';
+      }) : [];
+      render(events);
+    })
+    .catch(function () {
+      // Best-effort: agenda indisponível => Kanban segue normal, strip permanece oculto.
+      strip.hidden = true;
+    });
 })();
 </script>
 {% endblock %}

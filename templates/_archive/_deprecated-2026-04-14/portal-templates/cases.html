@@ -1,0 +1,61 @@
+{% extends "portal/base.html" %}
+
+{% block title %}{% if product == "lite" %}Meus Processos{% else %}My Cases{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-folder-open me-2"></i>{% if product == "lite" %}Meus Processos{% else %}My Cases{% endif %}</h2>
+</div>
+
+<div class="row">
+    {% if cases %}
+    {% for case in cases %}
+    <div class="col-md-6 col-lg-4">
+        <div class="portal-card" style="cursor: pointer" onclick="location.href='{{ PREFIX }}/portal/cases/{{ case.id }}'">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h5 class="mb-0">{{ case.case_name or case.case_number or 'Case #' + case.id|string }}</h5>
+                    <span class="status-badge status-{{ case.status|lower|replace(' ', '-') }}">
+                        {{ case.status }}
+                    </span>
+                </div>
+
+                {% if case.receipt_number %}
+                <p class="text-muted mb-2">
+                    <i class="fas fa-receipt me-2"></i>{{ case.receipt_number }}
+                </p>
+                {% endif %}
+
+                {% if case.visa_type %}
+                <p class="mb-2">
+                    <i class="fas fa-passport me-2 text-primary"></i>{{ case.visa_type }}
+                </p>
+                {% endif %}
+
+                <div class="row text-muted small mt-3">
+                    {% if case.application_date %}
+                    <div class="col-6">
+                        <i class="fas fa-calendar me-1"></i>{% if product == "lite" %}Abertura: {{ case.application_date.strftime('%d/%m/%Y') }}{% else %}Filed: {{ case.application_date.strftime('%m/%d/%Y') }}{% endif %}
+                    </div>
+                    {% endif %}
+                    {% if case.processing_date %}
+                    <div class="col-6">
+                        <i class="fas fa-clock me-1"></i>{% if product == "lite" %}Andamento: {{ case.processing_date.strftime('%d/%m/%Y') }}{% else %}Processing: {{ case.processing_date.strftime('%m/%d/%Y') }}{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="col-12">
+        <div class="portal-card text-center py-5">
+            <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
+            <h4 class="text-muted">{% if product == "lite" %}Nenhum Processo Encontrado{% else %}No Cases Found{% endif %}</h4>
+            <p class="text-muted">{% if product == "lite" %}Voce ainda não possui processos. Entre em contato com nosso escritório para mais informações.{% else %}You don't have any cases yet. Please contact our office for assistance.{% endif %}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

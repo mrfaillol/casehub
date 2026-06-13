@@ -328,12 +328,15 @@ function addItem() {
     if (dialog && typeof dialog.showModal === 'function') {
         dialog.showModal();
         setTimeout(() => input && input.focus(), 0);
-    } else {
-        const name = window.prompt('Enter item name (e.g., Birth Certificate):');
-        if (name) {
-            items.push({ type: 'document_request', name: name, description: '', required: true });
-            renderItems();
-        }
+    } else if (dialog && typeof dialog.show === 'function') {
+        // Fallback acessível sem modal nativo: abre o mesmo <dialog> in-DOM
+        // (não-modal). O submit do addItemForm reaproveita a mesma lógica.
+        dialog.show();
+        setTimeout(() => input && input.focus(), 0);
+    } else if (dialog) {
+        // Último fallback ainda in-DOM (sem window.prompt nativo).
+        dialog.setAttribute('open', '');
+        setTimeout(() => input && input.focus(), 0);
     }
 }
 

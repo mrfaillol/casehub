@@ -18,6 +18,8 @@ import logging
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
 
+from services.calendario_judicial import get_suspensoes_judiciais
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -162,7 +164,7 @@ def get_feriados_moveis(ano: int) -> List[date]:
     ]
 
 
-def get_feriados(ano: int, estado: str = "MG") -> List[date]:
+def get_feriados(ano: int, estado: str = "MG", tribunal: Optional[str] = None) -> List[date]:
     """
     Get all holidays for a given year and state.
     Includes: national fixed, mobile (Easter-based), and state-specific.
@@ -170,6 +172,7 @@ def get_feriados(ano: int, estado: str = "MG") -> List[date]:
     Args:
         ano: Year.
         estado: State code (e.g., "MG", "SP", "RJ"). Default: MG.
+        tribunal: Optional court code for tribunal-specific suspensions.
 
     Returns:
         Sorted list of holiday dates.
@@ -192,6 +195,9 @@ def get_feriados(ano: int, estado: str = "MG") -> List[date]:
         except ValueError:
             pass  # Invalid date for this year
 
+    for d in get_suspensoes_judiciais(ano, tribunal=tribunal, estado=estado_upper):
+        feriados.add(d)
+
     return sorted(feriados)
 
 
@@ -210,7 +216,7 @@ def _em_recesso(d: date) -> bool:
     return False
 
 
-def eh_dia_util(d: date, estado: str = "MG") -> bool:
+def eh_dia_util(d: date, estado: str = "MG", tribunal: Optional[str] = None) -> bool:
     """
     Check if a date is a judicial business day.
 
@@ -222,6 +228,7 @@ def eh_dia_util(d: date, estado: str = "MG") -> bool:
     Args:
         d: Date to check.
         estado: State code for state-specific holidays.
+        tribunal: Optional court code for court-specific suspensions.
 
     Returns:
         True if it's a business day, False otherwise.
@@ -235,18 +242,18 @@ def eh_dia_util(d: date, estado: str = "MG") -> bool:
         return False
 
     # Holidays — check both the year of the date
-    feriados = get_feriados(d.year, estado)
+    feriados = get_feriados(d.year, estado, tribunal=tribunal)
     if d in feriados:
         return False
 
     return True
 
 
-def proximo_dia_util(d: date, estado: str = "MG") -> date:
+def proximo_dia_util(d: date, estado: str = "MG", tribunal: Optional[str] = None) -> date:
     """
     Find the next business day on or after the given date.
     """
-    while not eh_dia_util(d, estado):
+    while not eh_dia_util(d, estado, tribunal=tribunal):
         d += timedelta(days=1)
     return d
 
@@ -256,6 +263,7 @@ def calcular_prazo(
     dias: int,
     estado: str = "MG",
     dobro: bool = False,
+    tribunal: Optional[str] = None,
 ) -> date:
     """
     Calculate a legal deadline from an intimation date.
@@ -271,6 +279,7 @@ def calcular_prazo(
         dias: Number of business days for the deadline.
         estado: State code for holidays.
         dobro: If True, doubles the deadline (CPC Art. 229).
+        tribunal: Optional court code for court-specific suspensions.
 
     Returns:
         The deadline date (last day to act).
@@ -282,24 +291,46 @@ def calcular_prazo(
 
     # CPC Art. 224: prazo starts on the first business day AFTER intimation
     current = data_intimacao + timedelta(days=1)
-    current = proximo_dia_util(current, estado)
+    current = proximo_dia_util(current, estado, tribunal=tribunal)
 
     # Count business days
     dias_contados = 1  # first business day after intimation counts as day 1
     while dias_contados < prazo_dias:
         current += timedelta(days=1)
-        if eh_dia_util(current, estado):
+        if eh_dia_util(current, estado, tribunal=tribunal):
             dias_contados += 1
 
     logger.info(
-        "Prazo calculado: intimacao=%s, dias=%d%s, estado=%s -> vencimento=%s",
+        "Prazo calculado: intimacao=%s, dias=%d%s, estado=%s, tribunal=%s -> vencimento=%s",
         data_intimacao.isoformat(),
         dias,
         " (dobro)" if dobro else "",
         estado,
+        tribunal or "",
         current.isoformat(),
     )
     return current
+
+
+def calcular_prazo_corrido(data_intimacao: date, dias: int) -> date:
+    """
+    Calculate an ADMINISTRATIVE deadline counted in CALENDAR days (dias corridos).
+
+    Unlike judicial deadlines (CPC business-day rules), administrative deadlines
+    (INSS, processos administrativos) run continuously — no holiday/weekend
+    suspension and no court calendar. Counted as plain calendar days from the
+    intimation/start date. Reunião Ricardo/Example User 10/06/2026.
+
+    Args:
+        data_intimacao: Start/intimation date.
+        dias: Number of calendar days for the deadline.
+
+    Returns:
+        The deadline date (data_intimacao + dias calendar days).
+    """
+    if dias <= 0:
+        raise ValueError("Prazo deve ser positivo")
+    return data_intimacao + timedelta(days=dias)
 
 
 def calcular_prazo_detalhado(
@@ -307,6 +338,7 @@ def calcular_prazo_detalhado(
     dias: int,
     estado: str = "MG",
     dobro: bool = False,
+    tribunal: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Calculate deadline with detailed breakdown.
@@ -327,7 +359,7 @@ def calcular_prazo_detalhado(
 
     # Find start
     inicio = data_intimacao + timedelta(days=1)
-    inicio = proximo_dia_util(inicio, estado)
+    inicio = proximo_dia_util(inicio, estado, tribunal=tribunal)
 
     # Count business days and track details
     current = inicio
@@ -340,10 +372,10 @@ def calcular_prazo_detalhado(
         if _em_recesso(current):
             recesso_encontrado = True
         if current.weekday() < 5:  # Weekday
-            feriados_ano = get_feriados(current.year, estado)
+            feriados_ano = get_feriados(current.year, estado, tribunal=tribunal)
             if current in feriados_ano:
                 feriados_encontrados.append(current.isoformat())
-        if eh_dia_util(current, estado):
+        if eh_dia_util(current, estado, tribunal=tribunal):
             dias_contados += 1
 
     return {
@@ -356,6 +388,7 @@ def calcular_prazo_detalhado(
         "recesso": recesso_encontrado,
         "dobro": dobro,
         "estado": estado,
+        "tribunal": tribunal,
     }
 
 
@@ -450,7 +483,7 @@ def prazos_comuns() -> Dict[str, Dict[str, Any]]:
 
 
 def listar_prazos_para_data(
-    data_intimacao: date, estado: str = "MG"
+    data_intimacao: date, estado: str = "MG", tribunal: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Calculate all common deadlines from a single intimation date.
@@ -460,7 +493,7 @@ def listar_prazos_para_data(
     """
     resultado = []
     for tipo, info in prazos_comuns().items():
-        vencimento = calcular_prazo(data_intimacao, info["dias"], estado)
+        vencimento = calcular_prazo(data_intimacao, info["dias"], estado, tribunal=tribunal)
         resultado.append({
             "tipo": tipo,
             "descricao": info["descricao"],

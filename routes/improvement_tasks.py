@@ -1,7 +1,7 @@
 """
 CaseHub - Improvement Tasks API
 
-POST /casehub/api/v1/improvement-tasks    receive task from app.example.com
+POST /casehub/api/v1/improvement-tasks    receive task from cmd.vingren.me
 GET  /casehub/api/v1/improvement-tasks    list tasks (auth required)
 GET  /casehub/api/v1/improvement-tasks/{id}  task detail
 
@@ -98,7 +98,7 @@ def _require_enabled():
 
 @router.post("")
 async def receive_improvement_task(request: Request, db: Session = Depends(get_db)):
-    """Receive an improvement task pushed by app.example.com intake-triage."""
+    """Receive an improvement task pushed by cmd.vingren.me intake-triage."""
     _require_enabled()
 
     raw_body = await request.body()

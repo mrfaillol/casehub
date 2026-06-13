@@ -307,7 +307,7 @@ async def receive_contacts_sync(request: Request, db: Session = Depends(get_db))
 # 1d. Bot → CaseHub lifecycle events (HMAC-protected)
 # ============================================================
 # Plain-language reasons keyed by the whatsapp-web.js disconnect code so the
-# in-app alert reads to a layperson ([parceiro]/[usuário]), not an engineer.
+# in-app alert reads to a layperson (Example User/Ricardo), not an engineer.
 _WA_DISCONNECT_REASONS = {
     "logout": "a sessão foi encerrada (logout no celular, em Aparelhos conectados)",
     "navigation": "a janela do WhatsApp foi recarregada no servidor",

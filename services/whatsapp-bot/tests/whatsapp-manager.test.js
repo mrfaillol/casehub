@@ -13,6 +13,8 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const EventEmitter = require("node:events");
+const fs = require("node:fs");
+const os = require("node:os");
 
 // IMPORTANT: load the real WhatsAppManager but inject a mock client factory.
 // This avoids requiring `whatsapp-web.js` (Puppeteer dep) at module load time.
@@ -46,9 +48,12 @@ function mockClientFactory(opts) {
   stub.qrCode = null;
   stub.client = null;
   stub._initCount = 0;
+  stub._intentionalDown = false;
   stub._sentMessages = [];
-  stub.initialize = async () => {
+  stub._isIntentionalDown = () => Boolean(stub._intentionalDown);
+  stub.initialize = async (_phoneNumber = null, options = {}) => {
     stub._initCount += 1;
+    if (options && options.explicit) stub._intentionalDown = false;
     stub.client = { sendMessage: () => ({}) };
     stub.status = "ready";
     stub.isReady = true;
@@ -135,6 +140,162 @@ test("WhatsAppManager keeps tenant sends isolated", async () => {
   // No bleed across tenants.
   assert.strictEqual(orgA._sentMessages[0].orgId, 1);
   assert.strictEqual(orgB._sentMessages[0].orgId, 4);
+});
+
+function readyRealClient(clientImpl, orgId = 1) {
+  const client = new WhatsAppClient({ orgId, dataBase: fs.mkdtempSync(path.join(os.tmpdir(), "casehub-wa-test-")) });
+  client.client = clientImpl;
+  client.isReady = true;
+  client.status = "ready";
+  return client;
+}
+
+function withEnv(name, value, fn) {
+  const old = process.env[name];
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      if (old === undefined) delete process.env[name];
+      else process.env[name] = old;
+    });
+}
+
+function tempClient(orgId = 4) {
+  const dataBase = fs.mkdtempSync(path.join(os.tmpdir(), "casehub-wa-bind-"));
+  return {
+    dataBase,
+    client: new WhatsAppClient({ orgId, dataBase }),
+    cleanup: () => fs.rmSync(dataBase, { recursive: true, force: true }),
+  };
+}
+
+test("WhatsAppClient.sendMessage reuses inbound LID mapping for that org", async () => {
+  const calls = [];
+  const client = readyRealClient({
+    sendMessage: async (jid, text) => {
+      calls.push({ jid, text });
+      return { id: { _serialized: "msg-lid" } };
+    },
+    getChatById: async () => { throw new Error("should not query store when reverse cache is warm"); },
+    getNumberId: async () => { throw new Error("should not query number id when reverse cache is warm"); },
+  }, 4);
+
+  client._rememberLidForPhone("+55 (11) 99999-0000", "222333444555@lid");
+
+  await client.sendMessage("5511999990000", "reply via known LID");
+
+  assert.deepStrictEqual(calls, [
+    { jid: "222333444555@lid", text: "reply via known LID" },
+  ]);
+});
+
+test("WhatsAppClient LID reverse cache stays scoped to the client instance", async () => {
+  const callsA = [];
+  const callsB = [];
+  const orgA = readyRealClient({
+    sendMessage: async (jid, text) => { callsA.push({ jid, text }); return { id: { _serialized: "a" } }; },
+    getChatById: async () => { throw new Error("org A cache should be warm"); },
+  }, 1);
+  const orgB = readyRealClient({
+    sendMessage: async (jid, text) => { callsB.push({ jid, text }); return { id: { _serialized: "b" } }; },
+    getChatById: async () => { throw new Error("org B cache should be warm"); },
+  }, 4);
+
+  orgA._rememberLidForPhone("5511999990000", "111111111111@lid");
+  orgB._rememberLidForPhone("5511999990000", "444444444444@lid");
+
+  await orgA.sendMessage("5511999990000", "tenant A");
+  await orgB.sendMessage("5511999990000", "tenant B");
+
+  assert.deepStrictEqual(callsA, [{ jid: "111111111111@lid", text: "tenant A" }]);
+  assert.deepStrictEqual(callsB, [{ jid: "444444444444@lid", text: "tenant B" }]);
+});
+
+test("WhatsAppClient.sendMessage rejects unsupported explicit JID namespaces", async () => {
+  const calls = [];
+  const client = readyRealClient({
+    sendMessage: async (jid, text) => {
+      calls.push({ jid, text });
+      return { id: { _serialized: "msg-unsupported" } };
+    },
+  }, 4);
+
+  await assert.rejects(
+    () => client.sendMessage("5511999990000@s.whatsapp.net", "do not send"),
+    /JID WhatsApp nao suportado para envio/
+  );
+  assert.deepStrictEqual(calls, []);
+});
+
+test("WhatsAppClient refuses unbound __lastgood restore when host binding is active", async () => {
+  await withEnv("CASEHUB_WA_SESSION_BINDING", "host-a-secret", () => {
+    const t = tempClient(4);
+    try {
+      const backup = t.client._backupDir("__lastgood");
+      fs.mkdirSync(backup, { recursive: true });
+      fs.writeFileSync(path.join(backup, "Default"), "session-data");
+
+      assert.strictEqual(t.client._restoreFromBackupOnBoot(), false);
+      assert.strictEqual(fs.existsSync(t.client._sessionDir()), false);
+      assert.strictEqual(t.client.status, "blocked_host");
+    } finally {
+      t.cleanup();
+    }
+  });
+});
+
+test("WhatsAppClient restores __lastgood only when host marker matches", async () => {
+  await withEnv("CASEHUB_WA_SESSION_BINDING", "host-a-secret", () => {
+    const t = tempClient(4);
+    try {
+      const backup = t.client._backupDir("__lastgood");
+      fs.mkdirSync(backup, { recursive: true });
+      fs.writeFileSync(path.join(backup, ".host-bind"), t.client._hostBindingHash());
+      fs.writeFileSync(path.join(backup, "Default"), "session-data");
+
+      assert.strictEqual(t.client._restoreFromBackupOnBoot(), true);
+      assert.strictEqual(fs.readFileSync(path.join(t.client._sessionDir(), "Default"), "utf8"), "session-data");
+    } finally {
+      t.cleanup();
+    }
+  });
+});
+
+test("WhatsAppClient clearAndReinitialize discards stale __lastgood backup", async () => {
+  const t = tempClient(4);
+  try {
+    fs.mkdirSync(t.client._sessionDir(), { recursive: true });
+    fs.writeFileSync(path.join(t.client._sessionDir(), "Default"), "old-session");
+    const lastGood = t.client._backupDir("__lastgood");
+    fs.mkdirSync(lastGood, { recursive: true });
+    fs.writeFileSync(path.join(lastGood, "Default"), "last-good");
+    t.client.initialize = async () => {};
+
+    await t.client.clearAndReinitialize("5532999999999");
+
+    assert.strictEqual(fs.existsSync(lastGood), false);
+    assert.strictEqual(fs.existsSync(t.client._backupDir("__prewipe")), true);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("WhatsAppManager does not implicitly boot an intentionally down session", async () => {
+  const mgr = new WhatsAppManager({ clientFactory: mockClientFactory });
+  const client = mgr.getOrCreate(4);
+  client._intentionalDown = true;
+
+  const implicit = await mgr.ensureInitialized(4);
+  assert.strictEqual(implicit, client);
+  assert.strictEqual(client._initCount, 0);
+  assert.strictEqual(client.isReady, false);
+
+  const explicit = await mgr.ensureInitialized(4, null, { explicit: true });
+  assert.strictEqual(explicit, client);
+  assert.strictEqual(client._initCount, 1);
+  assert.strictEqual(client.isReady, true);
 });
 
 test("WhatsAppManager.snapshot reports per-org state", async () => {

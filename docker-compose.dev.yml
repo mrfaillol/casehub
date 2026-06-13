@@ -1,0 +1,139 @@
+# CaseHub Development Environment
+# Usage: docker compose -f docker-compose.dev.yml up
+# Hot reload: templates/ and static/ are volume-mounted
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: casehub-dev-db
+    environment:
+      POSTGRES_DB: casehub_dev
+      POSTGRES_USER: casehub
+      POSTGRES_PASSWORD: dev123
+    volumes:
+      - casehub_dev_pgdata:/var/lib/postgresql/data
+      - ./init-dev.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U casehub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 512m
+    memswap_limit: 512m
+    networks:
+      - casehub-dev
+
+  redis:
+    image: redis:7-alpine
+    container_name: casehub-dev-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+    memswap_limit: 256m
+    networks:
+      - casehub-dev
+
+  casehub:
+    build:
+      context: .
+      dockerfile: Dockerfile.lite
+    container_name: casehub-dev-app
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1", "--reload"]
+    environment:
+      - DATABASE_URL=postgresql://casehub:dev123@postgres:5432/casehub_dev
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=dev-secret-key-not-for-production
+      - CASEHUB_PRODUCT=lite
+      - DEFAULT_LOCALE=pt-BR
+      - CASEHUB_UI_THEME=glass
+      - CASEHUB_RELEASE_NOTICE_ENABLED=${CASEHUB_RELEASE_NOTICE_ENABLED:-false}
+      - CASEHUB_RELEASE_NOTICE_ID=${CASEHUB_RELEASE_NOTICE_ID:-vieira-salles-2026-05-04-pdpj-beta}
+      - CASEHUB_MAESTRO_FAB_ENABLED=${CASEHUB_MAESTRO_FAB_ENABLED:-false}
+      - WHATSAPP_BOT_URL=${WHATSAPP_BOT_URL:-}
+      - GOOGLE_DRIVE_CREDENTIALS_PATH=${GOOGLE_DRIVE_CREDENTIALS_PATH:-}
+      - GOOGLE_DRIVE_TOKEN_PATH=${GOOGLE_DRIVE_TOKEN_PATH:-}
+      - GOOGLE_DRIVE_ROOT_ID=${GOOGLE_DRIVE_ROOT_ID:-}
+      - GOOGLE_DRIVE_TASKS_ID=${GOOGLE_DRIVE_TASKS_ID:-}
+      - GOOGLE_CALENDAR_CREDENTIALS_PATH=${GOOGLE_CALENDAR_CREDENTIALS_PATH:-}
+      - GOOGLE_CALENDAR_TOKEN_DIR=${GOOGLE_CALENDAR_TOKEN_DIR:-}
+      - GOOGLE_CALENDAR_LEGACY_TOKEN_PATH=${GOOGLE_CALENDAR_LEGACY_TOKEN_PATH:-}
+      - GOOGLE_CALENDAR_DEFAULT_ACCOUNTS=${GOOGLE_CALENDAR_DEFAULT_ACCOUNTS:-center,info}
+      - GOOGLE_CALENDAR_SEND_UPDATES=${GOOGLE_CALENDAR_SEND_UPDATES:-none}
+      - GOOGLE_CALENDAR_CREATE_MEET=${GOOGLE_CALENDAR_CREATE_MEET:-false}
+      - GOOGLE_CALENDAR_EVENT_DETAIL_MODE=${GOOGLE_CALENDAR_EVENT_DETAIL_MODE:-details}
+      - GOOGLE_CALENDAR_EVENT_LANG=${GOOGLE_CALENDAR_EVENT_LANG:-pt-BR}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-}
+      - GMAIL_CENTER_EMAIL=${GMAIL_CENTER_EMAIL:-}
+      - GMAIL_CENTER_APP_PASSWORD=${GMAIL_CENTER_APP_PASSWORD:-}
+      - COMUNICAAPI_OABS=${COMUNICAAPI_OABS:-}
+      - PDPJ_CLIENT_ID=${PDPJ_CLIENT_ID:-}
+      - PDPJ_CLIENT_SECRET=${PDPJ_CLIENT_SECRET:-}
+      - PDPJ_REFRESH_TOKEN=${PDPJ_REFRESH_TOKEN:-}
+      - PDPJ_BASE_URL=${PDPJ_BASE_URL:-}
+      - PDPJ_SSO_URL=${PDPJ_SSO_URL:-}
+      - DATAJUD_API_KEY=${DATAJUD_API_KEY:-}
+      - ESCAVADOR_API_KEY=${ESCAVADOR_API_KEY:-}
+      - JUSBRASIL_API_KEY=${JUSBRASIL_API_KEY:-}
+      # cmd-control-center improvement-tasks receiver (ruling 2026-05-06).
+      # Default-OFF (`:-0`) por defesa: sem HMAC key plantada, ativar deixa o
+      # endpoint disponível só para JWT admin — não hostil mas amplifica
+      # surface. Ativar via env override depois de plantar
+      # CASEHUB_IMPROVEMENT_HMAC_KEY (`openssl rand -hex 32`, mesmo valor em
+      # casehub + trabalho-workspace via `gh secret set`).
+      - CASEHUB_IMPROVEMENT_TASKS_ENABLED=${CASEHUB_IMPROVEMENT_TASKS_ENABLED:-0}
+      - CASEHUB_IMPROVEMENT_HMAC_KEY=${CASEHUB_IMPROVEMENT_HMAC_KEY:-}
+      - PREFIX=/casehub
+      - BASE_URL=https://dev.vingren.me
+      - ORG_NAME=CaseHub Dev
+      - DEBUG=1
+    volumes:
+      # Hot reload: mount source for live editing (uvicorn --reload watches these)
+      - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
+      - ./core:/app/core:ro
+      - ./routes:/app/routes:ro
+      - ./services:/app/services:ro
+      - ./models:/app/models:ro
+      - ./app.py:/app/app.py:ro
+      - ./auth.py:/app/auth.py:ro
+      - ./config.py:/app/config.py:ro
+      - ./credentials:/app/credentials
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/casehub/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    mem_limit: 1g
+    memswap_limit: 1g
+    networks:
+      - casehub-dev
+
+volumes:
+  casehub_dev_pgdata:
+    driver: local
+
+networks:
+  casehub-dev:
+    driver: bridge

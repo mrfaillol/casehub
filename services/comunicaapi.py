@@ -44,13 +44,14 @@ Usage:
 Fallback:
     Se credenciais PDPJ não estiverem configuradas, o cliente loga warning
     e retorna estrutura vazia (não crasha). Isso permite que o sistema
-    continue operacional enquanto [parceiro] configura o PDPJ.
+    continue operacional enquanto Example User configura o PDPJ.
 """
 import asyncio
 import hashlib
 import httpx
 import logging
 import os
+import re
 import time
 from datetime import date, timedelta
 from typing import Optional, List, Dict, Any
@@ -78,7 +79,10 @@ _DEMO_INTIMACOES = {
 }
 
 PDPJ_PUBLIC_ERROR_MESSAGES = {
-    "missing_credentials": "Credenciais PDPJ ausentes. Configure PDPJ_CLIENT_ID e PDPJ_CLIENT_SECRET.",
+    "missing_org_id": "Tenant nao identificado para a consulta PDPJ.",
+    "missing_credentials": "Credenciais PDPJ ausentes. Configure credenciais do tenant ou PDPJ_CLIENT_ID/PDPJ_CLIENT_SECRET.",
+    "tenant_credentials_incomplete": "Credenciais PDPJ do tenant incompletas. Regrave client_id e secret_id.",
+    "tenant_credentials_decrypt_failed": "Credenciais PDPJ do tenant nao puderam ser lidas. Regrave a credencial.",
     "invalid_client": "O CNJ/PDPJ rejeitou o client_id/client_secret configurado.",
     "invalid_grant": "O token PDPJ expirou ou foi revogado. Reconecte a integracao.",
     "unauthorized_client": "O cliente PDPJ nao esta autorizado para este grant type.",
@@ -86,6 +90,19 @@ PDPJ_PUBLIC_ERROR_MESSAGES = {
     "empty_token_response": "O PDPJ respondeu sem access_token.",
     "network": "Erro de rede ao contactar o PDPJ/CNJ.",
 }
+
+_OAUTH_SECRET_RE = re.compile(
+    r"(?i)\b(client_secret|access_token|refresh_token|id_token|authorization)"
+    r"([\"']?\s*[:=]\s*[\"']?)([^\"'\s,&}]+)"
+)
+_BEARER_RE = re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+")
+
+
+def _safe_oauth_error(value: str) -> str:
+    """Redact OAuth-like values before diagnostics/logging."""
+    text = str(value or "")
+    text = _OAUTH_SECRET_RE.sub(lambda match: f"{match.group(1)}{match.group(2)}<redacted>", text)
+    return _BEARER_RE.sub(r"\1<redacted>", text)
 
 
 # ──────────── PDPJ OAuth2 Client ────────────
@@ -141,6 +158,8 @@ class PDPJAuthClient:
             self.last_error_description: Optional[str] = None
 
     def __init__(self):
+        # Env credentials remain a compatibility fallback. Tenant-scoped DB
+        # credentials take precedence via _client_credentials_for(org_id).
         self.client_id = os.getenv("PDPJ_CLIENT_ID", "")
         self.client_secret = os.getenv("PDPJ_CLIENT_SECRET", "")
         # Env-level refresh_token seeds ONLY the default-org bucket; other orgs
@@ -222,14 +241,32 @@ class PDPJAuthClient:
     def last_error_code(self) -> Optional[str]:
         return self._state(self.DEFAULT_ORG_ID).last_error_code
 
+    def _client_credentials_for(self, org_id: Optional[int] = None):
+        """Resolve tenant credentials, then env fallback if the tenant is unset."""
+        from services.pdpj_credentials import resolve_pdpj_client_credentials_from_runtime
+
+        return resolve_pdpj_client_credentials_from_runtime(
+            org_id,
+            env_client_id=self.client_id,
+            env_client_secret=self.client_secret,
+        )
+
+    def is_configured_for(self, org_id: Optional[int] = None) -> bool:
+        return self._client_credentials_for(org_id).configured
+
     def public_status(self, org_id: Optional[int] = None) -> Dict[str, Any]:
         """Return sanitized auth state for admin diagnostics and UI responses."""
         st = self._state(org_id)
+        credentials = self._client_credentials_for(org_id)
         expires_in = int(max(st.expires_at - time.time(), 0)) if st.access_token else 0
         return {
-            "configured": self.is_configured,
-            "has_client_id": bool(self.client_id),
-            "has_client_secret": bool(self.client_secret),
+            "configured": credentials.configured,
+            "credential_source": credentials.source,
+            "credential_error": credentials.error,
+            "has_client_id": bool(credentials.client_id),
+            "has_client_secret": bool(credentials.client_secret),
+            "client_id_fingerprint": credentials.client_id_fingerprint,
+            "client_secret_fingerprint": credentials.client_secret_fingerprint,
             "has_refresh_token": bool(st.refresh_token),
             "token_cached": bool(st.access_token and expires_in > 0),
             "token_expires_in_seconds": expires_in,
@@ -278,7 +315,7 @@ class PDPJAuthClient:
     def is_configured(self) -> bool:
         """True se client_id + client_secret estão presentes.
         refresh_token é opcional (client_credentials não precisa)."""
-        return bool(self.client_id and self.client_secret)
+        return self.is_configured_for(self.DEFAULT_ORG_ID)
 
     def _has_refresh_token(self, org_id: Optional[int] = None) -> bool:
         """True se refresh_token está disponível (para fallback grant)."""
@@ -295,7 +332,9 @@ class PDPJAuthClient:
         2. Se falhar e tiver refresh_token (env/DB do org), tenta refresh_token grant
         3. Se ambos falharem, retorna None (degradação graciosa)
         """
-        if not self.is_configured:
+        credentials = self._client_credentials_for(org_id)
+        if not credentials.configured:
+            self._set_last_error(credentials.error or "missing_credentials", org_id=org_id)
             return None
 
         st = self._state(org_id)
@@ -352,11 +391,12 @@ class PDPJAuthClient:
     async def _authenticate_client_credentials(self, org_id: Optional[int] = None) -> None:
         """Obtém access_token via client_credentials grant (server-to-server)."""
         logger.info("PDPJ: autenticando via client_credentials")
+        credentials = self._client_credentials_for(org_id)
 
         data = {
             "grant_type": "client_credentials",
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
+            "client_id": credentials.client_id,
+            "client_secret": credentials.client_secret,
         }
 
         await self._do_token_request(data, "client_credentials", org_id)
@@ -366,10 +406,11 @@ class PDPJAuthClient:
         logger.info("PDPJ: renovando access_token via refresh_token")
 
         st = self._state(org_id)
+        credentials = self._client_credentials_for(org_id)
         data = {
             "grant_type": "refresh_token",
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
+            "client_id": credentials.client_id,
+            "client_secret": credentials.client_secret,
             "refresh_token": st.refresh_token,
         }
 
@@ -438,13 +479,13 @@ class PDPJAuthClient:
                 try:
                     error_body = e.response.json()
                     error_code = error_body.get("error") or error_code
-                    error_description = error_body.get("error_description") or ""
+                    error_description = _safe_oauth_error(error_body.get("error_description") or "")
                 except Exception:
-                    error_description = e.response.text[:160]
+                    error_description = _safe_oauth_error(e.response.text[:160])
             self._set_last_error(error_code, e.response.status_code, error_description, org_id=org_id)
             logger.error(
                 "PDPJ: falha no %s — status %s, body: %s",
-                grant_type, e.response.status_code, e.response.text[:300],
+                grant_type, e.response.status_code, _safe_oauth_error(e.response.text[:300]),
             )
             st.access_token = None
             st.expires_at = 0.0
@@ -458,12 +499,14 @@ class PDPJAuthClient:
 
     async def probe_client_credentials(self, org_id: int = 1) -> Dict[str, Any]:
         """Run a sanitized read-only token probe against PDPJ client_credentials."""
-        if not self.is_configured:
-            self._set_last_error("missing_credentials", org_id=org_id)
+        credentials = self._client_credentials_for(org_id)
+        if not credentials.configured:
+            code = credentials.error or "missing_credentials"
+            self._set_last_error(code, org_id=org_id)
             return {
                 "success": False,
-                "code": "missing_credentials",
-                "message": public_pdpj_error_message("missing_credentials"),
+                "code": code,
+                "message": public_pdpj_error_message(code),
                 "auth": self.public_status(org_id),
             }
 
@@ -493,6 +536,13 @@ pdpj_auth = PDPJAuthClient()
 def public_pdpj_error_message(code: Optional[str]) -> str:
     if not code:
         return ""
+    if code == "http_403":
+        return (
+            "ComunicaAPI/CNJ negou acesso ao recurso. A credencial autentica, "
+            "mas o cliente PDPJ precisa de permissao/escopo para este endpoint."
+        )
+    if code == "http_401":
+        return "ComunicaAPI/CNJ rejeitou a autorizacao da chamada ao recurso."
     if code.startswith("http_"):
         return f"ComunicaAPI/CNJ respondeu {code.upper().replace('_', ' ')}."
     if code.startswith("auth_failure"):
@@ -539,16 +589,28 @@ class ComunicaAPIClient:
             )
             return dict(_DEMO_INTIMACOES)
 
+        if org_id is None:
+            logger.warning("ComunicaAPI: consulta bloqueada sem org_id explicito")
+            return {
+                "items": [],
+                "count": 0,
+                "source": "ComunicaAPI PJE/CNJ (tenant nao identificado)",
+                "error": "missing_org_id",
+                "message": public_pdpj_error_message("missing_org_id"),
+                "auth": pdpj_auth.public_status(None),
+            }
+
         # Org para isolamento de credenciais PDPJ (IDOR C6).
-        effective_org_id = org_id or pdpj_auth.DEFAULT_ORG_ID
+        effective_org_id = org_id
 
         # Credenciais PDPJ configuradas?
-        if not pdpj_auth.is_configured:
+        if not pdpj_auth.is_configured_for(effective_org_id):
             logger.warning(
-                "ComunicaAPI: credenciais PDPJ ausentes. Defina PDPJ_CLIENT_ID e "
-                "PDPJ_CLIENT_SECRET no .env para ativar a integração. "
+                "ComunicaAPI: credenciais PDPJ ausentes para org_id=%s. Configure "
+                "credenciais do tenant ou PDPJ_CLIENT_ID/PDPJ_CLIENT_SECRET no .env. "
                 "PDPJ_REFRESH_TOKEN é opcional (apenas se usar authorization_code "
-                "flow em vez de client_credentials). Retornando resultado vazio."
+                "flow em vez de client_credentials). Retornando resultado vazio.",
+                effective_org_id,
             )
             return {
                 "items": [],
@@ -650,7 +712,8 @@ class ComunicaAPIClient:
                 await pdpj_auth.invalidate_cache(effective_org_id)
                 logger.warning(
                     "ComunicaAPI: %s recebido, token cache invalidado (org_id=%s). "
-                    "Verifique PDPJ_REFRESH_TOKEN (pode estar expirado/revogado).",
+                    "Verifique autorizacao do cliente PDPJ para o recurso/endpoint "
+                    "CNJ solicitado.",
                     status, effective_org_id,
                 )
 

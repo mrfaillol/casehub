@@ -1,3 +1,4 @@
+{# DEPRECATED 2026-06-11: legacy duplicate of templates/app/emails/view.html; do not edit. See docs/templates/legacy-template-duplicates-2026-06-11.md. #}
 {% extends "base.html" %}
 
 {% block title %}{{ email.subject }} - {{ org_name|default('CaseHub') }}{% endblock %}
@@ -56,8 +57,8 @@
         <section class="emails-view__main" aria-label="{% if product == 'lite' %}Conteúdo do e-mail{% else %}Email content{% endif %}">
             <article class="emails-view__header">
                 <h1 id="emails-view-title" class="emails-view__title">
-                    <i class="fas fa-envelope emails-view__title-icon" aria-hidden="true"></i>
-                    <span>{{ email.subject or '(No Subject)' }}</span>
+                    <i class="fas fa-envelope-open-text emails-view__title-icon" aria-hidden="true"></i>
+                    <span>{{ email.subject or '(Sem Assunto)' }}</span>
                 </h1>
 
                 <div class="emails-view__meta-grid">
@@ -78,7 +79,13 @@
                         {% endif %}
                         <div class="emails-view__meta-row">
                             <dt class="emails-view__meta-label">{% if product == "lite" %}Data{% else %}Date{% endif %}:</dt>
-                            <dd class="emails-view__meta-value">{{ email.received_at.strftime('%B %d, %Y at %H:%M') if email.received_at else '-' }}</dd>
+                            <dd class="emails-view__meta-value">
+                                {% if email.received_at %}
+                                    {{ email.received_at.strftime('%d/%m/%Y às %H:%M') }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </dd>
                         </div>
                     </dl>
 
@@ -97,11 +104,11 @@
                             <option value="">{% if product == "lite" %}Vincular a Caso{% else %}Link to Case{% endif %}</option>
                             {% for case in cases %}
                             <option value="{{ case.id }}" {% if email.case_id == case.id %}selected{% endif %}>
-                                {{ case.case_name or case.case_number or ('Case #' ~ case.id) }}
+                                {{ case.case_name or case.case_number or ('Caso #' ~ case.id) }}
                             </option>
                             {% endfor %}
                         </select>
-                        <button type="submit" class="emails-view__action emails-view__link-submit">
+                        <button type="submit" class="emails-view__link-submit">
                             <i class="fas fa-link" aria-hidden="true"></i>
                             <span>{% if product == "lite" %}Vincular{% else %}Link{% endif %}</span>
                         </button>
@@ -119,7 +126,7 @@
                     {% if email.case_id %}
                     <a href="{{ PREFIX }}/cases/{{ email.case_id }}" class="emails-view__badge emails-view__badge--case">
                         <i class="fas fa-folder" aria-hidden="true"></i>
-                        <span>{{ email.case_name or ('Case #' ~ email.case_id) }}</span>
+                        <span>{{ email.case_name or ('Caso #' ~ email.case_id) }}</span>
                     </a>
                     {% endif %}
                 </div>
@@ -203,14 +210,14 @@
                            {% if thread.id == email.id %}aria-current="page"{% endif %}>
                             <div class="emails-view__thread-item-subject">
                                 {% if not thread.is_read %}<span class="emails-view__thread-unread-dot" aria-label="{% if product == 'lite' %}Não lido{% else %}Unread{% endif %}"></span>{% endif %}
-                                <span>{{ thread.subject or '(No Subject)' }}</span>
+                                <span>{{ thread.subject or '(Sem Assunto)' }}</span>
                             </div>
                             {% if thread.preview %}
                             <div class="emails-view__thread-item-preview">{{ thread.preview }}</div>
                             {% endif %}
                             <div class="emails-view__thread-item-meta">
                                 <i class="fas fa-clock" aria-hidden="true"></i>
-                                <span>{{ thread.received_at.strftime('%b %d, %H:%M') if thread.received_at else '-' }}</span>
+                                <span>{{ thread.received_at.strftime('%d/%m · %H:%M') if thread.received_at else '-' }}</span>
                             </div>
                         </a>
                     </li>

@@ -28,6 +28,11 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     must_change_password = Column(Boolean, default=True)
     last_password_change = Column(DateTime(timezone=True))
+    # Real presence: bumped (throttled) on each authenticated request by the
+    # AuditContextMiddleware. Dashboard "Online agora" derives true presence
+    # from this instead of faking the first 5 enabled users. Additive + nullable
+    # so existing rows (never seen since deploy) simply read as offline.
+    last_activity = Column(DateTime(timezone=True), nullable=True)
 
     # Onboarding state (Fatia A — persistent tour progress, cross-device)
     onboarding_completed_at = Column(DateTime(timezone=True), nullable=True)

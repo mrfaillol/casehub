@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 from models import get_db
 from auth import get_current_user
 from services.auto_reply import process_auto_reply_sync
+from services.credential_crypto import decrypt_credential
 from config import settings
+from routes._email_gate import require_email_access_api
 
 PREFIX = settings.PREFIX
 # Sentinela T11: per-tenant attachments dir; flat dir kept as read-fallback.
@@ -51,11 +53,12 @@ async def sync_account(
     db: Session = Depends(get_db)
 ):
     """Trigger email sync for an account"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
-    result = db.execute(text("SELECT * FROM email_accounts WHERE id = :id"), {"id": account_id})
+    org_id = getattr(request.state, "org_id", None)
+    result = db.execute(text("SELECT * FROM email_accounts WHERE id = :id AND org_id = :org_id"), {"id": account_id, "org_id": org_id})
     account = result.fetchone()
 
     if not account:
@@ -71,18 +74,20 @@ async def sync_account(
 @router.get("/api/folders/{account_id}")
 async def get_imap_folders(account_id: int, request: Request, db: Session = Depends(get_db)):
     """Get list of IMAP folders for an account"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
-    result = db.execute(text("SELECT * FROM email_accounts WHERE id = :id"), {"id": account_id})
+    org_id = getattr(request.state, "org_id", None)
+    result = db.execute(text("SELECT * FROM email_accounts WHERE id = :id AND org_id = :org_id"), {"id": account_id, "org_id": org_id})
     account = result.fetchone()
 
     if not account:
         return JSONResponse({"error": "Account not found"}, status_code=404)
 
     try:
-        password = base64.b64decode(account.password_encrypted).decode()
+        # Council ruling 2026-06-03-casehub-email-credential-encryption: Fernet.
+        password = decrypt_credential(account.password_encrypted)
 
         if account.use_ssl:
             mail = imaplib.IMAP4_SSL(account.imap_server, account.imap_port)
@@ -123,6 +128,165 @@ async def get_imap_folders(account_id: int, request: Request, db: Session = Depe
 
 
 # ============================================
+# GMAIL OAUTH INBOX SYNC (Option B — no app password)
+# ============================================
+#
+# Reads the office mailbox via the SAME Google OAuth token the org already
+# connected for Calendar (gmail.readonly scope), and upserts the messages
+# into email_messages so the existing /emails inbox renders them with zero
+# IMAP credentials (ruling 2026-06-03-casehub-email-credential-encryption,
+# Option B). Org-scoped, dedupe by Gmail id (stored in message_id), best-effort.
+# NEVER stores a password and NEVER logs token material.
+
+GMAIL_OAUTH_ACCOUNT_NAME = "Google (OAuth)"
+
+
+def _ensure_google_oauth_account(db: Session, org_id, email_address: str) -> Optional[int]:
+    """Return the id of the logical 'google_oauth' email account for this org.
+
+    Creates a password-less placeholder row so email_messages.account_id can
+    point at it (the inbox list LEFT JOINs email_accounts for the address
+    label). Option B never stores a Gmail password — password_encrypted is
+    an empty string, and this account is disabled for IMAP polling so the
+    IMAP sync loop never tries to log in with it.
+    """
+    if org_id is None:
+        return None
+    try:
+        existing = db.execute(
+            text(
+                "SELECT id FROM email_accounts "
+                "WHERE org_id = :org_id AND imap_server = 'google_oauth' LIMIT 1"
+            ),
+            {"org_id": org_id},
+        ).fetchone()
+        if existing:
+            # Keep the displayed address fresh if Google reported a different one.
+            if email_address:
+                db.execute(
+                    text("UPDATE email_accounts SET email_address = :addr WHERE id = :id"),
+                    {"addr": email_address[:300], "id": existing[0]},
+                )
+                db.commit()
+            return existing[0]
+        row = db.execute(
+            text(
+                """
+                INSERT INTO email_accounts
+                    (name, email_address, imap_server, imap_port, smtp_server,
+                     smtp_port, username, password_encrypted, use_ssl, enabled, org_id)
+                VALUES
+                    (:name, :addr, 'google_oauth', 0, NULL,
+                     0, :addr, '', TRUE, FALSE, :org_id)
+                RETURNING id
+                """
+            ),
+            {
+                "name": GMAIL_OAUTH_ACCOUNT_NAME,
+                "addr": (email_address or "")[:300],
+                "org_id": org_id,
+            },
+        ).fetchone()
+        db.commit()
+        return row[0] if row else None
+    except Exception as exc:
+        logger.warning("[GMAIL OAUTH] could not ensure logical account: %s", exc)
+        db.rollback()
+        return None
+
+
+def sync_gmail_oauth_inbox(db: Session, org_id, max_results: int = 50) -> dict:
+    """Pull the office INBOX via OAuth and upsert into email_messages.
+
+    Returns a status dict mirroring the service:
+      {'status': 'ok', 'imported': N, 'skipped': M, 'email': '<addr>'}
+      {'status': 'needs_gmail_readonly_consent'}  # office must reconnect
+      {'status': 'not_connected'} | {'status': 'error', 'error': '...'}
+    Best-effort: never raises to the request handler.
+    """
+    if org_id is None:
+        return {"status": "error", "error": "no_tenant", "imported": 0, "skipped": 0}
+
+    from services.google_calendar import GoogleCalendarService
+
+    svc = GoogleCalendarService(db=db, org_id=org_id)
+    result = svc.fetch_inbox_messages(max_results=max_results)
+    status = result.get("status")
+    if status != "ok":
+        # 'needs_gmail_readonly_consent' / 'not_connected' / 'error' pass through.
+        return {"status": status, "error": result.get("error", ""),
+                "imported": 0, "skipped": 0}
+
+    account_id = _ensure_google_oauth_account(db, org_id, result.get("email", ""))
+    imported = 0
+    skipped = 0
+    for msg in result.get("messages", []):
+        # Dedupe key: prefer the RFC822 Message-ID; fall back to the Gmail id.
+        # Both are stored in message_id so the IMAP UNIQUE-ish lookup matches.
+        dedupe_id = (msg.get("message_id") or "").strip() or f"gmail:{msg.get('gmail_id')}"
+        try:
+            existing = db.execute(
+                text(
+                    "SELECT id FROM email_messages "
+                    "WHERE org_id = :org_id AND message_id = :mid LIMIT 1"
+                ),
+                {"org_id": org_id, "mid": dedupe_id[:500]},
+            ).fetchone()
+            if existing:
+                skipped += 1
+                continue
+            db.execute(
+                text(
+                    """
+                    INSERT INTO email_messages
+                        (account_id, message_id, subject, sender, recipients, cc,
+                         body_text, body_html, folder, received_at, org_id)
+                    VALUES
+                        (:account_id, :message_id, :subject, :sender, :recipients, :cc,
+                         :body_text, :body_html, 'INBOX', :received_at, :org_id)
+                    """
+                ),
+                {
+                    "account_id": account_id,
+                    "message_id": dedupe_id[:500],
+                    "subject": (msg.get("subject") or "")[:500],
+                    "sender": (msg.get("sender") or "")[:300],
+                    "recipients": msg.get("recipients") or "",
+                    "cc": msg.get("cc") or "",
+                    "body_text": (msg.get("body_text") or msg.get("snippet") or "")[:50000],
+                    "body_html": (msg.get("body_html") or "")[:100000],
+                    "received_at": msg.get("received_at"),
+                    "org_id": org_id,
+                },
+            )
+            imported += 1
+        except Exception as exc:
+            logger.warning("[GMAIL OAUTH] upsert failed for one message: %s", exc)
+            db.rollback()
+            continue
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+    return {"status": "ok", "imported": imported, "skipped": skipped,
+            "email": result.get("email", "")}
+
+
+@router.post("/api/gmail-oauth-sync")
+async def api_gmail_oauth_sync(request: Request, db: Session = Depends(get_db)):
+    """Manager-triggered pull of the office INBOX via OAuth (no app password)."""
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
+    org_id = getattr(request.state, "org_id", None)
+    if org_id is None:
+        return JSONResponse({"success": False, "error": "no_tenant"}, status_code=403)
+    res = sync_gmail_oauth_inbox(db, org_id)
+    ok = res.get("status") == "ok"
+    return JSONResponse({"success": ok, **res})
+
+
+# ============================================
 # IMAP SYNC FUNCTIONS
 # ============================================
 
@@ -157,8 +321,8 @@ def sync_emails_from_account(account_id: int, folder: str = "INBOX", limit: int 
         if not account or not account.enabled:
             return
 
-        # Decode password
-        password = base64.b64decode(account.password_encrypted).decode()
+        # Decode password (Council ruling 2026-06-03-casehub-email-credential-encryption).
+        password = decrypt_credential(account.password_encrypted)
 
         # Connect to IMAP
         if account.use_ssl:
@@ -412,9 +576,9 @@ async def bulk_email_action(
     db: Session = Depends(get_db)
 ):
     """Execute bulk operations on emails"""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     try:
         ids = json.loads(email_ids)
@@ -427,22 +591,23 @@ async def bulk_email_action(
 
     success_count = 0
 
+    org_id = getattr(request.state, "org_id", None)
     try:
         if operation == "mark_read":
             for email_id in ids:
-                db.execute(text("UPDATE email_messages SET is_read = true WHERE id = :id"), {"id": email_id})
+                db.execute(text("UPDATE email_messages SET is_read = true WHERE id = :id AND org_id = :org_id"), {"id": email_id, "org_id": org_id})
                 success_count += 1
 
         elif operation == "mark_unread":
             for email_id in ids:
-                db.execute(text("UPDATE email_messages SET is_read = false WHERE id = :id"), {"id": email_id})
+                db.execute(text("UPDATE email_messages SET is_read = false WHERE id = :id AND org_id = :org_id"), {"id": email_id, "org_id": org_id})
                 success_count += 1
 
         elif operation == "link_client" and bulk_client_id:
             for email_id in ids:
                 db.execute(
-                    text("UPDATE email_messages SET client_id = :client_id WHERE id = :id"),
-                    {"client_id": bulk_client_id, "id": email_id}
+                    text("UPDATE email_messages SET client_id = :client_id WHERE id = :id AND org_id = :org_id"),
+                    {"client_id": bulk_client_id, "id": email_id, "org_id": org_id}
                 )
                 success_count += 1
 
@@ -454,9 +619,9 @@ async def bulk_email_action(
                         SET archived = true,
                             archived_at = NOW(),
                             archived_by = :user_email
-                        WHERE id = :id
+                        WHERE id = :id AND org_id = :org_id
                     """),
-                    {"id": email_id, "user_email": user.email}
+                    {"id": email_id, "user_email": user.email, "org_id": org_id}
                 )
                 success_count += 1
 
@@ -468,15 +633,15 @@ async def bulk_email_action(
                         SET archived = false,
                             archived_at = NULL,
                             archived_by = NULL
-                        WHERE id = :id
+                        WHERE id = :id AND org_id = :org_id
                     """),
-                    {"id": email_id}
+                    {"id": email_id, "org_id": org_id}
                 )
                 success_count += 1
 
         elif operation == "delete":
             for email_id in ids:
-                db.execute(text("DELETE FROM email_messages WHERE id = :id"), {"id": email_id})
+                db.execute(text("DELETE FROM email_messages WHERE id = :id AND org_id = :org_id"), {"id": email_id, "org_id": org_id})
                 success_count += 1
 
         db.commit()
@@ -501,9 +666,9 @@ async def process_pending_emails(request: Request, db: Session = Depends(get_db)
     - Were created more than 10 minutes ago
     - Have not been processed (no notion_task_id)
     """
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"success": False, "error": "Not authenticated"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     try:
         from services.email_worker import run_email_worker
@@ -526,9 +691,9 @@ async def process_pending_emails(request: Request, db: Session = Depends(get_db)
 @router.get("/api/pending-count")
 async def get_pending_emails_count(request: Request, db: Session = Depends(get_db)):
     """Get count of emails waiting to be processed by the worker"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"success": False, "error": "Not authenticated"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     from datetime import datetime, timedelta
     cutoff_time = datetime.utcnow() - timedelta(minutes=10)
@@ -557,9 +722,9 @@ async def get_pending_emails_count(request: Request, db: Session = Depends(get_d
 @router.get("/api/sync-health")
 async def api_sync_health(request: Request, db: Session = Depends(get_db)):
     """Get email sync health status"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     from services.sync_monitor import get_sync_status
     return JSONResponse(get_sync_status(db))
@@ -568,9 +733,9 @@ async def api_sync_health(request: Request, db: Session = Depends(get_db)):
 @router.post("/api/sync-recover")
 async def api_sync_recover(request: Request, db: Session = Depends(get_db)):
     """Trigger auto-recovery if issues detected"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     from services.sync_monitor import check_and_recover
     return JSONResponse(check_and_recover(db))

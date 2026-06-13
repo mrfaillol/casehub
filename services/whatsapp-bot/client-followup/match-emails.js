@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Read CSV file
-const csvPath = '$HOME/Downloads/698fed65-5863-48a4-8ffb-1e7b045a1175.csv';
+const csvPath = '/Users/beijaflor/Downloads/698fed65-5863-48a4-8ffb-1e7b045a1175.csv';
 const clientsPath = path.join(__dirname, 'active-clients.json');
 
 // Parse CSV line (handles quoted fields with commas)

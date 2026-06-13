@@ -7,7 +7,7 @@ Compose/send routes: see emails_compose.py
 Sync/ingestion routes: see emails_sync.py
 """
 from core.form_utils import form_int, form_float
-from fastapi import APIRouter, Depends, Request, Form, HTTPException
+from fastapi import APIRouter, Depends, Request, Form, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text, or_
@@ -24,8 +24,15 @@ from models import get_db, Client, Case
 from auth import get_current_user
 from models.tenant import tenant_query
 from services.email_service import email_service
+from services.credential_crypto import encrypt_credential
 from config import settings
 from core.template_config import templates, PREFIX, inject_org_context
+from routes._email_gate import (
+    require_email_access,
+    require_email_access_api,
+    file_email_access_request,
+    is_email_manager,
+)
 
 # Sentinela T11: email attachments now live under
 # uploads/org_<id>/email_attachments/. UPLOAD_DIR kept as the legacy fallback
@@ -77,12 +84,14 @@ async def list_emails(
     page: int = 1,
     show_archived: bool = False,
     show_autoreplies: bool = False,
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db)
 ):
     """List emails with optional filters"""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    # Gestor-only gate: non-managers get the "request access" screen.
+    user, blocked = require_email_access(request, db)
+    if blocked is not None:
+        return blocked
 
     # Validate page parameter
     page = max(1, page)
@@ -91,6 +100,41 @@ async def list_emails(
     org_id = getattr(request.state, "org_id", None)
     if org_id is None:
         raise HTTPException(status_code=403, detail="No tenant context")
+
+    # Option B (ruling 2026-06-03): when the org has connected its Google
+    # account (Calendar) but has NO real IMAP account, opportunistically pull
+    # the office INBOX via the same OAuth token (gmail.readonly). Best-effort,
+    # manager-gated (already enforced above), org-scoped, on first page only.
+    # A token without gmail.readonly (office not yet reconnected) is a no-op:
+    # the helper returns 'needs_gmail_readonly_consent' and never raises.
+    gmail_consent_needed = False
+    gmail_connect_account = None
+    if page == 1 and not search:
+        try:
+            from routes.emails_sync import sync_gmail_oauth_inbox
+            from services.google_calendar import GoogleCalendarService
+
+            has_imap = db.execute(
+                text(
+                    "SELECT 1 FROM email_accounts "
+                    "WHERE org_id = :org_id AND enabled = TRUE "
+                    "  AND imap_server IS NOT NULL AND imap_server <> 'google_oauth' "
+                    "LIMIT 1"
+                ),
+                {"org_id": org_id},
+            ).first()
+            svc = GoogleCalendarService(db=db, org_id=org_id)
+            write_account = svc.get_default_write_account()
+            if not has_imap and write_account:
+                if not svc._account_can_read_email(write_account):
+                    gmail_consent_needed = True
+                    gmail_connect_account = write_account
+                else:
+                    if background_tasks:
+                        background_tasks.add_task(sync_gmail_oauth_inbox, db, org_id)
+        except Exception as exc:
+            logger.warning("[EMAIL LIST] Gmail OAuth opportunistic sync skipped: %s", exc)
+            db.rollback()
 
     query = "SELECT em.*, ea.email_address as account_email, c.first_name as client_first_name, c.last_name as client_last_name, cs.case_number as case_number FROM email_messages em LEFT JOIN email_accounts ea ON em.account_id = ea.id LEFT JOIN clients c ON em.client_id = c.id LEFT JOIN cases cs ON em.case_id = cs.id"
     params = {"org_id": org_id}
@@ -226,16 +270,49 @@ async def list_emails(
         "paralegal_mapping": paralegal_mapping,
         "get_domain_tag": get_domain_tag,
         "show_archived": show_archived,
-        "show_autoreplies": show_autoreplies
+        "show_autoreplies": show_autoreplies,
+        "gmail_consent_needed": gmail_consent_needed,
+        "gmail_connect_account": gmail_connect_account,
     })
+
+
+@router.post("/request-access")
+async def request_email_access(request: Request, db: Session = Depends(get_db)):
+    """
+    Non-manager users ask the org's managers for access to the Emails module.
+    Files an idempotent in-app notification to each manager and re-renders the
+    request-access screen with a confirmation. Managers never reach here (they
+    already have access), so a manager hitting this just bounces to the inbox.
+    """
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    if is_email_manager(user):
+        # Already has access — send them straight to the inbox.
+        return RedirectResponse(url=f"{PREFIX}/emails", status_code=303)
+
+    created, already = file_email_access_request(request, db, user)
+    ctx = {
+        "request": request,
+        "user": user,
+        "PREFIX": PREFIX,
+        **inject_org_context(request, user),
+        "already_requested": True,
+        "just_requested": created,
+        "was_pending": already,
+    }
+    return templates.TemplateResponse(
+        "app/emails/request_access.html", ctx, status_code=200
+    )
 
 
 @router.get("/api/thread-siblings")
 async def api_thread_siblings(request: Request, subject: str, client_id: Optional[int] = None, db: Session = Depends(get_db)):
     """API: Get all emails matching a normalized subject (for thread expansion)"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     import re
     normalized = re.sub(r'^(re:\s*|fwd?:\s*|fw:\s*|re\[\d+\]:\s*)+', '', subject.strip(), flags=re.IGNORECASE).strip()
@@ -296,9 +373,9 @@ async def api_thread_siblings(request: Request, subject: str, client_id: Optiona
 @router.get("/api/count")
 async def api_email_count(request: Request, db: Session = Depends(get_db)):
     """API: Get email count for auto-sync check"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     # Sentinela T2: scope to the current tenant.
     org_id = getattr(request.state, "org_id", None)
@@ -323,9 +400,9 @@ async def link_email_to_client_case(
     db: Session = Depends(get_db)
 ):
     """Link an email to a client and/or case"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     # Sentinela T2: confine writes to the current tenant. Without the
     # org_id clause an attacker could re-link another tenant's email to
@@ -386,9 +463,9 @@ async def link_email_to_client_case(
 @router.get("/accounts", response_class=HTMLResponse)
 async def list_accounts(request: Request, db: Session = Depends(get_db)):
     """List email accounts"""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access(request, db)
+    if blocked is not None:
+        return blocked
 
     result = db.execute(text("SELECT * FROM email_accounts ORDER BY name"))
     accounts = result.fetchall()
@@ -403,9 +480,9 @@ async def list_accounts(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/accounts/new", response_class=HTMLResponse)
 async def new_account(request: Request, db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access(request, db)
+    if blocked is not None:
+        return blocked
 
     return templates.TemplateResponse("app/emails/account_form.html", {
         "request": request,
@@ -431,12 +508,13 @@ async def create_account(
     enabled: bool = Form(True),
     db: Session = Depends(get_db)
 ):
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
-    # Simple base64 encoding for password (in production, use proper encryption)
-    password_encrypted = base64.b64encode(password.encode()).decode()
+    # Council ruling 2026-06-03-casehub-email-credential-encryption:
+    # real Fernet encryption (was plaintext-equivalent base64, CWE-312/CWE-261).
+    password_encrypted = encrypt_credential(password)
 
     # Sentinela T2: stamp the new account with the current tenant.
     org_id_for_insert = getattr(request.state, "org_id", None)
@@ -467,9 +545,9 @@ async def create_account(
 
 @router.post("/accounts/{account_id}/delete")
 async def delete_account(account_id: int, request: Request, db: Session = Depends(get_db)):
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     # Sentinela T2: cross-tenant IDOR fix — only allow deleting accounts that
     # belong to the current tenant (or legacy rows where org_id is NULL).
@@ -493,9 +571,10 @@ async def delete_account(account_id: int, request: Request, db: Session = Depend
 @router.get("/{message_id}", response_class=HTMLResponse)
 async def view_email(request: Request, message_id: int, db: Session = Depends(get_db)):
     """View a single email"""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    # Gestor-only gate: non-managers get the "request access" screen.
+    user, blocked = require_email_access(request, db)
+    if blocked is not None:
+        return blocked
 
     # Sentinela T2: every email_messages access MUST scope by org_id.
     org_id = getattr(request.state, "org_id", None)
@@ -580,9 +659,9 @@ async def link_email(
     db: Session = Depends(get_db)
 ):
     """Link email to a client profile"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"success": False, "error": "Not authenticated"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     # Convert form strings to proper types
     client_id = form_int(client_id)
@@ -622,9 +701,9 @@ async def quick_create_client(
     db: Session = Depends(get_db)
 ):
     """Quick create a new client from email link modal"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"success": False, "error": "Not authenticated"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     try:
         # Check if client with same email already exists
@@ -675,9 +754,9 @@ async def auto_link_emails(
     db: Session = Depends(get_db)
 ):
     """Auto-link all unlinked emails to clients using AI matching"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"success": False, "error": "Not authenticated"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     try:
         from services.smart_linker import get_smart_linker

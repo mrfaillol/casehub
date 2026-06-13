@@ -3968,7 +3968,7 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ title, assignee: 'admin@legacy.example' })
+                    body: JSON.stringify({ title, assignee: 'admin@immigrantlaw.app' })
                 });
 
                 if (response.ok) {

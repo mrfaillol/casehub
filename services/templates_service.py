@@ -19,38 +19,32 @@ class DocumentTemplateService:
     # Available placeholders grouped by category
     PLACEHOLDERS = {
         "client": [
-            ("client.full_name", "Client full name"),
-            ("client.first_name", "Client first name"),
-            ("client.last_name", "Client last name"),
-            ("client.email", "Client email"),
-            ("client.phone", "Client phone"),
-            ("client.address", "Client address"),
-            ("client.date_of_birth", "Client date of birth"),
-            ("client.country_of_origin", "Client country of origin"),
-            ("client.alien_number", "Alien number (A#)"),
-            ("client.passport_number", "Passport number"),
+            ("client.full_name", "Nome completo do cliente"),
+            ("client.first_name", "Primeiro nome do cliente"),
+            ("client.last_name", "Sobrenome do cliente"),
+            ("client.email", "E-mail do cliente"),
+            ("client.phone", "Telefone do cliente"),
+            ("client.address", "Endereço do cliente"),
+            ("client.date_of_birth", "Data de nascimento do cliente"),
         ],
         "case": [
-            ("case.case_number", "Case number"),
-            ("case.case_name", "Case name"),
-            ("case.receipt_number", "Receipt number"),
-            ("case.visa_type", "Visa type"),
-            ("case.status", "Case status"),
-            ("case.filing_date", "Filing date"),
-            ("case.priority_date", "Priority date"),
-            ("case.case_value", "Case value"),
+            ("case.case_number", "Número do processo"),
+            ("case.case_name", "Nome/assunto do processo"),
+            ("case.status", "Status do processo"),
+            ("case.filing_date", "Data de protocolo"),
+            ("case.case_value", "Valor da causa/honorários"),
         ],
         "firm": [
-            ("firm.name", "Firm name"),
-            ("firm.address", "Firm address"),
-            ("firm.phone", "Firm phone"),
-            ("firm.email", "Firm email"),
-            ("firm.website", "Firm website"),
+            ("firm.name", "Nome do escritório"),
+            ("firm.address", "Endereço do escritório"),
+            ("firm.phone", "Telefone do escritório"),
+            ("firm.email", "E-mail do escritório"),
+            ("firm.website", "Site do escritório"),
         ],
         "dates": [
-            ("today", "Today's date"),
-            ("today_long", "Today's date (long format)"),
-            ("current_year", "Current year"),
+            ("today", "Data de hoje"),
+            ("today_long", "Data de hoje (formato extenso)"),
+            ("current_year", "Ano atual"),
         ],
     }
 
@@ -71,26 +65,26 @@ class DocumentTemplateService:
         """Build template context from client and case data."""
         context = {
             "firm": self.FIRM_INFO,
-            "today": date.today().strftime("%m/%d/%Y"),
-            "today_long": date.today().strftime("%B %d, %Y"),
+            "today": date.today().strftime("%d/%m/%Y"),
+            "today_long": date.today().strftime("%d de %B de %Y"),
             "current_year": date.today().year,
         }
+
+        def _client_ctx(client):
+            return {
+                "full_name": f"{client.first_name} {client.last_name}",
+                "first_name": client.first_name,
+                "last_name": client.last_name,
+                "email": client.email or "",
+                "phone": client.phone or "",
+                "address": client.address or "",
+                "date_of_birth": client.date_of_birth.strftime("%d/%m/%Y") if client.date_of_birth else "",
+            }
 
         if client_id:
             client = self.db.query(Client).filter(Client.id == client_id).first()
             if client:
-                context["client"] = {
-                    "full_name": f"{client.first_name} {client.last_name}",
-                    "first_name": client.first_name,
-                    "last_name": client.last_name,
-                    "email": client.email or "",
-                    "phone": client.phone or "",
-                    "address": client.address or "",
-                    "date_of_birth": client.date_of_birth.strftime("%m/%d/%Y") if client.date_of_birth else "",
-                    "country_of_origin": client.country_of_origin or "",
-                    "alien_number": client.alien_number or "",
-                    "passport_number": client.passport_number or "",
-                }
+                context["client"] = _client_ctx(client)
 
         if case_id:
             case = self.db.query(Case).filter(Case.id == case_id).first()
@@ -98,30 +92,16 @@ class DocumentTemplateService:
                 context["case"] = {
                     "case_number": case.case_number or "",
                     "case_name": case.case_name or "",
-                    "receipt_number": case.receipt_number or "",
-                    "visa_type": case.visa_type or "",
                     "status": case.status or "",
-                    "filing_date": case.filing_date.strftime("%m/%d/%Y") if case.filing_date else "",
-                    "priority_date": case.priority_date.strftime("%m/%d/%Y") if case.priority_date else "",
-                    "case_value": f"${case.case_value:,.2f}" if case.case_value else "",
+                    "filing_date": case.filing_date.strftime("%d/%m/%Y") if case.filing_date else "",
+                    "case_value": f"R$ {case.case_value:,.2f}" if case.case_value else "",
                 }
 
                 # If client not provided, get from case
                 if not client_id and case.client_id:
                     client = self.db.query(Client).filter(Client.id == case.client_id).first()
                     if client:
-                        context["client"] = {
-                            "full_name": f"{client.first_name} {client.last_name}",
-                            "first_name": client.first_name,
-                            "last_name": client.last_name,
-                            "email": client.email or "",
-                            "phone": client.phone or "",
-                            "address": client.address or "",
-                            "date_of_birth": client.date_of_birth.strftime("%m/%d/%Y") if client.date_of_birth else "",
-                            "country_of_origin": client.country_of_origin or "",
-                            "alien_number": client.alien_number or "",
-                            "passport_number": client.passport_number or "",
-                        }
+                        context["client"] = _client_ctx(client)
 
         return context
 
@@ -142,209 +122,93 @@ class DocumentTemplateService:
 # Default document templates
 DEFAULT_TEMPLATES = [
     {
-        "name": "Engagement Letter",
+        "name": "Procuração Ad Judicia (BR)",
         "category": "contracts",
-        "description": "Standard client engagement letter",
-        "content": """{{ firm.name }}
-{{ firm.address }}
-{{ firm.phone }} | {{ firm.email }}
+        "description": "Procuração padrão para representação legal no Brasil",
+        "content": """PROCURAÇÃO AD JUDICIA ET EXTRA
 
-{{ today_long }}
+OUTORGANTE: {{ client.full_name }}, brasileiro(a), portador(a) do RG e CPF/MF inscritos sob os números [COMPLETAR], residente e domiciliado(a) em {{ client.address }}, e-mail {{ client.email }}, telefone {{ client.phone }}.
 
+OUTORGADO: {{ firm.name }}, sociedade de advogados sediada em {{ firm.address }}, e-mail {{ firm.email }}, telefone {{ firm.phone }}.
+
+PODERES: Pelo presente instrumento de mandato, o(a) OUTORGANTE nomeia e constitui seu bastante procurador o OUTORGADO, concedendo-lhe os poderes da cláusula "ad judicia et extra" para o foro em geral, podendo propor contra quem de direito as ações competentes e defendê-lo nas contrárias, seguindo umas e outras até a decisão final.
+
+Finalidade: Representação no processo {{ case.case_name }} ({{ case.case_number }}).
+
+{{ firm.address }}, {{ today_long }}.
+
+
+_________________________________________________
 {{ client.full_name }}
-{{ client.address }}
-
-RE: Immigration Legal Services - {{ case.visa_type }}
-
-Dear {{ client.first_name }},
-
-Thank you for choosing {{ firm.name }} to assist you with your immigration matter. This letter confirms our engagement to represent you in connection with your {{ case.visa_type }} application.
-
-SCOPE OF REPRESENTATION:
-We will provide the following services:
-1. Evaluate your eligibility for {{ case.visa_type }}
-2. Prepare and file the necessary forms and supporting documentation
-3. Respond to any Requests for Evidence (RFE)
-4. Monitor your case status with USCIS
-
-FEES AND COSTS:
-Our legal fees for this matter are {{ case.case_value }}. This does not include USCIS filing fees, which will be billed separately.
-
-Payment terms: 50% due upon signing, 50% due upon filing.
-
-Please sign below to indicate your acceptance of these terms.
-
-Sincerely,
-
-_________________________
-Attorney Name
-{{ firm.name }}
-
-ACCEPTED AND AGREED:
-
-_________________________          _______________
-{{ client.full_name }}                    Date
 """
     },
     {
-        "name": "Cover Letter - USCIS",
-        "category": "uscis",
-        "description": "Standard cover letter for USCIS filings",
-        "content": """{{ firm.name }}
-{{ firm.address }}
-{{ firm.phone }} | {{ firm.email }}
+        "name": "Contrato de Honorários (BR)",
+        "category": "contracts",
+        "description": "Contrato padrão de honorários advocatícios",
+        "content": """CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS E HONORÁRIOS
 
-{{ today_long }}
+CONTRATANTE: {{ client.full_name }}, residente e domiciliado(a) em {{ client.address }}, e-mail {{ client.email }}.
+CONTRATADO: {{ firm.name }}, sediada em {{ firm.address }}.
 
-U.S. Citizenship and Immigration Services
-[Service Center Address]
+DO OBJETO: O CONTRATADO compromete-se a prestar serviços jurídicos na defesa dos interesses do(a) CONTRATANTE, especificamente no processo: {{ case.case_name }}.
 
-RE: {{ case.visa_type }} Petition for {{ client.full_name }}
-     Receipt Number: {{ case.receipt_number }}
-     A#: {{ client.alien_number }}
+DOS HONORÁRIOS: Pela prestação dos serviços, o(a) CONTRATANTE pagará ao CONTRATADO a quantia de {{ case.case_value }}, conforme as seguintes condições: [COMPLETAR FORMA DE PAGAMENTO].
 
-Dear Sir/Madam:
+DO FORO: Fica eleito o foro da comarca de {{ firm.address }} para dirimir quaisquer dúvidas oriundas deste contrato.
 
-Please find enclosed the {{ case.visa_type }} petition and supporting documentation for {{ client.full_name }}.
+{{ firm.address }}, {{ today_long }}.
 
-PETITIONER/APPLICANT INFORMATION:
-Name: {{ client.full_name }}
-Date of Birth: {{ client.date_of_birth }}
-Country of Birth: {{ client.country_of_origin }}
-A#: {{ client.alien_number }}
-
-ENCLOSED DOCUMENTS:
-1. Form [Form Number]
-2. Filing fee check/money order
-3. Supporting documents (see index)
-4. Passport copies
-5. [Additional documents]
-
-Please contact our office if you require any additional information.
-
-Respectfully submitted,
-
-_________________________
-Attorney Name
-{{ firm.name }}
-
-Enclosures
+_________________________          _________________________
+{{ client.full_name }}                    {{ firm.name }}
 """
     },
     {
-        "name": "Client Welcome Letter",
+        "name": "Declaração de Hipossuficiência (BR)",
         "category": "client_communication",
-        "description": "Welcome letter for new clients",
-        "content": """{{ firm.name }}
-Immigration Law Services
+        "description": "Declaração de pobreza para fins de justiça gratuita",
+        "content": """DECLARAÇÃO DE HIPOSSUFICIÊNCIA ECONÔMICA
 
-{{ today_long }}
+Eu, {{ client.full_name }}, inscrito(a) no CPF sob o nº [COMPLETAR], residente e domiciliado(a) em {{ client.address }}, DECLARO, sob as penas da lei, que não possuo condições financeiras de arcar com as custas processuais e honorários advocatícios sem prejuízo do meu próprio sustento e da minha família.
 
-Dear {{ client.first_name }},
+Por ser expressão da verdade, firmo a presente declaração para que produza os seus efeitos legais.
 
-Welcome to {{ firm.name }}! We are delighted to have you as our client and look forward to assisting you with your immigration journey.
+Referência: Processo {{ case.case_number }} - {{ case.case_name }}
 
-YOUR CASE INFORMATION:
-Case Number: {{ case.case_number }}
-Case Type: {{ case.visa_type }}
-Current Status: {{ case.status }}
+{{ firm.address }}, {{ today_long }}.
 
-WHAT'S NEXT:
-1. Please complete the intake questionnaire we sent to {{ client.email }}
-2. Gather the required documents (list attached)
-3. Schedule your initial consultation
 
-CONTACT INFORMATION:
-Email: {{ firm.email }}
-Phone: {{ firm.phone }}
-Website: {{ firm.website }}
-
-IMPORTANT REMINDERS:
-- Keep copies of all documents you provide to us
-- Notify us immediately of any address or contact changes
-- Do not sign any documents related to your immigration status without consulting us first
-
-We are committed to providing you with excellent legal service. Please don't hesitate to reach out if you have any questions.
-
-Best regards,
-
-{{ firm.name }} Team
+_________________________________________________
+{{ client.full_name }}
 """
     },
     {
-        "name": "RFE Response Cover Letter",
-        "category": "uscis",
-        "description": "Cover letter for RFE responses",
+        "name": "Carta de Atualização do Processo",
+        "category": "client_communication",
+        "description": "Carta de atualização de andamento processual para o cliente",
         "content": """{{ firm.name }}
 {{ firm.address }}
 {{ firm.phone }} | {{ firm.email }}
 
 {{ today_long }}
 
-U.S. Citizenship and Immigration Services
-[Service Center Address]
+Prezado(a) {{ client.first_name }},
 
-RE: Response to Request for Evidence
-     Petitioner/Applicant: {{ client.full_name }}
-     Receipt Number: {{ case.receipt_number }}
-     A#: {{ client.alien_number }}
+Gostaríamos de atualizar o status do seu caso.
 
-Dear Sir/Madam:
+INFORMAÇÕES DO PROCESSO:
+Processo: {{ case.case_number }}
+Assunto: {{ case.case_name }}
+Status Atual: {{ case.status }}
 
-This letter is submitted in response to the Request for Evidence (RFE) dated [RFE Date] regarding the above-referenced petition.
+Próximos passos e prazos:
+[DETALHAR AQUI OS PRÓXIMOS PASSOS]
 
-SUMMARY OF EVIDENCE PROVIDED:
-[List of evidence items addressing each RFE point]
+Qualquer dúvida, nossa equipe está à disposição.
 
-1. [RFE Point 1]
-   - [Evidence provided]
+Atenciosamente,
 
-2. [RFE Point 2]
-   - [Evidence provided]
-
-We respectfully submit that the enclosed evidence fully addresses each point raised in the RFE and demonstrates that {{ client.full_name }} meets all requirements for {{ case.visa_type }}.
-
-Please contact our office if you require any additional information.
-
-Respectfully submitted,
-
-_________________________
-Attorney Name
-{{ firm.name }}
-
-Enclosures
-"""
-    },
-    {
-        "name": "Payment Receipt",
-        "category": "billing",
-        "description": "Receipt for client payments",
-        "content": """{{ firm.name }}
-{{ firm.address }}
-
-PAYMENT RECEIPT
-
-Date: {{ today_long }}
-
-Received from: {{ client.full_name }}
-Address: {{ client.address }}
-
-Case Reference: {{ case.case_number }} - {{ case.visa_type }}
-
-PAYMENT DETAILS:
-Amount Received: $[AMOUNT]
-Payment Method: [Cash/Check/Credit Card/Wire]
-Check/Reference #: [NUMBER]
-
-FOR: [Description of services]
-
-Balance Due: $[BALANCE]
-
-Thank you for your payment.
-
-_________________________
-{{ firm.name }}
-{{ firm.phone }}
+Equipe {{ firm.name }}
 """
     },
 ]

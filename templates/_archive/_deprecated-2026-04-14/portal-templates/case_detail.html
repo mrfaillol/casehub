@@ -1,0 +1,166 @@
+{% extends "portal/base.html" %}
+
+{% block title %}{% if product == "lite" %}Processo: {{ case.case_name or case.case_number }}{% else %}Case: {{ case.case_name or case.case_number }}{% endif %}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ PREFIX }}/portal/dashboard">{% if product == "lite" %}Painel{% else %}Dashboard{% endif %}</a></li>
+        <li class="breadcrumb-item"><a href="{{ PREFIX }}/portal/cases">{% if product == "lite" %}Meus Processos{% else %}My Cases{% endif %}</a></li>
+        <li class="breadcrumb-item active">{{ case.case_name or case.case_number }}</li>
+    </ol>
+</nav>
+
+<div class="portal-card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-8">
+                <h2>{{ case.case_name or 'Case #' + case.id|string }}</h2>
+                {% if case.case_number %}
+                <p class="text-muted">{% if product == "lite" %}Número do Processo: {{ case.case_number }}{% else %}Case Number: {{ case.case_number }}{% endif %}</p>
+                {% endif %}
+            </div>
+            <div class="col-md-4 text-end">
+                <span class="status-badge status-{{ case.status|lower|replace(' ', '-') }}" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                    {{ case.status }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Case Details -->
+        <div class="portal-card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2"></i>{% if product == "lite" %}Informações do Processo{% else %}Case Information{% endif %}
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">{% if product == "lite" %}Tipo{% else %}Visa Type{% endif %}</label>
+                        <p class="mb-0"><strong>{{ case.visa_type or 'N/A' }}</strong></p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">{% if product == "lite" %}Número de Protocolo{% else %}Receipt Number{% endif %}</label>
+                        <p class="mb-0"><strong>{{ case.receipt_number or (product == 'lite' and 'Pendente' or 'Pending') }}</strong></p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">{% if product == "lite" %}Data de Abertura{% else %}Application Date{% endif %}</label>
+                        <p class="mb-0"><strong>{{ case.application_date.strftime('%d/%m/%Y') if product == 'lite' and case.application_date else (case.application_date.strftime('%B %d, %Y') if case.application_date else (product == 'lite' and 'Ainda não protocolado' or 'Not filed yet')) }}</strong></p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">{% if product == "lite" %}Data de Andamento{% else %}Processing Date{% endif %}</label>
+                        <p class="mb-0"><strong>{{ case.processing_date.strftime('%d/%m/%Y') if product == 'lite' and case.processing_date else (case.processing_date.strftime('%B %d, %Y') if case.processing_date else (product == 'lite' and 'Pendente' or 'Pending')) }}</strong></p>
+                    </div>
+                    {% if case.priority %}
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">{% if product == "lite" %}Prioridade{% else %}Priority{% endif %}</label>
+                        <p class="mb-0"><strong>{{ case.priority }}</strong></p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Documents -->
+        <div class="portal-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-file-alt me-2"></i>{% if product == "lite" %}Documentos{% else %}Documents{% endif %}</span>
+                <a href="{{ PREFIX }}/portal/upload" class="btn btn-sm btn-primary">
+                    <i class="fas fa-upload"></i> {% if product == "lite" %}Enviar{% else %}Upload{% endif %}
+                </a>
+            </div>
+            <div class="card-body">
+                {% if documents %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>{% if product == "lite" %}Documento{% else %}Document{% endif %}</th>
+                                <th>{% if product == "lite" %}Tipo{% else %}Type{% endif %}</th>
+                                <th>{% if product == "lite" %}Situação{% else %}Status{% endif %}</th>
+                                <th>{% if product == "lite" %}Data{% else %}Date{% endif %}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in documents %}
+                            <tr>
+                                <td>
+                                    <i class="fas fa-file-pdf me-2 text-danger"></i>
+                                    {{ doc.name }}
+                                </td>
+                                <td>{{ doc.type or '-' }}</td>
+                                <td>
+                                    <span class="status-badge status-{{ doc.status|lower }}">
+                                        {{ doc.status }}
+                                    </span>
+                                </td>
+                                <td>{{ doc.created_at.strftime('%d/%m/%Y') if product == 'lite' else doc.created_at.strftime('%m/%d/%Y') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center py-3 mb-0">{% if product == "lite" %}Nenhum documento para este processo ainda.{% else %}No documents for this case yet.{% endif %}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Timeline/Tasks -->
+        <div class="portal-card">
+            <div class="card-header">
+                <i class="fas fa-tasks me-2"></i>{% if product == "lite" %}Tarefas e Etapas{% else %}Tasks & Milestones{% endif %}
+            </div>
+            <div class="card-body">
+                {% if tasks %}
+                <ul class="list-unstyled mb-0">
+                    {% for task in tasks %}
+                    <li class="mb-3 pb-3 border-bottom">
+                        <div class="d-flex align-items-start">
+                            {% if task.status == 'completed' %}
+                            <i class="fas fa-check-circle text-success me-2 mt-1"></i>
+                            {% elif task.status == 'in_progress' %}
+                            <i class="fas fa-spinner text-primary me-2 mt-1"></i>
+                            {% else %}
+                            <i class="fas fa-circle text-muted me-2 mt-1"></i>
+                            {% endif %}
+                            <div>
+                                <strong>{{ task.title }}</strong>
+                                {% if task.deadline %}
+                                <br><small class="text-muted">{% if product == "lite" %}Prazo: {{ task.deadline.strftime('%d/%m/%Y') }}{% else %}Due: {{ task.deadline.strftime('%m/%d/%Y') }}{% endif %}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted text-center mb-0">{% if product == "lite" %}Nenhuma tarefa definida ainda.{% else %}No tasks defined yet.{% endif %}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="portal-card">
+            <div class="card-header">
+                <i class="fas fa-bolt me-2"></i>{% if product == "lite" %}Ações{% else %}Actions{% endif %}
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ PREFIX }}/portal/upload" class="btn btn-primary glass-btn glass-btn--primary">
+                        <i class="fas fa-upload me-2"></i>{% if product == "lite" %}Enviar Documento{% else %}Upload Document{% endif %}
+                    </a>
+                    <a href="{{ PREFIX }}/portal/cases" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>{% if product == "lite" %}Voltar aos Processos{% else %}Back to Cases{% endif %}
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

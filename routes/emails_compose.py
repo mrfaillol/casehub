@@ -22,6 +22,11 @@ from models.tenant import tenant_query
 from services.email_service import email_service
 from config import settings
 from core.template_config import templates, PREFIX, inject_org_context
+from routes._email_gate import (
+    require_email_access,
+    require_email_access_api,
+    is_email_manager,
+)
 
 PREFIX = settings.PREFIX
 # Sentinela T11: legacy flat dir kept as read-fallback; writes target per-tenant.
@@ -49,9 +54,9 @@ async def compose_email(
     db: Session = Depends(get_db)
 ):
     """Compose a new email"""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access(request, db)
+    if blocked is not None:
+        return blocked
 
     client = None
     case = None
@@ -79,7 +84,7 @@ async def compose_email(
             to_email = client.email
 
     if case_id:
-        result = db.execute(text("SELECT * FROM cases WHERE id = :id"), {"id": case_id})
+        result = db.execute(text("SELECT * FROM cases WHERE id = :id AND org_id = :org_id"), {"id": case_id, "org_id": request.state.org_id})
         case = result.fetchone()
         if case and case.client_id and not client:
             client = tenant_query(db, Client, request.state.org_id).filter(Client.id == case.client_id).first()
@@ -117,9 +122,9 @@ async def compose_email_v2(
     db: Session = Depends(get_db)
 ):
     """Enhanced compose email with templates v2"""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access(request, db)
+    if blocked is not None:
+        return blocked
 
     client = None
     case = None
@@ -160,7 +165,7 @@ async def compose_email_v2(
             to_email = client.email
 
     if case_id:
-        result = db.execute(text("SELECT * FROM cases WHERE id = :id"), {"id": case_id})
+        result = db.execute(text("SELECT * FROM cases WHERE id = :id AND org_id = :org_id"), {"id": case_id, "org_id": request.state.org_id})
         case = result.fetchone()
         if case and case.client_id and not client:
             client = tenant_query(db, Client, request.state.org_id).filter(Client.id == case.client_id).first()
@@ -197,21 +202,50 @@ async def send_email(
     db: Session = Depends(get_db)
 ):
     """Send an email"""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     if not email_service.is_configured():
+        # Try Gmail OAuth as fallback before returning the SMTP error page
+        org_id = getattr(request.state, "org_id", None)
+        if org_id:
+            from services.gmail_service import GmailService
+            import html as _html
+            gmail_svc = GmailService(db, org_id=org_id)
+            gmail_accounts = [a for a in gmail_svc.get_connected_accounts() if a.get("can_send")]
+            if gmail_accounts:
+                fb_html = (
+                    "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;line-height:1.6'>"
+                    f"<div style='white-space:pre-wrap'>{_html.escape(body)}</div>"
+                    "<hr style='margin-top:24px;border:none;border-top:1px solid #ddd'>"
+                    "<small style='color:#999'>Enviado via CaseHub</small>"
+                    "</body></html>"
+                )
+                fb_result = gmail_svc.send_email(
+                    account_name=gmail_accounts[0]["name"],
+                    to=to_email,
+                    subject=subject,
+                    body_html=fb_html,
+                    body_text=body,
+                    cc=cc_email or "",
+                )
+                if fb_result.get("success"):
+                    return JSONResponse({
+                        "success": True,
+                        "provider": "gmail",
+                        "message": "E-mail enviado via Gmail",
+                    })
         return templates.TemplateResponse("app/emails/compose.html", {
             "request": request,
             "user": user,
             "PREFIX": PREFIX,
             **inject_org_context(request, user),
             "is_configured": False,
-            "error": "SMTP is not configured. Please configure email settings.",
+            "error": "SMTP e Gmail não configurados. Configure um dos dois para enviar e-mails.",
             "to_email": to_email,
             "subject": subject,
-            "body": body
+            "body": body,
         })
 
     # Convert plain text to HTML
@@ -321,9 +355,9 @@ async def get_sent_emails(
     db: Session = Depends(get_db)
 ):
     """Get recently sent emails"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     try:
         result = db.execute(
@@ -350,9 +384,9 @@ async def send_quick_email(
     db: Session = Depends(get_db)
 ):
     """Quick send email via API"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     if not email_service.is_configured():
         return JSONResponse({"success": False, "error": "SMTP not configured"})
@@ -490,9 +524,9 @@ async def send_email_with_attachments(
     from email.mime.base import MIMEBase
     from email import encoders
 
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user, blocked = require_email_access_api(request, db)
+    if blocked is not None:
+        return blocked
 
     if not email_service.is_configured():
         return templates.TemplateResponse("app/emails/compose_v2.html", {
@@ -667,6 +701,9 @@ async def download_attachment(
     user = get_current_user(request, db)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Gestor-only gate (email module is manager-restricted).
+    if not is_email_manager(user):
+        raise HTTPException(status_code=403, detail="Acesso ao e-mail restrito a gestores.")
 
     org_id = getattr(request.state, "org_id", None)
     if org_id is None:
@@ -720,6 +757,9 @@ async def preview_attachment(
     user = get_current_user(request, db)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    # Gestor-only gate (email module is manager-restricted).
+    if not is_email_manager(user):
+        raise HTTPException(status_code=403, detail="Acesso ao e-mail restrito a gestores.")
 
     org_id = getattr(request.state, "org_id", None)
     if org_id is None:

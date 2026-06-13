@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
 
-# Access token: 30 minutes
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Access token: 8h no alfa (Example User 02/06: "no alfa nao tem por ter" — sessao nao deve
+# expirar durante o uso. 30min causava "erro nao autenticado" quando o usuario ficava
+# parado e tentava salvar. Alinhado ao config.py (480). Beta/prod podem encurtar.)
+ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
 # Refresh token: 7 days
 REFRESH_TOKEN_EXPIRE_DAYS = 7

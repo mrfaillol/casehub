@@ -208,8 +208,10 @@ async def delete_relationship(
 
     # Get the relationship to find the client_id for redirect
     result = db.execute(text("""
-        SELECT client_id FROM client_relationships WHERE id = :id
-    """), {"id": relationship_id}).fetchone()
+        SELECT cr.client_id FROM client_relationships cr
+        JOIN clients cl ON cr.client_id = cl.id
+        WHERE cr.id = :id AND cl.org_id = :org_id
+    """), {"id": relationship_id, "org_id": user.org_id}).fetchone()
 
     if not result:
         raise HTTPException(status_code=404, detail="Relationship not found")
@@ -217,8 +219,10 @@ async def delete_relationship(
     client_id = result[0]
 
     db.execute(text("""
-        DELETE FROM client_relationships WHERE id = :id
-    """), {"id": relationship_id})
+        DELETE FROM client_relationships
+        WHERE id = :id
+          AND client_id IN (SELECT id FROM clients WHERE org_id = :org_id)
+    """), {"id": relationship_id, "org_id": user.org_id})
     db.commit()
 
     return RedirectResponse(url=f"{PREFIX}/clients/{client_id}#members", status_code=302)
@@ -237,8 +241,10 @@ async def set_primary_relationship(
 
     # Get the relationship
     result = db.execute(text("""
-        SELECT client_id, relationship_type FROM client_relationships WHERE id = :id
-    """), {"id": relationship_id}).fetchone()
+        SELECT cr.client_id, cr.relationship_type FROM client_relationships cr
+        JOIN clients cl ON cr.client_id = cl.id
+        WHERE cr.id = :id AND cl.org_id = :org_id
+    """), {"id": relationship_id, "org_id": user.org_id}).fetchone()
 
     if not result:
         raise HTTPException(status_code=404, detail="Relationship not found")

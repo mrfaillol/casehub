@@ -1,0 +1,33 @@
+name: casehub-halt-guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: casehub-halt-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  halt-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base
+        run: git fetch --no-tags origin "${{ github.base_ref }}"
+
+      - name: Run HALT guard
+        env:
+          CASEHUB_BASE_REF: origin/${{ github.base_ref }}
+          CASEHUB_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: bash scripts/casehub-halt-guard.sh

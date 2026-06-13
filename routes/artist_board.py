@@ -4,7 +4,7 @@ Dashboard público que Victor acompanha produção cron (gen-lab + mutator + art
 
 Fontes:
 - Oracle /generative-lab/_digest.json (via proxy HTTP)
-- app.example.com templates/_archive/*/lab-gen-*.html (local filesystem)
+- dev.vingren.me templates/_archive/*/lab-gen-*.html (local filesystem)
 - memory/design-library/audits/ + fixes/ (tracked no workspace repo)
 """
 import json
@@ -22,7 +22,7 @@ except ImportError:
 
 router = APIRouter(prefix="/artist-board", tags=["artist-board"])
 
-GEN_LAB_DIGEST_URL = "https://app.example.com/lab/_digest.json"
+GEN_LAB_DIGEST_URL = "https://cmd.vingren.me/lab/_digest.json"
 ARCHIVE_ROOT = os.path.join("templates", "_archive")
 
 

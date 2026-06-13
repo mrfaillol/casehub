@@ -260,6 +260,9 @@ async def api_get_definitions(entity_type: str, request: Request, db: Session = 
 @router.get("/api/values/{entity_type}/{entity_id}")
 async def api_get_values(entity_type: str, entity_id: int, request: Request, db: Session = Depends(get_db)):
     """Get all custom field values for a specific entity"""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
     if entity_type not in VALID_ENTITY_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid entity type. Must be one of: {', '.join(VALID_ENTITY_TYPES)}")
 
@@ -285,6 +288,9 @@ async def api_save_values(
     db: Session = Depends(get_db)
 ):
     """Save custom field values for an entity"""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
     if entity_type not in VALID_ENTITY_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid entity type. Must be one of: {', '.join(VALID_ENTITY_TYPES)}")
 

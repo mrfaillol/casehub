@@ -274,8 +274,8 @@ async def get_compose_context(
             SELECT c.*, cl.first_name, cl.last_name, cl.email
             FROM cases c
             LEFT JOIN clients cl ON c.client_id = cl.id
-            WHERE c.id = :id
-        """), {"id": case_id}).fetchone()
+            WHERE c.id = :id AND c.org_id = :org_id
+        """), {"id": case_id, "org_id": request.state.org_id}).fetchone()
 
         if result:
             context["case"] = {

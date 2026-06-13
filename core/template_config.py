@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 CaseHub - Centralized Template Configuration
 IMPORTANTE: Única instância de Jinja2Templates para todo o app
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 PREFIX = settings.PREFIX
 APP_VERSION = "2.0.0"
 CANONICAL_SUPPORT_EMAIL = "casehub@legalopsco.work"
-RETIRED_SUPPORT_DOMAINS = {"cliente.example.com"}
+RETIRED_SUPPORT_DOMAINS = {"sampletenantadvogados.com.br"}
 
 
 def public_contact_email(value: str | None = None) -> str:
@@ -69,6 +71,15 @@ templates.env.globals["org_phone"] = ""
 templates.env.globals["casehub_release_notice"] = get_casehub_release_notice()
 templates.env.globals["casehub_maestro_fab_enabled"] = settings.CASEHUB_MAESTRO_FAB_ENABLED
 
+# Gmail compose availability — global flag based on env + token presence.
+# Per-request per-org check happens at the route level; this drives template visibility.
+import os as _os
+_gmail_oauth_enabled = bool(getattr(settings, "GMAIL_OAUTH_ENABLED", False))
+_gmail_default_accounts_raw = getattr(settings, "GMAIL_DEFAULT_ACCOUNTS", "") or ""
+_gmail_default_account = _gmail_default_accounts_raw.split(",")[0].strip() if _gmail_default_accounts_raw else ""
+templates.env.globals["gmail_send_enabled"] = _gmail_oauth_enabled
+templates.env.globals["gmail_send_account"] = _gmail_default_account
+
 
 def inject_org_context(request: Request, user=None) -> dict:
     """
@@ -97,7 +108,8 @@ def inject_org_context(request: Request, user=None) -> dict:
 
     org = getattr(getattr(request, "state", None), "org", None)
     if not org:
-        return {"ui_theme": ui_theme}
+        return {"ui_theme": ui_theme,
+                "can_view_financeiro": (getattr(_user, "user_type", None) == "superadmin") if _user else False}
 
     # Parse org_settings from the settings JSONB column
     org_settings = {}
@@ -134,6 +146,19 @@ def inject_org_context(request: Request, user=None) -> dict:
     product_features = PRODUCT_DEFAULTS.get(product_name, {}).get("features", {})
     merged_features = {**product_features, **org_features}
 
+    # Gate de visibilidade do Financeiro (dado sensível, sócio-only) — espelha
+    # o gate de /reports/financeiro: superadmin OU id na allowlist
+    # org_settings.financeiro_user_ids. NÃO usa 'admin' genérico (QA/ops não veem).
+    _can_fin = False
+    if _user:
+        try:
+            if getattr(_user, "user_type", None) == "superadmin":
+                _can_fin = True
+            else:
+                _can_fin = getattr(_user, "id", None) in (org_settings.get("financeiro_user_ids") or [])
+        except Exception:
+            _can_fin = False
+
     # org is a dict (set by TenantMiddleware)
     if isinstance(org, dict):
         return {
@@ -155,6 +180,7 @@ def inject_org_context(request: Request, user=None) -> dict:
             "org_features": merged_features,
             "base_url": settings.BASE_URL,
             "version": APP_VERSION,
+            "can_view_financeiro": _can_fin,
             "ui_theme": ui_theme,
         }
 
@@ -178,6 +204,7 @@ def inject_org_context(request: Request, user=None) -> dict:
         "org_features": merged_features,
         "base_url": settings.BASE_URL,
         "version": APP_VERSION,
+        "can_view_financeiro": _can_fin,
         "ui_theme": ui_theme,
     }
 

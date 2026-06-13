@@ -23,7 +23,13 @@
 
     <header class="wa-header" role="banner">
         <div class="wa-header-left">
-            <span class="wa-logo">WhatsApp Chat</span>
+            <span class="wa-logo">
+                <svg class="wa-logo-svg" viewBox="0 0 32 32" role="img" aria-label="WhatsApp" focusable="false">
+                    <path fill="#25D366" d="M16 0a16 16 0 0 0-13.6 24.4L0 32l7.8-2.4A16 16 0 1 0 16 0z"/>
+                    <path fill="#fff" d="M11.9 8.6c-.3-.7-.6-.7-.9-.7h-.7c-.3 0-.7.1-1 .5-.4.4-1.3 1.3-1.3 3.2s1.4 3.7 1.6 4c.2.2 2.6 4.2 6.5 5.7 3.2 1.3 3.9 1 4.6.9.7-.1 2.2-.9 2.5-1.8.3-.9.3-1.6.2-1.8-.1-.2-.3-.3-.7-.5-.4-.2-2.2-1.1-2.5-1.2-.3-.1-.6-.2-.8.2-.2.3-.9 1.1-1.1 1.4-.2.2-.4.2-.7.1-.4-.2-1.6-.6-3-1.8-1.1-1-1.8-2.2-2.1-2.6-.2-.4 0-.6.2-.7.2-.2.4-.4.5-.6.2-.2.2-.4.4-.6.1-.3.1-.5 0-.7-.1-.2-.8-2-1.1-2.7z"/>
+                </svg>
+                <span class="wa-logo-text">WhatsApp Chat</span>
+            </span>
             <div class="wa-status {{ 'connected' if bot_status and bot_status.get('connected') else 'disconnected' }}" id="statusBadge" role="status" aria-live="polite">
                 <span class="wa-status-dot" aria-hidden="true"></span>
                 <span id="statusText">{{ 'Conectado' if bot_status and bot_status.get('connected') else 'Conectando...' }}</span>
@@ -43,6 +49,15 @@
         </div>
         <a href="{{ PREFIX }}/integrations" class="btn btn-sm btn-outline-secondary">Integrações</a>
     </header>
+
+    <div class="wa-disconnect-bar" id="waDisconnectBar" role="alert" aria-live="polite" hidden>
+        <i class="fas fa-triangle-exclamation wa-disconnect-bar__icon" aria-hidden="true"></i>
+        <span class="wa-disconnect-bar__text">
+            <strong>WhatsApp desconectado.</strong>
+            <span id="waDisconnectReason">status indisponível</span>
+        </span>
+        <button class="wa-disconnect-bar__btn" type="button" onclick="forceReconnect()">Reconectar</button>
+    </div>
 
     <main class="wa-main" id="tabContentChat" role="tabpanel" aria-labelledby="tabChat">
         <aside class="wa-sidebar" aria-label="Lista de conversas">
@@ -70,6 +85,15 @@
                     <i class="fas fa-exclamation" aria-hidden="true"></i> Urgente
                 </button>
             </div>
+            <div class="wa-tagbar" id="tagFilterBar" role="toolbar" aria-label="Filtrar conversas por tag" hidden></div>
+            <style>
+                .wa-tagbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 10px 8px}
+                .wa-tagbar[hidden]{display:none}
+                .wa-tagbar-label{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--wa-text-secondary,#8a9099);display:inline-flex;align-items:center;gap:4px;margin-right:2px}
+                .wa-tag-chip{border-left:3px solid var(--c-info,#7db4e6)}
+                .wa-tag-chip.active{background:var(--c-info,#7db4e6);color:#fff}
+                .wa-tag-chip__count{display:inline-block;min-width:16px;padding:0 5px;margin-left:4px;border-radius:9px;font-size:.7rem;line-height:16px;text-align:center;background:rgba(0,0,0,.12)}
+            </style>
             <div class="wa-conversations" id="conversationsList" role="list" aria-live="polite" aria-busy="true">
                 <div class="wa-loading">
                     <div class="wa-spinner" aria-hidden="true"></div>
@@ -81,7 +105,10 @@
         <section class="wa-chat" id="chatArea" aria-label="Conversa ativa">
             <div class="wa-chat-empty" id="emptyState">
                 <div class="wa-chat-empty-icon" aria-hidden="true">
-                    <i class="fab fa-whatsapp"></i>
+                    <svg class="wa-logo-svg" viewBox="0 0 32 32" role="img" aria-label="WhatsApp" focusable="false">
+                        <path fill="#25D366" d="M16 0a16 16 0 0 0-13.6 24.4L0 32l7.8-2.4A16 16 0 1 0 16 0z"/>
+                        <path fill="#fff" d="M11.9 8.6c-.3-.7-.6-.7-.9-.7h-.7c-.3 0-.7.1-1 .5-.4.4-1.3 1.3-1.3 3.2s1.4 3.7 1.6 4c.2.2 2.6 4.2 6.5 5.7 3.2 1.3 3.9 1 4.6.9.7-.1 2.2-.9 2.5-1.8.3-.9.3-1.6.2-1.8-.1-.2-.3-.3-.7-.5-.4-.2-2.2-1.1-2.5-1.2-.3-.1-.6-.2-.8.2-.2.3-.9 1.1-1.1 1.4-.2.2-.4.2-.7.1-.4-.2-1.6-.6-3-1.8-1.1-1-1.8-2.2-2.1-2.6-.2-.4 0-.6.2-.7.2-.2.4-.4.5-.6.2-.2.2-.4.4-.6.1-.3.1-.5 0-.7-.1-.2-.8-2-1.1-2.7z"/>
+                    </svg>
                 </div>
                 <h3>WhatsApp Chat</h3>
                 <p>Selecione uma conversa para começar.</p>
@@ -90,6 +117,11 @@
             <div class="wa-qr-container" id="qrState" hidden>
                 <h3>Conectar WhatsApp</h3>
                 <p>Escolha QR Code ou código por telefone. A sessão fica salva depois da autenticação.</p>
+                <p class="wa-firm-share" style="max-width:560px;margin:0 auto var(--space-3,12px);padding:10px 14px;border-radius:10px;background:var(--surface-info,#e8f4ff);border:1px solid var(--c-info,#a9d3f5);color:var(--text-info,#0b4a73);font-size:0.88rem;line-height:1.45;text-align:left;">
+                    <i class="fas fa-users" aria-hidden="true"></i>
+                    <strong>WhatsApp da firma — compartilhado.</strong>
+                    Basta <strong>um</strong> membro da equipe conectar: todos os usuários do escritório passam a ver as mesmas conversas. Não é preciso cada pessoa escanear.
+                </p>
                 <details style="max-width: 560px; margin: 0 auto var(--space-3, 12px); text-align: left;">
                     <summary style="cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
                         <i class="fas fa-lock" aria-hidden="true"></i>
@@ -114,7 +146,9 @@
                         </button>
                     </div>
                 </div>
-                <div class="wa-connect-mode" id="waConnectMode" role="tablist" aria-label="Modo de conexão WhatsApp" hidden>
+
+                <p class="wa-connect-state" id="waConnectStateText">Aguardando conexão</p>
+                <div class="wa-connect-mode" id="waConnectMode" role="tablist" aria-label="Modo de conexão WhatsApp">
                     <button class="wa-connect-mode__btn active" type="button" id="waQrModeBtn" onclick="showQrConnect()" aria-pressed="true">
                         <i class="fas fa-qrcode" aria-hidden="true"></i> QR Code
                     </button>
@@ -122,7 +156,8 @@
                         <i class="fas fa-mobile-screen-button" aria-hidden="true"></i> Telefone
                     </button>
                 </div>
-                <div class="wa-qr-code" id="qrCode" hidden>
+
+                <div class="wa-qr-code" id="qrCode">
                     <div class="wa-loading">
                         <div class="wa-spinner" aria-hidden="true"></div>
                     </div>
@@ -139,6 +174,11 @@
                     <p class="wa-phone-pairing__hint">No celular: WhatsApp &gt; Aparelhos conectados &gt; Conectar com número de telefone.</p>
                 </div>
                 <div class="wa-qr-refresh" id="qrRefreshHint">Abra o WhatsApp no celular &gt; Aparelhos conectados &gt; Conectar aparelho.</div>
+                <p class="wa-connect-note" id="waQrWarning">
+                    <i class="fas fa-circle-info" aria-hidden="true"></i>
+                    O pareamento pode substituir outra sessão Web se o limite de aparelhos conectados tiver sido atingido.
+                    <a href="{{ PREFIX }}/legal/privacy">Privacidade</a>
+                </p>
             </div>
 
             <div id="activeChat" hidden>
@@ -333,7 +373,7 @@
                         <button class="wa-toolbar-btn" type="button" onclick="triggerFileUpload()" aria-label="Anexar arquivo" title="Anexar arquivo">
                             <i class="fas fa-paperclip" aria-hidden="true"></i>
                         </button>
-                        <input type="file" id="fileInput" class="wa-file-input" accept="image/*,.pdf,.doc,.docx" onchange="handleFileSelect(event)" aria-label="Selecionar arquivo">
+                        <input type="file" id="fileInput" class="wa-file-input" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.odt,.zip,.rar,.7z,.xml,.json" onchange="handleFileSelect(event)" aria-label="Selecionar arquivo (todos os tipos)">
                         <button class="wa-toolbar-btn" type="button" onclick="toggleTemplates()" aria-label="Templates" title="Templates (T)">
                             <i class="fas fa-bolt" aria-hidden="true"></i>
                         </button>
@@ -426,13 +466,6 @@
                     <div class="wa-setting-desc">Link para agendamento de consulta com advogado</div>
                 </div>
                 <input type="url" class="wa-input-setting" id="calendlyPaid" value="CALENDLY_PAID_URL">
-            </div>
-            <div class="wa-setting-row">
-                <div class="wa-setting-info">
-                    <label class="wa-setting-label" for="stripePayment">Stripe - Pagamento Consulta ($99)</label>
-                    <div class="wa-setting-desc">Link direto para pagamento da consulta</div>
-                </div>
-                <input type="url" class="wa-input-setting" id="stripePayment" value="https://buy.stripe.com/3cI5kD1I4aZC5mHeOkdjO2q">
             </div>
         </div>
 
@@ -585,13 +618,10 @@
     var WA_API_BASE = "{{ PREFIX }}{{ wa_router_prefix | default('/whatsapp-chat') }}";
     window.WA_API_BASE = WA_API_BASE;
 
-    // QR warning gate — defensive UX: only reveal QR after user acknowledges
-    // that scanning will disconnect their existing WhatsApp Web session.
+    // Backward-compatible no-op kept for older cached inline handlers.
     window.acknowledgeQrWarning = function () {
-        var warning = document.getElementById("waQrWarning");
         var connectMode = document.getElementById("waConnectMode");
         var qrCode = document.getElementById("qrCode");
-        if (warning) { warning.hidden = true; }
         if (connectMode) { connectMode.hidden = false; }
         if (qrCode) { qrCode.hidden = false; }
     };

@@ -8,7 +8,8 @@ fetches arbitrary file metadata and resolves breadcrumb paths.
 
 Mounted by ``routes/drive_explorer.py`` (the Codex UI calls these endpoints
 to render a Finder-style column view). The explorer reuses
-``get_drive_service()`` so OAuth/token handling stays in one place.
+``get_drive_service(org_id)`` so tenant-scoped OAuth/token handling stays in
+one place.
 
 Boundaries:
 - **Read-only.** No create / update / delete / upload. Mutation lives in
@@ -84,13 +85,13 @@ class DriveNotAvailable(RuntimeError):
     The route layer catches this and converts to HTTP 503, **never** 500."""
 
 
-def _ensure_service():
+def _ensure_service(org_id: Optional[int] = None):
     """Resolve the Drive service or raise :class:`DriveNotAvailable`.
 
     Centralised so every endpoint produces a uniform 503 instead of
     sprinkling ``None`` checks across the route handlers.
     """
-    service = get_drive_service()
+    service = get_drive_service(org_id)
     if service is None:
         raise DriveNotAvailable(
             "Google Drive service is unavailable on this deploy "
@@ -107,6 +108,7 @@ def list_folder(
     page_token: Optional[str] = None,
     include_trashed: bool = False,
     order_by: str = "folder,name",
+    org_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List the immediate children of ``folder_id``.
 
@@ -117,7 +119,7 @@ def list_folder(
     Returns ``{"items": [...], "next_page_token": str|None}``. The route
     handler is the one that wraps this into a ``JSONResponse``.
     """
-    service = _ensure_service()
+    service = _ensure_service(org_id)
 
     query_parts = [f"'{folder_id}' in parents"]
     if not include_trashed:
@@ -126,7 +128,7 @@ def list_folder(
 
     request = service.files().list(
         q=query,
-        pageSize=max(1, min(int(page_size), 200)),
+        pageSize=max(1, min(int(page_size), 100)),
         pageToken=page_token,
         fields=_LIST_FIELDS,
         orderBy=order_by,
@@ -140,14 +142,14 @@ def list_folder(
     }
 
 
-def get_file(file_id: str) -> Dict[str, Any]:
+def get_file(file_id: str, *, org_id: Optional[int] = None) -> Dict[str, Any]:
     """Fetch metadata for a single Drive object (file or folder).
 
     Owners are included so the UI can show "Owned by X". The full
     ``webViewLink`` is included so the UI can deep-link out to native
     Drive when needed (e.g. opening a Google Doc).
     """
-    service = _ensure_service()
+    service = _ensure_service(org_id)
     payload = service.files().get(
         fileId=file_id,
         fields=_FILE_FIELDS,
@@ -169,7 +171,12 @@ def get_file(file_id: str) -> Dict[str, Any]:
     return serialized
 
 
-def breadcrumb(file_id: str, *, max_depth: int = 12) -> List[Dict[str, str]]:
+def breadcrumb(
+    file_id: str,
+    *,
+    max_depth: int = 12,
+    org_id: Optional[int] = None,
+) -> List[Dict[str, str]]:
     """Walk parents up to the root, returning a breadcrumb trail.
 
     The trail is ordered **root → file**, so the UI can render
@@ -180,7 +187,7 @@ def breadcrumb(file_id: str, *, max_depth: int = 12) -> List[Dict[str, str]]:
 
     Each crumb is ``{id, name, mime_type, is_folder}``.
     """
-    service = _ensure_service()
+    service = _ensure_service(org_id)
     trail: List[Dict[str, str]] = []
 
     current_id: Optional[str] = file_id

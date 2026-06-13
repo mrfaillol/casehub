@@ -1,0 +1,138 @@
+name: auto-merge
+
+# Auto-merge condicional. KILL SWITCH OFF por padrão (vars.AUTO_MERGE_ENABLED=true).
+# Hardened com council ruling 2026-05-05 + Codex P1 (paginate + merge_commit_sha).
+# Casehub-specific: halt-guard incluido como required check.
+
+on:
+  pull_request_review:
+    types: [submitted]
+  check_suite:
+    types: [completed]
+  pull_request:
+    types: [labeled, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number || github.event.check_suite.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    if: vars.AUTO_MERGE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve PR number
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let prNumber = null;
+            if (context.eventName === 'pull_request' || context.eventName === 'pull_request_review') {
+              prNumber = context.payload.pull_request.number;
+            } else if (context.eventName === 'check_suite') {
+              const cs = context.payload.check_suite;
+              if (cs.pull_requests && cs.pull_requests.length > 0) prNumber = cs.pull_requests[0].number;
+            }
+            if (!prNumber) return;
+            core.setOutput('number', prNumber);
+
+      - name: Evaluate gates
+        id: gates
+        if: steps.pr.outputs.number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber,
+            });
+            if (pr.draft || pr.state !== 'open') return core.setOutput('go', 'false');
+            if (!pr.head.repo || pr.head.repo.full_name !== pr.base.repo.full_name) {
+              core.info(`reject fork PR`); return core.setOutput('go', 'false');
+            }
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber, per_page: 100,
+            });
+            const blockPatterns = [
+              /^\.github\/workflows\//, /^\.github\/actions\//, /^\.github\/CODEOWNERS$/,
+              /^\.github\/branch-protection/, /^scripts\/casehub-halt-guard\.sh$/,
+              /^scripts\/deploy/, /^docker-compose/, /^Dockerfile/, /^deploy/, /^nginx/,
+              /^docs\/security\//, /\.env/, /\.pem$/, /\.key$/, /id_rsa/, /id_ed25519/,
+              /\.ssh\//, /\.aws\//, /^alembic\//, /^migrations\//,
+            ];
+            for (const f of files) {
+              for (const p of blockPatterns) {
+                if (p.test(f.filename)) {
+                  core.info(`W-S1 blocklist match: ${f.filename}`);
+                  return core.setOutput('go', 'false');
+                }
+              }
+            }
+            const labels = pr.labels.map(l => l.name);
+            if (!labels.includes('auto-merge-allowed')) return core.setOutput('go', 'false');
+            const branchRe = /^agent\/(army-claude|codex-wing|gemini-wing)\/[a-z0-9_-]+$/;
+            if (!branchRe.test(pr.head.ref)) return core.setOutput('go', 'false');
+            const candidateShas = [pr.head.sha, pr.merge_commit_sha].filter(Boolean);
+            let allCheckRuns = [];
+            for (const sha of candidateShas) {
+              try {
+                const runs = await github.paginate(github.rest.checks.listForRef, {
+                  owner: context.repo.owner, repo: context.repo.repo, ref: sha,
+                  filter: 'latest', per_page: 100,
+                });
+                allCheckRuns = allCheckRuns.concat(runs);
+              } catch (e) { core.info(`listForRef ${sha}: ${e.message}`); }
+            }
+            for (const name of ['oracle-pr-scope-guard', 'multi-agent-scope-guard']) {
+              const run = allCheckRuns.find(c => (c.name === name || c.name.startsWith(name)) && c.conclusion === 'success');
+              if (!run) return core.setOutput('go', 'false');
+            }
+            // Casehub-specific: halt-guard tambem
+            const halt = allCheckRuns.find(c => c.name === 'halt-guard');
+            if (halt && halt.conclusion !== 'success') {
+              core.info('halt-guard not success'); return core.setOutput('go', 'false');
+            }
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber, per_page: 100,
+            });
+            const reviewerAllowlist = ['claude[bot]', 'mrfaillol-army-bot[bot]', 'mrfaillol'];
+            const latestByUser = new Map();
+            for (const r of reviews) {
+              if (reviewerAllowlist.includes(r.user.login)) latestByUser.set(r.user.login, r.state);
+            }
+            const states = [...latestByUser.values()];
+            if (states.includes('CHANGES_REQUESTED')) return core.setOutput('go', 'false');
+            if (!states.includes('APPROVED')) return core.setOutput('go', 'false');
+            core.setOutput('go', 'true');
+            core.setOutput('sha', pr.head.sha);
+
+      - name: Squash merge (try/catch)
+        if: steps.gates.outputs.go == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.number }}', 10);
+            try {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber,
+                merge_method: 'squash', sha: '${{ steps.gates.outputs.sha }}',
+              });
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber,
+                body: '✅ Auto-merged by `auto-merge.yml` (ruling 2026-05-05 Item 1).\n\ncc @openai-code-agent (codex co-watcher)',
+              });
+            } catch (err) {
+              const status = err.status || 'unknown';
+              const msg = err.response?.data?.message || err.message;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber,
+                body: `❌ Auto-merge failed (status=${status}): ${msg}\n\nManual review needed. Rollback: \`git revert -m 1 <merge-sha>\`.\n\ncc @mrfaillol @openai-code-agent`,
+              });
+              core.setFailed(`pulls.merge failed: ${msg}`);
+            }

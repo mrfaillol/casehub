@@ -25,6 +25,16 @@
     <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/tasks">
       <span data-icon="chevron_right" data-icon-size="14" style="transform: rotate(180deg);"></span> Voltar
     </a>
+    {% if gmail_send_enabled and is_edit and task and task.client and task.client.email %}
+    <button class="ch-btn ch-btn--ghost"
+            data-ch-compose
+            data-to="{{ task.client.email }}"
+            data-client-id="{{ task.client.id }}"
+            data-subject="Tarefa: {{ task.title }}"
+            title="Enviar e-mail ao cliente desta tarefa">
+      <i data-lucide="mail" style="width:15px;height:15px;" aria-hidden="true"></i> Email
+    </button>
+    {% endif %}
   </div>
 </section>
 
@@ -125,8 +135,13 @@
     <div class="ch-grid ch-grid--2">
       <div class="ch-field">
         <label class="ch-field__label" for="due_date">Data de vencimento</label>
-        <input class="ch-input ch-mono" id="due_date" name="due_date" type="date"
-               value="{{ task.due_date.strftime('%Y-%m-%d') if task and task.due_date else '' }}" />
+        <div style="display:flex; gap:.5rem;">
+          <input class="ch-input ch-mono" id="due_date" name="due_date" type="date" style="flex:1; min-width:0;"
+                 value="{{ task.due_date.strftime('%Y-%m-%d') if task and task.due_date else '' }}" />
+          <input class="ch-input ch-mono" id="due_time" name="due_time" type="time" style="width:7.5rem; flex:none;"
+                 aria-label="Horário do vencimento"
+                 value="{{ task.due_time if task and task.due_time else '' }}" />
+        </div>
       </div>
       <div class="ch-field">
         <label class="ch-field__label" for="reminder_date">Data do lembrete</label>

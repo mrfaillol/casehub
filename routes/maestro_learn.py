@@ -170,7 +170,10 @@ async def create_learning_entry(
     # Per-user cap protects the token budget the chat flow burns.
     existing = (
         db.query(MaestroLearningEntry)
-        .filter(MaestroLearningEntry.user_id == user.id)
+        .filter(
+            MaestroLearningEntry.user_id == user.id,
+            MaestroLearningEntry.org_id == org_id,
+        )
         .count()
     )
     if existing >= MAX_ENTRIES_PER_USER:

@@ -18,6 +18,10 @@ body {
 }
 
 body.assistente-chat-embed-body {
+  --maestro-accent: #1a6670;
+  --maestro-accent-2: #1C2447;
+  --maestro-accent-3: #38bdf8;
+  --maestro-line: color-mix(in srgb, var(--maestro-accent) 26%, var(--border-default));
   font-family: var(--font-family-sans);
   font-size: var(--font-size-sm);
   color: var(--text-primary);
@@ -25,6 +29,34 @@ body.assistente-chat-embed-body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* M2 (Example User 02/06): a superfície do Maestro ficava colada na barra de
+     abas do container (iframe). Inset superior dá respiro entre o header
+     do chat e a chrome acima, sem encostar na borda. */
+  padding-top: var(--space-2);
+}
+
+body.assistente-chat-embed-body[data-maestro-profile="chatgpt"] {
+  --maestro-accent: #10a37f;
+  --maestro-accent-2: #111827;
+  --maestro-accent-3: #6ee7b7;
+}
+
+body.assistente-chat-embed-body[data-maestro-profile="gemini"] {
+  --maestro-accent: #1a73e8;
+  --maestro-accent-2: #4c1d95;
+  --maestro-accent-3: #14b8a6;
+}
+
+body.assistente-chat-embed-body[data-maestro-profile="claude"] {
+  --maestro-accent: #a45f3d;
+  --maestro-accent-2: #2f2a25;
+  --maestro-accent-3: #0f766e;
+}
+
+body.assistente-chat-embed-body[data-maestro-profile="maestro"] {
+  --maestro-accent: #2563eb;
+  --maestro-accent-2: #172554;
+  --maestro-accent-3: #22c55e;
 }
 
 .assistente-chat-embed-sr-only {
@@ -46,7 +78,8 @@ body.assistente-chat-embed-body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  /* M2: respiro vertical um pouco maior no header para não colar na aba. */
+  padding: var(--space-4);
   background: var(--surface-raised);
   border-bottom: 1px solid var(--border-default);
   box-shadow: var(--elevation-1);
@@ -68,6 +101,40 @@ body.assistente-chat-embed-body {
 .assistente-chat-embed-title-icon {
   color: var(--accent);
   font-size: var(--font-size-md);
+}
+
+.assistente-chat-embed-maestro-mark {
+  width: 32px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 32px;
+  overflow: visible;
+  position: relative;
+  background: transparent;
+  box-shadow: none;
+}
+
+.assistente-chat-embed-maestro-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  position: relative;
+  z-index: 1;
+}
+
+.assistente-chat-embed-maestro-mark--title {
+  width: 28px;
+  height: 36px;
+  flex-basis: 28px;
+}
+
+.assistente-chat-embed-maestro-mark--welcome {
+  width: 118px;
+  height: 150px;
+  flex-basis: 118px;
+  border-radius: var(--radius-lg);
 }
 
 .assistente-chat-embed-status {
@@ -162,7 +229,7 @@ body.assistente-chat-embed-body {
 }
 
 .assistente-chat-embed-message[data-role="assistant"] .assistente-chat-embed-avatar {
-  background: var(--surface-inverse);
+  background: transparent;
   color: var(--text-on-accent);
 }
 
@@ -182,7 +249,7 @@ body.assistente-chat-embed-body {
 }
 
 .assistente-chat-embed-message[data-role="user"] .assistente-chat-embed-bubble {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--maestro-accent-2), var(--maestro-accent));
   color: var(--text-on-accent);
   border-bottom-right-radius: var(--radius-sm);
 }
@@ -190,7 +257,7 @@ body.assistente-chat-embed-body {
 .assistente-chat-embed-message[data-role="assistant"] .assistente-chat-embed-bubble {
   background: var(--surface-raised);
   color: var(--text-primary);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--maestro-line);
   border-bottom-left-radius: var(--radius-sm);
   box-shadow: var(--elevation-1);
 }
@@ -222,7 +289,7 @@ body.assistente-chat-embed-body {
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   background: var(--surface-raised);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--maestro-line);
   border-radius: var(--radius-lg);
   border-bottom-left-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
@@ -231,7 +298,20 @@ body.assistente-chat-embed-body {
 }
 
 .assistente-chat-embed-thinking-icon {
-  color: var(--accent);
+  color: var(--maestro-accent);
+}
+
+.assistente-chat-embed-thinking[data-active="true"] .assistente-chat-embed-maestro-mark img {
+  animation: assistente-chat-embed-hands-think 1.15s ease-in-out infinite;
+}
+
+@keyframes assistente-chat-embed-hands-think {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.04);
+  }
 }
 
 /* ── Welcome card ────────────────────────────────────────── */
@@ -244,20 +324,16 @@ body.assistente-chat-embed-body {
 }
 
 .assistente-chat-embed-welcome-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-full);
-  background: var(--accent);
+  width: 118px;
+  height: 150px;
+  border-radius: var(--radius-lg);
+  background: transparent;
   color: var(--text-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto var(--space-3);
-  box-shadow: var(--elevation-2);
-}
-
-.assistente-chat-embed-welcome-icon i {
-  font-size: var(--font-size-lg);
+  box-shadow: none;
 }
 
 .assistente-chat-embed-welcome-title {
@@ -283,10 +359,13 @@ body.assistente-chat-embed-body {
   background: var(--surface-raised);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  padding: var(--space-3);
+  /* chip label cortado: +respiro vertical e line-height explícito p/ não
+     clipar descendentes ("Status dos processos"). */
+  padding: var(--space-3) var(--space-4);
   text-align: left;
   font-family: var(--font-family-sans);
   font-size: var(--font-size-xs);
+  line-height: var(--line-height-base);
   color: var(--text-primary);
   cursor: pointer;
   margin-bottom: var(--space-2);
@@ -297,14 +376,21 @@ body.assistente-chat-embed-body {
 }
 
 .assistente-chat-embed-suggestion-icon {
-  color: var(--accent);
+  color: var(--maestro-accent);
   flex-shrink: 0;
 }
 
+/* o label (span) deve flexar e quebrar, nunca clipar dentro do chip */
+.assistente-chat-embed-suggestion > span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
 .assistente-chat-embed-suggestion:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-muted);
+  border-color: var(--maestro-line);
+  color: var(--maestro-accent-2);
+  background: color-mix(in srgb, var(--maestro-accent) 9%, var(--surface-raised));
   box-shadow: var(--elevation-1);
 }
 
@@ -361,8 +447,8 @@ body.assistente-chat-embed-body {
   height: 40px;
   min-width: 40px;
   border-radius: var(--radius-full);
-  border: 1px solid var(--accent);
-  background: var(--accent);
+  border: 1px solid var(--maestro-accent-2);
+  background: var(--maestro-accent-2);
   color: var(--text-on-accent);
   font-size: var(--font-size-base);
   cursor: pointer;
@@ -378,14 +464,14 @@ body.assistente-chat-embed-body {
 }
 
 .assistente-chat-embed-send:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--maestro-accent);
+  border-color: var(--maestro-accent);
   box-shadow: var(--elevation-2);
 }
 
 .assistente-chat-embed-send:active {
-  background: var(--accent-active);
-  border-color: var(--accent-active);
+  background: var(--maestro-accent);
+  border-color: var(--maestro-accent);
   transform: translateY(1px);
 }
 
@@ -415,18 +501,22 @@ body.assistente-chat-embed-body {
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   cursor: pointer;
-  padding: var(--space-1) var(--space-3);
+  /* chip label cortado: vertical era space-1 (4px) sem line-height, clipava
+     descendentes. +respiro vertical e line-height base. */
+  padding: var(--space-2) var(--space-3);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-xs);
+  line-height: var(--line-height-base);
+  white-space: nowrap;
   transition: background var(--motion-base) var(--motion-curve-organic),
               border-color var(--motion-base) var(--motion-curve-organic),
               color var(--motion-base) var(--motion-curve-organic);
 }
 
 .assistente-chat-embed-tag:hover {
-  background: var(--accent-muted);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--maestro-accent) 9%, var(--surface-sunken));
+  border-color: var(--maestro-line);
+  color: var(--maestro-accent-2);
 }
 
 .assistente-chat-embed-tag:focus-visible {
@@ -442,7 +532,8 @@ body.assistente-chat-embed-body {
 /* ── Reduced motion ──────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
-  .assistente-chat-embed-message {
+  .assistente-chat-embed-message,
+  .assistente-chat-embed-thinking[data-active="true"] .assistente-chat-embed-maestro-mark img {
     animation: none;
   }
 }

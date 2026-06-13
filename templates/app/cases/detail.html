@@ -77,6 +77,17 @@
     <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/cases/{{ case.id }}/edit">
       <span data-icon="settings"></span> Editar
     </a>
+    {% if gmail_send_enabled and client and client.email %}
+    <button class="ch-btn ch-btn--ghost"
+            data-ch-compose
+            data-to="{{ client.email }}"
+            data-client-id="{{ client.id }}"
+            data-case-id="{{ case.id }}"
+            data-subject="Ref.: {{ case.case_name or case.case_number or 'Processo' }}"
+            title="Enviar e-mail ao cliente via Gmail">
+      <i data-lucide="mail" style="width:15px;height:15px;" aria-hidden="true"></i> Email
+    </button>
+    {% endif %}
   </div>
 </section>
 
@@ -416,13 +427,15 @@
   </header>
   <div class="ch-list">
     {% for doc in documents[:8] %}
-    <a class="ch-list__row" href="{{ PREFIX }}/documents/{{ doc.id }}">
-      <span class="ch-list__icon"><span data-icon="file"></span></span>
-      <div class="ch-list__body">
-        <p class="ch-list__title">{{ doc.name }}</p>
-        <p class="ch-list__meta">{{ doc.doc_type or 'arquivo' }} · {{ (doc.file_size / 1024)|round(0)|int if doc.file_size else '?' }} KB</p>
-      </div>
-      <div class="ch-list__right">
+    <div class="ch-list__row">
+      <a href="{{ PREFIX }}/documents/{{ doc.id }}" style="display:contents;">
+        <span class="ch-list__icon"><span data-icon="file"></span></span>
+        <div class="ch-list__body">
+          <p class="ch-list__title">{{ doc.name }}</p>
+          <p class="ch-list__meta">{{ doc.doc_type or 'arquivo' }} · {{ (doc.file_size / 1024)|round(0)|int if doc.file_size else '?' }} KB</p>
+        </div>
+      </a>
+      <div class="ch-list__right" style="display:flex; gap:var(--space-2); align-items:center;">
         {% set dstatus = (doc.status or '')|lower %}
         {% if dstatus in ['approved','received','reviewed'] %}
           <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ doc.status }}</span>
@@ -431,8 +444,17 @@
         {% elif doc.uploaded_at or doc.created_at %}
           <span class="ch-pill"><span class="dot"></span>{{ (doc.uploaded_at or doc.created_at).strftime('%d/%m/%Y') }}</span>
         {% endif %}
+        {% if drive_connected %}
+        <button type="button"
+                class="ch-btn ch-btn--ghost ch-btn--sm drive-upload-btn"
+                data-doc-id="{{ doc.id }}"
+                {% if doc.drive_link %}data-drive-link="{{ doc.drive_link }}" style="color:var(--c-green-d);"{% endif %}
+                title="{{ 'Ver no Drive' if doc.drive_link else 'Enviar para o Drive' }}">
+          <i data-lucide="hard-drive" style="width:13px;height:13px;" aria-hidden="true"></i>
+        </button>
+        {% endif %}
       </div>
-    </a>
+    </div>
     {% endfor %}
   </div>
 </section>
@@ -598,4 +620,40 @@
     </button>
   </form>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+{% if drive_connected %}
+<script>
+function safeOpenDriveLink(url) {
+  if (url && /^https:\/\//i.test(url)) { window.open(url, '_blank', 'noopener,noreferrer'); }
+}
+document.querySelectorAll('.drive-upload-btn[data-doc-id]').forEach(function(btn) {
+  btn.addEventListener('click', async function() {
+    const existingLink = btn.dataset.driveLink;
+    if (existingLink) { safeOpenDriveLink(existingLink); return; }
+    btn.disabled = true;
+    btn.title = 'Enviando...';
+    try {
+      const res = await fetch('{{ PREFIX }}/drive/upload-from-document', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({document_id: btn.dataset.docId})
+      });
+      const data = await res.json();
+      if (data.success && data.drive_link && /^https:\/\//i.test(data.drive_link)) {
+        btn.dataset.driveLink = data.drive_link;
+        btn.style.color = 'var(--c-green-d)';
+        btn.title = 'Ver no Drive';
+      } else {
+        btn.title = 'Erro: ' + (data.error || 'falha');
+      }
+    } catch(e) {
+      btn.title = 'Erro de rede';
+    }
+    btn.disabled = false;
+  });
+});
+</script>
+{% endif %}
 {% endblock %}

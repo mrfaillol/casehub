@@ -415,7 +415,7 @@ Se voce esta tendo problemas com algum link ou acesso, por favor tente:
 3. Tentar outro navegador
 
 Se o problema persistir, envie um email para:
-info@legacy.example
+info@immigrant.law
 
 Enquanto isso, voce pode agendar diretamente:
 https://calendly.com/center-immigrant/15min
@@ -594,14 +594,14 @@ Mostra:
 
 Backup disponivel em:
 ```
-/var/www/legacy.example/whatsapp-bot/backup-20260130/
+/var/www/immigrant.law/whatsapp-bot/backup-20260130/
 ```
 
 ## Rollback
 
 Se necessario:
 ```bash
-cp /var/www/legacy.example/whatsapp-bot/backup-20260130/* /var/www/legacy.example/whatsapp-bot/
+cp /var/www/immigrant.law/whatsapp-bot/backup-20260130/* /var/www/immigrant.law/whatsapp-bot/
 pm2 restart whatsapp-bot
 ```
 
@@ -612,7 +612,7 @@ pm2 restart whatsapp-bot
 pm2 logs whatsapp-bot
 
 # Ver logs do LLM
-cat /var/www/legacy.example/whatsapp-bot/logs/llm-activity.json
+cat /var/www/immigrant.law/whatsapp-bot/logs/llm-activity.json
 ```
 
 ## Reiniciar

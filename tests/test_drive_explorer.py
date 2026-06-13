@@ -11,7 +11,9 @@ Run: pytest tests/test_drive_explorer.py
 """
 from __future__ import annotations
 
+import asyncio
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
@@ -19,6 +21,13 @@ from unittest.mock import patch
 import pytest
 
 import services.drive_explorer as explorer
+import routes.documents as document_routes
+import routes.drive_explorer as drive_routes
+import routes.integrations as integration_routes
+from models import Organization
+
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
 # ---------------------------------------------------------------------------
@@ -72,8 +81,10 @@ class _FakeService:
 def fake_drive(monkeypatch):
     """Replace ``get_drive_service`` so no real network / token work runs."""
     fake = _FakeService()
+    fake.requested_org_ids = []
 
-    def _stub():
+    def _stub(org_id=None):
+        fake.requested_org_ids.append(org_id)
         return fake
 
     monkeypatch.setattr(explorer, "get_drive_service", _stub)
@@ -128,13 +139,12 @@ def test_list_folder_shapes_files_and_folders(fake_drive):
 
 
 def test_list_folder_clamps_page_size_into_drive_limits(fake_drive):
-    """``page_size`` is clamped to 1..200 — Drive's accepted range. A larger
-    value silently downgrades to 200 (no API 400)."""
+    """``page_size`` is clamped to 1..100, matching Drive files.list."""
     fake_drive._files.list_payload = {"files": [], "nextPageToken": None}
 
     explorer.list_folder("root", page_size=9999)
 
-    assert fake_drive._files.last_list_kwargs["pageSize"] == 200
+    assert fake_drive._files.last_list_kwargs["pageSize"] == 100
 
 
 def test_list_folder_includes_trashed_only_when_asked(fake_drive):
@@ -149,6 +159,67 @@ def test_list_folder_includes_trashed_only_when_asked(fake_drive):
     explorer.list_folder("root", include_trashed=True)
     q_with_trash = fake_drive._files.last_list_kwargs["q"]
     assert "trashed" not in q_with_trash
+
+
+def test_drive_explorer_uses_requested_org_id(fake_drive):
+    """The Drive explorer must load the token for the current tenant, not the
+    default org. This is what makes subdomains like sampletenant.casehub.legal
+    use credentials/org_4/drive_token.json after OAuth."""
+    fake_drive._files.list_payload = {"files": [], "nextPageToken": None}
+    fake_drive._files.get_payloads = {
+        "file42": {"id": "file42", "name": "doc.pdf", "mimeType": "application/pdf"},
+        "leaf": {"id": "leaf", "name": "doc.pdf", "mimeType": "application/pdf", "parents": []},
+    }
+
+    explorer.list_folder("root", org_id=4)
+    explorer.get_file("file42", org_id=4)
+    explorer.breadcrumb("leaf", org_id=4)
+
+    assert fake_drive.requested_org_ids == [4, 4, 4]
+
+
+def test_documents_drive_root_prefers_current_org(db, monkeypatch):
+    org = Organization(
+        id=4,
+        uuid="org-sampletenant-test",
+        name="Example Legal",
+        slug="sampletenant",
+        domain="sampletenant.casehub.legal",
+        google_drive_root_id="org-drive-root",
+    )
+    db.add(org)
+    db.commit()
+    monkeypatch.setattr(document_routes.settings, "GOOGLE_DRIVE_ROOT_ID", "global-root")
+
+    assert document_routes._drive_root_id_for_org(db, 4) == "org-drive-root"
+    assert integration_routes._google_drive_root_id(db, 4) == "org-drive-root"
+    assert integration_routes._google_drive_root_source(db, 4) == "org"
+
+
+def test_documents_drive_root_falls_back_to_global(db, monkeypatch):
+    monkeypatch.setattr(document_routes.settings, "GOOGLE_DRIVE_ROOT_ID", "global-root")
+    monkeypatch.setattr(integration_routes.settings, "GOOGLE_DRIVE_ROOT_ID", "global-root")
+
+    assert document_routes._drive_root_id_for_org(db, 4) == "global-root"
+    assert integration_routes._google_drive_root_id(db, 4) == "global-root"
+    assert integration_routes._google_drive_root_source(db, 4) == "global"
+
+
+def test_documents_drive_root_falls_back_to_my_drive(db, monkeypatch):
+    monkeypatch.setattr(document_routes.settings, "GOOGLE_DRIVE_ROOT_ID", "")
+    monkeypatch.setattr(integration_routes.settings, "GOOGLE_DRIVE_ROOT_ID", "")
+
+    assert document_routes._drive_root_id_for_org(db, 4) == "root"
+    assert integration_routes._google_drive_root_id(db, 4) == ""
+    assert integration_routes._google_drive_root_source(db, 4) == "root-fallback"
+
+
+def test_documents_template_preserves_preview_when_file_selected():
+    """File selection must not clear the metadata panel immediately after render."""
+    template = (ROOT_DIR / "templates/app/documents/list.html").read_text(encoding="utf-8")
+
+    assert "clearAfter(depth, { resetPreview: false });" in template
+    assert "renderPreview(item || { id: id, name: button.textContent.trim() });" in template
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +238,7 @@ def test_get_file_includes_owners_and_trashed(fake_drive):
         "createdTime": "2026-05-15T09:00:00Z",
         "size": None,  # Google-native docs have no byte size
         "owners": [
-            {"emailAddress": "victor@example.com", "displayName": "Victor Vingren"},
+            {"emailAddress": "victor@vingren.me", "displayName": "Victor Vingren"},
         ],
         "trashed": False,
         "webViewLink": "https://docs.google.com/document/d/file42/edit",
@@ -179,7 +250,7 @@ def test_get_file_includes_owners_and_trashed(fake_drive):
     assert payload["trashed"] is False
     assert payload["size"] is None
     assert payload["owners"] == [
-        {"email": "victor@example.com", "display_name": "Victor Vingren"},
+        {"email": "victor@vingren.me", "display_name": "Victor Vingren"},
     ]
 
 
@@ -245,7 +316,7 @@ def test_list_folder_raises_drive_not_available_when_service_none(monkeypatch):
     """When ``get_drive_service`` returns None (no creds / no libs / OAuth
     not completed), every entrypoint raises ``DriveNotAvailable``. The
     route layer maps that to 503; nothing should leak as a 500."""
-    monkeypatch.setattr(explorer, "get_drive_service", lambda: None)
+    monkeypatch.setattr(explorer, "get_drive_service", lambda org_id=None: None)
 
     with pytest.raises(explorer.DriveNotAvailable):
         explorer.list_folder("root")
@@ -253,3 +324,129 @@ def test_list_folder_raises_drive_not_available_when_service_none(monkeypatch):
         explorer.get_file("anything")
     with pytest.raises(explorer.DriveNotAvailable):
         explorer.breadcrumb("anything")
+
+
+def test_list_route_passes_request_org_id_to_service(monkeypatch):
+    """Route layer must propagate TenantMiddleware's org_id into the Drive
+    service call; otherwise OAuth succeeds for one tenant but list still checks
+    the default tenant token."""
+    captured = {}
+
+    monkeypatch.setattr(drive_routes, "_ensure_auth", lambda request, db: (object(), None))
+
+    def _list_folder_stub(folder_id, **kwargs):
+        captured["folder_id"] = folder_id
+        captured["org_id"] = kwargs.get("org_id")
+        return {"items": [], "next_page_token": None}
+
+    monkeypatch.setattr(drive_routes, "list_folder", _list_folder_stub)
+
+    request = SimpleNamespace(state=SimpleNamespace(org_id=4))
+    response = asyncio.run(drive_routes.list_drive_folder(request, folder_id="root", db=object()))
+
+    assert response.status_code == 200
+    assert captured == {"folder_id": "root", "org_id": 4}
+
+
+def test_file_route_passes_request_org_id_to_service(monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(drive_routes, "_ensure_auth", lambda request, db: (object(), None))
+
+    def _get_file_stub(file_id, **kwargs):
+        captured["file_id"] = file_id
+        captured["org_id"] = kwargs.get("org_id")
+        return {"id": file_id, "name": "doc.pdf"}
+
+    monkeypatch.setattr(drive_routes, "get_file", _get_file_stub)
+
+    request = SimpleNamespace(state=SimpleNamespace(org_id=4))
+    response = asyncio.run(drive_routes.get_drive_file(request, file_id="file42", db=object()))
+
+    assert response.status_code == 200
+    assert json.loads(response.body)["id"] == "file42"
+    assert captured == {"file_id": "file42", "org_id": 4}
+
+
+def test_breadcrumb_route_passes_request_org_id_to_service(monkeypatch):
+    captured = {}
+
+    monkeypatch.setattr(drive_routes, "_ensure_auth", lambda request, db: (object(), None))
+
+    def _breadcrumb_stub(file_id, **kwargs):
+        captured["file_id"] = file_id
+        captured["org_id"] = kwargs.get("org_id")
+        captured["max_depth"] = kwargs.get("max_depth")
+        return [{"id": file_id, "name": "doc.pdf"}]
+
+    monkeypatch.setattr(drive_routes, "breadcrumb", _breadcrumb_stub)
+
+    request = SimpleNamespace(state=SimpleNamespace(org_id=4))
+    response = asyncio.run(drive_routes.drive_breadcrumb(
+        request,
+        file_id="file42",
+        max_depth=9,
+        db=object(),
+    ))
+
+    assert response.status_code == 200
+    assert json.loads(response.body)["trail"][0]["id"] == "file42"
+    assert captured == {"file_id": "file42", "org_id": 4, "max_depth": 9}
+
+
+def test_drive_oauth_credentials_fall_back_to_shared_google_client(tmp_path, monkeypatch):
+    monkeypatch.setattr(integration_routes.settings, "BASE_DIR", str(tmp_path))
+    monkeypatch.setattr(integration_routes.settings, "GOOGLE_DRIVE_CREDENTIALS_PATH", "")
+    monkeypatch.setattr(integration_routes.settings, "GOOGLE_CALENDAR_CREDENTIALS_PATH", "")
+    shared_client = tmp_path / "credentials" / "google_client_secret.json"
+    shared_client.parent.mkdir(parents=True)
+    shared_client.write_text("{}", encoding="utf-8")
+
+    assert integration_routes._google_drive_credentials_path() == shared_client
+
+
+def test_drive_oauth_credentials_prefer_explicit_drive_path(tmp_path, monkeypatch):
+    drive_client = tmp_path / "drive-client.json"
+    shared_client = tmp_path / "credentials" / "google_client_secret.json"
+    shared_client.parent.mkdir(parents=True)
+    drive_client.write_text("{}", encoding="utf-8")
+    shared_client.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(integration_routes.settings, "BASE_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        integration_routes.settings,
+        "GOOGLE_DRIVE_CREDENTIALS_PATH",
+        str(drive_client),
+    )
+    monkeypatch.setattr(integration_routes.settings, "GOOGLE_CALENDAR_CREDENTIALS_PATH", "")
+
+    assert integration_routes._google_drive_credentials_path() == drive_client
+
+
+def test_drive_integration_card_token_without_root_opens_documents(tmp_path, monkeypatch):
+    credentials = tmp_path / "google_client_secret.json"
+    token = tmp_path / "drive_token.json"
+    credentials.write_text("{}", encoding="utf-8")
+    token.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(integration_routes.settings, "GOOGLE_DRIVE_ROOT_ID", "")
+    monkeypatch.setattr(integration_routes.settings, "GMAIL_OAUTH_ENABLED", False)
+    monkeypatch.setattr(
+        integration_routes,
+        "_google_drive_paths",
+        lambda org_id=None: (credentials, token),
+    )
+    monkeypatch.setattr(
+        integration_routes,
+        "GoogleCalendarService",
+        lambda: SimpleNamespace(
+            get_connected_accounts=lambda verify_live=False: [],
+            get_client_redirect_uris=lambda: [],
+        ),
+    )
+
+    cards = integration_routes._integration_cards(org_id=4, db=None)
+    drive = next(card for card in cards if card["name"] == "Google Drive")
+
+    assert drive["state"] == "warn"
+    assert drive["action_url"].endswith("/documents")
+    assert "root_source=root-fallback" in drive["diagnostic"]

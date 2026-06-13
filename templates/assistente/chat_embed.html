@@ -1,3 +1,6 @@
+{% set status_models = ollama_status.models|default([]) %}
+{% set active_model = ollama_status.active_model|default(status_models[0] if status_models else '') %}
+{% set maestro_ui = ollama_status.ui_profile|default({'profile':'local','label':'Local','provider':'ollama','model':active_model,'icon_asset':'brand-kit/maestro/maestro.png'}) %}
 <!DOCTYPE html>
 <html lang="{{ lang|default('pt-BR') }}" data-theme="{{ ui_theme|default(theme|default('light')) }}">
 <head>
@@ -12,10 +15,15 @@
     {% endif %}
     <link rel="stylesheet" href="/static/css/templates/assistente-chat-embed.css">
 </head>
-<body class="assistente-chat-embed-body">
+<body class="assistente-chat-embed-body"
+      data-maestro-profile="{{ maestro_ui.profile|e }}"
+      data-maestro-provider="{{ maestro_ui.provider|e }}"
+      data-maestro-model="{{ active_model|e }}">
     <header class="assistente-chat-embed-header">
         <h1 class="assistente-chat-embed-title">
-            <i class="fas fa-wand-magic-sparkles assistente-chat-embed-title-icon" aria-hidden="true"></i>
+            <span class="assistente-chat-embed-maestro-mark assistente-chat-embed-maestro-mark--title" aria-hidden="true">
+                <img src="{{ asset_url(maestro_ui.icon_asset) }}" alt="" loading="eager">
+            </span>
             <span>Maestro IA</span>
         </h1>
         <span class="assistente-chat-embed-status"
@@ -35,7 +43,9 @@
           aria-label="Conversa com o Maestro IA">
         <section class="assistente-chat-embed-welcome" id="welcomeCard" aria-labelledby="welcomeTitle">
             <div class="assistente-chat-embed-welcome-icon" aria-hidden="true">
-                <i class="fas fa-wand-magic-sparkles"></i>
+                <span class="assistente-chat-embed-maestro-mark assistente-chat-embed-maestro-mark--welcome">
+                    <img src="{{ asset_url(maestro_ui.icon_asset) }}" alt="" loading="eager">
+                </span>
             </div>
             <h2 id="welcomeTitle" class="assistente-chat-embed-welcome-title">Maestro IA</h2>
             <p class="assistente-chat-embed-welcome-text">Assistente jurídico inteligente do seu escritório.</p>
@@ -61,7 +71,9 @@
              data-active="false"
              aria-hidden="true">
             <div class="assistente-chat-embed-avatar" aria-hidden="true">
-                <i class="fas fa-robot"></i>
+                <span class="assistente-chat-embed-maestro-mark">
+                    <img src="{{ asset_url(maestro_ui.icon_asset) }}" alt="" loading="eager">
+                </span>
             </div>
             <div class="assistente-chat-embed-thinking-content">
                 <i class="fas fa-circle-notch fa-spin assistente-chat-embed-thinking-icon" aria-hidden="true"></i>
@@ -89,6 +101,7 @@
 
     <script>
     const PREFIX = '{{ PREFIX }}';
+    const MAESTRO_ICON_URL = {{ asset_url(maestro_ui.icon_asset)|tojson }};
     let chatHistory = [];
     let isProcessing = false;
 
@@ -97,6 +110,17 @@
     const sendBtn = document.getElementById('sendBtn');
     const thinkingIndicator = document.getElementById('thinkingIndicator');
     const welcomeCard = document.getElementById('welcomeCard');
+
+    function escapeHtml(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, function(c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+        });
+    }
+
+    function renderMaestroMark() {
+        return '<span class="assistente-chat-embed-maestro-mark" aria-hidden="true"><img src="' +
+            escapeHtml(MAESTRO_ICON_URL) + '" alt="" loading="eager"></span>';
+    }
 
     chatInput.addEventListener('input', function() {
         this.style.height = 'auto';
@@ -115,14 +139,14 @@
         avatar.setAttribute('aria-hidden', 'true');
         avatar.innerHTML = role === 'user'
             ? '<i class="fas fa-user"></i>'
-            : '<i class="fas fa-robot"></i>';
+            : renderMaestroMark();
 
         var bubbleWrap = document.createElement('div');
         bubbleWrap.className = 'assistente-chat-embed-bubble-wrap';
 
         var bubble = document.createElement('div');
         bubble.className = 'assistente-chat-embed-bubble';
-        var html = content
+        var html = escapeHtml(content)
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
             .replace(/`(.*?)`/g, '<code>$1</code>')

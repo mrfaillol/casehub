@@ -12,9 +12,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 # from fastapi.templating import Jinja2Templates  # Not needed - using template_config.py
 from core.template_config import templates, PREFIX
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc
 
 from models import get_db, User, Task, Case, Client
+from models.notification import Notification
 from auth import get_current_user
 from models.tenant import tenant_query
 from services.email_service import email_service
@@ -73,9 +74,31 @@ async def notification_settings(request: Request, db: Session = Depends(get_db))
         "reminder_days": [1, 3, 7]  # Days before deadline
     }
 
+    # Puxar notificações anteriores e hotfixes do usuário para o histórico (Onda de melhorias/Central de Notificações)
+    notifications = (
+        tenant_query(db, Notification, request.state.org_id)
+        .filter(Notification.user_id == user.id)
+        .order_by(desc(Notification.created_at))
+        .limit(30)
+        .all()
+    )
+
+    hotfixes = (
+        tenant_query(db, Notification, request.state.org_id)
+        .filter(
+            Notification.user_id == user.id,
+            Notification.notification_type == "hotfix"
+        )
+        .order_by(desc(Notification.created_at))
+        .limit(20)
+        .all()
+    )
+
     return templates.TemplateResponse("app/notifications/settings.html", {
         **get_context(request, db),
         "prefs": prefs,
+        "notifications": notifications,
+        "hotfixes": hotfixes,
         "email_configured": is_email_configured(db)
     })
 
@@ -250,4 +273,53 @@ async def upcoming_notifications(request: Request, db: Session = Depends(get_db)
         "upcoming_tasks": upcoming_tasks,
         "overdue_tasks": overdue_tasks,
         "rfe_cases": rfe_cases
+    })
+
+
+@router.get("/hotfix", response_class=HTMLResponse)
+async def hotfix_notifications(request: Request, db: Session = Depends(get_db)):
+    """Read-only feed of in-app patch notes (notification_type='hotfix').
+
+    Agrupa as notas de atualização que a equipe recebe a cada deploy do alpha,
+    em linguagem leiga. Org-scoped (tenant_query) — toda a organização vê os
+    mesmos patch notes, independente de para qual usuário a linha foi semeada.
+    Não cria nem altera dados; apenas lê o que já existe na tabela notifications.
+
+    Por que NÃO filtrar por user_id: o seeder (scripts/seed_patch_notes.py)
+    cria uma cópia da nota para CADA usuário da org. Filtrar por user_id deixava
+    a página vazia para qualquer usuário sem cópia própria (ex.: criado depois
+    do seed). Patch notes são anúncios da org inteira — todos devem ver. Como há
+    uma linha por (usuário × nota), deduplicamos por título para mostrar cada
+    novidade uma única vez. Isolamento org_id é mantido via tenant_query.
+    """
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    # Todas as hotfix da ORG (não só do usuário), mais recentes primeiro.
+    rows = (
+        tenant_query(db, Notification, request.state.org_id)
+        .filter(Notification.notification_type == "hotfix")
+        .order_by(desc(Notification.created_at))
+        .all()
+    )
+
+    # Dedup por título: o seeder grava uma linha por usuário, então o mesmo
+    # patch note aparece N vezes. Mantemos a primeira ocorrência (a mais
+    # recente, pois 'rows' já vem ordenado desc) e preservamos a ordem
+    # cronológica do feed.
+    hotfixes = []
+    seen_titles = set()
+    for n in rows:
+        key = (n.title or "").strip().lower()
+        if key in seen_titles:
+            continue
+        seen_titles.add(key)
+        hotfixes.append(n)
+        if len(hotfixes) >= 100:
+            break
+
+    return templates.TemplateResponse("app/notifications/hotfix.html", {
+        **get_context(request, db),
+        "hotfixes": hotfixes,
     })

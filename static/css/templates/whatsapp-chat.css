@@ -1799,7 +1799,9 @@
   flex-shrink: 0;
 }
 
-.wa-send-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+@media (hover: hover) {
+  .wa-send-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+}
 
 .wa-send-btn:active { transform: scale(0.94); }
 
@@ -1917,6 +1919,66 @@
 
 .wa-qr-container.show { display: flex; }
 
+.wa-connect-panel {
+  width: min(100%, 560px);
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--elevation-1);
+  text-align: left;
+}
+
+.wa-connect-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.wa-connect-icon {
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--wa-green) 18%, var(--surface-sunken));
+  color: var(--wa-green-d);
+  font-size: 26px;
+}
+
+.wa-connect-heading h3 {
+  margin: 0 0 var(--space-1);
+}
+
+.wa-connect-heading p {
+  margin: 0;
+}
+
+.wa-connect-state {
+  margin-top: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.wa-connect-state__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  background: var(--status-warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-warning) 18%, transparent);
+}
+
 .wa-qr-container h3 {
   color: var(--text-primary);
   font-weight: var(--font-weight-regular);
@@ -1990,6 +2052,24 @@
 }
 
 .wa-qr-refresh i { animation: wa-spin 1.4s linear infinite; }
+
+.wa-connect-note {
+  width: min(100%, 560px);
+  margin: var(--space-4) 0 0;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+  text-align: left;
+}
+
+.wa-connect-note a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 /* Pairing-code fallback — for users who can't scan. */
 .wa-qr-pairing {
@@ -2107,6 +2187,27 @@
 
 @keyframes wa-spin {
   to { transform: rotate(360deg); }
+}
+
+/* #5 (Example User 02/06) — aviso de primeira conexao na lista de conversas.
+   Empilha spinner + linhas de texto verticalmente (a regra base e row),
+   centralizado, com a dica secundaria atenuada. */
+.wa-loading:has(.wa-loading-hint) {
+  flex-direction: column;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.wa-loading:has(.wa-loading-hint) .wa-spinner {
+  margin-right: 0;
+  margin-bottom: var(--space-2);
+}
+
+.wa-loading-hint {
+  color: var(--text-tertiary, var(--text-secondary));
+  font-size: var(--font-size-xs, 0.8rem);
+  max-width: 28ch;
+  line-height: 1.4;
 }
 
 /* ── Error / retry state ─────────────────────────────────────
@@ -3338,13 +3439,27 @@
   box-shadow: inset 0 0 0 7px color-mix(in srgb, var(--surface-card) 32%, transparent);
 }
 
+/* Status pill: poço neumórfico afundado (inset) sobre o material do header.
+   Sem borda crua — o acento de cor vem do dot + do tint suave da superfície. */
 .wa-shell-module .wa-status {
   min-height: 32px;
   padding: 0 var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--wa-green-d) 20%, transparent);
-  background: color-mix(in srgb, var(--wa-green) 12%, var(--surface-card));
+  border: none;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--wa-green) 10%, var(--surface-card));
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
   color: var(--fg-default);
   white-space: nowrap;
+}
+/* Theme-aware do estado: desconectado tinge de danger, conectando de warn —
+   delicado, sobre o mesmo poço neumórfico (von Restorff sem ruído). */
+.wa-shell-module .wa-status.disconnected {
+  background: color-mix(in srgb, var(--c-danger) 12%, var(--surface-card));
+  color: var(--c-danger);
+}
+.wa-shell-module .wa-status.connecting {
+  background: color-mix(in srgb, var(--c-warn) 13%, var(--surface-card));
+  color: var(--c-warn);
 }
 
 .wa-shell-module .wa-status-dot {
@@ -3358,13 +3473,19 @@
   gap: var(--space-2);
 }
 
+/* Tabs (Chat / Configurações / Modelos): tab inativa é plana (sem borda);
+   ativa = poço afundado (pressed inset) no mesmo material + acento verde
+   delicado. Lei de Jakob: mesmo padrão neu dos filtros e do pill de modo. */
 .wa-shell-module .wa-tab {
   min-height: 38px;
   padding: 0 var(--space-3);
-  border: 1px solid transparent;
+  border: none;
   border-radius: var(--radius-pill);
   color: var(--fg-muted);
   font-weight: 700;
+  transition: box-shadow var(--motion-fast) var(--ease-out),
+              color var(--motion-fast) var(--ease-out),
+              background-color var(--motion-fast) var(--ease-out);
 }
 
 .wa-shell-module .wa-tab:hover {
@@ -3374,8 +3495,8 @@
 
 .wa-shell-module .wa-tab.active {
   background: color-mix(in srgb, var(--wa-green) 15%, var(--surface-card));
-  border-color: color-mix(in srgb, var(--wa-green-d) 20%, transparent);
-  color: var(--wa-green-d);
+  color: var(--accent-fg, var(--wa-green-d));
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
 }
 
 .wa-shell-module .wa-main,
@@ -3416,20 +3537,33 @@
   border-bottom: 1px solid var(--line);
 }
 
+/* Filtros: chip neumórfico levemente elevado (raised) sobre o painel; sem
+   borda crua. Ativo = afundado (pressed inset) no MESMO material + acento
+   verde delicado — a affordance de seleção é o relevo, não a borda. */
 .wa-shell-module .wa-filter-chip {
   min-height: 34px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-pill);
-  background: transparent;
-  border: 1px solid var(--line);
+  background: var(--surface-card);
+  border: none;
   color: var(--fg-muted);
   font-weight: 700;
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  transition: box-shadow var(--motion-fast) var(--ease-out),
+              color var(--motion-fast) var(--ease-out),
+              background-color var(--motion-fast) var(--ease-out);
+}
+
+.wa-shell-module .wa-filter-chip:hover {
+  background: var(--surface-card);
+  color: var(--fg-default);
 }
 
 .wa-shell-module .wa-filter-chip.active {
   background: color-mix(in srgb, var(--wa-green) 14%, var(--surface-card));
-  border-color: color-mix(in srgb, var(--wa-green-d) 28%, transparent);
-  color: var(--wa-green-d);
+  border: none;
+  color: var(--accent-fg, var(--wa-green-d));
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
 }
 
 .wa-shell-module .wa-conversations {
@@ -3484,6 +3618,35 @@
   font-size: var(--fs-sm);
   line-height: 1;
   letter-spacing: 0;
+}
+
+/* Avatar variants for the internal-team conversation tabs (#equipe, @Maestro,
+   @Example User...). The conversation list shows a foto (photo_url) for people, a
+   group glyph for #equipe, and the Maestro mark for o Maestro — never a bare
+   "@"/"#". These hooks let the avatar carry an <img> or um ícone centrado
+   dentro do mesmo disco neumórfico redondo e sutil. */
+.wa-avatar-icon,
+.wa-shell-module .wa-avatar-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  color: var(--c-paper, #fff);
+}
+
+.wa-avatar-img.wa-avatar--maestro,
+.wa-shell-module .wa-avatar-img.wa-avatar--maestro {
+  object-fit: cover;
+  background: var(--surface-card, #fff);
+}
+
+/* Group disc (#equipe): tint suave de verde WhatsApp sob o glyph, mantendo o
+   relevo do disco. */
+.wa-avatar.wa-avatar--group,
+.wa-shell-module .wa-avatar.wa-avatar--group {
+  background: linear-gradient(135deg, var(--wa-green-d, #008C4D), var(--wa-green, #25D366));
 }
 
 .wa-shell-module .wa-conv-phone {
@@ -3977,10 +4140,40 @@
 .wa-chat-empty-foot { margin-top:18px; font-size:12.5px; color:var(--text-muted,#9aa3b2); display:flex; align-items:center; justify-content:center; gap:6px; }
 .wa-chat-empty-foot .fa-lock { font-size:11px; opacity:.8; }
 
-/* ── Disconnect banner (barra vermelha de desconexão, 2026-05-31) ────── */
-.wa-disconnect-bar { display:flex; align-items:center; gap:10px; background:#dc2626; color:#fff; padding:9px 16px; font-size:13px; line-height:1.3; }
-.wa-disconnect-bar[hidden] { display:none; }
-.wa-disconnect-bar__icon { font-size:14px; flex:0 0 auto; }
-.wa-disconnect-bar__text { flex:1 1 auto; min-width:0; }
-.wa-disconnect-bar__btn { flex:0 0 auto; background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.5); border-radius:7px; padding:5px 13px; font-size:12.5px; font-weight:600; cursor:pointer; }
-.wa-disconnect-bar__btn:hover { background:rgba(255,255,255,.3); }
+/* ── Disconnect banner (barra de desconexão, 2026-05-31) ─────────────── */
+/* Neu polish 2026-06-09: superfície neu theme-aware (tint suave de --c-danger
+   sobre a superfície do app, não vermelho cru) + relevo afundado (inset). O
+   alerta salta por cor (von Restorff) sem destoar do material neumórfico.
+   Texto/ícone em --c-danger garantem contraste AA sobre o tint. */
+.wa-disconnect-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--c-danger);
+  background: color-mix(in srgb, var(--c-danger) 14%, var(--surface-app));
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.wa-disconnect-bar[hidden] { display: none; }
+.wa-disconnect-bar__icon { font-size: var(--fs-base); flex: 0 0 auto; color: var(--c-danger); }
+.wa-disconnect-bar__text { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+/* Botão Reconectar: chip neumórfico elevado (raised) com acento delicado de
+   danger — sem borda crua. Pressed no :active reforça a affordance. */
+.wa-disconnect-bar__btn {
+  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--c-danger) 18%, var(--surface-card));
+  color: var(--c-danger);
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-4);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  transition: box-shadow var(--motion-fast) var(--ease-out),
+              background-color var(--motion-fast) var(--ease-out);
+}
+.wa-disconnect-bar__btn:hover { background: color-mix(in srgb, var(--c-danger) 26%, var(--surface-card)); }
+.wa-disconnect-bar__btn:active { box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs); }

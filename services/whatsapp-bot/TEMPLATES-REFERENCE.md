@@ -157,10 +157,10 @@
 
 ## ARQUIVOS RELACIONADOS
 
-- `/var/www/legacy.example/whatsapp-bot/templates.js` - Definicao dos templates
-- `/var/www/legacy.example/whatsapp-bot/template-matcher.js` - Classificacao de intents
-- `/var/www/legacy.example/whatsapp-bot/llm-chatbot.js` - Chatbot LLM (Gemini)
-- `/var/www/legacy.example/whatsapp-bot/server.js` - Servidor principal
+- `/var/www/immigrant.law/whatsapp-bot/templates.js` - Definicao dos templates
+- `/var/www/immigrant.law/whatsapp-bot/template-matcher.js` - Classificacao de intents
+- `/var/www/immigrant.law/whatsapp-bot/llm-chatbot.js` - Chatbot LLM (Gemini)
+- `/var/www/immigrant.law/whatsapp-bot/server.js` - Servidor principal
 
 ---
 

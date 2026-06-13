@@ -37,6 +37,94 @@
     </div>
 </div>
 
+{% if data.breakdowns %}
+<!-- Carteira de clientes: UF / faixa etária / segmento (org-scoped) -->
+<style>
+  .ch-carteira-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-lg, 1.25rem);
+    margin-bottom: var(--space-lg, 1.25rem);
+  }
+  .ch-carteira-card {
+    background: var(--surface-raised, var(--bg-card, #fff));
+    border: 1px solid var(--border-subtle, var(--border-color, rgba(0,0,0,.08)));
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--space-md, 1rem);
+  }
+  .ch-carteira-card__head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, .5rem);
+    margin-bottom: var(--space-sm, .75rem);
+    color: var(--text, var(--text-primary, inherit));
+    font-weight: 600;
+  }
+  .ch-carteira-card__head i { width: 18px; height: 18px; color: var(--accent, currentColor); }
+  .ch-carteira-list { list-style: none; margin: 0; padding: 0; }
+  .ch-carteira-row { margin-bottom: var(--space-sm, .75rem); }
+  .ch-carteira-row:last-child { margin-bottom: 0; }
+  .ch-carteira-row__label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: var(--text-sm, .875rem);
+    color: var(--text-secondary, var(--text-muted, inherit));
+    margin-bottom: 2px;
+  }
+  .ch-carteira-row__value { color: var(--text, inherit); font-weight: 600; }
+  .ch-carteira-bar {
+    height: 8px;
+    border-radius: var(--radius-full, 999px);
+    background: var(--surface-sunken, var(--border-color-light, rgba(0,0,0,.06)));
+    overflow: hidden;
+  }
+  .ch-carteira-bar__fill {
+    height: 100%;
+    border-radius: var(--radius-full, 999px);
+    background: var(--accent, #1C2447);
+    transition: width var(--btn-dur, 180ms) var(--btn-ease, ease-out);
+  }
+  .ch-carteira-empty {
+    color: var(--text-muted, var(--text-secondary, #888));
+    font-size: var(--text-sm, .875rem);
+    padding: var(--space-sm, .75rem) 0;
+  }
+</style>
+<div class="ch-carteira-grid">
+  {% set sections = [
+    ('map-pin', ('UF' if product == 'lite' else 'State'), data.breakdowns.uf, 'uf'),
+    ('cake', ('Faixa Etária' if product == 'lite' else 'Age Range'), data.breakdowns.faixa_etaria, 'faixa'),
+    ('layers', ('Segmento' if product == 'lite' else 'Segment'), data.breakdowns.segmento, 'segmento')
+  ] %}
+  {% for icon, title, rows, key in sections %}
+  <div class="ch-carteira-card">
+    <div class="ch-carteira-card__head">
+      <i data-lucide="{{ icon }}"></i><span>{{ title }}</span>
+    </div>
+    {% set section_max = (rows | map(attribute='count') | max) if rows else 0 %}
+    {% if rows %}
+    <ul class="ch-carteira-list">
+      {% for row in rows %}
+      <li class="ch-carteira-row">
+        <div class="ch-carteira-row__label">
+          <span>{{ row[key] }}</span>
+          <span class="ch-carteira-row__value">{{ row.count }}</span>
+        </div>
+        <div class="ch-carteira-bar">
+          <div class="ch-carteira-bar__fill" style="width: {{ ((row.count / section_max * 100) | round(1)) if section_max > 0 else 0 }}%;"></div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ch-carteira-empty">{% if product == "lite" %}Nenhum dado informado{% else %}No data{% endif %}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="row">
     <!-- Chart Section -->
     <div class="col-lg-8">
@@ -121,7 +209,7 @@
 <div class="{% if product == 'lite' %}glass-card{% else %}card glass-card{% endif %}">
     <div class="{% if product == 'lite' %}glass-card-header{% else %}card-header{% endif %} d-flex justify-content-between align-items-center">
         <span><i class="fas fa-table me-2"></i>{% if product == "lite" %}Dados{% else %}Data{% endif %}</span>
-        <span class="badge bg-secondary">{{ data['items']|length if data['items'] else data['rows']|length if data['rows'] else 0 }} {% if product == "lite" %}registros{% else %}records{% endif %}</span>
+        <span class="badge bg-secondary">{{ data.get('items')|length if data.get('items') else (data.get('rows')|length if data.get('rows') else 0) }} {% if product == "lite" %}registros{% else %}records{% endif %}</span>
     </div>
     <div class="{% if product == 'lite' %}glass-card-body{% else %}card-body{% endif %}">
         {% if data.grouped %}
@@ -297,6 +385,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 backgroundColor: '#22c55e'
             }
         ];
+    } else if (chartType === 'carteira') {
+        // Carteira: canvas mostra distribuição por UF (horizontal bar);
+        // detalhamento completo (UF/idade/segmento) está nos cards acima.
+        config.type = 'bar';
+        config.options.indexAxis = 'y';
+        config.data.datasets = [{
+            label: isLite ? 'Clientes por UF' : 'Clients by state',
+            data: chartData.values || [],
+            backgroundColor: '#1C2447'
+        }];
     } else if (chartType === 'list') {
         config.type = 'bar';
         config.data.labels = isLite

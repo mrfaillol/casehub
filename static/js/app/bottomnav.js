@@ -10,7 +10,16 @@
   'use strict';
 
   var STORE_KEY = 'ch_nav_pinned_v1';
-  var MIN_TAB_W = 76; // px mínimo por aba (ícone + rótulo curto). Define o limite por tela.
+  // Largura-mínima por aba (ícone + rótulo curto, layout vertical no mobile).
+  // 58px → cabem mais abas antes de saturar a pílula; o excedente entra no
+  // overflow-x scroll (não bloqueia mais). (onda2: Painel virou bolha separada.)
+  var MIN_TAB_W = 58;
+  // Bolha "Mais" (.ch-bottomnav-more) fica FORA da pílula, à direita: largura
+  // = --bottomnav-h (64px) + o gap da .ch-bottomnav-row (--space-2 ≈ 8px). A
+  // bolha "Painel" (.ch-bottomnav-home) à esquerda é simétrica → reservamos as
+  // duas bolhas + gaps ao calcular quantas abas cabem na pílula.
+  var MORE_BUBBLE_W = 64;
+  var BUBBLE_GAP = 8;
   var mqMobile = (window.matchMedia)
     ? window.matchMedia('(max-width: 879px)')
     : { matches: false, addEventListener: function () {}, addListener: function () {} };
@@ -43,10 +52,19 @@
     return a ? itemKey(a) : null;
   }
 
-  // Quantas abas cabem nesta tela (limite por hardware/largura).
+  // Quantas abas cabem CONFORTAVELMENTE nesta tela. Já não é um teto rígido:
+  // serve só pra decidir o ponto a partir do qual a pílula passa a rolar
+  // (overflow-x). Descontamos as bolhas externas (Painel à esquerda + Mais à
+  // direita) e seus gaps — elas vivem fora da pílula e não disputam o espaço
+  // das abas. (onda2 Victor: nunca bloquear, deixar rolar.)
   function maxTabs(nav) {
     var sc = nav.querySelector('.ch-bottomnav__scroller') || nav;
-    var w = sc.clientWidth || (window.innerWidth - 96);
+    var w = sc.clientWidth;
+    if (!w) {
+      // Fallback antes do layout: largura da viewport menos as duas bolhas
+      // externas (Painel + Mais) e os gaps entre elas e a pílula.
+      w = window.innerWidth - (MORE_BUBBLE_W + BUBBLE_GAP) * 2;
+    }
     return Math.max(2, Math.floor(w / MIN_TAB_W));
   }
 
@@ -120,11 +138,12 @@
       if (!key) return; // link utilitário → navega normal
       var pinned = loadPinned() || defaultPinned(catalog(nav));
       if (pinned.indexOf(key) >= 0) return; // já é aba → navega normal
+      // onda2 (Victor): NÃO bloqueamos mais com aviso. A pílula sustenta quantas
+      // abas o usuário quiser — o que passar da largura confortável (maxTabs)
+      // entra no overflow-x scroll. Só sinalizamos (sem barrar) quando a barra
+      // já vai precisar rolar, pra dar feedback honesto.
       if (mqMobile.matches && pinned.length >= maxTabs(nav)) {
-        e.preventDefault();
-        warn('Sem espaço pra mais abas nesta tela. Feche uma aba (× ou arraste pra baixo) e tente de novo.');
-        menu.removeAttribute('data-open');
-        return;
+        try { if (window.toast && typeof window.toast.info === 'function') window.toast.info('Aba adicionada — arraste a barra pro lado pra ver todas.'); } catch (e) {}
       }
       pinned.push(key); savePinned(pinned); // navega normal; no reload aparece fixada e preenchendo
     });
@@ -143,14 +162,45 @@
     }
     var pinned = loadPinned() || defaultPinned(items);
     var act = activeKey(nav);
+    // onda3 (Victor 09/06): abrir um módulo o FIXA como aba (modelo "abas de
+    // navegador") — a rota ativa que ainda não é aba entra na lista persistida,
+    // então acumula em vez de sumir ao trocar de página. Fechar = arrastar.
+    if (act && pinned.indexOf(act) < 0) {
+      var actEl = nav.querySelector('.ch-bottomnav__item.is-active:not(.ch-bottomnav__item--more)');
+      if (actEl && !isDashboard(actEl)) { pinned.push(act); savePinned(pinned); }
+    }
     var shown = pinned.slice();
     if (act && shown.indexOf(act) < 0) shown.push(act); // rota ativa sempre visível
+    // onda2: a pílula sustenta MAIS abas. Enquanto cabem (≤ maxTabs) elas
+    // dividem a largura igual e PREENCHEM a barra (flex 1 1 0). Quando passam
+    // do confortável, ligamos o modo overflow: cada aba ganha uma largura
+    // mínima e a barra rola na horizontal (overflow-x) em vez de espremer
+    // tudo num grão ilegível. CSS lê a classe .ch-bottomnav--overflow.
+    var scroller = nav.querySelector('.ch-bottomnav__scroller') || nav;
+    var overflow = mqMobile.matches && shown.length > maxTabs(nav);
+    nav.classList.toggle('ch-bottomnav--overflow', overflow);
     items.forEach(function (el) {
       var k = itemKey(el);
       var on = shown.indexOf(k) >= 0;
       el.style.display = on ? 'inline-flex' : 'none';
-      el.style.flex = on ? '1 1 0' : '';   // ← preenche e divide igual
-      el.style.minWidth = on ? '0' : '';
+      if (on) {
+        // Limpa resíduo de um arrasto interrompido (pointercancel sem 'end'):
+        // sem isto a aba fica "presa" encolhida/transparente (bug visual).
+        el.style.transform = '';
+        el.style.opacity = '';
+        el.classList.remove('ch-nav-dragging', 'ch-nav-will-close');
+      }
+      if (!on) {
+        el.style.flex = '';
+        el.style.minWidth = '';
+      } else if (overflow) {
+        // Rolagem horizontal: largura mínima fixa por aba (não encolhe).
+        el.style.flex = '0 0 ' + MIN_TAB_W + 'px';
+        el.style.minWidth = MIN_TAB_W + 'px';
+      } else {
+        el.style.flex = '1 1 0';   // ← preenche e divide igual
+        el.style.minWidth = '0';
+      }
       el.classList.toggle('ch-nav-pinned', pinned.indexOf(k) >= 0);
       stripRemoveBtn(el);
       attachDrag(el, nav);

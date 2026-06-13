@@ -45,7 +45,7 @@ def _patch_auth(monkeypatch, user=object()):
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 def _install_failing_execute(db, monkeypatch, exc_cls):

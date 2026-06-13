@@ -105,7 +105,7 @@ def test_get_unread_counts_returns_zero_dict_when_table_missing(db, monkeypatch)
     assert state["rollbacks"] == 1
 
 
-def test_get_channel_status_falls_back_to_zero_accounts(db, monkeypatch):
+async def test_get_channel_status_falls_back_to_zero_accounts(db, monkeypatch):
     """``email_accounts`` is a raw-migration table. On a fresh deploy
     the SELECT raises; the channel status panel must still render.
 
@@ -114,7 +114,7 @@ def test_get_channel_status_falls_back_to_zero_accounts(db, monkeypatch):
     state = _install_failing_execute(db, monkeypatch, ProgrammingError, "email_accounts")
 
     service = MessagingHubService(db, org_id=_ORG_ID)
-    status = service.get_channel_status()
+    status = await service.get_channel_status()
 
     assert status["email"] == "0 accounts", (
         "Email status must say '0 accounts' (not raise) when "

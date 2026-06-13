@@ -199,17 +199,27 @@ def _configured_origin() -> str:
     return (settings.BASE_URL or "").strip().rstrip("/")
 
 
+# Allowlist of domain roots trusted for OAuth redirect targets.
+# Subdomain tenants (e.g. sampletenant.casehub.legal) match via the suffix
+# check.  Anchored suffix — "evil.casehub.legal.evil.com".endswith(".casehub.legal")
+# is False, so hostname injection cannot escalate past known roots.
+_REDIRECT_ALLOWED_ROOTS: frozenset[str] = frozenset({
+    "localhost",
+    "127.0.0.1",
+    "casehub.io",
+    "casehub.legal",
+    "casehub.sampletenantadvogados.com.br",
+    "vingren.me",
+})
+
+
 def _return_host_allowed(host: str) -> bool:
-    host = (host or "").split(":")[0].lower()
+    host = (host or "").split(":")[0].lower().rstrip(".")
     if not host:
         return False
-    if host in {"localhost", "127.0.0.1"}:
+    if host in _REDIRECT_ALLOWED_ROOTS:
         return True
-    configured_host = urlparse(_configured_origin()).hostname or ""
-    configured_host = configured_host.lower()
-    if not configured_host:
-        return True
-    return host == configured_host or host.endswith("." + configured_host)
+    return any(host.endswith("." + root) for root in _REDIRECT_ALLOWED_ROOTS)
 
 
 def _gmail_redirect_uri(request: Request) -> str:
@@ -267,14 +277,14 @@ def _settings_return_url(request: Request) -> str:
 
 OAUTH_FRIENDLY_ERRORS = {
     "redirect_uri_mismatch": (
-        "URL de retorno nao autorizada no Google Cloud Console. Suporte: contato@example.com"
+        "URL de retorno nao autorizada no Google Cloud Console. Suporte: contato@vingren.me"
     ),
     "invalid_grant": "Token expirado. Tente reconectar.",
     "access_denied": "Voce cancelou a permissao. Pode tentar de novo quando quiser.",
     "no_tenant_context": "Sessao sem contexto de escritorio. Faca login novamente.",
     "credentials_missing": (
         "Credenciais OAuth do Google ainda nao configuradas neste servidor. "
-        "Suporte: contato@example.com"
+        "Suporte: contato@vingren.me"
     ),
     "oauth_start_failed": "Nao foi possivel iniciar o login Google. Tente em alguns segundos.",
     "missing_code": "Resposta do Google chegou incompleta. Tente conectar de novo.",
@@ -440,3 +450,174 @@ async def gmail_smoke(request: Request, db: Session = Depends(get_db)):
         service.list_recent_messages, safe_account, 5
     )
     return JSONResponse({"messages": messages, "count": len(messages)})
+
+
+@router.post("/send")
+async def gmail_send(request: Request, db: Session = Depends(get_db)):
+    """Send an email via the org's connected Gmail account.
+
+    Accepts JSON: {to, subject, body, cc?, reply_to_message_id?,
+                   account_name?, client_id?, case_id?}
+    Returns JSON: {success, message_id?, provider, error?}
+    """
+    from core.template_config import inject_org_context
+
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"success": False, "error": "unauthenticated"}, status_code=401)
+
+    org_id = getattr(request.state, "org_id", None)
+    if not org_id:
+        return JSONResponse({"success": False, "error": "no_org_context"}, status_code=400)
+
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"success": False, "error": "invalid_json"}, status_code=400)
+
+    to = (payload.get("to") or "").strip()
+    subject = (payload.get("subject") or "").strip()
+    body_text = (payload.get("body") or "").strip()
+    cc = (payload.get("cc") or "").strip()
+    reply_to_msg_id = (payload.get("reply_to_message_id") or "").strip()
+    client_id = payload.get("client_id")
+    case_id = payload.get("case_id")
+
+    if not to or "@" not in to:
+        return JSONResponse({"success": False, "error": "invalid_to"}, status_code=400)
+    if not subject:
+        return JSONResponse({"success": False, "error": "missing_subject"}, status_code=400)
+    if not body_text:
+        return JSONResponse({"success": False, "error": "missing_body"}, status_code=400)
+
+    import html as _html
+    body_html = (
+        "<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;line-height:1.6'>"
+        f"<div style='white-space:pre-wrap'>{_html.escape(body_text)}</div>"
+        "<hr style='margin-top:24px;border:none;border-top:1px solid #ddd'>"
+        "<small style='color:#999'>Enviado via CaseHub</small>"
+        "</body></html>"
+    )
+
+    svc = GmailService(db, org_id=org_id)
+    accounts = svc.get_connected_accounts()
+    send_accounts = [a for a in accounts if a.get("can_send")]
+    if not send_accounts:
+        return JSONResponse({"success": False, "error": "no_send_account"}, status_code=503)
+
+    account_name = (payload.get("account_name") or "").strip() or send_accounts[0]["name"]
+    result = await run_in_threadpool(
+        svc.send_email,
+        account_name,
+        to,
+        subject,
+        body_html,
+        body_text,
+        cc,
+        reply_to_msg_id,
+    )
+
+    if result["success"]:
+        try:
+            from sqlalchemy import text as _text
+            db.execute(
+                _text("""
+                    INSERT INTO sent_emails
+                        (user_id, to_email, subject, body, client_id, case_id, sent_at)
+                    VALUES (:uid, :to, :sub, :body, :cid, :csid, NOW())
+                """),
+                {
+                    "uid": user.id, "to": to, "sub": subject, "body": body_text,
+                    "cid": client_id, "csid": case_id,
+                },
+            )
+            db.commit()
+        except Exception as e:
+            logger.warning("Failed to log sent email to sent_emails: %s", e)
+
+    return JSONResponse({
+        "success": result["success"],
+        "message_id": result.get("message_id"),
+        "provider": "gmail",
+        "error": result.get("error"),
+    })
+
+
+@router.get("/inbox", response_class=HTMLResponse)
+async def gmail_inbox(request: Request, db: Session = Depends(get_db)):
+    """Gmail inbox: fetches messages via API and renders the email list view."""
+    from core.template_config import inject_org_context
+
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(f"{PREFIX}/login")
+
+    org_id = getattr(request.state, "org_id", None)
+    if not org_id:
+        return RedirectResponse(f"{PREFIX}/login")
+
+    svc = GmailService(db, org_id=org_id)
+    accounts = svc.get_connected_accounts()
+    if not accounts:
+        return RedirectResponse(f"{PREFIX}/gmail/accounts")
+
+    try:
+        emails = await run_in_threadpool(
+            svc.list_messages_with_metadata, accounts[0]["name"], 50
+        )
+    except Exception as e:
+        logger.warning("gmail_inbox list_messages_with_metadata failed: %s", e)
+        emails = []
+
+    return templates.TemplateResponse(
+        "app/emails/list.html",
+        {
+            "request": request,
+            **inject_org_context(request, user),
+            "emails": emails,
+            "product": "lite",
+            "gmail_inbox_mode": True,
+            "synced_folders": [],
+            "search": "",
+            "folder": None,
+            "show_archived": False,
+            "show_autoreplies": False,
+            "clients": [],
+            "account_ids": [],
+        },
+    )
+
+
+@router.get("/message/{message_id}", response_class=HTMLResponse)
+async def gmail_message(message_id: str, request: Request, db: Session = Depends(get_db)):
+    """Fetch and display a single Gmail message."""
+    from core.template_config import inject_org_context
+
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(f"{PREFIX}/login")
+
+    org_id = getattr(request.state, "org_id", None)
+    if not org_id:
+        return RedirectResponse(f"{PREFIX}/login")
+
+    svc = GmailService(db, org_id=org_id)
+    accounts = svc.get_connected_accounts()
+    if not accounts:
+        return RedirectResponse(f"{PREFIX}/gmail/accounts")
+
+    email = await run_in_threadpool(
+        svc.get_message, accounts[0]["name"], message_id
+    )
+    if not email:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    return templates.TemplateResponse(
+        "app/emails/view.html",
+        {
+            "request": request,
+            **inject_org_context(request, user),
+            "email": email,
+            "product": "lite",
+        },
+    )

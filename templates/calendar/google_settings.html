@@ -66,7 +66,7 @@
         <i class="fas fa-circle-info" aria-hidden="true"></i>
         <span>
             {% if connection_error == 'redirect_uri_mismatch' %}
-                URL de retorno não autorizada no Google. Suporte: <a href="mailto:contato@example.com">contato@example.com</a>.
+                URL de retorno não autorizada no Google. Suporte: <a href="mailto:contato@vingren.me">contato@vingren.me</a>.
             {% elif connection_error == 'invalid_grant' %}
                 Token expirado. Clique em "Entrar com Google" novamente.
             {% elif connection_error == 'access_denied' %}
@@ -216,6 +216,116 @@
                     <span>Aguardando configuracao</span>
                 </button>
                 {% endif %}
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+
+    {# ── Minha conta Google (per-usuário) ────────────────────────────── #}
+    {# Hick: agrupa a conexão pessoal num bloco separado das contas do escritório. #}
+    {% if my_account %}
+    <section class="gcal-accounts" aria-label="Minha conta Google" style="margin-top: 1.5rem;">
+        <h2 class="gcal-eyebrow" style="margin-bottom: .75rem;">
+            <i class="fas fa-user-circle" aria-hidden="true"></i>
+            Minha conta Google
+        </h2>
+        <article class="gcal-account-card{% if my_account.connected %} is-connected{% endif %}">
+            <div class="gcal-account-card__main">
+                <span class="gcal-account-icon{% if my_account.connected %} is-connected{% endif %}" aria-hidden="true">G</span>
+                <div class="gcal-account-copy">
+                    <h2>Minha agenda pessoal</h2>
+                    <p>{{ my_account.display_email }}</p>
+                    <span class="gcal-account-detail">
+                        {% if my_account.connected %}
+                        Conectada. Esta é a sua conta Google, separada das contas do escritório.
+                        {% elif my_account.token_exists and my_account.error %}
+                        Existe token salvo, mas ele não foi validado pelo Google agora: {{ my_account.error }}.
+                        {% else %}
+                        Conecte a sua própria conta Google (além das contas do escritório).
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <div class="gcal-account-card__status">
+                {% if my_account.connected %}
+                <span class="gcal-status gcal-status--connected">
+                    <i class="fas fa-check" aria-hidden="true"></i>
+                    Validada
+                </span>
+                {% elif my_account.token_exists %}
+                <span class="gcal-status gcal-status--pending">
+                    <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+                    Validação pendente
+                </span>
+                {% else %}
+                <span class="gcal-status gcal-status--issue">
+                    <i class="far fa-circle" aria-hidden="true"></i>
+                    Não conectada
+                </span>
+                {% endif %}
+            </div>
+
+            <div class="gcal-account-card__actions">
+                {% if my_account.connected %}
+                <a href="{{ PREFIX }}/google-calendar/connect-mine" class="gcal-btn">
+                    <i class="fas fa-rotate" aria-hidden="true"></i>
+                    <span>Trocar conta</span>
+                </a>
+                <form method="POST" action="{{ PREFIX }}/google-calendar/disconnect-mine" data-gsettings-confirm="Desconectar a sua conta Google pessoal?">
+                    <button type="submit" class="gcal-btn gcal-btn--quiet">
+                        <i class="fas fa-unlink" aria-hidden="true"></i>
+                        <span>Desconectar</span>
+                    </button>
+                </form>
+                {% elif not connection_error %}
+                <a href="{{ PREFIX }}/google-calendar/connect-mine" class="gcal-btn gcal-btn--primary">
+                    <span class="gcal-google-mark" aria-hidden="true">G</span>
+                    <span>Conectar minha conta</span>
+                </a>
+                {% else %}
+                <button type="button" class="gcal-btn" disabled>
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <span>Aguardando configuração</span>
+                </button>
+                {% endif %}
+            </div>
+        </article>
+    </section>
+    {% endif %}
+
+    {# ── Em breve: integrações futuras (roadmap extensível) ───────────── #}
+    {# Estrutura pronta pra plugar novas integrações (MCP, IAs) depois.    #}
+    <section class="gcal-accounts" aria-label="Conexões em breve" style="margin-top: 1.5rem;">
+        <h2 class="gcal-eyebrow" style="margin-bottom: .75rem;">
+            <i class="fas fa-plug" aria-hidden="true"></i>
+            Em breve
+        </h2>
+        {% set upcoming_integrations = [
+            {"name": "Servidores MCP", "icon": "fa-server", "desc": "Conecte servidores MCP (Model Context Protocol) para estender o CaseHub com ferramentas externas."},
+            {"name": "Assistentes de IA", "icon": "fa-robot", "desc": "Vincule assistentes de IA à sua conta para automatizar tarefas jurídicas."},
+            {"name": "Outras agendas", "icon": "fa-calendar-days", "desc": "Outlook, iCloud e demais calendários — sincronização planejada."}
+        ] %}
+        {% for integ in upcoming_integrations %}
+        <article class="gcal-account-card" aria-disabled="true" style="opacity: .68;">
+            <div class="gcal-account-card__main">
+                <span class="gcal-account-icon" aria-hidden="true"><i class="fas {{ integ.icon }}"></i></span>
+                <div class="gcal-account-copy">
+                    <h2>{{ integ.name }}</h2>
+                    <span class="gcal-account-detail">{{ integ.desc }}</span>
+                </div>
+            </div>
+            <div class="gcal-account-card__status">
+                <span class="gcal-status gcal-status--pending">
+                    <i class="fas fa-clock" aria-hidden="true"></i>
+                    Em breve
+                </span>
+            </div>
+            <div class="gcal-account-card__actions">
+                <button type="button" class="gcal-btn" disabled>
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    <span>Em breve</span>
+                </button>
             </div>
         </article>
         {% endfor %}

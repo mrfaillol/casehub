@@ -117,7 +117,7 @@
 
   function driveErrorMessage(err) {
     if (err && err.status === 503) {
-      return 'Drive não configurado neste deploy. Faltam credenciais, token OAuth ou pasta raiz nas integrações.';
+      return 'Drive não configurado neste deploy. Faltam credenciais ou token OAuth nas integrações.';
     }
     if (err && err.status === 401) {
       return 'Sessão expirada. Entre novamente para acessar o Drive.';
@@ -125,11 +125,13 @@
     return (err && err.message) || 'Falha ao carregar o Drive.';
   }
 
-  function clearAfter(depth) {
+  function clearAfter(depth, options) {
+    options = options || {};
+    var resetPreview = options.resetPreview !== false;
     root.querySelectorAll('[data-drive-column]').forEach(function (col) {
       if (Number(col.getAttribute('data-drive-column')) > depth) col.innerHTML = '';
     });
-    if (depth < 2) renderPreview(null);
+    if (resetPreview && depth < 2) renderPreview(null);
   }
 
   function renderColumn(depth, items, folderId) {
@@ -218,8 +220,8 @@
     if (isFolder) {
       loadFolder(id, Math.min(depth + 1, 2));
     } else {
+      clearAfter(depth, { resetPreview: false });
       renderPreview(item || { id: id, name: button.textContent.trim() });
-      clearAfter(depth);
     }
   });
 

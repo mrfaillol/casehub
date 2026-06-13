@@ -1,0 +1,106 @@
+/* CaseHub App · Accessibility — "Letra Grande" / Fonte Grande
+ *
+ * Modo togglável e persistente para público 40-60+ ("CaseHub for Dummies").
+ * Ativado por classe `.ch-a11y-large` em <html> (documentElement), persistida em
+ * localStorage (chave casehub.a11y.large). Loader/toggle em settings/index.html
+ * + static/js/a11y.js.
+ *
+ * Estratégia SEM quebra de layout: reescala os tokens --fs-* base do design system
+ * em :root (html.ch-a11y-large). Como TODO componente consome var(--fs-*) e o root
+ * font-size em shell.css é var(--fs-base), a ampliação cascateia por toda a app sem
+ * override por-elemento. Escala ~118% (dentro de 112-125% pedido) — legível sem
+ * estourar grids/cards do neumorphic.
+ *
+ * Leis UX aplicadas:
+ *  - Acessibilidade (WCAG 2.1 AA 1.4.4 Resize text): texto escalável até ≥200% sem
+ *    perda de conteúdo/funcionalidade; aqui entregamos um passo intermediário seguro.
+ *  - Lei de Fitts: alvos de toque ≥44px (mín. recomendado mobile/iOS) para reduzir
+ *    tempo/erro de aquisição em mãos menos firmes (público 40-60+).
+ *  - Lei de Doherty: transição instantânea (transform/opacity-free aqui; só re-flow
+ *    de fonte), sem delay perceptível ao alternar.
+ *
+ * Tokens, zero hex/px cru fora do necessário (tap target mínimo é constante física).
+ */
+
+html.ch-a11y-large {
+  /* Type scale ampliada ~118% sobre os defaults de _tokens.css.
+   * Mantém a razão entre passos para preservar hierarquia tipográfica. */
+  --fs-xs:   0.8125rem;  /* 11px  -> 13px */
+  --fs-sm:   0.9375rem;  /* 13px  -> 15px */
+  --fs-base: 1.0625rem;  /* 15px  -> 17px */
+  --fs-md:   1.1875rem;  /* 16px  -> 19px */
+  --fs-lg:   1.3125rem;  /* 18px  -> 21px */
+  --fs-xl:   1.75rem;    /* 24px  -> 28px */
+  --fs-2xl:  2.375rem;   /* 32px  -> 38px */
+  --fs-3xl:  3.25rem;    /* 44px  -> 52px */
+
+  /* Entrelinha mais generosa melhora legibilidade de blocos de texto. */
+  --lh-snug: 1.4;
+  --lh-base: 1.65;
+}
+
+/* ─── Lei de Fitts: alvos de toque confortáveis (≥44px) ───
+ * Aplica min-height/min-width só a controles interativos quando o modo está ativo,
+ * sem alterar o box dos cards/containers (evita reflow de grid). */
+html.ch-a11y-large .ch-btn,
+html.ch-a11y-large button:not(.ch-icon-btn--bare),
+html.ch-a11y-large .ch-pill,
+html.ch-a11y-large input[type="checkbox"].ch-a11y-target,
+html.ch-a11y-large [role="button"] {
+  min-height: 44px;
+}
+
+/* Inputs de formulário também ganham altura tátil mínima. */
+html.ch-a11y-large .ch-input,
+html.ch-a11y-large .ch-select,
+html.ch-a11y-large .ch-textarea {
+  min-height: 44px;
+}
+
+/* O switch da própria opção de acessibilidade (na página de Settings). */
+.ch-a11y-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+}
+.ch-a11y-switch__track {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  min-height: 30px;
+  flex: 0 0 52px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  transition: background var(--motion-fast) var(--ease-out);
+}
+.ch-a11y-switch__track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-dark-xs);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+.ch-a11y-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.ch-a11y-switch input:checked + .ch-a11y-switch__track {
+  background: var(--c-green-d);
+}
+.ch-a11y-switch input:checked + .ch-a11y-switch__track::after {
+  transform: translateX(22px);
+}
+.ch-a11y-switch input:focus-visible + .ch-a11y-switch__track {
+  box-shadow: var(--focus-ring);
+}

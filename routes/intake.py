@@ -52,7 +52,12 @@ async def intake_list(
 
     ensure_tables(db)
 
-    # Get packages with filters
+    # Get packages with filters.
+    # SECURITY: intake_packages has no org_id column of its own, so tenancy is
+    # derived from the linked case/client. Without this scope the list leaked
+    # EVERY org's packages (cross-tenant IDOR). We require the package's case OR
+    # client to belong to the caller's org.
+    org_id = request.state.org_id
     query = """
         SELECT p.*, c.case_number, c.case_name, c.visa_type,
                cl.first_name, cl.last_name, cl.email,
@@ -61,14 +66,15 @@ async def intake_list(
         FROM intake_packages p
         LEFT JOIN cases c ON p.case_id = c.id
         LEFT JOIN clients cl ON p.client_id = cl.id
+        WHERE (c.org_id = :org_id OR cl.org_id = :org_id)
     """
-    params = {}
+    params = {"org_id": org_id}
 
     if status:
-        query += " WHERE p.status = :status"
+        query += " AND p.status = :status"
         params["status"] = status
     else:
-        query += " WHERE p.status != 'deleted'"
+        query += " AND p.status != 'deleted'"
 
     query += " ORDER BY p.created_at DESC"
 
@@ -90,13 +96,16 @@ async def intake_list(
             days = (datetime.now() - sent_at).days
             overdue_info[pkg.package_id] = days
 
-    # Get status counts
+    # Get status counts (org-scoped — same tenancy derivation as the list above).
     try:
         counts_result = db.execute(text("""
-            SELECT status, COUNT(*) as count
-            FROM intake_packages
-            GROUP BY status
-        """))
+            SELECT p.status, COUNT(*) as count
+            FROM intake_packages p
+            LEFT JOIN cases c ON p.case_id = c.id
+            LEFT JOIN clients cl ON p.client_id = cl.id
+            WHERE (c.org_id = :org_id OR cl.org_id = :org_id)
+            GROUP BY p.status
+        """), {"org_id": org_id})
         status_counts = {row.status: row.count for row in counts_result.fetchall()}
     except Exception:
         db.rollback()
@@ -544,11 +553,15 @@ async def update_item_status(
             UPDATE intake_items
             SET status = :status, notes = :notes, reviewed_at = NOW(), reviewed_by = :uid
             WHERE id = :item_id
+              AND package_id IN (
+                SELECT id FROM intake_packages WHERE org_id = :org_id
+              )
         """), {
             "status": status,
             "notes": notes,
             "uid": user.id,
-            "item_id": item_id
+            "item_id": item_id,
+            "org_id": user.org_id
         })
 
         # Check if all items are completed

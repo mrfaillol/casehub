@@ -1,0 +1,68 @@
+name: casehub-performance-guardian
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    paths:
+      - "static/css/**"
+      - "app/**"
+      - "templates/**"
+      - "scripts/perf_guardian*"
+      - "scripts/run-performance-guardian-nightly.sh"
+      - "docs/security/deploy-halt.json"
+      - ".env"
+      - ".env.*"
+      - "**/.env"
+      - "**/.env.*"
+      - "credentials/**"
+      - "**/credentials/**"
+      - "secrets/**"
+      - "**/secrets/**"
+      - "**.pem"
+      - "**.key"
+      - "**.p12"
+      - "**.pfx"
+      - "**.jks"
+      - "**.keystore"
+      - "**.css"
+      - "**.js"
+      - "**.mjs"
+      - "**.py"
+      - "**.html"
+      - "**.jinja"
+      - "**.jinja2"
+      - "**.md"
+      - "**.yml"
+      - "**.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: casehub-performance-guardian-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+
+      - name: Install lightweight test dependencies
+        run: python -m pip install httpx pytest sqlalchemy pydantic pydantic-settings bcrypt
+
+      - name: Run static performance guard
+        run: python scripts/perf_guardian_static_check.py --base-ref "origin/${{ github.base_ref || 'main' }}"
+
+      - name: Run unit tests for guardian helpers
+        run: python -m pytest tests/test_perf_guardian.py -q

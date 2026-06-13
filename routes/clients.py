@@ -67,6 +67,38 @@ def _load_financial_summary(db: Session, client_id: int) -> dict:
         "proximo_vencimento": fin.proximo_vencimento,
     }
 
+def _load_birthdays(db: Session, org_id: int) -> tuple[list, list]:
+    """Aniversariantes do mês/dia, org-scoped (by month/day of date_of_birth)."""
+    from datetime import date as _date
+    today = _date.today()
+    rows = (
+        tenant_query(db, Client, org_id)
+        .filter(Client.date_of_birth.isnot(None))
+        .filter(Client.status != "inactive")
+        .all()
+    )
+    month_list, today_list = [], []
+    for c in rows:
+        dob = c.date_of_birth
+        if not dob or dob.month != today.month:
+            continue
+        turning = today.year - dob.year
+        item = {
+            "id": c.id,
+            "name": c.full_name,
+            "day": dob.day,
+            "date": dob.strftime("%d/%m"),
+            "turning": turning,
+            "phone": c.phone or "",
+            "is_today": dob.day == today.day,
+        }
+        month_list.append(item)
+        if dob.day == today.day:
+            today_list.append(item)
+    month_list.sort(key=lambda x: (x["day"], x["name"]))
+    return today_list, month_list
+
+
 @router.get("", response_class=HTMLResponse)
 async def list_clients(
     request: Request,
@@ -100,7 +132,9 @@ async def list_clients(
     total = query.count()
     per_page = 20
     clients = query.order_by(Client.first_name.asc(), Client.last_name.asc()).offset((page-1)*per_page).limit(per_page).all()
-    
+
+    birthdays_today, birthdays_month = _load_birthdays(db, request.state.org_id)
+
     return templates.TemplateResponse("app/clients/list.html", {
         "request": request,
         "user": user,
@@ -110,7 +144,9 @@ async def list_clients(
         "page": page,
         "per_page": per_page,
         "search": search or "",
-        "status": status or ""
+        "status": status or "",
+        "birthdays_today": birthdays_today,
+        "birthdays_month": birthdays_month,
     })
 
 @router.get("/new", response_class=HTMLResponse)

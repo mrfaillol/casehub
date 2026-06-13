@@ -35,7 +35,7 @@ def seed_reserved(db):
         ("admin", "security"),
         ("api", "reserved_app"),
         ("www", "infrastructure"),
-        ("cliente-alpha", "brand_customer"),
+        ("sampletenant", "brand_customer"),
         ("casehub", "brand_casehub"),
     ]:
         db.add(ReservedSubdomain(slug=slug, reason=reason))
@@ -134,7 +134,7 @@ class TestIsReserved:
     def test_reserved_returns_true(self, db, seed_reserved):
         assert is_reserved(db, "admin") is True
         assert is_reserved(db, "api") is True
-        assert is_reserved(db, "cliente-alpha") is True
+        assert is_reserved(db, "sampletenant") is True
 
     def test_non_reserved_returns_false(self, db, seed_reserved):
         assert is_reserved(db, "silva-adv") is False

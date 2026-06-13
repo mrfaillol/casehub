@@ -638,9 +638,19 @@ async def api_get_messages(
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
 
-    messages = await get_bot_messages(phone, limit, request=request)
+    org_id = _current_org_id(request, user)
+    try:
+        messages = whatsapp_clone_service.list_messages(
+            db, org_id=org_id, phone=phone, limit=limit
+        )
+    except Exception as e:  # noqa: BLE001 — resilience: never 500 the chat pane.
+        logger.warning("api_get_messages: list_messages failed, falling back: %s", e)
+        db.rollback()
+        messages = []
     if not messages:
-        messages = _local_messages(db, _current_org_id(request, user), phone, limit)
+        messages = await get_bot_messages(phone, limit, request=request)
+    if not messages:
+        messages = _local_messages(db, org_id, phone, limit)
     return JSONResponse(messages)
 
 
@@ -947,9 +957,9 @@ async def api_disconnect(request: Request, db: Session = Depends(get_db)):
 # Bot session states from which a QR will NEVER spontaneously appear without a
 # (re)initialization. The autostarted default org (apex, org 1) can land here
 # after a stale persisted session or a failed auth, whereas a freshly
-# lazy-initialized tenant session (e.g. cliente-alpha on first hit) reliably
+# lazy-initialized tenant session (e.g. sampletenant on first hit) reliably
 # emits a QR. We force-heal these so the apex behaves like the subdomain.
-#   - "disconnected" / "auth_failed": terminal, needs clearAndReinitialize.
+#   - "disconnected" / "auth_failed": terminal, needs soft reconnect.
 #   - "" / "unknown" / "offline": bot has no live session object for this org.
 # Deliberately EXCLUDED: "ready" (connected — never wipe), "awaiting_scan" /
 # "awaiting_pairing" (QR/code already in flight) and "authenticated" /
@@ -980,9 +990,10 @@ async def api_get_qr(request: Request, db: Session = Depends(get_db)):
     whose `ready` never fired) the bot returns qr=null forever and the apex
     user never sees a QR — while a subdomain tenant (lazy-initialized on first
     request) always gets a fresh QR. We detect that dead state and POST
-    /api/disconnect (bot clearAndReinitialize → emits a brand-new QR), then
-    re-read. cliente-alpha (already awaiting_scan/ready) never hits this branch,
-    so its working flow is untouched.
+    /api/reconnect (bot softReconnect → preserves LocalAuth and emits QR only
+    when the saved session cannot reconnect), then re-read. sampletenant
+    (already awaiting_scan/ready) never hits this branch, so its working flow is
+    untouched.
     """
     user = get_current_user(request, db)
     if not user:
@@ -1011,7 +1022,7 @@ async def api_get_qr(request: Request, db: Session = Depends(get_db)):
                 )
                 try:
                     await client.post(
-                        f"{WHATSAPP_BOT_URL}/api/disconnect",
+                        f"{WHATSAPP_BOT_URL}/api/reconnect",
                         timeout=35.0,
                         headers=headers,
                     )
@@ -1085,7 +1096,7 @@ async def api_request_pairing_code(request: Request, db: Session = Depends(get_d
 
 @router.post("/api/reconnect")
 async def api_reconnect(request: Request, db: Session = Depends(get_db)):
-    """Disconnect and prepare for new connection"""
+    """Ask the bot to reconnect this tenant while preserving the saved session."""
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
@@ -1093,14 +1104,18 @@ async def api_reconnect(request: Request, db: Session = Depends(get_db)):
     try:
         client = get_bot_client()
         response = await client.post(
-            f"{WHATSAPP_BOT_URL}/api/disconnect", timeout=30.0,
+            f"{WHATSAPP_BOT_URL}/api/reconnect", timeout=35.0,
             headers=_bot_headers(request),
         )
         if response.status_code == 200:
-            return JSONResponse({"success": True})
+            return JSONResponse(response.json())
+        return JSONResponse(
+            {"success": False, "error": f"Bot retornou {response.status_code}"},
+            status_code=502,
+        )
     except Exception as e:
         logger.error("Error reconnecting: %s", e)
-    return JSONResponse({"success": False, "error": "Failed to disconnect"})
+    return JSONResponse({"success": False, "error": "Failed to reconnect"}, status_code=503)
 
 
 # ============================================
@@ -1561,8 +1576,8 @@ async def api_restart_bot(request: Request, db: Session = Depends(get_db)):
         if response.status_code == 200:
             return JSONResponse(response.json())
 
-        # Fallback to disconnect/reconnect flow
-        await client.post(f"{WHATSAPP_BOT_URL}/api/disconnect", timeout=30.0, headers=headers)
+        # Fallback to soft reconnect, preserving the saved WhatsApp session.
+        await client.post(f"{WHATSAPP_BOT_URL}/api/reconnect", timeout=35.0, headers=headers)
         return JSONResponse({"success": True, "message": "Bot is restarting"})
 
     except httpx.TimeoutException:

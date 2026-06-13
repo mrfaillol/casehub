@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # Ollama / Maestro integration
 # ---------------------------------------------------------------------------
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "hermes3:8b")
 
 
 # ---------------------------------------------------------------------------

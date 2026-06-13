@@ -45,33 +45,49 @@
   </div>
 </section>
 
-{# ─────────── KPI grid ─────────── #}
-<section class="ch-grid ch-grid--3" style="margin-bottom: var(--space-6);">
-  {% for metric in (dash.metrics or []) %}
-    {% set delta = metric.delta or {'label': '0%', 'direction': 'flat'} %}
-    {% set spark = metric.sparkline or {'points': '', 'area': '', 'trend': 'flat'} %}
-    <article class="ch-kpi {% if delta.direction == 'down' %}is-warn{% endif %} {% if loop.first %}ch-kpi--hero{% endif %}">
+{# ─────────── KPIs operacionais (destaque) ───────────
+   Example User/Maria 02/06: a operação do dia em primeiro plano — tarefas,
+   compromissos, prazos e audiências. Cada métrica traz secondary=false. #}
+{% set primary_metrics = (dash.metrics or [])|selectattr('secondary', 'equalto', false)|list %}
+{% set secondary_metrics = (dash.metrics or [])|selectattr('secondary', 'equalto', true)|list %}
+<style>
+/* Atalhos "Ir para…" nos KPIs (Victor 03/06) — tokens semânticos, Fitts (alvo claro) + Doherty (hover <150ms) */
+.ch-kpi__go,.ch-kpi-mini__go{display:inline-flex;align-items:center;gap:4px;margin-top:var(--space-2);font-size:var(--fs-xs);font-weight:600;color:var(--accent,#1E4890);text-decoration:none;opacity:.85;transition:opacity .14s ease,transform .14s ease}
+.ch-kpi__go:hover,.ch-kpi-mini__go:hover{opacity:1;transform:translateX(2px)}
+.ch-kpi--hero .ch-kpi__go{color:var(--fg-on-accent,#fff)}
+.ch-kpi-mini__go{flex-basis:100%;margin-top:6px}
+</style>
+<section class="ch-grid ch-grid--4" style="margin-bottom: var(--space-4);">
+  {% for metric in primary_metrics %}
+    {% set delta = metric.delta or {'label': '', 'direction': 'flat'} %}
+    {% set spark = metric.sparkline %}
+    <article class="ch-kpi ch-kpi--accent {% if loop.first %}ch-kpi--hero{% endif %}">
       <span class="ch-kpi__label">{{ metric.label }}</span>
       <div class="ch-kpi__row">
         <span class="ch-kpi__value">
           {{ metric.value }}{% if metric.unit %}<em>{{ metric.unit }}</em>{% endif %}
         </span>
+        {% if spark and spark.points %}
         <span class="ch-kpi__spark" aria-hidden="true">
-          {% if spark.points %}
           <svg class="ch-sparkline" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
             <polygon class="area" points="{{ spark.area }}"></polygon>
             <polyline points="{{ spark.points }}" fill="none"></polyline>
           </svg>
-          {% endif %}
         </span>
+        {% endif %}
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);">
+      {% if delta.label %}
+      <div style="display:flex;align-items:center;justify-content:flex-start;gap:var(--space-2);">
         <span class="ch-kpi__delta is-{{ delta.direction }}">
           <span data-icon="{% if delta.direction == 'down' %}arrow_down{% elif delta.direction == 'up' %}arrow_up{% else %}chart{% endif %}" data-icon-size="12"></span>
           {{ delta.label }}
         </span>
-        <span class="ch-kpi__hint">vs. período anterior</span>
       </div>
+      {% endif %}
+      {# Atalho de navegação por bloco (Victor 03/06) — Fitts: alvo claro p/ ir à tela do KPI #}
+      {% if metric.route %}
+      <a class="ch-kpi__go" href="{{ PREFIX }}{{ metric.route }}" aria-label="{{ metric.go_label or 'Abrir' }}">{{ metric.go_label or 'Abrir' }} <span data-icon="chevron_right" data-icon-size="13"></span></a>
+      {% endif %}
     </article>
   {% else %}
     <article class="ch-kpi">
@@ -82,9 +98,30 @@
   {% endfor %}
 </section>
 
-{# ─────────── Linha 1: Tarefas hoje · Prazos semana ─────────── #}
-<section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-6);">
-  <article class="ch-card">
+{# ─────────── KPIs secundários (volume) ───────────
+   Novos casos e casos fechados — preservados, porém compactos. #}
+{% if secondary_metrics %}
+<section class="ch-kpi-secondary" style="margin-bottom: var(--space-6);">
+  {% for metric in secondary_metrics %}
+    {% set delta = metric.delta or {'label': '0%', 'direction': 'flat'} %}
+    <div class="ch-kpi-mini {% if delta.direction == 'down' %}is-warn{% endif %}">
+      <span class="ch-kpi-mini__label">{{ metric.label }}</span>
+      <span class="ch-kpi-mini__value">{{ metric.value }}{% if metric.unit %}<em>{{ metric.unit }}</em>{% endif %}</span>
+      <span class="ch-kpi-mini__delta is-{{ delta.direction }}">
+        <span data-icon="{% if delta.direction == 'down' %}arrow_down{% elif delta.direction == 'up' %}arrow_up{% else %}chart{% endif %}" data-icon-size="11"></span>
+        {{ delta.label }} <span class="ch-kpi-mini__hint">vs. período anterior</span>
+      </span>
+      {% if metric.route %}
+      <a class="ch-kpi-mini__go" href="{{ PREFIX }}{{ metric.route }}" aria-label="{{ metric.go_label or 'Abrir' }}">{{ metric.go_label or 'Abrir' }} <span data-icon="chevron_right" data-icon-size="11"></span></a>
+      {% endif %}
+    </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# ─────────── Linha 1: Tarefas · Prazos · Audiências (operação do dia) ─────────── #}
+<section class="ch-grid ch-grid--3" style="margin-bottom: var(--space-6);">
+  <article class="ch-card ch-card--rail-tasks">
     <header class="ch-card__header">
       <div>
         <span class="ch-card__eyebrow">Hoje</span>
@@ -98,8 +135,8 @@
     {% if dash.tasks_today %}
       <div class="ch-list" role="list">
         {% for task in dash.tasks_today %}
-        <a class="ch-list__row" href="{{ PREFIX }}/tasks" role="listitem">
-          <span class="ch-list__icon" aria-hidden="true"><span data-icon="check"></span></span>
+        <a class="ch-list__row {% if task.overdue %}ch-list__row--danger{% endif %}" href="{{ PREFIX }}/tasks" role="listitem">
+          <span class="ch-list__icon {% if task.overdue %}ch-list__icon--danger{% endif %}" aria-hidden="true"><span data-icon="check"></span></span>
           <div class="ch-list__body">
             <h3 class="ch-list__title">{{ task.title }}</h3>
             <p class="ch-list__meta">{{ task.case_ref }}</p>
@@ -121,7 +158,7 @@
     {% endif %}
   </article>
 
-  <article class="ch-card">
+  <article class="ch-card ch-card--rail-deadlines">
     <header class="ch-card__header">
       <div>
         <span class="ch-card__eyebrow">Próximos 7 dias</span>
@@ -135,12 +172,9 @@
     {% if dash.deadlines_week %}
       <div class="ch-list" role="list">
         {% for d in dash.deadlines_week %}
-        <a class="ch-list__row" href="{{ PREFIX }}/controladoria" role="listitem">
-          <span class="ch-list__icon" aria-hidden="true"
-                style="{% if d.urgent %}background: rgba(185,28,28,0.08); color: var(--c-danger);{% endif %}">
-            <strong style="font-family: var(--mono); font-size: 11px; line-height: 1;">
-              {{ '%02d'|format(d.day) }}<br>{{ d.month }}
-            </strong>
+        <a class="ch-list__row {% if d.urgent %}ch-list__row--danger{% endif %}" href="{{ PREFIX }}/controladoria" role="listitem">
+          <span class="ch-list__icon ch-list__icon--date {% if d.urgent %}ch-list__icon--danger{% endif %}" aria-hidden="true">
+            <strong>{{ '%02d'|format(d.day) }}<br>{{ d.month }}</strong>
           </span>
           <div class="ch-list__body">
             <h3 class="ch-list__title">{{ d.title }}</h3>
@@ -164,10 +198,56 @@
       </div>
     {% endif %}
   </article>
+
+  <article class="ch-card ch-card--rail-hearings">
+    <header class="ch-card__header">
+      <div>
+        <span class="ch-card__eyebrow">Esta semana</span>
+        <h2 class="ch-card__title">Audiências</h2>
+        <p class="ch-card__subtitle">Sessões marcadas — ≤2 dias destacadas.</p>
+      </div>
+      <a class="ch-card__action" href="{{ PREFIX }}/calendar">
+        Agenda <span data-icon="chevron_right" data-icon-size="14"></span>
+      </a>
+    </header>
+    {% if dash.hearings_week %}
+      <div class="ch-list" role="list">
+        {% for h in dash.hearings_week %}
+        <a class="ch-list__row {% if h.urgent %}ch-list__row--danger{% endif %}" href="{{ PREFIX }}/calendar" role="listitem">
+          <span class="ch-list__icon ch-list__icon--date ch-list__icon--hearing {% if h.urgent %}ch-list__icon--danger{% endif %}" aria-hidden="true">
+            <strong>{{ '%02d'|format(h.day) }}<br>{{ h.month }}</strong>
+          </span>
+          <div class="ch-list__body">
+            <h3 class="ch-list__title">{{ h.title }}</h3>
+            <p class="ch-list__meta">{{ h.case_ref }}</p>
+          </div>
+          <div class="ch-list__right">
+            {% if h.time %}
+              <span class="ch-pill {% if h.urgent %}ch-pill--danger{% else %}ch-pill--warn{% endif %}"><span class="dot"></span>{{ h.time }}</span>
+            {% elif h.urgent %}
+              <span class="ch-pill ch-pill--danger"><span class="dot"></span>Urgente</span>
+            {% else %}
+              <span class="ch-pill ch-pill--warn"><span class="dot"></span>{{ h.day }}/{{ h.month }}</span>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="ch-empty">
+        <span class="ch-empty__icon" aria-hidden="true"><span data-icon="calendar"></span></span>
+        <h3>Sem audiências</h3>
+        <p>Nenhuma audiência nos próximos 7 dias. Cadastre na Agenda.</p>
+      </div>
+    {% endif %}
+  </article>
 </section>
 
 {# ─────────── Linha 2: Atividade · Time ─────────── #}
 <section class="ch-grid ch-grid--2" style="margin-bottom: var(--space-6);">
+  {# Pulse/Auditoria: gestor (admin) e superadmin apenas. Advogado, estagiário
+     e staff não veem auditoria de atividade do escritório. #}
+  {% if user.user_type in ['admin', 'superadmin'] %}
   <article class="ch-card">
     <header class="ch-card__header">
       <div>
@@ -199,6 +279,7 @@
       </div>
     {% endif %}
   </article>
+  {% endif %}
 
   <article class="ch-card">
     <header class="ch-card__header">
@@ -214,15 +295,20 @@
       <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap: var(--space-2);">
         {% for member in dash.team %}
         <li style="display:flex; align-items:center; gap: var(--space-3);">
-          <span class="ch-list__icon" style="background: var(--c-navy); color: var(--c-paper); font-family: var(--display); font-weight: 700;">
+          {% if member.photo_url %}
+          <img src="{{ member.photo_url }}" alt="{{ member.name }}" class="ch-list__icon" style="border-radius:50%; object-fit:cover; box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs); background: var(--surface-app);">
+          {% else %}
+          <span class="ch-list__icon" style="border-radius:50%; background: {{ member.color or '#1C2447' }}; color: #fff; font-family: var(--display); font-weight: 700; box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);">
             {{ member.initials }}
           </span>
+          {% endif %}
           <div style="flex:1; min-width:0;">
             <p style="margin:0; font-size: var(--fs-sm); font-weight: 600; color: var(--fg-default);">
               {{ member.name }}
             </p>
             <p style="margin:0; font-size: var(--fs-xs); color: var(--fg-muted);">{{ member.city }}</p>
           </div>
+          {# Presença real: só quem teve atividade nos últimos 5 min entra em dash.team. #}
           <span class="ch-pill ch-pill--ok"><span class="dot"></span>{{ '%02d:%02d'|format(member.hour, member.minute) }}</span>
         </li>
         {% endfor %}
@@ -230,8 +316,8 @@
     {% else %}
       <div class="ch-empty">
         <span class="ch-empty__icon" aria-hidden="true"><span data-icon="clients"></span></span>
-        <h3>Time vazio</h3>
-        <p>Cadastre membros do escritório nas configurações.</p>
+        <h3>Ninguém online agora</h3>
+        <p>Os membros aparecem aqui enquanto estão usando o CaseHub.</p>
       </div>
     {% endif %}
   </article>

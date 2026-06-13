@@ -54,7 +54,7 @@ def _user(org_id, user_type="admin", role="admin", email="user@test.com"):
     )
 
 
-def _request(state_org_id, host="cliente.example.com", path="/cases"):
+def _request(state_org_id, host="sampletenant.casehub.legal", path="/cases"):
     """Mock Request carrying a resolved tenant in request.state.org_id."""
     req = MagicMock()
     req.state = SimpleNamespace(org_id=state_org_id)
@@ -192,18 +192,18 @@ class TestMiddlewareIgnoresClientHeader:
         tenant resolves from the Host header instead."""
         mw = _build_middleware(internal_ips="")
 
-        # Host cliente-alpha -> org 4; the spoofed header points at org 99.
+        # Host sampletenant -> org 4; the spoofed header points at org 99.
         def fake_by_domain(domain):
             return None
 
         def fake_by_slug(slug):
-            return {"id": 4, "slug": "cliente-alpha", "is_active": True} if slug == "cliente-alpha" else None
+            return {"id": 4, "slug": "sampletenant", "is_active": True} if slug == "sampletenant" else None
 
         monkeypatch.setattr(mw, "_get_org_by_domain", fake_by_domain)
         monkeypatch.setattr(mw, "_get_org_by_slug", fake_by_slug)
 
         req = MagicMock()
-        req.headers = {"host": "cliente.example.com", "X-Org-Id": "99"}
+        req.headers = {"host": "sampletenant.casehub.legal", "X-Org-Id": "99"}
         req.client = SimpleNamespace(host="203.0.113.7")  # external IP
         req.cookies = {}
 
@@ -249,4 +249,4 @@ def _build_middleware(internal_ips: str):
 def _run_async(coro):
     import asyncio
 
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)

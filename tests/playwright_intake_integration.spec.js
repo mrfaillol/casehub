@@ -5,12 +5,12 @@
 const { test, expect } = require('@playwright/test');
 
 // Test configuration
-const BASE_URL = 'https://legacy.example';
+const BASE_URL = 'https://immigrant.law';
 const INTAKE_URL = `${BASE_URL}/intake`;
 const CASEHUB_URL = `${BASE_URL}/casehub`;
 
 // Test credentials (should be in env vars in production)
-const STAFF_EMAIL = 'ana@legacy.example';
+const STAFF_EMAIL = 'ana@immigrant.law';
 const STAFF_PASSWORD = process.env.CASEHUB_TEST_PASSWORD || 'test123';
 const TEST_PACKAGE_ID = process.env.TEST_PACKAGE_ID || 'TEST123';
 const TEST_TOKEN = process.env.TEST_TOKEN || 'test-token';

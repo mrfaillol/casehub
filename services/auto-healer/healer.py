@@ -54,7 +54,7 @@ DEFAULT_STATE_PATH = os.path.join(BASE_DIR, "state.json")
 DEFAULT_AUDIT_LOG = os.path.join(BASE_DIR, "audit.log")
 DEFAULT_BACKUP_DIR = os.path.join(BASE_DIR, "backups")
 ALERT_SCRIPT = os.getenv("APP_BASE_PATH", "/opt/casehub") + "/send_alert_email.py"
-WHATSAPP_ADMIN = "REDACTED-PHONE"
+WHATSAPP_ADMIN = "5532991513405"
 WHATSAPP_API = "http://localhost:3001/api/send-message"
 PM2_LOG_DIR = "/root/.pm2/logs"
 

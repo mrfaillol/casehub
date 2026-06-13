@@ -86,7 +86,7 @@ def test_whatsapp_dashboard_survives_failed_message_queries(db, monkeypatch, req
     result = asyncio.run(wr.whatsapp_dashboard(request_stub, db=db))
 
     assert isinstance(result, dict)
-    assert result["_template"] == "whatsapp/dashboard.html"
+    assert result["_template"] == "app/whatsapp/dashboard.html"
     assert result["recent"] == []          # empty state, not a 500
     assert result["queued"] == []
     assert state["rollbacks"] >= 2          # both except paths rolled back

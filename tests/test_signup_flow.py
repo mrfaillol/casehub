@@ -118,10 +118,10 @@ class TestSignupEndpointSignature:
         assert "admin_email" in sig.parameters
 
     def test_signup_submit_has_password(self):
-        """Public signup must not accept a password; account creation is gated."""
+        """Signup accepts password for the feature-flagged self-service path."""
         from routes.onboarding import signup_submit
         sig = inspect.signature(signup_submit)
-        assert "password" not in sig.parameters
+        assert "password" in sig.parameters
 
     def test_signup_submit_has_password_confirm(self):
         """Public signup must not accept password confirmation."""
@@ -130,10 +130,11 @@ class TestSignupEndpointSignature:
         assert "password_confirm" not in sig.parameters
 
     def test_signup_submit_rejects_short_password(self):
-        """Password validation belongs to admin-gated provisioning, not access requests."""
+        """Self-service signup validates password strength behind the feature flag."""
         from routes.onboarding import signup_submit
         source = inspect.getsource(signup_submit)
-        assert "password" not in source
+        assert "SELF_SERVICE_SIGNUP_ENABLED" in source
+        assert "len(password) < 8" in source
 
     def test_signup_submit_checks_password_match(self):
         """Access request flow should not compare password fields."""
@@ -149,11 +150,12 @@ class TestSignupEndpointSignature:
         assert "access_requests" in source
 
     def test_signup_creates_admin_user(self):
-        """Public signup must not create admin users automatically."""
+        """Self-service signup creates an inactive org plus admin user behind the flag."""
         from routes.onboarding import signup_submit
         source = inspect.getsource(signup_submit)
-        assert 'user_type="admin"' not in source
-        assert "User(" not in source
+        assert source.index("SELF_SERVICE_SIGNUP_ENABLED") < source.index("User(")
+        assert 'user_type="admin"' in source
+        assert "is_active=False" in source
 
     def test_signup_generates_unique_slug_on_conflict(self):
         """Access request de-dupes by email instead of assigning public org slugs."""
@@ -207,11 +209,11 @@ class TestStripeCheckoutSource:
         source = inspect.getsource(setup_plan_save)
         assert "STRIPE_SECRET_KEY" in source
 
-    def test_plan_save_skips_checkout_for_starter(self):
-        """Starter plan should skip Stripe checkout."""
+    def test_plan_save_skips_checkout_for_contact_only_plan(self):
+        """Contact-only plans should skip Stripe checkout."""
         from routes.onboarding import setup_plan_save
         source = inspect.getsource(setup_plan_save)
-        assert 'plan != "starter"' in source or "plan != 'starter'" in source
+        assert 'not tier.get("contact_only")' in source
 
     def test_plan_save_creates_checkout_session(self):
         """setup_plan_save creates a stripe checkout session."""

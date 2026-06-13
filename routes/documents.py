@@ -13,7 +13,7 @@ import os
 import uuid
 from datetime import datetime
 
-from models import get_db, Client, Case, Document, User
+from models import get_db, Client, Case, Document, User, Organization
 from auth import get_current_user
 from models.tenant import tenant_query
 from config import settings
@@ -58,6 +58,19 @@ def _document_type_options(product: str):
     }
     labels = lite_labels if product == "lite" else immigration_labels
     return [{"value": value, "label": labels[value]} for value in immigration_labels]
+
+
+def _drive_root_id_for_org(db: Session, org_id: Optional[int]) -> str:
+    """Resolve the Drive folder the document explorer should open for a tenant."""
+    root_id = ""
+    if org_id is not None:
+        try:
+            org = db.query(Organization).filter(Organization.id == org_id).first()
+            root_id = getattr(org, "google_drive_root_id", None) or ""
+        except Exception:
+            root_id = ""
+    return root_id or settings.GOOGLE_DRIVE_ROOT_ID or "root"
+
 
 @router.get("", response_class=HTMLResponse)
 async def list_documents(
@@ -119,6 +132,7 @@ async def list_documents(
         "search": search or "",
         "doc_type": doc_type or "",
         "status": status or "",
+        "drive_root_id": _drive_root_id_for_org(db, getattr(request.state, "org_id", None)),
         # NEW: Pass to template
         "all_clients": all_clients,
         "unlinked_count": unlinked_count

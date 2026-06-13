@@ -27,7 +27,8 @@
  *   GET  /api/qr             — QR + status da sessao (rich payload, ver bug-fix 2026-05-28)
  *   GET  /qr                 — pagina HTML com o QR
  *   POST /api/pairing-code   — fallback de conexao por codigo
- *   POST /api/disconnect     — limpa sessao e reinicia (novo QR)
+ *   POST /api/reconnect      — reconecta preservando sessao salva
+ *   POST /api/disconnect     — desconecta; wipe so com confirmacao explicita
  *   POST /api/send-message   — dispara texto { phone, message }
  *   POST /api/send-media     — dispara midia (multipart)
  *   GET  /api/conversations  — lista conversas vivas da sessao
@@ -78,6 +79,53 @@ const PORT = parseInt(process.env.PORT || "3001", 10);
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 
+// --- Inbound media serving (GET /media/<file>) ----------------------------
+// O FastAPI (routes/whatsapp_chat.py:/api/media/{filename}) e' a borda
+// auth-gated: valida sessao CaseHub, ownership por org e path-traversal, e
+// entao faz stream de http://whatsapp-bot:3001/media/<file> (com Range
+// pass-through para <video>/<audio>). server.js (legado ILC) servia /media
+// via express.static; server-lite (o que roda no alpha) NAO servia -> midia
+// RECEBIDA caia em 404 ("midia quebrada", incidente 31/05). Aqui restauramos
+// esse static no caminho vivo. O binario continua interno (porta 3001 nao e'
+// publicada); a unica entrada e' o proxy auth-gated do FastAPI.
+//
+// Defense-in-depth (mesmo a borda ja validando): nome de arquivo simples,
+// nada de dotfiles, sem listagem de diretorio. express.static honra Range
+// (206 + Content-Range) automaticamente -> seek de audio/video funciona.
+const _MEDIA_FILENAME_RE = /^[A-Za-z0-9._-]+$/;
+if (mediaHandler && mediaHandler.MEDIA_DIR) {
+  app.get("/media/:filename", (req, res) => {
+    const filename = req.params.filename || "";
+    if (
+      !filename ||
+      filename === "." ||
+      filename === ".." ||
+      filename.startsWith(".") ||
+      filename.includes("/") ||
+      filename.includes("\\") ||
+      !_MEDIA_FILENAME_RE.test(filename)
+    ) {
+      return res.status(400).json({ ok: false, error: "invalid filename" });
+    }
+    res.sendFile(
+      filename,
+      {
+        root: mediaHandler.MEDIA_DIR,
+        dotfiles: "deny",
+        acceptRanges: true,
+        maxAge: "1d",
+        headers: { "Content-Disposition": "inline" },
+      },
+      (err) => {
+        if (err && !res.headersSent) {
+          res.status(err.status === 404 || err.code === "ENOENT" ? 404 : 502)
+            .json({ ok: false, error: "media not found" });
+        }
+      }
+    );
+  });
+}
+
 // Per-tenant in-memory state. botControl/followup ficam por orgId pra
 // nao vazar config entre tenants (mesmo sendo state efemero do bot).
 const botControlState = new Map();   // Map<orgId, Map<phone, enabled>>
@@ -120,15 +168,21 @@ function resolveOrgId(req) {
  * chamada pra essa org dispara o boot do Puppeteer. Chamadas subsequentes
  * reusam o mesmo Client. Falha de init e propagada com 502 pelo handler.
  */
-async function getClientFor(req) {
+async function getClientFor(req, options = {}) {
   const orgId = resolveOrgId(req);
-  return manager.ensureInitialized(orgId);
+  return manager.ensureInitialized(orgId, null, options);
+}
+
+function getClientRef(req) {
+  return manager.getOrCreate(resolveOrgId(req));
 }
 
 // --- Payload helpers ------------------------------------------------------
-function statusPayload(client) {
-  const status = client.getStatus();
+async function statusPayload(client, options = {}) {
+  const verify = options.verify !== false && typeof client.getStatusVerified === "function";
+  const status = verify ? await client.getStatusVerified() : client.getStatus();
   const ready = Boolean(status.isReady);
+  const sessionHealth = typeof client.getSessionHealth === "function" ? client.getSessionHealth() : null;
   return {
     ...status,
     service: "whatsapp-bot-lite",
@@ -140,6 +194,38 @@ function statusPayload(client) {
     version: process.env.npm_package_version || "-",
     qr: client.getQrCode() || null,
     pairingCode: status.pairingCode || null,
+    sessionHealth,
+    watchdog: sessionHealth ? sessionHealth.watchdog : null,
+    recommendedAction: sessionHealth ? sessionHealth.recommendedAction : null,
+    nextStep: sessionHealth ? sessionHealth.nextStep : null,
+  };
+}
+
+async function watchdogPayload(client, options = {}) {
+  const verify = options.verify !== false && typeof client.getStatusVerified === "function";
+  const status = verify ? await client.getStatusVerified() : client.getStatus();
+  const ready = Boolean(status.isReady);
+  const sessionHealth = typeof client.getSessionHealth === "function" ? client.getSessionHealth() : null;
+  const memory = process.memoryUsage();
+  return {
+    service: "whatsapp-bot-lite",
+    ok: true,
+    orgId: client.orgId,
+    connected: ready,
+    isReady: ready,
+    ready,
+    status: status.status || (ready ? "ready" : "offline"),
+    realState: status.realState || (sessionHealth && sessionHealth.realState) || null,
+    version: process.env.npm_package_version || "-",
+    sessionHealth,
+    watchdog: sessionHealth ? sessionHealth.watchdog : null,
+    recommendedAction: sessionHealth ? sessionHealth.recommendedAction : null,
+    nextStep: sessionHealth ? sessionHealth.nextStep : null,
+    process: {
+      uptimeSeconds: Math.round(process.uptime()),
+      rssMb: Math.round(memory.rss / 1024 / 1024),
+      heapUsedMb: Math.round(memory.heapUsed / 1024 / 1024),
+    },
   };
 }
 
@@ -152,14 +238,30 @@ function normalizeLimit(value, fallback = 80, max = 200) {
 // --- Health (multi-tenant snapshot) --------------------------------------
 app.get("/health", async (_req, res) => {
   // /health responde pelo snapshot agregado — util pro probe do Docker.
-  // Saudavel se ao menos uma sessao esta `ready` ou se nenhuma foi
-  // iniciada (boot timing).
+  // O processo HTTP vivo e saudavel mesmo quando o WhatsApp aguarda QR.
+  // A prontidao real do WhatsApp fica explicita em whatsappReady /
+  // requiresPairing; nao deve derrubar o container por uma acao humana
+  // pendente de pareamento.
   const sessions = manager.snapshot();
   const anyReady = sessions.some((s) => s.isReady);
-  res.status(sessions.length === 0 || anyReady ? 200 : 503).json({
-    ok: anyReady || sessions.length === 0,
+  const requiresPairing = sessions.some((s) => {
+    const status = String(s.status || "").toLowerCase();
+    return status === "awaiting_scan" || status === "awaiting_pairing" || Boolean(s.hasQrCode || s.hasPairingCode);
+  });
+  res.status(200).json({
+    ok: true,
     service: "whatsapp-bot-lite",
+    processOk: true,
+    whatsappReady: anyReady,
+    requiresPairing,
     sessions,
+    watchdog: sessions.map((s) => ({
+      orgId: s.orgId,
+      status: s.status,
+      connected: Boolean(s.isReady),
+      recommendedAction: s.recommendedAction || null,
+      watchdog: s.watchdog || null,
+    })),
     version: process.env.npm_package_version || "-",
   });
 });
@@ -168,9 +270,28 @@ app.get("/health", async (_req, res) => {
 app.get("/api/status", async (req, res) => {
   try {
     const client = await getClientFor(req);
-    res.json(statusPayload(client));
+    res.json(await statusPayload(client));
   } catch (err) {
     res.status(502).json({ ok: false, error: err.message });
+  }
+});
+
+// /api/watchdog — diagnostico sanitizado da sessao da org corrente.
+// Nao retorna QR bruto, codigo de pareamento nem caminhos/tokens de auth.
+app.get("/api/watchdog", async (req, res) => {
+  try {
+    const client = await getClientFor(req);
+    res.json(await watchdogPayload(client));
+  } catch (err) {
+    res.status(502).json({
+      ok: false,
+      service: "whatsapp-bot-lite",
+      connected: false,
+      isReady: false,
+      ready: false,
+      status: "offline",
+      error: "watchdog unavailable",
+    });
   }
 });
 
@@ -197,7 +318,7 @@ app.get("/api/status", async (req, res) => {
 app.get("/api/qr", async (req, res) => {
   try {
     const client = await getClientFor(req);
-    res.json({ ...statusPayload(client), orgId: client.orgId });
+    res.json({ ...(await statusPayload(client, { verify: false })), orgId: client.orgId });
   } catch (err) {
     res.status(502).json({
       qr: null,
@@ -357,7 +478,7 @@ app.post("/pairing-code", async (req, res) => {
     return res.status(400).json({ ok: false, success: false, error: "phone required" });
   }
   try {
-    const client = await getClientFor(req);
+    const client = getClientRef(req);
     const code = await client.requestPairingCode(String(phone));
     res.json({
       ok: true,
@@ -382,7 +503,7 @@ app.post("/api/pairing-code", async (req, res) => {
     return res.status(400).json({ ok: false, success: false, error: "phone required" });
   }
   try {
-    const client = await getClientFor(req);
+    const client = getClientRef(req);
     const code = await client.requestPairingCode(String(phone));
     res.json({
       ok: true,
@@ -403,7 +524,7 @@ app.post("/api/pairing-code", async (req, res) => {
 
 app.post("/api/disconnect", async (req, res) => {
   try {
-    const client = await getClientFor(req);
+    const client = getClientRef(req);
     const b = req.body || {};
     const confirmWipe = b.confirm === "wipe" || b.confirm === true || b.wipe === true;
     if (confirmWipe) {
@@ -425,6 +546,29 @@ app.post("/api/disconnect", async (req, res) => {
       ok: false,
       success: false,
       error: err && err.message ? err.message : "disconnect failed",
+    });
+  }
+});
+
+app.post("/api/reconnect", async (req, res) => {
+  try {
+    const client = getClientRef(req);
+    // Legacy no-wipe contract asserted by tests: await client.softReconnect();
+    await client.softReconnect("manual-reconnect", { explicit: true });
+    const payload = await statusPayload(client, { verify: false });
+    return res.json({
+      ...payload,
+      ok: true,
+      success: true,
+      preserved: true,
+      reconnecting: payload.status === "reconnecting" || !payload.ready,
+      orgId: client.orgId,
+    });
+  } catch (err) {
+    res.status(502).json({
+      ok: false,
+      success: false,
+      error: err && err.message ? err.message : "reconnect failed",
     });
   }
 });
@@ -472,7 +616,7 @@ app.post("/api/sessions/:orgId/init", async (req, res) => {
     return res.status(400).json({ ok: false, error: "invalid orgId" });
   }
   try {
-    const client = await manager.ensureInitialized(orgId);
+    const client = await manager.ensureInitialized(orgId, null, { explicit: true });
     res.json({ ok: true, orgId, status: client.getStatus().status });
   } catch (err) {
     res.status(502).json({ ok: false, error: err.message });
@@ -551,18 +695,37 @@ manager.on("ready", async (_v, meta) => {
   const orgId = meta && meta.orgId;
   console.log(`[WA][org-${orgId}] cliente pronto`);
   if (!orgId) return;
-  try {
-    const client = manager.getOrCreate(orgId);
-    if (client && typeof client.backupSession === "function") client.backupSession();
-    if (client && typeof client.syncProfilePhotos === "function") {
+  const client = manager.getOrCreate(orgId);
+  if (client && typeof client.backupSession === "function") {
+    try { client.backupSession(); } catch (_) { /* best-effort */ }
+  }
+  // #5 (Example User 02/06) — fotos/nomes sumiam quando o sync rodava uma unica vez
+  // logo apos o `ready`: getChats/getProfilePicUrl ainda estavam frios. Agora
+  // ate 3 tentativas com backoff exponencial; re-tenta se falhar OU se vier
+  // vazio (sessao ainda hidratando). Best-effort: nunca derruba a sessao.
+  if (!client || typeof client.syncProfilePhotos !== "function") return;
+  const SYNC_MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= SYNC_MAX_ATTEMPTS; attempt++) {
+    try {
       const contacts = await client.syncProfilePhotos();
-      if (contacts.length) {
+      if (contacts && contacts.length) {
         const res = await forwardContactsSync(contacts, { orgId });
-        console.log(`[WA][org-${orgId}] profile-sync: ${contacts.length} contatos`, res && (res.skipped || res.status || "ok"));
+        console.log(`[WA][org-${orgId}] profile-sync: ${contacts.length} contatos (tentativa ${attempt}/${SYNC_MAX_ATTEMPTS})`, res && (res.skipped || res.status || "ok"));
+        return;
+      }
+      console.warn(`[WA][org-${orgId}] profile-sync vazio (tentativa ${attempt}/${SYNC_MAX_ATTEMPTS})`);
+    } catch (e) {
+      console.warn(`[WA][org-${orgId}] profile-sync falhou (tentativa ${attempt}/${SYNC_MAX_ATTEMPTS}):`, e && e.message ? e.message : e);
+    }
+    if (attempt < SYNC_MAX_ATTEMPTS) {
+      const wait = 5000 * attempt; // 5s, 10s
+      await new Promise((r) => setTimeout(r, wait));
+      // Sessao pode ter caido entre tentativas — so re-tenta se ainda viva.
+      if (typeof client.isReady !== "undefined" && !client.isReady) {
+        console.warn(`[WA][org-${orgId}] profile-sync abortado: sessao caiu antes do retry`);
+        return;
       }
     }
-  } catch (e) {
-    console.warn(`[WA][org-${orgId}] profile-sync/backup falhou:`, e && e.message ? e.message : e);
   }
 });
 manager.on("authenticated", (_v, meta) => console.log(`[WA][org-${meta && meta.orgId}] autenticado`));
@@ -577,6 +740,22 @@ manager.on("disconnected", async (r, meta) => {
   } catch (e) {
     console.warn(`[WA][org-${orgId}] alerta de disconnect falhou:`, e && e.message ? e.message : e);
   }
+  // Self-heal (defesa em profundidade): se em 45s a sessao nao voltou a 'ready',
+  // forca um soft reconnect. O client ja tenta sozinho (getStatusVerified +
+  // health-monitor), mas isto cobre o caso da tentativa dele ter falhado em
+  // silencio — foi o que matou org-4 em 09/06 (disconnect sem reconnect). O
+  // cooldown/backoff no client evita tempestade. unref() p/ nao segurar shutdown.
+  const t = setTimeout(async () => {
+    try {
+      const c = manager.getOrCreate(orgId);
+      if (c && !c.isReady && !c._reconnecting && !c._initInFlight && !c._intentionalDown
+          && c.status !== "awaiting_scan" && c.status !== "awaiting_pairing") {
+        console.warn(`[WA][org-${orgId}] ainda offline 45s apos disconnect — forcando reinit`);
+        await c.softReconnect("server-lite-selfheal");
+      }
+    } catch (e) { console.warn(`[WA][org-${orgId}] reinit pos-disconnect falhou:`, e && e.message ? e.message : e); }
+  }, 45000);
+  if (t.unref) t.unref();
 });
 manager.on("auth_failure", (e, meta) => console.error(`[WA][org-${meta && meta.orgId}] auth_failure:`, e));
 

@@ -1,225 +1,457 @@
 {% extends "app/base.html" %}
 {% set active_module = 'settings' %}
-{% block title %}Notifications · Settings · {{ org_name|default('CaseHub') }}{% endblock %}
-{% block extra_head %}
-  
-{% endblock %}
+{% block title %}Notificações · Configurações · {{ org_name|default('CaseHub') }}{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="fas fa-bell me-2"></i>{% if product == "lite" %}Configurações de Notificação{% else %}Notification Settings{% endif %}</h2>
-    <a href="{{ PREFIX }}/notifications/upcoming" class="btn btn-outline-primary glass-btn glass-btn--ghost">
-        <i class="fas fa-calendar me-1"></i> {% if product == "lite" %}Ver Próximos{% else %}View Upcoming{% endif %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Notificações · Painel</span>
+    <h1>{% if product == "lite" %}Central de <em>Notificações</em>{% else %}Notification <em>Center</em>{% endif %}</h1>
+    <p class="ch-page-head__sub">
+      {% if product == "lite" %}Preferências por e-mail, alertas do navegador e histórico recente.{% else %}Email preferences, browser alerts and recent history.{% endif %}
+    </p>
+  </div>
+  <div class="ch-page-head__actions">
+    <a href="{{ PREFIX }}/notifications/upcoming" class="ch-btn ch-btn--ghost">
+      <i data-lucide="calendar-clock"></i> {% if product == "lite" %}Ver próximos{% else %}View upcoming{% endif %}
     </a>
-</div>
+  </div>
+</section>
 
 {% if request.query_params.get('saved') %}
-<div class="alert alert-success alert-dismissible fade show" role="alert">
-    <i class="fas fa-check-circle me-2"></i>Settings saved successfully!
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="ntf-notice ntf-notice--ok" role="status">
+  <span class="ntf-notice__icon"><i data-lucide="check-circle-2"></i></span>
+  <div class="ntf-notice__body">{% if product == "lite" %}Configurações salvas com sucesso!{% else %}Settings saved successfully!{% endif %}</div>
+  <button type="button" class="ntf-notice__dismiss" data-ntf-dismiss aria-label="Fechar"><i data-lucide="x"></i></button>
 </div>
 {% endif %}
 
 {% if not email_configured %}
-<div class="alert alert-warning" role="alert">
-    <i class="fas fa-exclamation-triangle me-2"></i>
-    <strong>Email not configured.</strong> Please configure SMTP settings in the environment to enable email notifications.
+<div class="ntf-notice ntf-notice--warn" role="alert">
+  <span class="ntf-notice__icon"><i data-lucide="alert-triangle"></i></span>
+  <div class="ntf-notice__body">
+    <strong>{% if product == "lite" %}E-mail de envio não configurado.{% else %}Email sender not configured.{% endif %}</strong>
+    {% if product == "lite" %}Configure as credenciais SMTP no ambiente para ativar as notificações por e-mail.{% else %}Please configure SMTP settings in the environment to enable email notifications.{% endif %}
+  </div>
 </div>
 {% endif %}
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card glass-card">
-            <div class="card-header">
-                <i class="fas fa-cog me-2"></i>{% if product == "lite" %}Preferências de Notificação por Email{% else %}Email Notification Preferences{% endif %}
-            </div>
-            <div class="card-body">
-                <form method="POST" action="{{ PREFIX }}/notifications/save">
-                    <div class="mb-4">
-                        {% if product == "lite" %}
-                        <div class="d-flex align-items-start justify-content-between mb-3">
-                            <div>
-                                <strong>Lembretes de Prazo</strong>
-                                <br><small class="text-muted">Receba lembretes antes dos prazos das tarefas (7, 3, 1 dia e no dia)</small>
-                            </div>
-                            <label class="pill-toggle ms-3">
-                                <input type="checkbox" name="deadline_reminders" {% if prefs.deadline_reminders %}checked{% endif %}>
-                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
-                            </label>
-                        </div>
-                        <div class="d-flex align-items-start justify-content-between mb-3">
-                            <div>
-                                <strong>Atribuições de Tarefas</strong>
-                                <br><small class="text-muted">Receba notificação quando uma tarefa for atribuída a você</small>
-                            </div>
-                            <label class="pill-toggle ms-3">
-                                <input type="checkbox" name="task_assignments" {% if prefs.task_assignments %}checked{% endif %}>
-                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
-                            </label>
-                        </div>
-                        <div class="d-flex align-items-start justify-content-between mb-3">
-                            <div>
-                                <strong>Mudanças de Status do Processo</strong>
-                                <br><small class="text-muted">Receba notificação quando o status de um processo for atualizado</small>
-                            </div>
-                            <label class="pill-toggle ms-3">
-                                <input type="checkbox" name="case_status_changes" {% if prefs.case_status_changes %}checked{% endif %}>
-                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
-                            </label>
-                        </div>
-                        <div class="d-flex align-items-start justify-content-between mb-3">
-                            <div>
-                                <strong>Resumo Semanal</strong>
-                                <br><small class="text-muted">Receba um resumo semanal dos seus processos e tarefas</small>
-                            </div>
-                            <label class="pill-toggle ms-3">
-                                <input type="checkbox" name="weekly_summary" {% if prefs.weekly_summary %}checked{% endif %}>
-                                <span class="pill-toggle-track"><span class="pill-toggle-indicator"></span></span>
-                            </label>
-                        </div>
-                        {% else %}
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="deadline_reminders"
-                                   name="deadline_reminders" {% if prefs.deadline_reminders %}checked{% endif %}>
-                            <label class="form-check-label" for="deadline_reminders">
-                                <strong>Deadline Reminders</strong>
-                                <br><small class="text-muted">Receive reminders before task deadlines (7, 3, 1 day, and same day)</small>
-                            </label>
-                        </div>
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="task_assignments"
-                                   name="task_assignments" {% if prefs.task_assignments %}checked{% endif %}>
-                            <label class="form-check-label" for="task_assignments">
-                                <strong>Task Assignments</strong>
-                                <br><small class="text-muted">Receive notification when a task is assigned to you</small>
-                            </label>
-                        </div>
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="case_status_changes"
-                                   name="case_status_changes" {% if prefs.case_status_changes %}checked{% endif %}>
-                            <label class="form-check-label" for="case_status_changes">
-                                <strong>Case Status Changes</strong>
-                                <br><small class="text-muted">Receive notification when a case status is updated</small>
-                            </label>
-                        </div>
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="rfe_alerts"
-                                   name="rfe_alerts" {% if prefs.rfe_alerts %}checked{% endif %}>
-                            <label class="form-check-label" for="rfe_alerts">
-                                <strong>RFE Alerts</strong>
-                                <br><small class="text-muted">Receive immediate alert when a case receives an RFE</small>
-                            </label>
-                        </div>
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="weekly_summary"
-                                   name="weekly_summary" {% if prefs.weekly_summary %}checked{% endif %}>
-                            <label class="form-check-label" for="weekly_summary">
-                                <strong>Weekly Summary</strong>
-                                <br><small class="text-muted">Receive a weekly summary of your cases and tasks</small>
-                            </label>
-                        </div>
-                        {% endif %}
-                    </div>
+<!-- Sub-abas neu -->
+<div class="ntf-tabs" role="tablist">
+  <button class="ntf-tab is-active" data-target="tab-prefs" role="tab" aria-selected="true">
+    <i data-lucide="sliders-horizontal"></i> {% if product == "lite" %}Preferências{% else %}Preferences{% endif %}
+  </button>
+  <button class="ntf-tab" data-target="tab-history" role="tab" aria-selected="false">
+    <i data-lucide="history"></i> {% if product == "lite" %}Histórico recente{% else %}Recent history{% endif %}
+  </button>
+  <button class="ntf-tab" data-target="tab-releases" role="tab" aria-selected="false">
+    <i data-lucide="sparkles"></i> {% if product == "lite" %}Novidades{% else %}Release notes{% endif %}
+  </button>
+</div>
 
-                    <div class="d-flex justify-content-between">
-                        <button type="submit" class="btn btn-primary glass-btn glass-btn--primary">
-                            <i class="fas fa-save me-1"></i> {% if product == "lite" %}Salvar Configurações{% else %}Save Settings{% endif %}
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" id="testEmailBtn"
-                                {% if not email_configured %}disabled{% endif %}>
-                            <i class="fas fa-paper-plane me-1"></i> {% if product == "lite" %}Enviar Email Teste{% else %}Send Test Email{% endif %}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+<div class="ntf-layout">
+  <!-- Coluna principal -->
+  <div>
+    <!-- Aba 1: Preferências -->
+    <div id="tab-prefs" class="ntf-tabpanel">
+      <div class="ch-card">
+        <header class="ch-card__header">
+          <div>
+            <span class="ch-card__eyebrow">{% if product == "lite" %}E-mail{% else %}Email{% endif %}</span>
+            <h2 class="ch-card__title">{% if product == "lite" %}Preferências de notificação{% else %}Notification preferences{% endif %}</h2>
+            <p class="ch-card__subtitle">{% if product == "lite" %}Escolha o que chega na sua caixa de entrada.{% else %}Choose what lands in your inbox.{% endif %}</p>
+          </div>
+          <i data-lucide="mail" style="color: var(--c-green-d);"></i>
+        </header>
+
+        <form method="POST" action="{{ PREFIX }}/notifications/save">
+          <div class="ntf-prefs">
+            {% if product == "lite" %}
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">Lembretes de prazo</span>
+                <span class="ntf-pref__desc">Receba lembretes antes dos prazos das tarefas (7, 3, 1 dia e no dia).</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="deadline_reminders" {% if prefs.deadline_reminders %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">Atribuições de tarefas</span>
+                <span class="ntf-pref__desc">Notificação quando uma tarefa for atribuída a você.</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="task_assignments" {% if prefs.task_assignments %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">Mudanças de status do processo</span>
+                <span class="ntf-pref__desc">Notificação quando o status de um processo for atualizado.</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="case_status_changes" {% if prefs.case_status_changes %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">Resumo semanal</span>
+                <span class="ntf-pref__desc">Um panorama semanal dos seus processos e tarefas.</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="weekly_summary" {% if prefs.weekly_summary %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            {% else %}
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">Deadline Reminders</span>
+                <span class="ntf-pref__desc">Receive reminders before task deadlines (7, 3, 1 day, and same day).</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="deadline_reminders" {% if prefs.deadline_reminders %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">Task Assignments</span>
+                <span class="ntf-pref__desc">Receive a notification when a task is assigned to you.</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="task_assignments" {% if prefs.task_assignments %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">Case Status Changes</span>
+                <span class="ntf-pref__desc">Receive a notification when a case status is updated.</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="case_status_changes" {% if prefs.case_status_changes %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">RFE Alerts</span>
+                <span class="ntf-pref__desc">Receive an immediate alert when a case receives an RFE.</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="rfe_alerts" {% if prefs.rfe_alerts %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            <label class="ntf-pref">
+              <span class="ntf-pref__text">
+                <span class="ntf-pref__title">Weekly Summary</span>
+                <span class="ntf-pref__desc">Receive a weekly summary of your cases and tasks.</span>
+              </span>
+              <span class="ntf-switch">
+                <input type="checkbox" name="weekly_summary" {% if prefs.weekly_summary %}checked{% endif %}>
+                <span class="ntf-switch__track"></span>
+              </span>
+            </label>
+            {% endif %}
+          </div>
+
+          <div class="ntf-form-actions">
+            <button type="submit" class="ch-btn ch-btn--primary">
+              <i data-lucide="save"></i> {% if product == "lite" %}Salvar configurações{% else %}Save settings{% endif %}
+            </button>
+            <button type="button" class="ch-btn ch-btn--ghost" id="testEmailBtn" {% if not email_configured %}disabled{% endif %}>
+              <i data-lucide="send"></i> {% if product == "lite" %}Enviar e-mail teste{% else %}Send test email{% endif %}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="card glass-card">
-            <div class="card-header">
-                <i class="fas fa-info-circle me-2"></i>{% if product == "lite" %}Sobre Notificações{% else %}About Notifications{% endif %}
+    <!-- Aba 2: Histórico recente -->
+    <div id="tab-history" class="ntf-tabpanel" hidden>
+      {% if notifications %}
+      <div class="ntf-list">
+        {% for n in notifications %}
+        <article class="ntf-item{% if not n.is_read %} ntf-item--unread{% endif %}">
+          <div class="ntf-item__icon">
+            {% if n.notification_type == 'task' %}<i data-lucide="check-square"></i>
+            {% elif n.notification_type == 'case' %}<i data-lucide="folder"></i>
+            {% elif n.notification_type == 'hotfix' %}<i data-lucide="sparkles"></i>
+            {% else %}<i data-lucide="bell"></i>{% endif %}
+          </div>
+          <div class="ntf-item__body">
+            <h3 class="ntf-item__title">{{ n.title }}</h3>
+            <p class="ntf-item__msg">{{ n.message }}</p>
+            <div class="ntf-item__meta">
+              <span class="ntf-item__date">
+                <i data-lucide="clock"></i>
+                {{ n.created_at.strftime('%d/%m/%Y às %H:%M') if n.created_at else '-' }}
+              </span>
+              {% if n.action_url %}
+              <a href="{{ n.action_url }}" class="ntf-item__action">Verificar <i data-lucide="arrow-right"></i></a>
+              {% endif %}
             </div>
-            <div class="card-body">
-                <p class="text-muted">
-                    {% if product == "lite" %}
-                    Notificações por email ajudam você a acompanhar seus processos e tarefas.
-                    {% else %}
-                    Email notifications help you stay on top of your immigration cases and tasks.
-                    {% endif %}
-                </p>
-                <hr>
-                <h6>{% if product == "lite" %}Cronograma de Lembretes{% else %}Reminder Schedule{% endif %}</h6>
-                <ul class="list-unstyled text-muted small">
-                    <li><i class="fas fa-clock me-1"></i> {% if product == "lite" %}7 dias antes do prazo{% else %}7 days before deadline{% endif %}</li>
-                    <li><i class="fas fa-clock me-1"></i> {% if product == "lite" %}3 dias antes do prazo{% else %}3 days before deadline{% endif %}</li>
-                    <li><i class="fas fa-clock me-1"></i> {% if product == "lite" %}1 dia antes do prazo{% else %}1 day before deadline{% endif %}</li>
-                    <li><i class="fas fa-clock me-1 text-danger"></i> {% if product == "lite" %}No dia do prazo{% else %}Day of deadline{% endif %}</li>
-                </ul>
-                <hr>
-                <h6>{% if product == "lite" %}Resumo Semanal{% else %}Weekly Summary{% endif %}</h6>
-                <p class="text-muted small mb-0">
-                    {% if product == "lite" %}
-                    Enviado toda segunda-feira pela manhã com um resumo das suas tarefas pendentes, prazos próximos e atualizações de processos.
-                    {% else %}
-                    Sent every Monday morning with a summary of your pending tasks, upcoming deadlines, and case updates.
-                    {% endif %}
-                </p>
-            </div>
-        </div>
-
-        <div class="card mt-3">
-            <div class="card-header">
-                <i class="fas fa-server me-2"></i>SMTP Configuration
-            </div>
-            <div class="card-body">
-                {% if email_configured %}
-                <p class="text-success mb-0">
-                    <i class="fas fa-check-circle me-1"></i> Email is configured
-                </p>
-                {% else %}
-                <p class="text-warning mb-2">
-                    <i class="fas fa-exclamation-triangle me-1"></i> Not configured
-                </p>
-                <small class="text-muted">
-                    Add these to your .env file:
-                    <ul class="mt-2 mb-0 ps-3">
-                        <li>SMTP_HOST</li>
-                        <li>SMTP_PORT</li>
-                        <li>SMTP_USER</li>
-                        <li>SMTP_PASSWORD</li>
-                    </ul>
-                </small>
-                {% endif %}
-            </div>
-        </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="ntf-empty">
+        <span class="ntf-empty__icon"><i data-lucide="inbox"></i></span>
+        <p class="ntf-empty__title">Nenhuma notificação no seu histórico</p>
+        <p class="ntf-empty__sub">Notificações enviadas para sua conta aparecerão listadas aqui.</p>
+      </div>
+      {% endif %}
     </div>
+
+    <!-- Aba 3: Release Notes -->
+    <div id="tab-releases" class="ntf-tabpanel" hidden>
+      {% if hotfixes %}
+      <div class="ntf-list">
+        {% for n in hotfixes %}
+        <article class="ntf-item ntf-item--release">
+          <div class="ntf-item__icon"><i data-lucide="wand-2"></i></div>
+          <div class="ntf-item__body">
+            <h3 class="ntf-item__title">{{ n.title }}</h3>
+            <p class="ntf-item__msg ntf-item__msg--pre">{{ n.message }}</p>
+            <div class="ntf-item__meta">
+              <span class="ntf-item__date">
+                <i data-lucide="clock"></i>
+                {{ n.created_at.strftime('%d/%m/%Y às %H:%M') if n.created_at else '-' }}
+              </span>
+              {% if n.action_url %}
+              <a href="{{ n.action_url }}" class="ntf-item__action">Ir para o recurso <i data-lucide="arrow-right"></i></a>
+              {% endif %}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="ntf-empty">
+        <span class="ntf-empty__icon"><i data-lucide="rocket"></i></span>
+        <p class="ntf-empty__title">Nenhuma nota de atualização disponível</p>
+        <p class="ntf-empty__sub">Quando houver hotfixes ou upgrades no sistema, eles serão relatados aqui.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Coluna lateral -->
+  <aside class="ntf-aside">
+    <!-- Notificações do navegador -->
+    <div class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Desktop</span>
+          <h2 class="ch-card__title">{% if product == "lite" %}Notificações do navegador{% else %}Browser notifications{% endif %}</h2>
+        </div>
+        <i data-lucide="monitor" style="color: var(--c-pollen);"></i>
+      </header>
+      <p class="ch-card__subtitle" style="margin-top: 0;">
+        {% if product == "lite" %}Receba alertas visuais e sonoros no seu computador, na mesma hora.{% else %}Receive real-time desktop and sound alerts on your computer.{% endif %}
+      </p>
+      <div id="browserNotifStatus" style="margin: var(--space-3) 0;">
+        <span class="ntf-perm">Verificando...</span>
+      </div>
+      <div class="ntf-btn-stack">
+        <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="enableBrowserNotifBtn" style="display: none;">
+          <i data-lucide="bell"></i> Habilitar notificações
+        </button>
+        <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" id="testBrowserNotifBtn" style="display: none;">
+          <i data-lucide="volume-2"></i> Disparar teste (som)
+        </button>
+      </div>
+    </div>
+
+    <!-- Sobre notificações -->
+    <div class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Ajuda</span>
+          <h2 class="ch-card__title">{% if product == "lite" %}Sobre notificações{% else %}About notifications{% endif %}</h2>
+        </div>
+        <i data-lucide="info" style="color: var(--c-info);"></i>
+      </header>
+      <p class="ch-card__subtitle" style="margin-top: 0;">
+        {% if product == "lite" %}Acompanhe seus prazos e tarefas de forma automática.{% else %}Stay on top of your legal cases and tasks.{% endif %}
+      </p>
+
+      <hr class="ntf-divider">
+      <span class="ch-card__eyebrow">{% if product == "lite" %}Cronograma de lembretes{% else %}Reminder schedule{% endif %}</span>
+      <ul class="ntf-info-list" style="margin-top: var(--space-2);">
+        <li><i data-lucide="clock"></i> {% if product == "lite" %}7 dias antes do prazo{% else %}7 days before deadline{% endif %}</li>
+        <li><i data-lucide="clock"></i> {% if product == "lite" %}3 dias antes do prazo{% else %}3 days before deadline{% endif %}</li>
+        <li><i data-lucide="clock"></i> {% if product == "lite" %}1 dia antes do prazo{% else %}1 day before deadline{% endif %}</li>
+        <li class="is-due"><i data-lucide="alarm-clock"></i> {% if product == "lite" %}No dia do prazo{% else %}Day of deadline{% endif %}</li>
+      </ul>
+
+      <hr class="ntf-divider">
+      <span class="ch-card__eyebrow">{% if product == "lite" %}Resumo semanal{% else %}Weekly summary{% endif %}</span>
+      <p class="ch-card__subtitle" style="margin-top: var(--space-2);">
+        {% if product == "lite" %}Enviado toda segunda de manhã com um resumo das tarefas pendentes e prazos da semana.{% else %}Sent every Monday morning with a summary of your pending tasks and deadlines.{% endif %}
+      </p>
+    </div>
+
+    <!-- SMTP -->
+    <div class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Infra</span>
+          <h2 class="ch-card__title">Configuração de e-mail (SMTP)</h2>
+        </div>
+        <i data-lucide="server" style="color: var(--fg-muted);"></i>
+      </header>
+      {% if email_configured %}
+      <span class="ntf-status ntf-status--ok"><i data-lucide="check-circle-2"></i> SMTP configurado e ativo</span>
+      {% else %}
+      <span class="ntf-status ntf-status--warn"><i data-lucide="alert-triangle"></i> Não configurado</span>
+      <p class="ch-card__subtitle" style="margin-top: var(--space-2);">Adicione estas chaves no seu arquivo <code>.env</code>:</p>
+      <ul class="ntf-smtp-keys">
+        <li>SMTP_HOST</li>
+        <li>SMTP_PORT</li>
+        <li>SMTP_USER</li>
+        <li>SMTP_PASSWORD</li>
+      </ul>
+      {% endif %}
+    </div>
+  </aside>
 </div>
 {% endblock %}
+
 {% block extra_js %}
 <script>
+// ── Alternador de sub-abas ──
+(function() {
+    const tabs = document.querySelectorAll('.ntf-tab');
+    const panels = document.querySelectorAll('.ntf-tabpanel');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => { t.classList.remove('is-active'); t.setAttribute('aria-selected', 'false'); });
+            panels.forEach(p => { p.hidden = true; });
+            tab.classList.add('is-active');
+            tab.setAttribute('aria-selected', 'true');
+            const target = document.getElementById(tab.getAttribute('data-target'));
+            if (target) target.hidden = false;
+        });
+    });
+})();
+
+// ── Dismiss de banner ──
+document.querySelectorAll('[data-ntf-dismiss]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        const notice = btn.closest('.ntf-notice');
+        if (notice) notice.remove();
+    });
+});
+
+// ── Teste de envio de e-mail ──
 document.getElementById('testEmailBtn')?.addEventListener('click', async function() {
     const btn = this;
+    const original = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
-
+    btn.innerHTML = '<i data-lucide="loader"></i> Enviando...';
+    if (window.CHLucide) window.CHLucide.mount();
     try {
         const response = await fetch('{{ PREFIX }}/notifications/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
-
         if (response.ok) {
-            alert('Test email sent! Please check your inbox.');
+            alert('E-mail de teste enviado! Verifique sua caixa de entrada.');
         } else {
             const data = await response.json();
-            alert('Failed to send test email: ' + (data.detail || 'Unknown error'));
+            alert('Falha ao enviar e-mail de teste: ' + (data.detail || 'Erro desconhecido'));
         }
     } catch (error) {
-        alert('Error sending test email: ' + error.message);
+        alert('Erro ao enviar e-mail de teste: ' + error.message);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-paper-plane me-1"></i> Send Test Email';
+        btn.innerHTML = original;
+        if (window.CHLucide) window.CHLucide.mount();
     }
 });
+
+// ── Auditoria e controle das notificações do browser ──
+(function() {
+    const statusContainer = document.getElementById('browserNotifStatus');
+    const enableBtn = document.getElementById('enableBrowserNotifBtn');
+    const testBtn = document.getElementById('testBrowserNotifBtn');
+
+    function setStatus(html) {
+        statusContainer.innerHTML = html;
+        if (window.CHLucide) window.CHLucide.mount();
+    }
+
+    function checkPermission() {
+        if (!('Notification' in window)) {
+            setStatus('<span class="ntf-perm ntf-perm--danger">Não suportado</span>');
+            enableBtn.style.display = 'none';
+            testBtn.style.display = 'none';
+            return;
+        }
+        const perm = Notification.permission;
+        if (perm === 'granted') {
+            setStatus('<span class="ntf-perm ntf-perm--ok"><i data-lucide="check"></i> Ativo e permitido</span>');
+            enableBtn.style.display = 'none';
+            testBtn.style.display = 'inline-flex';
+        } else if (perm === 'denied') {
+            setStatus('<span class="ntf-perm ntf-perm--danger"><i data-lucide="ban"></i> Bloqueado no navegador</span>');
+            enableBtn.style.display = 'none';
+            testBtn.style.display = 'none';
+        } else {
+            setStatus('<span class="ntf-perm ntf-perm--warn"><i data-lucide="alert-circle"></i> Pendente de permissão</span>');
+            enableBtn.style.display = 'inline-flex';
+            testBtn.style.display = 'none';
+        }
+    }
+
+    enableBtn.addEventListener('click', function() {
+        Notification.requestPermission().then(function(perm) {
+            checkPermission();
+            if (perm === 'granted') triggerLocalTestNotification();
+        });
+    });
+
+    testBtn.addEventListener('click', function() {
+        playChimeLocal();
+        triggerLocalTestNotification();
+    });
+
+    function triggerLocalTestNotification() {
+        try {
+            const n = new Notification("Teste do CaseHub", {
+                body: "Notificações do navegador estão ativas com sucesso! 🔔",
+                icon: "/static/img/favicon.svg"
+            });
+            n.onclick = function() { window.focus(); n.close(); };
+        } catch(e) {}
+    }
+
+    function playChimeLocal() {
+        try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            const ctx = new Ctx();
+            if (ctx.state === 'suspended') ctx.resume();
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.type = 'sine'; o.frequency.setValueAtTime(880, ctx.currentTime);
+            o.frequency.setValueAtTime(1175, ctx.currentTime + 0.12);
+            g.gain.setValueAtTime(0.0001, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.13, ctx.currentTime + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+            o.start(); o.stop(ctx.currentTime + 0.42);
+        } catch(e) {}
+    }
+
+    checkPermission();
+})();
 </script>
 {% endblock %}

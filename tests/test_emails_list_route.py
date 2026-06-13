@@ -13,6 +13,7 @@ whatsapp_lite / whatsapp dashboard rollback fixes.
 Run: pytest tests/test_emails_list_route.py
 """
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import text
@@ -73,10 +74,11 @@ def _install_harness(db, monkeypatch):
             )
         return real_tenant_query(session, model, org_id)
 
+    user = SimpleNamespace(id=1001, email="manager@test.com", user_type="admin", org_id=_ORG_ID)
     monkeypatch.setattr(db, "execute", fake_execute)
     monkeypatch.setattr(db, "rollback", fake_rollback)
     monkeypatch.setattr(em, "tenant_query", fake_tenant_query)
-    monkeypatch.setattr(em, "get_current_user", lambda req, d: object())
+    monkeypatch.setattr(em, "require_email_access", lambda req, d: (user, None))
     monkeypatch.setattr(em, "get_paralegal_mapping", lambda: {})
     monkeypatch.setattr(em.templates, "TemplateResponse",
                         lambda name, ctx: {"_template": name, **ctx})
@@ -100,7 +102,7 @@ def test_list_emails_survives_failed_email_query(email_tables, monkeypatch, requ
     result = asyncio.run(em.list_emails(request_stub, db=db))
 
     assert isinstance(result, dict)
-    assert result["_template"] == "emails/list.html"
+    assert result["_template"] == "app/emails/list.html"
     assert result["emails"] == []           # empty state, not a 500
     assert result["clients"] == []
     assert state["rollbacks"] >= 1          # the except path rolled back

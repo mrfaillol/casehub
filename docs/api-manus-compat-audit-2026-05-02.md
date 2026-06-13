@@ -1,6 +1,6 @@
 # CaseHub Lite API Compatibility Audit - Manus Reference
 
-Source reviewed: `$HOME/Downloads/CaseHub Lite API Reference.md`.
+Source reviewed: `/Users/beijaflor/Downloads/CaseHub Lite API Reference.md`.
 
 ## Scope
 

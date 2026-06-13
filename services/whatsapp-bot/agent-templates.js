@@ -549,7 +549,7 @@ ${process.env.ORG_NAME || "CaseHub"}`
   onboarding: {
     en: `Hello!
 
-Thank you for choosing our firm to assist with your immigration matter. Nice to meet you. My name is [membro da equipe], and I am the attorney who will manage your case.
+Thank you for choosing our firm to assist with your immigration matter. Nice to meet you. My name is Daniel Clasen, and I am the attorney who will manage your case.
 
 Quick introduction: I am an Immigration Lawyer with years of experience, licensed in the US, and I have a master's degree in Immigration Law as well. I'll make sure to complete your case in the best and quickest way possible.
 
@@ -574,7 +574,7 @@ ${process.env.ORG_NAME || "CaseHub"}`,
 
     pt: `Olá!
 
-Obrigado por escolher nosso escritório para auxiliá-lo(a) com sua questão imigratória. É um prazer conhecê-lo(a). Meu nome é [membro da equipe], e serei o advogado responsável pela condução do seu caso.
+Obrigado por escolher nosso escritório para auxiliá-lo(a) com sua questão imigratória. É um prazer conhecê-lo(a). Meu nome é Daniel Clasen, e serei o advogado responsável pela condução do seu caso.
 
 Fazendo uma breve apresentação: sou advogado de imigração, com anos de experiência, licenciado nos Estados Unidos, e possuo também um mestrado em Direito de Imigração. Farei o possível para conduzir o seu caso da melhor e mais eficiente forma.
 
@@ -599,7 +599,7 @@ ${process.env.ORG_NAME || "CaseHub"}`,
 
     es: `¡Hola!
 
-Gracias por elegir nuestro despacho para ayudarte con tu asunto migratorio. Mucho gusto. Mi nombre es [membro da equipe], y soy el abogado que manejará tu caso.
+Gracias por elegir nuestro despacho para ayudarte con tu asunto migratorio. Mucho gusto. Mi nombre es Daniel Clasen, y soy el abogado que manejará tu caso.
 
 Breve presentación: Soy abogado de inmigración con años de experiencia, licenciado en EE.UU., y también tengo una maestría en Derecho Migratorio. Me aseguraré de completar tu caso de la mejor y más rápida manera posible.
 

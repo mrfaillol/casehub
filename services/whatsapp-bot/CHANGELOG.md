@@ -130,7 +130,7 @@
 ## Arquivos do Projeto
 
 ```
-/var/www/legacy.example/whatsapp-bot/
+/var/www/immigrant.law/whatsapp-bot/
 ├── server.js              # Servidor principal (v8.2)
 ├── bot-flow.js            # Fluxo de conversa e estados
 ├── database.js            # Banco de dados MySQL
@@ -224,8 +224,8 @@ Exemplos:
 ## Contato
 
 - **WhatsApp Bot**: +1 (940) 618-8140
-- **Site**: https://legacy.example
-- **Servidor**: REDACTED-HOST
+- **Site**: https://immigrant.law
+- **Servidor**: 31.97.174.212
 
 ---
 

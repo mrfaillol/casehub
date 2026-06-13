@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% set status_models = ollama_status.models|default([]) %}
+{% set active_model = ollama_status.active_model|default(status_models[0] if status_models else '') %}
+{% set maestro_ui = ollama_status.ui_profile|default({'profile':'local','label':'Local','provider':'ollama','model':active_model,'icon_asset':'brand-kit/maestro/maestro.png'}) %}
 
 {% block title %}Maestro IA - CaseHub{% endblock %}
 
@@ -7,6 +10,12 @@
 <style>
     /* ── Layout ── */
     .chat-page {
+        --maestro-accent: #1a6670;
+        --maestro-accent-2: #1C2447;
+        --maestro-accent-3: #38bdf8;
+        --maestro-line: color-mix(in srgb, var(--maestro-accent) 28%, #e5e7eb);
+        --maestro-user: linear-gradient(135deg, var(--maestro-accent-2), var(--maestro-accent));
+        --maestro-glow: 0 8px 22px color-mix(in srgb, var(--maestro-accent) 28%, transparent);
         display: flex;
         height: calc(100vh - 140px);
         max-height: 860px;
@@ -15,6 +24,70 @@
         overflow: hidden;
         border: 1px solid #e5e7eb;
         font-family: 'Instrument Sans', system-ui, sans-serif;
+    }
+    .chat-page[data-maestro-profile="chatgpt"] {
+        --maestro-accent: #10a37f;
+        --maestro-accent-2: #111827;
+        --maestro-accent-3: #6ee7b7;
+    }
+    .chat-page[data-maestro-profile="gemini"] {
+        --maestro-accent: #1a73e8;
+        --maestro-accent-2: #4c1d95;
+        --maestro-accent-3: #14b8a6;
+    }
+    .chat-page[data-maestro-profile="claude"] {
+        --maestro-accent: #a45f3d;
+        --maestro-accent-2: #2f2a25;
+        --maestro-accent-3: #0f766e;
+    }
+    .chat-page[data-maestro-profile="maestro"] {
+        --maestro-accent: #2563eb;
+        --maestro-accent-2: #172554;
+        --maestro-accent-3: #22c55e;
+    }
+
+    .maestro-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 36px;
+        background: transparent;
+        box-shadow: none;
+        overflow: hidden;
+        position: relative;
+    }
+    .maestro-mark img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        position: relative;
+        z-index: 1;
+    }
+    .maestro-mark--header {
+        width: 30px;
+        height: 30px;
+        flex-basis: 30px;
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--maestro-accent) 20%, transparent);
+    }
+    .maestro-mark--welcome {
+        width: 118px;
+        height: 150px;
+        flex-basis: 118px;
+        border-radius: 16px;
+    }
+    .thinking.active .maestro-mark--thinking img {
+        animation: maestroHandsThink 1.15s ease-in-out infinite;
+    }
+    @keyframes maestroHandsThink {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-2px) scale(1.04); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .thinking.active .maestro-mark--thinking img {
+            animation: none;
+        }
     }
 
     /* ── Chat Column ── */
@@ -135,22 +208,15 @@
         flex-shrink: 0;
     }
     .message.user .message-avatar {
-        background: linear-gradient(135deg, #1C2447, #1a6670);
+        background: var(--maestro-user);
         color: #ffffff;
         box-shadow: 0 4px 12px rgba(28, 36, 71,0.25);
     }
     .message.assistant .message-avatar {
-        background: linear-gradient(135deg, #1C2447 25%, #38bdf8 60%, #1a6670);
+        background: transparent;
         color: #ffffff;
-        box-shadow: 0 6px 16px rgba(28, 36, 71,0.3);
+        box-shadow: none;
         position: relative;
-    }
-    .message.assistant .message-avatar::before {
-        content: '';
-        position: absolute;
-        inset: 10%;
-        border-radius: 50%;
-        background: linear-gradient(rgba(255,255,255,0.4), rgba(0,0,0,0.1), transparent 50%);
     }
     .message-bubble {
         padding: 12px 18px;
@@ -160,7 +226,7 @@
         position: relative;
     }
     .message.user .message-bubble {
-        background: linear-gradient(135deg, #1C2447, #1a6670 calc(100% - 1rem));
+        background: var(--maestro-user);
         color: #ffffff;
         border-bottom-right-radius: 4px;
         box-shadow:
@@ -173,7 +239,7 @@
     .message.assistant .message-bubble {
         background: #ffffff;
         color: #1a1a1a;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--maestro-line);
         border-bottom-left-radius: 4px;
         box-shadow: 0 8px 20px rgba(0,0,0,0.06);
         transform-origin: 0 0;
@@ -205,7 +271,7 @@
         background: #ffffff;
         border-radius: 1.25rem;
         border-bottom-left-radius: 4px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--maestro-line);
         box-shadow: 0 8px 20px rgba(0,0,0,0.06);
         font-size: 13px;
         color: #6b7280;
@@ -217,7 +283,7 @@
     }
     .thinking-spinner-line {
         animation: spinnerLine 1s linear infinite;
-        stroke: #1C2447;
+        stroke: var(--maestro-accent);
         stroke-linecap: round;
         stroke-width: 2;
     }
@@ -307,8 +373,8 @@
         width: 48px;
         height: 48px;
         border-radius: 50%;
-        border: 1px solid #1C2447;
-        background: #1C2447;
+        border: 1px solid var(--maestro-accent-2);
+        background: var(--maestro-accent-2);
         color: #ffffff;
         font-size: 1.1rem;
         cursor: pointer;
@@ -332,8 +398,8 @@
     .send-btn:hover {
         transform: scale(1.05);
         box-shadow: 0 4px 20px rgba(28, 36, 71,0.4);
-        background: #1a6670;
-        border-color: #1a6670;
+        background: var(--maestro-accent);
+        border-color: var(--maestro-accent);
     }
     .send-btn:disabled {
         opacity: 0.5;
@@ -356,29 +422,19 @@
         justify-content: center;
         margin-bottom: 12px;
     }
-    .welcome-icon {
-        width: 64px;
-        height: 64px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #1C2447 25%, #38bdf8 60%, #1a6670);
-        box-shadow: 0 12px 32px rgba(28, 36, 71,0.3);
+	    .welcome-icon {
+	        width: 118px;
+	        height: 150px;
+	        border-radius: 16px;
+        background: transparent;
+        box-shadow: none;
         display: flex;
         align-items: center;
         justify-content: center;
         position: relative;
     }
-    .welcome-icon::before {
-        content: '';
-        position: absolute;
-        inset: 10%;
-        border-radius: 50%;
-        background: linear-gradient(rgba(255,255,255,0.5), rgba(0,0,0,0.15), transparent 50%);
-    }
-    .welcome-icon i {
-        font-size: 1.5rem;
-        color: #ffffff;
-        position: relative;
-        z-index: 1;
+    .welcome-icon .maestro-mark {
+        animation: maestroHandsThink 2.8s ease-in-out infinite;
     }
     .welcome-card h4 {
         margin-bottom: 8px;
@@ -418,7 +474,7 @@
         position: absolute;
         inset: 0;
         border-radius: inherit;
-        background: linear-gradient(90deg, #1C2447, #1a6670 33%, #22c55e);
+        background: linear-gradient(90deg, var(--maestro-accent-2), var(--maestro-accent) 42%, var(--maestro-accent-3));
         box-shadow: 0 3px 6px rgba(255,255,255,0.15) inset, 0 -2px 4px rgba(0,0,0,0.06) inset;
         opacity: 0;
         transition: opacity 0.2s;
@@ -591,8 +647,8 @@
         display: inline-block;
         font-size: 12px;
         font-weight: 500;
-        color: #1C2447;
-        background: rgba(28, 36, 71,0.08);
+        color: var(--maestro-accent-2);
+        background: color-mix(in srgb, var(--maestro-accent) 10%, transparent);
         padding: 3px 10px;
         border-radius: 8px;
         font-family: 'Instrument Sans', monospace;
@@ -653,10 +709,6 @@
     html[data-theme="dark"] .welcome-card h4 {
         color: #F8FAFC;
         text-shadow: 0 1px 12px rgba(103, 232, 249, 0.12);
-    }
-    html[data-theme="dark"] .chat-header .fa-robot {
-        color: #67E8F9 !important;
-        filter: drop-shadow(0 0 8px rgba(103, 232, 249, 0.34));
     }
     html[data-theme="dark"] .welcome-card p {
         color: #CBD5E1;
@@ -776,13 +828,18 @@
     <!-- Mobile overlay -->
     <div class="config-overlay" id="configOverlay" onclick="toggleConfig()"></div>
 
-    <div class="chat-page" id="chatPage">
+    <div class="chat-page" id="chatPage"
+         data-maestro-profile="{{ maestro_ui.profile|e }}"
+         data-maestro-provider="{{ maestro_ui.provider|e }}"
+         data-maestro-model="{{ active_model|e }}">
         <!-- ═══ Chat Main ═══ -->
         <div class="chat-main">
             <!-- Header -->
             <div class="chat-header">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="fas fa-robot" style="color: #1C2447; font-size: 1.1rem;"></i>
+                    <span class="maestro-mark maestro-mark--header" aria-hidden="true">
+                        <img src="{{ asset_url(maestro_ui.icon_asset) }}" alt="" loading="eager">
+                    </span>
                     <h5>Maestro IA</h5>
                 </div>
                 <div class="header-actions">
@@ -801,7 +858,9 @@
                 <div class="welcome-card" id="welcomeCard">
                     <div class="welcome-icon-wrapper">
                         <div class="welcome-icon">
-                            <i class="fas fa-sparkles"></i>
+                            <span class="maestro-mark maestro-mark--welcome" aria-hidden="true">
+                                <img src="{{ asset_url(maestro_ui.icon_asset) }}" alt="" loading="eager">
+                            </span>
                         </div>
                     </div>
                     <h4>Olá! Sou o Maestro IA.</h4>
@@ -822,9 +881,10 @@
 
             <!-- Thinking Indicator (spinner) -->
             <div class="thinking" id="thinkingIndicator">
-                <div class="message-avatar" style="background: linear-gradient(135deg, #1C2447 25%, #38bdf8 60%, #1a6670); color: #fff; box-shadow: 0 6px 16px rgba(28, 36, 71,0.3); position: relative;">
-                    <i class="fas fa-robot" style="position:relative;z-index:1;"></i>
-                    <span style="position:absolute;inset:10%;border-radius:50%;background:linear-gradient(rgba(255,255,255,0.4),rgba(0,0,0,0.1),transparent 50%);"></span>
+                <div class="message-avatar">
+                    <span class="maestro-mark maestro-mark--thinking" aria-hidden="true">
+                        <img src="{{ asset_url(maestro_ui.icon_asset) }}" alt="" loading="eager">
+                    </span>
                 </div>
                 <div class="thinking-content">
                     <svg class="thinking-spinner" viewBox="0 0 24 24" fill="none">
@@ -878,7 +938,7 @@
             <div class="config-sidebar-body">
                 <!-- Status -->
                 <div class="sidebar-section">
-                    <span class="sidebar-section-title">Status do Ollama</span>
+                    <span class="sidebar-section-title">Status da IA</span>
                     <div class="sidebar-status-row">
                         <span class="label">Conexão</span>
                         <span class="sidebar-status-badge {{ 'online' if ollama_status.status == 'online' else 'offline' }}" id="sidebarStatusBadge">
@@ -893,11 +953,15 @@
                     <span class="sidebar-section-title">Modelo Ativo</span>
                     <div class="sidebar-status-row">
                         <span class="label">Modelo</span>
-                        {% if ollama_status.models %}
-                        <span class="model-tag" id="sidebarModelName">{{ ollama_status.models[0] }}</span>
+                        {% if active_model %}
+                        <span class="model-tag" id="sidebarModelName">{{ active_model }}</span>
                         {% else %}
                         <span class="model-tag" id="sidebarModelName" style="color: #9ca3af;">Nenhum</span>
                         {% endif %}
+                    </div>
+                    <div class="sidebar-status-row">
+                        <span class="label">Perfil</span>
+                        <span class="model-tag" id="sidebarProviderName">{{ maestro_ui.label }}</span>
                     </div>
                 </div>
 
@@ -954,8 +1018,15 @@
 {% block extra_js %}
 <script>
 const PREFIX = '{{ PREFIX }}';
+const MAESTRO_ICON_URL = {{ asset_url(maestro_ui.icon_asset)|tojson }};
 let chatHistory = [];
 let isProcessing = false;
+
+function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+}
 
 // Load knowledge sources in sidebar
 async function loadFontes() {
@@ -970,9 +1041,9 @@ async function loadFontes() {
             } else {
                 list.innerHTML = fontes.map(f => `
                     <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:#f7f7f8;margin-bottom:4px;font-size:12px;">
-                        <i class="fas ${f.source_type === 'pdf' ? 'fa-file-pdf' : f.source_type === 'manual' ? 'fa-pen' : 'fa-file-alt'}" style="color:#1C2447;"></i>
-                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
-                        <button onclick="removeFonte(${f.id})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:10px;padding:2px;" title="Remover"><i class="fas fa-times"></i></button>
+                        <i class="fas ${escapeHtml(f.source_type === 'pdf' ? 'fa-file-pdf' : f.source_type === 'manual' ? 'fa-pen' : 'fa-file-alt')}" style="color:#1C2447;"></i>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.name)}</span>
+                        <button onclick="removeFonte(${Number(f.id) || 0})" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:10px;padding:2px;" title="Remover"><i class="fas fa-times"></i></button>
                     </div>
                 `).join('');
             }
@@ -1005,6 +1076,13 @@ const welcomeCard = document.getElementById('welcomeCard');
 const configSidebar = document.getElementById('configSidebar');
 const configOverlay = document.getElementById('configOverlay');
 const toggleConfigBtn = document.getElementById('toggleConfigBtn');
+const chatPage = document.getElementById('chatPage');
+
+function renderMaestroMark(modifier) {
+    const cls = modifier ? ' maestro-mark--' + modifier : '';
+    return '<span class="maestro-mark' + cls + '" aria-hidden="true"><img src="' +
+        escapeHtml(MAESTRO_ICON_URL) + '" alt="" loading="eager"></span>';
+}
 
 // Auto-resize textarea
 chatInput.addEventListener('input', function() {
@@ -1040,7 +1118,7 @@ function addMessage(role, content) {
     if (role === 'user') {
         avatar.innerHTML = '<i class="fas fa-user"></i>';
     } else {
-        avatar.innerHTML = '<i class="fas fa-robot"></i>';
+        avatar.innerHTML = renderMaestroMark('message');
     }
 
     const bubbleWrap = document.createElement('div');
@@ -1048,7 +1126,7 @@ function addMessage(role, content) {
     bubble.className = 'message-bubble';
 
     // Parse markdown-like formatting
-    let html = content
+    let html = escapeHtml(content)
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/`(.*?)`/g, '<code>$1</code>')
@@ -1169,11 +1247,19 @@ async function checkStatus() {
         const resp = await fetch(`${PREFIX}/assistente/api/status`);
         const data = await resp.json();
         updateStatus(data.status);
+        if (chatPage && data.ui_profile) {
+            if (data.ui_profile.profile) chatPage.dataset.maestroProfile = data.ui_profile.profile;
+            if (data.ui_profile.provider) chatPage.dataset.maestroProvider = data.ui_profile.provider;
+            if (data.ui_profile.model) chatPage.dataset.maestroModel = data.ui_profile.model;
+            const providerEl = document.getElementById('sidebarProviderName');
+            if (providerEl) providerEl.textContent = data.ui_profile.label || data.provider || 'Maestro';
+        }
 
         // Update model name in sidebar
         const modelEl = document.getElementById('sidebarModelName');
-        if (modelEl && data.models && data.models.length > 0) {
-            modelEl.textContent = data.models[0];
+        const modelName = data.active_model || (data.models && data.models.length > 0 ? data.models[0] : '');
+        if (modelEl && modelName) {
+            modelEl.textContent = modelName;
             modelEl.style.color = '';
         }
     } catch(e) {}

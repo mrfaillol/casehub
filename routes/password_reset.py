@@ -24,22 +24,32 @@ router = APIRouter(tags=["auth"])
 TOKEN_EXPIRY_HOURS = 1
 
 
-def _send_reset_email(to_email: str, reset_url: str):
-    """Send password reset email via SMTP (best-effort)."""
+def _send_reset_email(to_email: str, reset_url: str, org_id=None, org_name: str = None):
+    """Send a password-reset link (best-effort) through the org's transport.
+
+    Routes via the shared EmailService singleton: SMTP when configured,
+    otherwise the org's connected Google office account (Gmail API/OAuth) — the
+    same channel the welcome e-mail uses. Degrades to a logged failure
+    (e.g. 'needs_gmail_consent' / 'no_transport') without ever raising, so the
+    caller keeps the enumeration-safe response. (The previous `from send_email
+    import send_email` pointed at a module that does not exist — every reset
+    silently failed.)
+    """
     try:
-        from send_email import send_email
-        subject = f"Password Reset - {settings.ORG_NAME}"
-        body = (
-            f"You requested a password reset for your {settings.ORG_NAME} account.\n\n"
-            f"Click the link below to set a new password (valid for {TOKEN_EXPIRY_HOURS} hour):\n\n"
-            f"{reset_url}\n\n"
-            f"If you did not request this, you can safely ignore this email.\n"
+        from services.email_service import email_service
+        result = email_service.send_password_reset(
+            to_email=to_email,
+            reset_url=reset_url,
+            org_name=org_name,
+            org_id=org_id,
+            expiry_hours=TOKEN_EXPIRY_HOURS,
         )
-        result = send_email(to_email, subject, body)
         if not result.get("success"):
-            logger.error(f"Failed to send reset email to {to_email}: {result.get('error')}")
+            logger.warning(
+                "Password reset e-mail not sent to %s: %s", to_email, result.get("error")
+            )
     except Exception as e:
-        logger.error(f"Failed to send reset email to {to_email}: {e}")
+        logger.error("Password reset e-mail crashed for %s: %s", to_email, type(e).__name__)
 
 
 # -------------------------------------------------------------------------
@@ -85,9 +95,16 @@ async def forgot_password_submit(
         db.add(reset_token)
         db.commit()
 
-        # Build URL and send
-        reset_url = f"{settings.BASE_URL}{PREFIX}/reset-password/{token_str}"
-        _send_reset_email(user.email, reset_url)
+        # Build a host-derived reset URL (the tenant subdomain) and send it
+        # through the org's transport. Host-derived — never settings.BASE_URL —
+        # so a reset requested on sampletenant.casehub.legal links back to that
+        # exact host instead of a global/blank default.
+        scheme = request.url.scheme or "https"
+        host = request.headers.get("host") or request.url.netloc
+        reset_url = f"{scheme}://{host}{PREFIX}/reset-password/{token_str}"
+        org_id = getattr(user, "org_id", None) or getattr(request.state, "org_id", None)
+        org_name = getattr(getattr(request.state, "org", None), "name", None)
+        _send_reset_email(user.email, reset_url, org_id=org_id, org_name=org_name)
 
         log_action(
             db=db,

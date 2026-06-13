@@ -72,10 +72,25 @@ class TenantMiddleware(BaseHTTPMiddleware):
         raw_allow = os.getenv("CASEHUB_INTERNAL_IPS", "")
         self._internal_ips = {ip.strip() for ip in raw_allow.split(",") if ip.strip()}
 
+    # Public, host-agnostic endpoints that resolve their own tenant from a
+    # validated record instead of the request Host/cookie. Google's
+    # events.watch push (POST /<prefix>/calendar/gcal-webhook) is untrusted
+    # inbound and never carries our subdomain or auth cookie, so it must NOT be
+    # rejected by org resolution. The webhook handler looks up the owning org
+    # from the (token-validated) channel row — see routes/calendar.py.
+    # Exact full paths (não suffix/endswith — evita over-match tipo
+    # /evil/calendar/gcal-webhook burlar a resolução de tenant). Sentinela.
+    EXEMPT_PATHS_EXACT = (
+        "/casehub/calendar/gcal-webhook",
+        "/calendar/gcal-webhook",
+    )
+
     async def dispatch(self, request: Request, call_next):
         # Skip tenant resolution for exempt paths
         path = request.url.path
         if any(path.startswith(p) for p in self.EXEMPT_PATHS):
+            return await call_next(request)
+        if path in self.EXEMPT_PATHS_EXACT:
             return await call_next(request)
 
         org = await self._resolve_org(request)
@@ -105,7 +120,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         Ordem (Sentinela T1 fix, 27/05/2026):
         1. Subdomain (host header) — AUTHORITATIVE for tenant identity.
-           cliente.example.com SEMPRE resolve pra org cliente-alpha.
+           sampletenant.casehub.legal SEMPRE resolve pra org sampletenant.
         2. JWT cookie org_id (user's home org) — fallback quando apex
            (casehub.legal sem subdomain) ou subdomain não resolve.
         3. Default org slug (single-tenant mode).
@@ -118,7 +133,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         Refs:
         - Sentinela audit `security-audit-multitenant-2026-05-27.md` T1.
-        - F25 — chip header mostrava DEFAULT em vez de o cliente após login.
+        - F25 — chip header mostrava DEFAULT em vez de Example Legal após login.
         """
 
         # Strategy 0 (constrained): X-Org-Id ONLY from internal IPs.
@@ -160,7 +175,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             self._org_cache_ts[host] = time.time()
             return org
 
-        # Strategy 1b: Subdomain extraction (e.g., cliente.example.com)
+        # Strategy 1b: Subdomain extraction (e.g., sampletenant.casehub.legal)
         parts = host.split(".")
         if len(parts) >= 3:
             slug = parts[0]

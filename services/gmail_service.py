@@ -481,3 +481,188 @@ class GmailService:
         except Exception as e:
             logger.warning("Gmail list_recent_messages unexpected error for %s: %s", account_name, e)
             return []
+
+    # ------------------------------------------------------------------
+    # Send + inbox helpers
+    # ------------------------------------------------------------------
+
+    def send_email(
+        self,
+        account_name: str,
+        to: str,
+        subject: str,
+        body_html: str,
+        body_text: str = "",
+        cc: str = "",
+        reply_to_message_id: str = "",
+    ) -> dict:
+        """Send an email via the Gmail API using the stored OAuth token.
+
+        Returns {"success": True, "message_id": str} on success, or
+        {"success": False, "error": str} on failure.
+        """
+        import base64
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+
+        service = self.get_service(account_name)
+        if not service:
+            return {"success": False, "error": "no_service"}
+
+        status = self.get_account_status(account_name)
+        if not status.get("can_send"):
+            return {"success": False, "error": "no_send_scope"}
+
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["To"] = to
+            msg["Subject"] = subject
+            if cc:
+                msg["Cc"] = cc
+            if reply_to_message_id:
+                msg["In-Reply-To"] = reply_to_message_id
+                msg["References"] = reply_to_message_id
+
+            if body_text:
+                msg.attach(MIMEText(body_text, "plain", "utf-8"))
+            if body_html:
+                msg.attach(MIMEText(body_html, "html", "utf-8"))
+
+            raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+            result = service.users().messages().send(
+                userId="me", body={"raw": raw}
+            ).execute()
+            return {"success": True, "message_id": result.get("id", "")}
+        except HttpError as e:
+            status_code = getattr(getattr(e, "resp", None), "status", "unknown")
+            logger.warning("Gmail send_email failed for %s: %s", account_name, e)
+            return {"success": False, "error": f"gmail_http_{status_code}"}
+        except Exception as e:
+            logger.warning("Gmail send_email unexpected error for %s: %s", account_name, e)
+            return {"success": False, "error": "send_failed"}
+
+    def _extract_body(self, payload: dict) -> "tuple[str, str]":
+        """Extract (plain_text, html) from a Gmail message payload (recursive)."""
+        import base64
+
+        plain, html = "", ""
+        mime = payload.get("mimeType", "")
+
+        if mime == "text/plain":
+            data = payload.get("body", {}).get("data", "")
+            if data:
+                plain = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+        elif mime == "text/html":
+            data = payload.get("body", {}).get("data", "")
+            if data:
+                html = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+        elif "multipart" in mime:
+            for part in payload.get("parts", []):
+                p, h = self._extract_body(part)
+                plain = plain or p
+                html = html or h
+        return plain, html
+
+    def list_messages_with_metadata(
+        self, account_name: str, max_results: int = 50
+    ) -> "list[dict]":
+        """Return inbox messages with full headers and snippet.
+
+        Each dict matches the shape expected by templates/app/emails/list.html:
+        id, subject, sender, recipients, body_text, body_html, received_at, is_read.
+        """
+        from datetime import datetime
+
+        service = self.get_service(account_name)
+        if not service:
+            return []
+
+        try:
+            response = service.users().messages().list(
+                userId="me",
+                maxResults=max(1, min(int(max_results), 50)),
+                labelIds=["INBOX"],
+            ).execute()
+        except Exception as e:
+            logger.warning("Gmail list_messages_with_metadata failed for %s: %s", account_name, e)
+            return []
+
+        ids = [m["id"] for m in response.get("messages", []) if m.get("id")]
+        if not ids:
+            return []
+
+        result = []
+        for msg_id in ids:
+            try:
+                msg = service.users().messages().get(
+                    userId="me", id=msg_id, format="full"
+                ).execute()
+            except Exception as e:
+                logger.warning("Gmail get message %s failed: %s", msg_id, e)
+                continue
+
+            headers = {
+                h["name"].lower(): h["value"]
+                for h in msg.get("payload", {}).get("headers", [])
+            }
+            plain, html = self._extract_body(msg.get("payload", {}))
+            ts = int(msg.get("internalDate", 0)) / 1000
+            result.append({
+                "id": msg_id,
+                "gmail_message_id": msg_id,
+                "subject": headers.get("subject", "(Sem Assunto)"),
+                "sender": headers.get("from", ""),
+                "recipients": headers.get("to", ""),
+                "cc": headers.get("cc", ""),
+                "body_text": plain or msg.get("snippet", ""),
+                "body_html": html,
+                "received_at": datetime.fromtimestamp(ts) if ts else None,
+                "is_read": "UNREAD" not in msg.get("labelIds", []),
+                "client_id": None,
+                "client_first_name": "",
+                "client_last_name": "",
+                "case_id": None,
+                "case_number": None,
+                "client_paralegal": "",
+            })
+        return result
+
+    def get_message(self, account_name: str, message_id: str) -> "dict | None":
+        """Fetch a single Gmail message by ID. Returns None on error."""
+        from datetime import datetime
+
+        service = self.get_service(account_name)
+        if not service:
+            return None
+
+        try:
+            msg = service.users().messages().get(
+                userId="me", id=message_id, format="full"
+            ).execute()
+        except Exception as e:
+            logger.warning("Gmail get_message %s failed: %s", message_id, e)
+            return None
+
+        headers = {
+            h["name"].lower(): h["value"]
+            for h in msg.get("payload", {}).get("headers", [])
+        }
+        plain, html = self._extract_body(msg.get("payload", {}))
+        ts = int(msg.get("internalDate", 0)) / 1000
+        return {
+            "id": message_id,
+            "gmail_message_id": message_id,
+            "subject": headers.get("subject", "(Sem Assunto)"),
+            "sender": headers.get("from", ""),
+            "recipients": headers.get("to", ""),
+            "cc": headers.get("cc", ""),
+            "body_text": plain or msg.get("snippet", ""),
+            "body_html": html,
+            "received_at": datetime.fromtimestamp(ts) if ts else None,
+            "is_read": "UNREAD" not in msg.get("labelIds", []),
+            "client_id": None,
+            "client_first_name": "",
+            "client_last_name": "",
+            "case_id": None,
+            "case_number": None,
+        }

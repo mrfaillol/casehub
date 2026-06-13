@@ -136,6 +136,8 @@ class TestRouterSets:
             "whatsapp_proxy",
             "whatsapp_crm",
             "whatsapp_inbound",
+            "case_wizard",
+            "webhooks",
         }
         for router_name in IMMIGRATION_ROUTERS:
             if router_name in clone_shared:
@@ -143,10 +145,10 @@ class TestRouterSets:
             assert router_name not in lite_routers, \
                 f"Immigration router '{router_name}' should not be in lite product"
 
-    def test_lite_product_excludes_whatsapp_chat_router_by_default(self):
-        """Lite defaults must not expose the full WhatsApp bot-control surface."""
+    def test_lite_product_includes_whatsapp_chat_router_by_default(self):
+        """Lite defaults include the remake shell's full WhatsApp chat API."""
         from core.app_factory import PRODUCT_ROUTERS
-        assert "whatsapp_chat" not in PRODUCT_ROUTERS["lite"]
+        assert "whatsapp_chat" in PRODUCT_ROUTERS["lite"]
         assert "whatsapp_lite" in PRODUCT_ROUTERS["lite"]
 
     def test_uscis_router_only_in_immigration(self):
