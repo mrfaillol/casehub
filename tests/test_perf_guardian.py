@@ -92,3 +92,10 @@ def test_static_check_blocks_deploy_halt_path():
 
     assert failures
     assert "blocked path" in failures[0]
+
+
+def test_static_check_allows_public_env_examples_only():
+    from scripts.perf_guardian_static_check import check_paths
+
+    assert check_paths([".env.example", "services/whatsapp-bot/.env.example"]) == []
+    assert check_paths([".env", ".env.production"])

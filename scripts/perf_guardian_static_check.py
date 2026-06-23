@@ -27,6 +27,8 @@ BLOCKED_PATH_PATTERNS = [
 TEXT_EXTENSIONS = {".css", ".js", ".mjs", ".html", ".jinja", ".jinja2", ".py", ".md", ".yml", ".yaml"}
 MAX_CHANGED_TEXT_FILE_BYTES = 2_500_000
 MAX_NEW_BACKDROP_FILTERS = 12
+PUBLIC_ENV_EXAMPLE_FILES = {".env.example"}
+GENERATED_CSS_BUDGET_EXEMPTIONS = {"static/css/app/index.bundle.css"}
 
 
 def run_git(args: list[str]) -> str:
@@ -55,6 +57,8 @@ def changed_files(base_ref: str) -> list[str]:
 def check_paths(paths: list[str]) -> list[str]:
     failures = []
     for path in paths:
+        if Path(path).name in PUBLIC_ENV_EXAMPLE_FILES:
+            continue
         for pattern in BLOCKED_PATH_PATTERNS:
             if pattern.search(path):
                 failures.append(f"{path}: blocked path for Performance Guardian")
@@ -75,6 +79,8 @@ def base_file_content(base_ref: str, path: str) -> str:
 def check_file_budgets(paths: list[str], base_ref: str) -> list[str]:
     failures = []
     for path_text in paths:
+        if path_text in GENERATED_CSS_BUDGET_EXEMPTIONS:
+            continue
         path = Path(path_text)
         if not path.exists() or path.suffix not in TEXT_EXTENSIONS:
             continue
