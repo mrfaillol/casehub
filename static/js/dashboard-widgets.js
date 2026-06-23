@@ -225,7 +225,7 @@ function getStaticWidgetContent(id) {
         'welcome': (() => {
             const h = new Date().getHours();
             const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-            return `<div class="widget-welcome"><h2>${g}, Victor</h2><p>Painel de controle do escritorio</p></div>`;
+            return `<div class="widget-welcome"><h2>${g}, Equipe CaseHub</h2><p>Painel de controle do escritorio</p></div>`;
         })(),
         'clock': `<div class="widget-clock"><div id="clock-time"></div><div id="clock-date" class="widget-muted"></div></div><script>setInterval(()=>{const d=new Date();const t=document.getElementById('clock-time');const dt=document.getElementById('clock-date');if(t)t.textContent=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});if(dt)dt.textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});},1000);<\/script>`,
         'notes': `<textarea class="widget-textarea" id="quick-notes" placeholder="Notas rapidas..." oninput="localStorage.setItem('casehub-notes',this.value)">${localStorage.getItem('casehub-notes')||''}</textarea>`,

@@ -914,7 +914,7 @@ Va em **Admin > Branding** para personalizar:
 
 - **Nome da Organizacao** -- Exibido na barra lateral e na tela de login.
 - **Logo** -- Envie o logo do escritorio (zona de arrastar e soltar). Aparece na barra lateral e no login.
-- **Cores** -- Escolha cores primaria e secundaria. Uma pre-visualizacao ao vivo mostra como ficara.
+- **Cores** -- Escolha cores pripessoa_demo e secundaria. Uma pre-visualizacao ao vivo mostra como ficara.
 - **Favicon** -- Envie um icone personalizado para a aba do navegador.
 
 ### Notificacoes

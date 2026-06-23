@@ -1,7 +1,7 @@
 /**
  * CaseHub Lite - Smoke Tests
  * Tests every button, dropdown, modal, form, and interactive element.
- * Run: cd casehub-whitelabel && npx playwright test tests/smoke-test-lite.js --headed
+ * Run: cd casehub && npx playwright test tests/smoke-test-lite.js --headed
  */
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -39,7 +39,7 @@ test.describe('Smoke Tests - CaseHub Lite', () => {
     const emailInput = page.locator('input[name="email"], input[type="email"]').first();
     const passInput = page.locator('input[name="password"], input[type="password"]').first();
     if (await emailInput.count() > 0) {
-      await emailInput.fill('victor@vingren.me');
+      await emailInput.fill('admin@example.com');
       await passInput.fill('demo123');
       await page.locator('button[type="submit"], button:has-text("Login")').first().click();
       await page.waitForTimeout(3000);

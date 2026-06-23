@@ -22,8 +22,8 @@ from models.tenant import tenant_query
 
 # PREFIX = "/casehub"  # Imported from template_config.py
 
-# Tools service base URL (running on same server)
-TOOLS_BASE_URL = settings.ILC_TOOLS_URL
+# Optional document-tools service base URL.
+TOOLS_BASE_URL = settings.DOCUMENT_TOOLS_URL
 
 router = APIRouter(prefix="/ilc-tools", tags=["ilc-tools"])
 # templates = Jinja2Templates(directory="templates")  # Using shared instance from template_config.py

@@ -2,7 +2,7 @@
 {% set active_module = 'agenda' %}
 {% block title %}Calendar · Google_Settings · {{ org_name|default('CaseHub') }}{% endblock %}
 {% block extra_head %}
-  <link rel="stylesheet" href="/static/css/templates/calendar-google-settings.css?v=20260504-google-simple-verified">
+  <link rel="stylesheet" href="/static/css/templates/calendar-google-settings.css?v=20260615-neon-cta">
 {% endblock %}
 {% block content %}
 {% set verified_accounts = accounts | selectattr('connected') | list %}
@@ -54,7 +54,11 @@
     {% if request.query_params.get('success') %}
     <div class="gcal-alert gcal-alert--success" role="status" data-gsettings-alert>
         <i class="fas fa-check-circle" aria-hidden="true"></i>
+        {% if request.query_params.get('success') == 'calendar_selection_saved' %}
+        <span>Seleção de calendários salva.</span>
+        {% else %}
         <span>Login Google recebido. Se a conta ainda aparecer como pendente, clique em "Entrar com Google" novamente para concluir a validacao.</span>
+        {% endif %}
         <button type="button" aria-label="Fechar aviso" data-gsettings-alert-dismiss>&times;</button>
     </div>
     {% endif %}
@@ -64,7 +68,7 @@
         <i class="fas fa-circle-info" aria-hidden="true"></i>
         <span>
             {% if connection_error == 'redirect_uri_mismatch' %}
-                URL de retorno não autorizada no Google. Suporte: <a href="mailto:contato@vingren.me">contato@vingren.me</a>.
+                URL de retorno não autorizada no Google. Suporte: <a href="mailto:support@example.com">support@example.com</a>.
             {% elif connection_error == 'invalid_grant' %}
                 Token expirado. Clique em "Entrar com Google" novamente.
             {% elif connection_error == 'access_denied' %}
@@ -215,6 +219,38 @@
                 </button>
                 {% endif %}
             </div>
+
+            {% if account.connected and account.calendars %}
+            <form class="gcal-calendar-selection"
+                  method="POST"
+                  action="{{ PREFIX }}/google-calendar/calendars/{{ account.slug }}/selection">
+                <div class="gcal-calendar-selection__header">
+                    <h3>Calendários sincronizados</h3>
+                    <button type="submit" class="gcal-btn gcal-btn--quiet">
+                        <i class="fas fa-floppy-disk" aria-hidden="true"></i>
+                        <span>Salvar</span>
+                    </button>
+                </div>
+                <div class="gcal-calendar-selection__list">
+                    {% for cal in account.calendars %}
+                    <div class="gcal-calendar-row">
+                        <label class="gcal-calendar-row__enabled">
+                            <input type="checkbox" name="calendar_ids" value="{{ cal.id }}"{% if cal.enabled %} checked{% endif %}>
+                            <span class="gcal-calendar-swatch" style="--gcal-swatch: {{ cal.backgroundColor|default('#4285f4') }}"></span>
+                            <span class="gcal-calendar-name">
+                                {{ cal.summary }}
+                                {% if cal.primary %}<small>Principal</small>{% endif %}
+                            </span>
+                        </label>
+                        <label class="gcal-calendar-row__write">
+                            <input type="radio" name="write_calendar_id" value="{{ cal.id }}"{% if cal.is_write_target %} checked{% endif %}>
+                            <span>Receber novos</span>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </form>
+            {% endif %}
         </article>
         {% endfor %}
     </section>

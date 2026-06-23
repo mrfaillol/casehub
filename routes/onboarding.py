@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["onboarding"])
 
-# Plan tiers shown in the signup wizard (/setup/plan). Spec (Victor, 28/05/2026):
+# Plan tiers shown in the signup wizard (/setup/plan). Spec (Equipe CaseHub, 28/05/2026):
 # exactly two plans, R$129 + Enterprise "sob consulta", usuários ILIMITADOS por
 # enquanto em ambos (max_users = -1 => unlimited, ver plan_enforcement.py).
 # Keep keys in sync with routes/subscription.PLAN_FEATURES.
@@ -352,7 +352,8 @@ async def signup_submit(
         _ensure_signup_audit_table(db)
         rate_err = _signup_rate_limited(db, client_ip, domain_of(email_norm))
         if rate_err:
-            logger.warning("signup rate-limited ip=%s email=%s reason=%s", client_ip, email_norm, rate_err)
+            email_masked = email_norm.split("@")[0][:2] + "***@" + email_norm.split("@")[1]
+            logger.warning("signup rate-limited ip=%s email=%s reason=%s", client_ip, email_masked, rate_err)
             return RedirectResponse(url=f"{PREFIX}/signup?error={urllib_quote(rate_err)}", status_code=302)
 
         chosen_slug = (slug or canonical_slugify(firm_norm)).strip().lower()
@@ -442,7 +443,8 @@ async def signup_submit(
              "name": admin_name.strip(), "phone": phone.strip(), "ip": client_ip},
         )
         db.commit()
-        logger.info("Access request: %s (%s) from IP %s", admin_email, firm_name, client_ip)
+        email_masked = admin_email.split("@")[0][:2] + "***@" + admin_email.split("@")[1]
+        logger.info("Access request: %s (%s) from IP %s", email_masked, firm_name, client_ip)
     except Exception:
         db.rollback()
         try:
@@ -533,7 +535,7 @@ async def verify_email(
     # Sentinela T1: scope the JWT cookie to the tenant's host instead of the
     # apex domain. A cookie set with domain='.casehub.legal' was shared across
     # every subdomain, so a session opened under default.casehub.legal could
-    # be reused on sampletenant.casehub.legal (which the spoofed X-Org-Id
+    # be reused on tenanta.casehub.legal (which the spoofed X-Org-Id
     # path used to abuse). domain=None makes the cookie host-locked.
     response.set_cookie(
         key=settings.COOKIE_NAME,
@@ -855,9 +857,11 @@ async def setup_team_invite(
                 html_body=invite_html,
             )
         except Exception as e:
-            logger.error(f"Failed to send invitation email to {email}: {e}")
+            email_masked = email.split("@")[0][:2] + "***@" + email.split("@")[1]
+            logger.error(f"Failed to send invitation email to {email_masked}: {e}")
 
-        logger.info(f"Invited {email} to org {org_name}")
+        email_masked = email.split("@")[0][:2] + "***@" + email.split("@")[1]
+        logger.info(f"Invited {email_masked} to org {org_name}")
 
     db.commit()
     return RedirectResponse(

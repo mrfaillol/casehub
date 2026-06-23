@@ -14,7 +14,7 @@ e' privado entre 2 pessoas. get/post/read SO sao permitidos a membros explicitos
 do canal — senao um usuario da mesma org leria o DM de colegas. Canal publico
 ('channel') da org permite auto-join de qualquer membro da org.
 """
-from fastapi import APIRouter, Depends, Request, UploadFile, File
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -25,6 +25,9 @@ import logging
 import os
 import re
 import uuid
+from urllib.parse import urlparse
+
+import httpx
 
 from models import get_db
 from auth import get_current_user
@@ -75,6 +78,14 @@ MEDIA_DOC_MIME = {
     "text/plain", "text/csv", "application/zip",
 }
 
+TENOR_API_BASE = "https://tenor.googleapis.com/v2"
+TENOR_V1_API_BASE = "https://g.tenor.com/v1"
+TENOR_DEMO_KEY = "LIVDSRZULELA"
+TENOR_CLIENT_KEY = "casehub-team-chat"
+REMOTE_MEDIA_HOSTS = {"media.tenor.com", "c.tenor.com"}
+REMOTE_MEDIA_EXTS = (".gif", ".webp", ".png", ".jpg", ".jpeg")
+MEDIA_SEARCH_LIMIT_MAX = 24
+
 
 def _dialect_name(db) -> str:
     bind = db.get_bind()
@@ -91,7 +102,7 @@ def _created_at_utc_iso(value) -> str:
 
     team_messages.created_at is a legacy TIMESTAMP column. Existing alpha rows
     are UTC wall-clock values without tzinfo, which caused the UI to display
-    22:07 when Victor sent at 19:07 BRT. Treat naive values as UTC and make the
+    22:07 when Equipe CaseHub sent at 19:07 BRT. Treat naive values as UTC and make the
     API contract explicit with a trailing Z.
     """
     if value is None:
@@ -124,10 +135,105 @@ def _utc_iso(value) -> str:
     return _created_at_utc_iso(value)
 
 
+def _tenor_env_key() -> str:
+    return os.getenv("TENOR_API_KEY") or os.getenv("CASEHUB_TENOR_API_KEY") or ""
+
+
+def _tenor_key() -> str:
+    return _tenor_env_key() or TENOR_DEMO_KEY
+
+
+def _remote_media_url_allowed(url: str) -> bool:
+    raw = str(url or "").strip()
+    if len(raw) > 700:
+        return False
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return False
+    host = (parsed.hostname or "").lower()
+    path = (parsed.path or "").lower()
+    return (
+        parsed.scheme == "https"
+        and host in REMOTE_MEDIA_HOSTS
+        and any(path.endswith(ext) for ext in REMOTE_MEDIA_EXTS)
+    )
+
+
+def _attachment_url(path: str) -> str:
+    raw = str(path or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("https://") and _remote_media_url_allowed(raw):
+        return raw
+    return "/uploads/" + MEDIA_KIND + "/" + os.path.basename(raw)
+
+
+def _resolve_reply_to_id(db: Session, org_id: int, cid: int, raw_value) -> int:
+    if raw_value in (None, "", 0, "0"):
+        return 0
+    try:
+        reply_to_id = int(raw_value)
+    except (TypeError, ValueError):
+        raise ValueError("Mensagem de resposta invalida")
+    if reply_to_id <= 0:
+        return 0
+    exists = db.execute(
+        text("SELECT 1 FROM team_messages WHERE id = :id AND org_id = :o AND channel_id = :c"),
+        {"id": reply_to_id, "o": org_id, "c": cid},
+    ).fetchone()
+    if not exists:
+        raise LookupError("Mensagem respondida nao encontrada neste canal")
+    return reply_to_id
+
+
+def _pick_tenor_format(formats, names):
+    for name in names:
+        fmt = (formats or {}).get(name)
+        if fmt and fmt.get("url"):
+            return fmt
+    return {}
+
+
+def _tenor_item(item, kind):
+    formats = item.get("media_formats") or {}
+    if kind == "sticker":
+        full = _pick_tenor_format(formats, ["webp_transparent", "gif_transparent", "tinywebp", "gif"])
+        preview = _pick_tenor_format(formats, ["tinywebp", "webp_transparent", "nanogif", "tinygif", "gif"])
+    else:
+        full = _pick_tenor_format(formats, ["gif", "mediumgif", "tinygif", "webp"])
+        preview = _pick_tenor_format(formats, ["tinygif", "nanogif", "tinywebp", "gif"])
+    url = full.get("url") or preview.get("url") or ""
+    preview_url = preview.get("url") or url
+    if not (_remote_media_url_allowed(url) and _remote_media_url_allowed(preview_url)):
+        return None
+    title = item.get("content_description") or item.get("title") or ("Figurinha" if kind == "sticker" else "GIF")
+    return {"id": item.get("id") or "", "kind": "sticker" if kind == "sticker" else "gif",
+            "title": str(title)[:120], "url": url, "preview_url": preview_url, "provider": "Tenor"}
+
+
+def _tenor_v1_item(item, kind):
+    media = (item.get("media") or [{}])[0] or {}
+    if kind == "sticker":
+        full = _pick_tenor_format(media, ["gif_transparent", "tinygif_transparent", "webp", "tinywebp", "gif", "tinygif"])
+        preview = _pick_tenor_format(media, ["tinygif_transparent", "gif_transparent", "tinywebp", "nanogif", "tinygif", "gif"])
+    else:
+        full = _pick_tenor_format(media, ["gif", "mediumgif", "tinygif"])
+        preview = _pick_tenor_format(media, ["tinygif", "nanogif", "gif"])
+    url = full.get("url") or preview.get("url") or ""
+    preview_url = preview.get("preview") or preview.get("url") or full.get("preview") or url
+    if not (_remote_media_url_allowed(url) and _remote_media_url_allowed(preview_url)):
+        return None
+    title = item.get("content_description") or item.get("title") or ("Figurinha" if kind == "sticker" else "GIF")
+    return {"id": item.get("id") or "", "kind": "sticker" if kind == "sticker" else "gif",
+            "title": str(title)[:120], "url": url, "preview_url": preview_url, "provider": "Tenor"}
+
+
 def _insert_team_message(db, *, org_id: int, channel_id: int, user_id: int, body: str,
                          attachment_path=None, attachment_name=None,
                          attachment_kind=None, attachment_mime=None,
-                         actor_type=None, actor_label=None) -> None:
+                         actor_type=None, actor_label=None,
+                         reply_to_message_id=None) -> None:
     columns = ["org_id", "channel_id", "user_id", "body", "created_at"]
     values = [":o", ":c", ":u", ":b", _utc_now_sql(db)]
     params = {"o": org_id, "c": channel_id, "u": user_id, "b": body}
@@ -147,6 +253,14 @@ def _insert_team_message(db, *, org_id: int, channel_id: int, user_id: int, body
             "ak": attachment_kind,
             "am": attachment_mime,
         })
+    try:
+        reply_id = int(reply_to_message_id or 0)
+    except (TypeError, ValueError):
+        reply_id = 0
+    if reply_id > 0:
+        columns.append("reply_to_message_id")
+        values.append(":reply_to")
+        params["reply_to"] = reply_id
     db.execute(text(
         f"INSERT INTO team_messages ({', '.join(columns)}) VALUES ({', '.join(values)})"
     ), params)
@@ -215,6 +329,7 @@ def _ensure_schema(db):
         ("attachment_name", "VARCHAR(255)"),
         ("attachment_kind", "VARCHAR(20)"),
         ("attachment_mime", "VARCHAR(120)"),
+        ("reply_to_message_id", "INTEGER"),
     ):
         try:
             if dialect == "postgresql":
@@ -228,6 +343,30 @@ def _ensure_schema(db):
         except Exception:
             db.rollback()
     db.commit()
+    try:
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_team_messages_reply ON team_messages (org_id, channel_id, reply_to_message_id)"
+        ))
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    # Corrige linhas legadas do Maestro: quando actor_type foi adicionado via
+    # ALTER TABLE ADD COLUMN DEFAULT 'user', mensagens antigas do Maestro
+    # (user_id=-1) ficaram com actor_type='user' em vez de 'maestro'.
+    try:
+        db.execute(text(
+            "UPDATE team_messages SET actor_type = 'maestro', actor_label = 'Maestro IA 🪄'"
+            " WHERE user_id = -1 AND (actor_type IS NULL OR actor_type = 'user')"
+        ))
+        db.commit()
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 def _is_member(db, cid: int, user_id: int) -> bool:
@@ -318,16 +457,22 @@ def post_system_message_to_equipe(db, org_id: int, user_id: int, body: str) -> i
             return 0
         _ensure_schema(db)
         cid = _ensure_default_channel(db, int(org_id), int(user_id))
-        _insert_team_message(db, org_id=int(org_id), channel_id=cid, user_id=int(user_id), body=body)
+        # Posta como Maestro: mensagens de sistema aparecem como "Maestro IA"
+        # em vez de mostrar o nome do usuário que disparou a ação (ou "Usuário").
+        _insert_team_message(
+            db, org_id=int(org_id), channel_id=cid,
+            user_id=MAESTRO_UID, body=body,
+            actor_type=MAESTRO_ACTOR_TYPE, actor_label=MAESTRO_ACTOR_LABEL,
+        )
         db.commit()
         new_id = db.execute(
             text("SELECT MAX(id) FROM team_messages WHERE org_id = :o AND channel_id = :c"),
             {"o": int(org_id), "c": cid},
         ).scalar() or 0
-        # O autor ja "leu" a propria mensagem (nao gera badge pra ele mesmo).
+        # Maestro "leu" a propria mensagem (nao gera badge para o bot).
         db.execute(
             text("UPDATE team_channel_members SET last_read_message_id = :m WHERE channel_id = :c AND user_id = :u"),
-            {"m": new_id, "c": cid, "u": int(user_id)},
+            {"m": new_id, "c": cid, "u": MAESTRO_UID},
         )
         db.commit()
         return int(new_id)
@@ -364,6 +509,56 @@ def _dm_channel(db, org_id: int, me: int, other: int) -> int:
     _add_member(db, org_id, cid, a)
     _add_member(db, org_id, cid, b)
     return cid
+
+
+def post_system_dm_to_user(db, org_id: int, to_user_id: int, body: str) -> int:
+    """Posta uma DM Maestro -> usuario para eventos de delegacao.
+
+    Best-effort: falha de chat nao pode derrubar Agenda/Kanban/Controladoria.
+    """
+    try:
+        body = str(body or "").strip()[:MAX_BODY]
+        if not body:
+            return 0
+        org_id = int(org_id)
+        to_user_id = int(to_user_id or 0)
+        if to_user_id <= 0:
+            return 0
+        _ensure_schema(db)
+        exists = db.execute(
+            text("SELECT 1 FROM users WHERE id = :u AND org_id = :o AND COALESCE(enabled, TRUE) = TRUE"),
+            {"u": to_user_id, "o": org_id},
+        ).fetchone()
+        if not exists:
+            return 0
+        cid = _dm_channel(db, org_id, MAESTRO_UID, to_user_id)
+        _insert_team_message(
+            db,
+            org_id=org_id,
+            channel_id=cid,
+            user_id=MAESTRO_UID,
+            body=body,
+            actor_type=MAESTRO_ACTOR_TYPE,
+            actor_label=MAESTRO_ACTOR_LABEL,
+        )
+        db.commit()
+        new_id = db.execute(
+            text("SELECT MAX(id) FROM team_messages WHERE org_id = :o AND channel_id = :c"),
+            {"o": org_id, "c": cid},
+        ).scalar() or 0
+        db.execute(
+            text("UPDATE team_channel_members SET last_read_message_id = :m WHERE channel_id = :c AND user_id = :u"),
+            {"m": new_id, "c": cid, "u": MAESTRO_UID},
+        )
+        db.commit()
+        return int(new_id)
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.error("Falha ao postar DM de sistema no Team Chat: %s", e)
+        return 0
 
 
 def _other_dm_name(db, cid: int, user_id: int) -> str:
@@ -518,7 +713,21 @@ async def list_channels(request: Request, db: Session = Depends(get_db)):
     org_id = _org_id(request, user)
     _ensure_schema(db)
     cid = _ensure_default_channel(db, org_id, user.id)
-    channels = [{"id": cid, "name": DEFAULT_CHANNEL, "kind": "channel", "unread": _unread(db, org_id, cid, user.id)}]
+    # Última mensagem por canal (id é autoincrement global → maior id = mais recente).
+    # Usado p/ ordenar as abas por recência (pedido PessoaDemo 15/06): a conversa que
+    # recebeu a mensagem mais nova vai pra frente, em vez de ordem fixa de criação.
+    last_ids = {
+        int(r[0]): int(r[1] or 0)
+        for r in db.execute(
+            text("SELECT channel_id, MAX(id) FROM team_messages WHERE org_id = :o GROUP BY channel_id"),
+            {"o": org_id},
+        ).fetchall()
+    }
+    channels = [{
+        "id": cid, "name": DEFAULT_CHANNEL, "kind": "channel",
+        "unread": _unread(db, org_id, cid, user.id),
+        "last_message_id": last_ids.get(cid, 0),
+    }]
     dms = db.execute(
         text("""
             SELECT c.id FROM team_channels c
@@ -538,7 +747,11 @@ async def list_channels(request: Request, db: Session = Depends(get_db)):
             "unread": _unread(db, org_id, dcid, user.id),
             "peer_photo_url": peer["photo_url"],
             "peer_color": peer["color"],
+            "last_message_id": last_ids.get(dcid, 0),
         })
+    # Ordena por última mensagem (mais recente à frente). Canais sem mensagem
+    # ficam ao final; o #equipe (kind=channel) desempata pra frente em empate.
+    channels.sort(key=lambda c: (c["last_message_id"], 1 if c["kind"] == "channel" else 0), reverse=True)
     return JSONResponse({"channels": channels})
 
 
@@ -588,9 +801,17 @@ async def get_messages(cid: int, request: Request, since: int = 0, db: Session =
         text("""
             SELECT m.id, m.user_id, m.body, m.created_at, u.name, u.color, u.photo_url,
                    m.attachment_path, m.attachment_name, m.attachment_kind, m.attachment_mime,
-                   m.actor_type, m.actor_label
+                   m.actor_type, m.actor_label,
+                   m.reply_to_message_id, rm.body, rm.attachment_name,
+                   COALESCE(rm.actor_label, ru.name, 'Usuario') AS reply_author,
+                   rm.actor_type, rm.user_id
             FROM team_messages m
             LEFT JOIN users u ON u.id = m.user_id
+            LEFT JOIN team_messages rm
+              ON rm.id = m.reply_to_message_id
+             AND rm.org_id = :o
+             AND rm.channel_id = m.channel_id
+            LEFT JOIN users ru ON ru.id = rm.user_id
             WHERE m.org_id = :o AND m.channel_id = :c AND m.id > :since
             ORDER BY m.id ASC
             LIMIT 200
@@ -599,8 +820,24 @@ async def get_messages(cid: int, request: Request, since: int = 0, db: Session =
     ).fetchall()
     msgs = []
     for r in rows:
-        actor_type = r[11] or (MAESTRO_ACTOR_TYPE if r[1] == MAESTRO_UID else "user")
+        # Fallback: linhas legadas (pré-coluna) têm actor_type='user' mesmo
+        # sendo do Maestro (user_id=-1). Verificar user_id antes de confiar no default.
+        _raw_type = r[11]
+        if _raw_type == "user" and r[1] == MAESTRO_UID:
+            actor_type = MAESTRO_ACTOR_TYPE
+        else:
+            actor_type = _raw_type or (MAESTRO_ACTOR_TYPE if r[1] == MAESTRO_UID else "user")
         actor_label = r[12] or ("Maestro IA 🪄" if actor_type == MAESTRO_ACTOR_TYPE else "")
+        reply_to_id = r[13] or 0
+        reply_body = str(r[14] or "").strip()
+        if len(reply_body) > 160:
+            reply_body = reply_body[:157].rstrip() + "..."
+        reply_actor_type = r[17]
+        if reply_actor_type == "user" and r[18] == MAESTRO_UID:
+            reply_actor_type = MAESTRO_ACTOR_TYPE
+        reply_author = r[16] or ""
+        if reply_to_id and (reply_actor_type == MAESTRO_ACTOR_TYPE or r[18] == MAESTRO_UID):
+            reply_author = "Maestro IA 🪄"
         msgs.append({
             "id": r[0],
             "user_id": r[1],
@@ -612,10 +849,14 @@ async def get_messages(cid: int, request: Request, since: int = 0, db: Session =
             "mine": actor_type == "user" and r[1] == user.id,
             "actor_type": actor_type,
             "is_maestro": actor_type == MAESTRO_ACTOR_TYPE,
-            "attachment_url": ("/uploads/" + MEDIA_KIND + "/" + os.path.basename(r[7])) if r[7] else "",
+            "attachment_url": _attachment_url(r[7]),
             "attachment_name": r[8] or "",
             "attachment_kind": r[9] or "",
             "attachment_mime": r[10] or "",
+            "reply_to_id": int(reply_to_id or 0),
+            "reply_to_author": reply_author if reply_to_id else "",
+            "reply_to_body": reply_body if reply_to_id else "",
+            "reply_to_attachment_name": r[15] or "",
         })
     return JSONResponse({"channel_id": cid, "messages": msgs})
 
@@ -703,11 +944,20 @@ async def _post_maestro_reply(
             except Exception as exc:
                 logger.warning("team-chat repo-aware retrieval failed: %s", exc)
 
+            legal_context = None
+            try:
+                from services.maestro_legal_rag import retrieve_legal_context
+                legal_retrieval = retrieve_legal_context(db, clean_message)
+                legal_context = legal_retrieval.context
+            except Exception as exc:
+                logger.warning("team-chat official legal retrieval failed: %s", exc)
+
             ai_result = await maestro.chat(
                 clean_message,
                 context=full_context,
                 history=_team_history_for_maestro(db, org_id, cid, before_id),
                 repo_context=repo_context,
+                legal_context=legal_context,
             )
             response_text = ai_result.get("response") or "Desculpe, tive um problema ao processar sua solicitação."
             model = ai_result.get("model", "")
@@ -782,7 +1032,20 @@ async def post_message(cid: int, request: Request, db: Session = Depends(get_db)
     body = str((data or {}).get("body") or "").strip()[:MAX_BODY]
     if not body:
         return JSONResponse({"error": "Mensagem vazia"}, status_code=400)
-    _insert_team_message(db, org_id=org_id, channel_id=cid, user_id=user.id, body=body)
+    try:
+        reply_to_id = _resolve_reply_to_id(db, org_id, cid, (data or {}).get("reply_to_id"))
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except LookupError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    _insert_team_message(
+        db,
+        org_id=org_id,
+        channel_id=cid,
+        user_id=user.id,
+        body=body,
+        reply_to_message_id=reply_to_id,
+    )
     db.commit()
     new_id = db.execute(
         text("SELECT MAX(id) FROM team_messages WHERE org_id = :o AND channel_id = :c"),
@@ -874,8 +1137,124 @@ async def members(request: Request, db: Session = Depends(get_db)):
     return JSONResponse({"members": members_list})
 
 
+@router.get("/media/search")
+async def search_media(request: Request, q: str = "", kind: str = "gif", limit: int = 18,
+                       db: Session = Depends(get_db)):
+    """Busca GIFs/figurinhas no Tenor via backend autenticado."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    media_kind = "sticker" if str(kind or "").lower() == "sticker" else "gif"
+    try:
+        safe_limit = max(4, min(int(limit or 18), MEDIA_SEARCH_LIMIT_MAX))
+    except (TypeError, ValueError):
+        safe_limit = 18
+    query = str(q or "").strip()[:80]
+    env_key = _tenor_env_key()
+    if env_key:
+        endpoint = "/search" if query else "/featured"
+        params = {
+            "key": env_key,
+            "client_key": TENOR_CLIENT_KEY,
+            "limit": safe_limit,
+            "media_filter": "tinygif,gif,tinywebp,webp_transparent,gif_transparent",
+            "contentfilter": "medium",
+            "locale": "pt_BR",
+        }
+        base = TENOR_API_BASE
+    else:
+        endpoint = "/search" if query else "/trending"
+        params = {
+            "key": _tenor_key(),
+            "limit": safe_limit,
+            "media_filter": "minimal",
+            "contentfilter": "medium",
+            "locale": "pt_BR",
+        }
+        base = TENOR_V1_API_BASE
+    if query:
+        params["q"] = query
+    if media_kind == "sticker":
+        params["searchfilter"] = "sticker"
+    try:
+        async with httpx.AsyncClient(timeout=4.5, follow_redirects=False) as client:
+            resp = await client.get(base + endpoint, params=params)
+        if resp.status_code >= 400:
+            return JSONResponse({"provider": "Tenor", "kind": media_kind, "results": []})
+        payload = resp.json()
+    except Exception as exc:
+        logger.warning("team-chat media search failed: %s", exc)
+        return JSONResponse({"provider": "Tenor", "kind": media_kind, "results": []})
+    results = []
+    for item in payload.get("results") or []:
+        normalized = _tenor_item(item, media_kind) if env_key else _tenor_v1_item(item, media_kind)
+        if normalized:
+            results.append(normalized)
+    return JSONResponse({"provider": "Tenor", "kind": media_kind, "results": results})
+
+
+@router.post("/channels/{cid}/media")
+async def post_remote_media(cid: int, request: Request, db: Session = Depends(get_db)):
+    """Envia GIF/figurinha remoto pesquisado pelo backend."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    org_id = _org_id(request, user)
+    _ensure_schema(db)
+    if _assert_channel_access(db, cid, org_id, user.id) is None:
+        return JSONResponse({"error": "Sem acesso a este canal"}, status_code=403)
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    url = str((data or {}).get("url") or "").strip()
+    media_kind = "sticker" if str((data or {}).get("kind") or "").lower() == "sticker" else "gif"
+    if not _remote_media_url_allowed(url):
+        return JSONResponse({"error": "Midia externa nao permitida"}, status_code=400)
+    try:
+        reply_to_id = _resolve_reply_to_id(db, org_id, cid, (data or {}).get("reply_to_id"))
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except LookupError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
+    title = re.sub(r"\s+", " ", str((data or {}).get("title") or "").strip())[:120]
+    if not title:
+        title = "Figurinha Tenor" if media_kind == "sticker" else "GIF Tenor"
+    ext = os.path.splitext(urlparse(url).path.lower())[1]
+    mime = "image/webp" if ext == ".webp" else "image/gif" if ext == ".gif" else "image/png"
+    _insert_team_message(
+        db,
+        org_id=org_id,
+        channel_id=cid,
+        user_id=user.id,
+        body="",
+        attachment_path=url,
+        attachment_name=title,
+        attachment_kind="image",
+        attachment_mime=mime,
+        reply_to_message_id=reply_to_id,
+    )
+    db.commit()
+    new_id = db.execute(
+        text("SELECT MAX(id) FROM team_messages WHERE org_id = :o AND channel_id = :c"),
+        {"o": org_id, "c": cid},
+    ).scalar() or 0
+    db.execute(
+        text("UPDATE team_channel_members SET last_read_message_id = :m WHERE channel_id = :c AND user_id = :u"),
+        {"m": new_id, "c": cid, "u": user.id},
+    )
+    db.commit()
+    return JSONResponse({"ok": True, "id": int(new_id), "attachment_url": url, "attachment_kind": "image"})
+
+
 @router.post("/channels/{cid}/upload")
-async def upload_media(cid: int, request: Request, file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_media(
+    cid: int,
+    request: Request,
+    file: UploadFile = File(...),
+    reply_to_id: str = Form(None),
+    db: Session = Depends(get_db),
+):
     """Anexa imagem/audio/arquivo num canal. MESMA membership do texto (DM = privado).
     Valida nome (anti path-traversal) + extensao (whitelist) + conteudo (magic sniff) +
     tamanho (25MB). Salva em uploads/org_<org>/team_chat/<uuid>.<ext> e cria a mensagem."""
@@ -886,6 +1265,12 @@ async def upload_media(cid: int, request: Request, file: UploadFile = File(...),
     _ensure_schema(db)
     if _assert_channel_access(db, cid, org_id, user.id) is None:
         return JSONResponse({"error": "Sem acesso a este canal"}, status_code=403)
+    try:
+        resolved_reply_to_id = _resolve_reply_to_id(db, org_id, cid, reply_to_id)
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    except LookupError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=404)
 
     raw_name = os.path.basename(file.filename or "arquivo")
     raw_name = re.sub(r"[^\w\s\-\.]", "_", raw_name)[:120]
@@ -935,6 +1320,7 @@ async def upload_media(cid: int, request: Request, file: UploadFile = File(...),
         attachment_name=raw_name,
         attachment_kind=kind,
         attachment_mime=detected[:120],
+        reply_to_message_id=resolved_reply_to_id,
     )
     db.commit()
     new_id = db.execute(

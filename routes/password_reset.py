@@ -97,7 +97,7 @@ async def forgot_password_submit(
 
         # Build a host-derived reset URL (the tenant subdomain) and send it
         # through the org's transport. Host-derived — never settings.BASE_URL —
-        # so a reset requested on sampletenant.casehub.legal links back to that
+        # so a reset requested on tenanta.casehub.legal links back to that
         # exact host instead of a global/blank default.
         scheme = request.url.scheme or "https"
         host = request.headers.get("host") or request.url.netloc

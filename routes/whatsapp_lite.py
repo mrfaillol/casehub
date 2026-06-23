@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 import logging
+import os
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,22 @@ from models.tenant import tenant_query
 from i18n import get_translations
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp-lite"])
+
+
+def _clone_chat_prefix() -> str:
+    raw = os.getenv("CASEHUB_WHATSAPP_CLONE_ENABLED", "")
+    return "/whatsapp" if str(raw).strip().lower() in ("1", "true", "yes", "on") else "/whatsapp-chat"
+
+
+def _clone_chat_url(request: Request, db: Session, client_id: int = None) -> str:
+    """Build the canonical WhatsApp-chat URL for the Lite "Mensagens" entry."""
+    params = {}
+    if client_id:
+        client = tenant_query(db, Client, request.state.org_id).filter(Client.id == client_id).first()
+        if client and (client.whatsapp or client.phone):
+            params["phone"] = client.whatsapp or client.phone
+    query = f"?{urlencode(params)}" if params else ""
+    return f"{PREFIX}{_clone_chat_prefix()}{query}"
 
 # ---------------------------------------------------------------------------
 # Brazilian Message Templates
@@ -157,48 +175,19 @@ async def whatsapp_dashboard(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/mensagens", response_class=HTMLResponse)
 async def message_history(request: Request, client_id: int = None, db: Session = Depends(get_db)):
-    """Message history, optionally filtered by client."""
+    """Open the full WhatsApp messages experience.
+
+    The previous implementation rendered the Lite dashboard with a history
+    subset. In production that made the "Mensagens" entry look like the wrong
+    app while the real clone lives at /whatsapp-chat unless the clone flag owns
+    /whatsapp. Redirect explicitly to avoid operators sending from the stale
+    Lite surface by accident.
+    """
     user = get_current_user(request, db)
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
-    messages = []
-    try:
-        if client_id:
-            client = tenant_query(db, Client, request.state.org_id).filter(Client.id == client_id).first()
-            if client and (client.whatsapp or client.phone):
-                phone = client.whatsapp or client.phone
-                messages = db.execute(text("""
-                    SELECT * FROM whatsapp_messages
-                    WHERE phone = :phone AND org_id = :org
-                    ORDER BY created_at DESC
-                    LIMIT 100
-                """), {"phone": phone, "org": request.state.org_id}).fetchall()
-        else:
-            messages = db.execute(text("""
-                SELECT * FROM whatsapp_messages
-                WHERE org_id = :org
-                ORDER BY created_at DESC
-                LIMIT 100
-            """), {"org": request.state.org_id}).fetchall()
-    except Exception as e:
-        logger.warning("Failed to fetch message history: %s", e)
-        db.rollback()
-
-    clients = tenant_query(db, Client, request.state.org_id).filter(
-        Client.whatsapp.isnot(None),
-        Client.whatsapp != ""
-    ).order_by(Client.first_name).all()
-
-    return templates.TemplateResponse("app/whatsapp/lite_dashboard.html", {
-        **get_context(request, db),
-        "stats": _get_message_stats(db, request.state.org_id),
-        "recent": messages,
-        "clients": clients,
-        "templates_br": TEMPLATES_BR,
-        "view": "mensagens",
-        "selected_client_id": client_id,
-    })
+    return RedirectResponse(url=_clone_chat_url(request, db, client_id), status_code=302)
 
 
 @router.post("/enviar")
@@ -217,9 +206,9 @@ async def send_message(
     # Try to use WhatsApp service
     try:
         from services.whatsapp import WhatsAppService
-        service = WhatsAppService(db)
+        service = WhatsAppService(db, org_id=request.state.org_id)
         result = service.send_message(phone, message, template_key)
-        return JSONResponse(result)
+        return JSONResponse(result, status_code=200 if result.get("success") else 502)
     except ImportError:
         # Fallback: log the message attempt
         logger.info("WhatsApp send attempt (service unavailable): phone=%s, msg=%s...", phone, message[:50])

@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 
 // Configuracao
-const ADMIN_NUMBER = process.env.MAESTRO_ADMIN_PHONE || "5511999999999";
+const ADMIN_NUMBER = process.env.MAESTRO_ADMIN_PHONE || "";
 const PENDING_FILE = "/opt/maestro/data/pending_actions.json";
 
 // Cache de acoes pendentes (comandos rapidos)
@@ -134,7 +134,7 @@ async function generateFullReport() {
   report += `RAM: ${ramUsage}\n`;
 
   report += "\n*Sistema:*\n";
-  report += "[OK] Nginx, MariaDB, PostgreSQL, Redis\n";
+  report += "[OK] Nginx, PessoaDemoDB, PostgreSQL, Redis\n";
 
   report += "\n------------------------\n";
   report += "*Comandos Rapidos (0-9):*\n";

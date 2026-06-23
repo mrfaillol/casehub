@@ -21,7 +21,7 @@ PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 class EmailClassification(str, Enum):
     SKIP = "SKIP"      # Confirmação/agradecimento - não enviar auto-reply
     REPLY = "REPLY"    # Questão legal/pedido - enviar auto-reply
-    URGENT = "URGENT"  # Urgente - enviar auto-reply + notificar Victor
+    URGENT = "URGENT"  # Urgente - enviar auto-reply + notificar Equipe CaseHub
 
 
 # Keywords for fallback classification

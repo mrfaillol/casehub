@@ -6,14 +6,14 @@
 
 const appConfig = require("./config");
 
-// Configuracao ATUAL - URLs corretos (aprovados por Daniel)
+// Calendly configuration. Event type URIs must be supplied by the tenant.
 const CALENDLY_CONFIG = {
   apiKey: appConfig.calendly.apiKey,
   baseUrl: "https://api.calendly.com",
-  userUri: "https://api.calendly.com/users/005a77b0-0f7b-454d-a36d-070b4a91ded3",
-  freeEventTypeUri: "https://api.calendly.com/event_types/019c46c4-5215-435e-b961-b10c2bc060d8",
+  userUri: process.env.CALENDLY_USER_URI || "",
+  freeEventTypeUri: process.env.CALENDLY_FREE_EVENT_TYPE_URI || "",
   freeEventUrl: `${process.env.ORG_WEBSITE || "https://casehub.app"}/freecall`,
-  paidEventTypeUri: "https://api.calendly.com/event_types/de54c8da-78e4-43fd-b040-07817f654d41",
+  paidEventTypeUri: process.env.CALENDLY_PAID_EVENT_TYPE_URI || "",
   paidEventUrl: `${process.env.ORG_WEBSITE || "https://casehub.app"}/meeting`
 };
 
@@ -37,6 +37,10 @@ const HANDOFF_URLS = {
  * @returns {Array} Lista de horarios disponiveis
  */
 async function getAvailableTimes(eventTypeUri, daysAhead = 7) {
+  if (!CALENDLY_CONFIG.apiKey || !eventTypeUri) {
+    return [];
+  }
+
   try {
     const startTime = new Date();
     const endTime = new Date();

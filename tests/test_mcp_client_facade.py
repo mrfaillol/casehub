@@ -1,9 +1,16 @@
 import socket
 
-from services.mcp_client import MCPInvocationRequest, MCPPolicy, MCPServerConfig, redact_payload
+from services.mcp_client import (
+    MCPClient,
+    MCPInvocationRequest,
+    MCPPolicy,
+    MCPServerConfig,
+    redact_payload,
+)
+from services.maestro_context import CASEHUB_MCP_ALLOWED_TOOLS
 
 
-def _request(kind="tool", name="calendar.create_event", requester_is_admin=False):
+def _request(kind="tool", name="calendar.create_event", requester_is_admin=False, arguments=None):
     return MCPInvocationRequest(
         org_id=1,
         user_id=1,
@@ -11,7 +18,7 @@ def _request(kind="tool", name="calendar.create_event", requester_is_admin=False
         capability_kind=kind,
         capability_name=name,
         requester_is_admin=requester_is_admin,
-        arguments={"title": "Test"},
+        arguments=arguments or {"title": "Test"},
     )
 
 
@@ -229,3 +236,101 @@ def test_mcp_invocation_repr_does_not_expose_arguments():
 
     assert "arguments" not in rendered
     assert "Test" not in rendered
+
+
+def test_casehub_mcp_v1_allowlist_is_read_only_set():
+    assert CASEHUB_MCP_ALLOWED_TOOLS == (
+        "search_cases",
+        "get_case",
+        "list_clients",
+        "validate_documento",
+        "get_system_status",
+        "list_templates",
+    )
+
+
+def test_mcp_client_invokes_allowlisted_adapter_with_redaction_and_cap():
+    class FakeAdapter:
+        calls = 0
+
+        def call(self, request):
+            self.calls += 1
+            assert request.org_id == 1
+            return {
+                "status": "ok",
+                "authorization": "Bearer abcdefghijklmnopqrstuvwxyz0123456789==",
+                "cpf": "123.456.789-10",
+                "cnpj": "12.345.678/0001-99",
+                "body": "x" * 1200,
+            }
+
+    adapter = FakeAdapter()
+    server = MCPServerConfig(
+        name="office-gateway",
+        url="https://integrations.example.invalid/mcp",
+        enabled=True,
+        allowed_tools=("calendar.create_event",),
+        approval_required=False,
+    )
+    client = MCPClient(adapter=adapter, max_content_chars=512)
+
+    result = client.invoke(server, _request(requester_is_admin=True))
+    rendered = str(result.content) + str(result.redacted_audit)
+
+    assert adapter.calls == 1
+    assert result.ok is True
+    assert result.is_error is False
+    assert result.audit_id
+    assert len(result.content) <= 512
+    assert "abcdefghijklmnopqrstuvwxyz0123456789" not in rendered
+    assert "123.456.789-10" not in rendered
+    assert "12.345.678/0001-99" not in rendered
+    assert "[truncated by MCP cap]" in result.content
+
+
+def test_mcp_client_denied_policy_does_not_call_adapter():
+    class FakeAdapter:
+        calls = 0
+
+        def call(self, request):
+            self.calls += 1
+            raise AssertionError("adapter must not be called")
+
+    adapter = FakeAdapter()
+    server = MCPServerConfig(
+        name="office-gateway",
+        url="https://integrations.example.invalid/mcp",
+        enabled=False,
+        allowed_tools=("calendar.create_event",),
+    )
+    client = MCPClient(adapter=adapter)
+
+    result = client.invoke(server, _request(requester_is_admin=True))
+
+    assert adapter.calls == 0
+    assert result.ok is False
+    assert result.is_error is True
+    assert result.redacted_audit["policy"]["reason"] == "server_disabled"
+
+
+def test_mcp_client_redacts_arguments_in_audit():
+    server = MCPServerConfig(
+        name="office-gateway",
+        url="https://integrations.example.invalid/mcp",
+        enabled=False,
+        allowed_tools=("calendar.create_event",),
+    )
+    request = _request(
+        requester_is_admin=True,
+        arguments={
+            "cpf": "123.456.789-10",
+            "Authorization": "Bearer abcdefghijklmnopqrstuvwxyz0123456789==",
+        },
+    )
+
+    result = MCPClient().invoke(server, request)
+    rendered = str(result.redacted_audit)
+
+    assert "123.456.789-10" not in rendered
+    assert "abcdefghijklmnopqrstuvwxyz0123456789" not in rendered
+    assert "<redacted>" in rendered

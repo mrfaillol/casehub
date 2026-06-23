@@ -503,7 +503,7 @@ class MoskitService:
                     }
 
                     # Extract source, score and pathway/name from various formats:
-                    # "[LEAD WPP 75 FAM] Maria Silva" - pathway + name outside
+                    # "[LEAD WPP 75 FAM] PessoaDemo Silva" - pathway + name outside
                     # "[LEAD META 45 Danilo]" - name inside brackets
                     # "[LEAD META 45 Wilson Didomenico]" - name with spaces inside brackets
 

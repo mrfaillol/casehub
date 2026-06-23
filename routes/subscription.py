@@ -30,7 +30,7 @@ router = APIRouter(prefix="/subscription", tags=["subscription"])
 # ---------------------------------------------------------------------------
 # Plan definitions (mirrors DB plans table)
 #
-# Spec (Victor, 28/05/2026): exactly two plans.
+# Spec (Equipe CaseHub, 28/05/2026): exactly two plans.
 #   - office     R$ 129/mês — Pequenos escritórios e Sociedade Unipessoal de Advocacia
 #   - enterprise Sob consulta — grandes escritórios (sem preço fixo, CTA de contato)
 # Usuários ILIMITADOS por enquanto em ambos: max_users = -1 (convenção

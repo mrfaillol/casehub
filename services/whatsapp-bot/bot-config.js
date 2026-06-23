@@ -33,11 +33,10 @@ const DEFAULT_CONFIG = {
 /**
  * NEVER_CONTACT - Lista de telefones que NUNCA devem receber resposta automática
  * Bot será bloqueado permanentemente para estes números
- * Daniel pediu 3-4x para desativar bot para Fabio (cliente VIP)
+ * Dados reais de bloqueio devem vir de configuracao local/tenant.
  */
 const NEVER_CONTACT = [
-  '5532991234567',  // Fabio - cliente VIP (pedido Daniel 3-4x)
-  // Adicionar outros números conforme necessário
+  // '5511999999999',
 ];
 
 /**

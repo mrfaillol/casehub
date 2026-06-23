@@ -30,7 +30,7 @@ except ImportError:
 # Configuration
 VECTORS_DIR = os.environ.get(
     "AILA_VECTORS_DIR",
-    "/Users/beijaflor/Projects_Local/PROJECTS/aila-knowledge-base/vectors"
+    str(Path("data") / "aila_vectors")
 )
 # VPS path alternative
 VPS_VECTORS_DIR = os.getenv("AILA_VECTORS_DIR", "/var/www/casehub/data/aila_vectors")

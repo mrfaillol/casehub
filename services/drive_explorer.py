@@ -12,13 +12,24 @@ to render a Finder-style column view). The explorer reuses
 one place.
 
 Boundaries:
-- **Read-only.** No create / update / delete / upload. Mutation lives in
+- **Read-mostly.** Listing / metadata / breadcrumb are pure reads. The one
+  exception is :func:`create_blank_doc`, a single explorer-scoped write
+  primitive that spawns an empty Google Doc in the folder the user is
+  browsing (powering the "Novo documento" button). It deliberately does
+  *not* touch the upload-centric ``GoogleDriveHandler`` root or its
+  per-client folder bookkeeping. All other mutation still lives in
   ``GoogleDriveHandler``.
 - **No global state.** Each call constructs a fresh service via
   ``get_drive_service()``; pooling can be added later if profiling shows a
   hot path.
 - **No credential at module level.** Same security contract as
   ``services/pdpj_client.py`` (PR #550).
+
+Drive API boundary: Google Drive for desktop's "Computers" area does not have
+a separate Drive API root/corpus that can be browsed like My Drive. The
+supported path for synced desktop folders is to expose a folder through My
+Drive, typically by creating a Drive shortcut. Folder shortcuts are therefore
+serialized as navigable folders by this explorer.
 """
 from __future__ import annotations
 
@@ -36,18 +47,20 @@ logger = logging.getLogger(__name__)
 _LIST_FIELDS = (
     "nextPageToken, "
     "files(id, name, mimeType, modifiedTime, size, "
-    "iconLink, thumbnailLink, webViewLink, parents)"
+    "iconLink, thumbnailLink, webViewLink, parents, "
+    "shortcutDetails(targetId,targetMimeType))"
 )
 
 _FILE_FIELDS = (
     "id, name, mimeType, modifiedTime, createdTime, size, "
     "iconLink, thumbnailLink, webViewLink, owners(emailAddress, displayName), "
-    "parents, trashed"
+    "parents, trashed, shortcutDetails(targetId,targetMimeType)"
 )
 
 _BREADCRUMB_FIELDS = "id, name, parents, mimeType"
 
 DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
+DRIVE_SHORTCUT_MIME = "application/vnd.google-apps.shortcut"
 
 
 def _serialize_file(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -62,11 +75,23 @@ def _serialize_file(item: Dict[str, Any]) -> Dict[str, Any]:
         size = int(raw_size) if raw_size is not None else None
     except (TypeError, ValueError):
         size = None
+    shortcut_details = item.get("shortcutDetails") or {}
+    shortcut_target_id = shortcut_details.get("targetId")
+    shortcut_target_mime_type = shortcut_details.get("targetMimeType")
+    is_shortcut = item.get("mimeType") == DRIVE_SHORTCUT_MIME
+    is_folder = (
+        item.get("mimeType") == DRIVE_FOLDER_MIME
+        or shortcut_target_mime_type == DRIVE_FOLDER_MIME
+    )
     return {
         "id": item.get("id"),
+        "navigation_id": shortcut_target_id if is_shortcut and shortcut_target_id else item.get("id"),
         "name": item.get("name"),
         "mime_type": item.get("mimeType"),
-        "is_folder": item.get("mimeType") == DRIVE_FOLDER_MIME,
+        "is_folder": is_folder,
+        "is_shortcut": is_shortcut,
+        "shortcut_target_id": shortcut_target_id,
+        "shortcut_target_mime_type": shortcut_target_mime_type,
         "modified_time": item.get("modifiedTime"),
         "created_time": item.get("createdTime"),
         "size": size,
@@ -101,6 +126,65 @@ def _ensure_service(org_id: Optional[int] = None):
     return service
 
 
+# Native Google Docs mime — creating a file with this mime makes Drive spawn an
+# empty Doc (not an uploaded binary), which is what the "Novo documento" button
+# wants. Kept local to the explorer so the upload handler's mime list stays
+# unaffected.
+GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
+
+# Defensive cap on the user-supplied title. Drive itself tolerates long names,
+# but trimming keeps the column UI tidy and avoids pathological payloads.
+_MAX_DOC_NAME = 120
+
+
+def _safe_doc_name(name: Optional[str]) -> str:
+    """Normalise a user-supplied doc title (strip + length cap).
+
+    Empty / whitespace-only input falls back to a sane default so the Doc is
+    never created untitled.
+    """
+    cleaned = (name or "").strip()
+    if not cleaned:
+        return "Documento sem título"
+    return cleaned[:_MAX_DOC_NAME]
+
+
+def create_blank_doc(
+    parent_id: Optional[str],
+    name: Optional[str] = None,
+    *,
+    org_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Create an empty native Google Doc and return its serialized metadata.
+
+    The Doc is born in ``parent_id`` (the folder the user is currently
+    browsing). ``'root'`` and an empty/absent ``parent_id`` both mean "let
+    Drive place it in the org's My Drive root" — we simply omit ``parents``
+    so the OAuth token's default root is used. This intentionally does **not**
+    reuse ``GoogleDriveHandler``'s "CaseHubMD" folder: the explorer creates
+    where the user is looking.
+
+    Raises :class:`DriveNotAvailable` (→ 503 at the route) when Drive is not
+    configured for the tenant; any Drive API error propagates for the route to
+    map to 502.
+    """
+    service = _ensure_service(org_id)
+
+    body: Dict[str, Any] = {
+        "name": _safe_doc_name(name),
+        "mimeType": GOOGLE_DOC_MIME,
+    }
+    if parent_id and parent_id != "root":
+        body["parents"] = [parent_id]
+
+    created = service.files().create(
+        body=body,
+        fields="id, name, webViewLink, mimeType, modifiedTime, parents",
+        supportsAllDrives=True,
+    ).execute()
+    return _serialize_file(created)
+
+
 def list_folder(
     folder_id: str,
     *,
@@ -128,7 +212,7 @@ def list_folder(
 
     request = service.files().list(
         q=query,
-        pageSize=max(1, min(int(page_size), 100)),
+        pageSize=max(1, min(int(page_size), 1000)),
         pageToken=page_token,
         fields=_LIST_FIELDS,
         orderBy=order_by,

@@ -40,7 +40,7 @@ class Client(Base):
     notes = Column(Text)
     drive_folder_id = Column(String(200))
     drive_folder_name = Column(String(300))
-    tasks_folder_data = Column(Text)  # JSON: [{"id": "xxx", "name": "...", "paralegal": "Juliana", "archived": false}]
+    tasks_folder_data = Column(Text)  # JSON: [{"id": "xxx", "name": "...", "paralegal": "Membro A", "archived": false}]
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

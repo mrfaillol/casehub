@@ -72,7 +72,7 @@ async function createMoskitContact(lead) {
   const pathwayCode = getPathwayCode(lead.visa_interest);
   const clientName = lead.client_name || lead.whatsapp_name || 'Lead WhatsApp';
 
-  // Formato: [LEAD WPP 75 FAM] Maria Silva
+  // Formato: [LEAD WPP 75 FAM] PessoaDemo Silva
   const formattedName = `[LEAD WPP ${score} ${pathwayCode}] ${clientName}`;
 
   const notes = [

@@ -33,3 +33,15 @@ class MCPInvocationRequest:
     capability_name: str
     arguments: dict[str, Any] = field(default_factory=dict, repr=False)
     requester_is_admin: bool = False
+
+
+@dataclass(frozen=True)
+class MCPInvocationResult:
+    """Sanitized result envelope for tenant-scoped MCP invocations."""
+
+    ok: bool
+    content: Any = None
+    redacted_audit: dict[str, Any] = field(default_factory=dict)
+    is_error: bool = False
+    latency_ms: float = 0.0
+    audit_id: str = ""

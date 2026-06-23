@@ -11,9 +11,10 @@ from sqlalchemy import func, or_
 from pydantic import BaseModel
 
 from models import get_db, User, Client, Case, Document, Task, Reminder, BillingItem, TimeEntry
-from auth import get_current_user_api, require_auth_api
+from auth import require_auth_api
 from models.tenant import tenant_query
 from services.encryption import encrypt_value, decrypt_value, encrypt_client_pii
+from services.dashboard_metrics import apply_dashboard_task_scope
 
 router = APIRouter(prefix="/api/v1", tags=["api"], dependencies=[Depends(require_auth_api)])
 
@@ -178,14 +179,17 @@ def document_to_dict(doc: Document) -> dict:
 @router.get("/dashboard/stats")
 async def get_dashboard_stats(
     request: Request,
-    db: Session = Depends(get_db)):
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth_api),
+):
     """Get dashboard statistics"""
     total_clients = tenant_query(db, Client, request.state.org_id).count()
     total_cases = tenant_query(db, Case, request.state.org_id).count()
     active_cases = tenant_query(db, Case, request.state.org_id).filter(Case.status.notin_(["approved", "denied", "closed"])).count()
     total_documents = tenant_query(db, Document, request.state.org_id).count()
-    pending_tasks = tenant_query(db, Task, request.state.org_id).filter(Task.status != "completed").count()
-    overdue_tasks = tenant_query(db, Task, request.state.org_id).filter(
+    task_query = apply_dashboard_task_scope(tenant_query(db, Task, request.state.org_id), db, user)
+    pending_tasks = task_query.filter(Task.status != "completed").count()
+    overdue_tasks = apply_dashboard_task_scope(tenant_query(db, Task, request.state.org_id), db, user).filter(
         Task.status != "completed",
         Task.due_date < date.today()
     ).count()

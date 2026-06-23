@@ -319,7 +319,7 @@ def calcular_prazo_corrido(data_intimacao: date, dias: int) -> date:
     Unlike judicial deadlines (CPC business-day rules), administrative deadlines
     (INSS, processos administrativos) run continuously — no holiday/weekend
     suspension and no court calendar. Counted as plain calendar days from the
-    intimation/start date. Reunião Ricardo/Example User 10/06/2026.
+    intimation/start date. Reunião PessoaDemo/UsuarioDemo 10/06/2026.
 
     Args:
         data_intimacao: Start/intimation date.

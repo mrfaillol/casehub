@@ -5,7 +5,7 @@ Rota de callback para o fluxo OAuth2 authorization_code do PDPJ (Keycloak CNJ).
 Fluxo:
     1. Admin clica "Conectar PDPJ" na página de settings ou na controladoria
     2. Redireciona para o authorization endpoint do Keycloak PDPJ
-    3. Titular OAB (Example User) autentica com certificado digital / gov.br
+    3. Titular OAB (UsuarioDemo) autentica com certificado digital / gov.br
     4. PDPJ redireciona de volta para /casehub/oauth/pdpj/callback com ?code=...
     5. Este handler troca o code por access_token + refresh_token
     6. Persiste o refresh_token no banco (org settings) — não no .env
@@ -79,7 +79,7 @@ def _get_redirect_uri(request: Optional[Request] = None) -> str:
     return f"{base}{PREFIX}/oauth/pdpj/callback"
 
 
-def _get_client_credentials(db: Session = None, org_id: int | None = None) -> tuple[str, str]:
+def _get_client_credentials(db: Session = None, org_id: Optional[int] = None) -> tuple[str, str]:
     """Return tenant PDPJ credentials, falling back to environment if unset."""
     credentials = resolve_pdpj_client_credentials(db, org_id)
     return credentials.client_id, credentials.client_secret

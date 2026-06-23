@@ -30,7 +30,7 @@ const PATHWAY_CODES = {
 
 /**
  * Formatar nome do lead com score e pathway
- * Formato: [LEAD WPP 75 FAM] Maria Silva
+ * Formato: [LEAD WPP 75 FAM] PessoaDemo Silva
  */
 function formatLeadName(name, score, pathway) {
   const pathwayCode = PATHWAY_CODES[pathway] || 'NEW';

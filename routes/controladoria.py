@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import bindparam, text
 from datetime import date, datetime, timedelta
 from typing import Any, List, Optional
+import hashlib
+import hmac
 import logging
 import io
 import re
@@ -67,6 +69,180 @@ TRIBUNAL_PATTERNS = {
     "TJSP": "%.8.26.%",
     "TJRJ": "%.8.19.%",
 }
+
+PRAZOS_CALCULATION_ENGINE_VERSION = "prazos_cpc:v1"
+OFFICIAL_INTIMATION_SOURCE_MARKERS = (
+    "comunicaapi",
+    "pdpj",
+    "domicilio judicial",
+    "domicilio judicial eletronico",
+)
+
+TIPOS_PRODUTIVIDADE = (
+    "Pet. Simples",
+    "Impugnação/decote RPV",
+    "Manif. Laudo",
+    "Informa perícia/audiência",
+    "Pet. Complexa",
+    "Defesas",
+    "Réplicas",
+    "Recursos",
+    "C.razões",
+    "Outros",
+)
+
+
+def _tipo_produtividade_key(value: Optional[str]) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    normalized = unicodedata.normalize("NFKD", raw)
+    ascii_text = "".join(ch for ch in normalized if not unicodedata.combining(ch)).lower()
+    ascii_text = ascii_text.replace("&", " e ")
+    return re.sub(r"[^a-z0-9]+", " ", ascii_text).strip()
+
+
+_TIPO_PRODUTIVIDADE_ALIASES: dict[str, str] = {}
+
+
+def _register_tipo_produtividade(canonical: str, *aliases: str) -> None:
+    for label in (canonical, *aliases):
+        key = _tipo_produtividade_key(label)
+        if key:
+            _TIPO_PRODUTIVIDADE_ALIASES[key] = canonical
+
+
+_register_tipo_produtividade(
+    "Pet. Simples",
+    "Pet Simples",
+    "Peticao Simples",
+    "Petição Simples",
+    "Manifestacao generica",
+    "Manifestação genérica",
+    "manifestacao",
+)
+_register_tipo_produtividade(
+    "Impugnação/decote RPV",
+    "Impugnacao ou decote RPV",
+    "Impugnação ou decote RPV",
+    "Impugnacao decote RPV",
+    "Impugnação decote RPV",
+    "Impugnacao ao Cumprimento de Sentenca",
+    "Impugnação ao Cumprimento de Sentença",
+    "impugnacao_cumprimento",
+    "cumprimento_sentenca",
+)
+_register_tipo_produtividade(
+    "Manif. Laudo",
+    "Manif Laudo",
+    "Manif. Laudo/Quesitos",
+    "Manifestacao Laudo",
+    "Manifestação Laudo",
+    "Manifestacao de Laudo",
+    "Manifestação de Laudo",
+)
+_register_tipo_produtividade(
+    "Informa perícia/audiência",
+    "Informa pericia ou audiencia",
+    "Informa perícia ou audiência",
+    "Informa pericia audiencia",
+    "Informa perícia audiência",
+)
+_register_tipo_produtividade(
+    "Pet. Complexa",
+    "Pet Complexa",
+    "Peticao Complexa",
+    "Petição Complexa",
+    "Aditamento da inicial tutela de urgencia antecedente",
+    "Aditamento da inicial tutela de urgência antecedente",
+    "tutela_urgencia",
+)
+_register_tipo_produtividade(
+    "Defesas",
+    "Defesa",
+    "Contestacao procedimento comum",
+    "Contestação procedimento comum",
+    "contestacao",
+    "Embargos a Execucao",
+    "Embargos à Execução",
+    "embargos_execucao",
+    "Reconvencao",
+    "Reconvenção",
+    "reconvencao",
+)
+_register_tipo_produtividade(
+    "Réplicas",
+    "Replicas",
+    "Replica",
+    "Réplica",
+    "Replica resposta a contestacao",
+    "Réplica resposta a contestação",
+    "replica",
+)
+_register_tipo_produtividade(
+    "Recursos",
+    "Recurso",
+    "Recurso de Apelacao",
+    "Recurso de Apelação",
+    "Recurso Especial STJ",
+    "Recurso Extraordinario STF",
+    "Recurso Extraordinário STF",
+    "Agravo de Instrumento",
+    "Agravo Interno",
+    "Embargos de Declaracao",
+    "Embargos de Declaração",
+    "Recurso Ordinario Trabalhista",
+    "Recurso Ordinário Trabalhista",
+    "recurso_apelacao",
+    "recurso_especial",
+    "recurso_extraordinario",
+    "agravo_instrumento",
+    "agravo_interno",
+    "embargos_declaracao",
+    "recurso_ordinario",
+)
+_register_tipo_produtividade(
+    "C.razões",
+    "C razoes",
+    "Contrarrazoes",
+    "Contrarrazões",
+    "Contrarrazoes de Apelacao",
+    "Contrarrazões de Apelação",
+    "contrarrazoes",
+)
+_register_tipo_produtividade(
+    "Outros",
+    "Outro",
+    "Sem tipo",
+    "Prazo manual",
+    "Manual",
+)
+
+
+def normalizar_tipo_produtividade(tipo_peticao: Optional[str] = None, tipo: Optional[str] = None) -> str:
+    """Converte labels antigos/CPC para a taxonomia gerencial da planilha do UsuarioDemo."""
+    for candidate in (tipo_peticao, tipo):
+        key = _tipo_produtividade_key(candidate)
+        if key:
+            if key == "sem tipo":
+                continue
+            return _TIPO_PRODUTIVIDADE_ALIASES.get(key, "Outros")
+    return "Outros"
+
+
+def _aggregate_tipos_produtividade(rows: list) -> tuple[dict[str, int], list[str], int]:
+    totals = {label: 0 for label in TIPOS_PRODUTIVIDADE}
+    total = 0
+    for row in rows:
+        qtd = int(getattr(row, "qtd", 0) or 0)
+        label = normalizar_tipo_produtividade(
+            getattr(row, "tipo_peticao", None),
+            getattr(row, "tipo", None),
+        )
+        totals[label] += qtd
+        total += qtd
+    dist = {label: totals[label] for label in TIPOS_PRODUTIVIDADE if totals[label] > 0}
+    return dist, list(dist.keys()), total
 
 
 def _initials(name: Optional[str]) -> str:
@@ -165,7 +341,7 @@ def _get_org_id(request: Request) -> int:
     return getattr(request.state, "org_id", 1)
 
 
-# Example User 03/06: "horário específico para vencimento de prazos processuais".
+# UsuarioDemo 03/06: "horário específico para vencimento de prazos processuais".
 # Regex p/ validar "HH:MM" (00:00–23:59). Mesmo formato do due_time do Kanban.
 _HORA_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
@@ -179,14 +355,24 @@ def _ensure_controladoria_schema(db):
     additions = [
         ("prazos_processuais", "processo_override", "VARCHAR"),
         ("prazos_processuais", "cliente_override", "VARCHAR"),
-        # hora_vencimento: horário do prazo ("HH:MM", nullable). Example User 03/06.
+        # hora_vencimento: horário do prazo ("HH:MM", nullable). UsuarioDemo 03/06.
         ("prazos_processuais", "hora_vencimento", "VARCHAR(5)"),
         # dias_corridos: prazo administrativo contado em dias corridos (não úteis).
-        # Reunião Ricardo/Example User 10/06 — processos administrativos (INSS etc).
+        # Reunião PessoaDemo/UsuarioDemo 10/06 — processos administrativos (INSS etc).
         ("prazos_processuais", "dias_corridos", "BOOLEAN DEFAULT FALSE"),
         # parte_contraria_override: permite editar parte contrária em prazos avulsos
         # (sem case_id). Análogo a processo_override/cliente_override. 11/06.
         ("prazos_processuais", "parte_contraria_override", "VARCHAR"),
+        ("prazos_processuais", "source_provider", "VARCHAR(120)"),
+        ("prazos_processuais", "source_status", "VARCHAR(50) DEFAULT 'manual'"),
+        ("prazos_processuais", "source_reference", "VARCHAR(255)"),
+        ("prazos_processuais", "source_url", "TEXT"),
+        ("prazos_processuais", "source_payload_hash", "VARCHAR(64)"),
+        ("prazos_processuais", "source_fetched_at", "TIMESTAMP"),
+        ("prazos_processuais", "source_version", "VARCHAR(80)"),
+        ("prazos_processuais", "official_source", "BOOLEAN DEFAULT FALSE"),
+        ("prazos_processuais", "calculation_engine_version", "VARCHAR(80)"),
+        ("prazos_processuais", "calculation_notes", "TEXT"),
     ]
     for table, column, definition in additions:
         try:
@@ -215,7 +401,7 @@ def _get_org_id_strict(request: Request):
 
 # Meta mensal de produtividade: por org em organizations.settings JSONB (existente —
 # ruling 2026-06-03/Janitor: reusar o store JSONB, NAO criar tabela org_settings que
-# nao existe no alpha). Sugestao/original (Example User 02/06) = 100.
+# nao existe no alpha). Sugestao/original (UsuarioDemo 02/06) = 100.
 META_KEY = "controladoria_meta_mensal"
 META_SUGERIDA = 100
 
@@ -247,6 +433,22 @@ def _get_meta(db: Session, org_id: int) -> int:
     return META_SUGERIDA
 
 
+DRAG_KEY = "controladoria_drag_enabled"
+
+
+def _get_drag_enabled(db: Session, org_id) -> bool:
+    """Drag-and-drop de prazos é nativo e ligado por padrão; a org pode
+    desligar pelas configurações (Equipe CaseHub 2026-06-15). Persistido em
+    organizations.settings JSONB (sem migração)."""
+    try:
+        val = _org_settings(db, org_id).get(DRAG_KEY, True)
+    except Exception:
+        return True
+    if isinstance(val, str):
+        return val.strip().lower() not in ("false", "0", "no", "off", "")
+    return bool(val)
+
+
 def _utc_now_iso() -> str:
     """Return a compact UTC timestamp for operator-facing diagnostics."""
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -265,6 +467,91 @@ def _safe_api_error(value: Any) -> str:
     for pattern, replacement in replacements:
         text_value = re.sub(pattern, replacement, text_value, flags=re.IGNORECASE)
     return text_value[:160]
+
+
+def _normalize_ascii(value: Any) -> str:
+    text_value = unicodedata.normalize("NFKD", str(value or ""))
+    return text_value.encode("ascii", "ignore").decode("ascii").lower()
+
+
+def _is_official_intimation_source(value: Any) -> bool:
+    source = value
+    if isinstance(value, dict):
+        source = value.get("source") or value.get("provider") or value.get("fonte") or ""
+    normalized = _normalize_ascii(source)
+    if not normalized or "demo" in normalized or "mock" in normalized:
+        return False
+    return any(marker in normalized for marker in OFFICIAL_INTIMATION_SOURCE_MARKERS)
+
+
+def _deadline_payload_hash(item: dict) -> str:
+    safe_item = {
+        key: value
+        for key, value in dict(item or {}).items()
+        if _normalize_ascii(key) not in {
+            "access_token",
+            "refresh_token",
+            "client_secret",
+            "authorization",
+            "source_signature",
+        }
+    }
+    payload = json.dumps(safe_item, sort_keys=True, default=str, ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _deadline_source_signature(org_id: int, item: dict) -> str:
+    payload_hash = _deadline_payload_hash(item)
+    message = f"{int(org_id)}:{payload_hash}".encode("utf-8")
+    key = settings.SECRET_KEY.encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+
+def _attach_deadline_source_signatures(items: list, org_id: int) -> list:
+    signed = []
+    for raw in items or []:
+        item = dict(raw or {})
+        if _is_official_intimation_source(item) and item.get("importable", True) is not False:
+            item["source_signature"] = _deadline_source_signature(org_id, item)
+        signed.append(item)
+    return signed
+
+
+def _valid_deadline_source_signature(item: dict, org_id: int) -> bool:
+    provided = str(item.get("source_signature") or "")
+    if not provided:
+        return False
+    expected = _deadline_source_signature(org_id, item)
+    return hmac.compare_digest(provided, expected)
+
+
+def _deadline_source_metadata(item: dict) -> dict:
+    source = item.get("source") or item.get("provider") or item.get("fonte") or ""
+    importable = item.get("importable", True) is not False
+    official = importable and _is_official_intimation_source(source)
+    return {
+        "source_provider": (source or "desconhecida")[:120],
+        "source_status": "official" if official else "manual_review_required",
+        "official_source": official,
+        "source_reference": str(
+            item.get("id")
+            or item.get("numero_comunicacao")
+            or item.get("numeroComunicacao")
+            or item.get("communication_id")
+            or item.get("numero_processo")
+            or ""
+        )[:255],
+        "source_payload_hash": _deadline_payload_hash(item),
+        "source_version": str(item.get("source_version") or item.get("version") or "")[:80] or None,
+    }
+
+
+def _item_first(item: dict, *keys: str) -> Any:
+    for key in keys:
+        value = item.get(key)
+        if value not in (None, ""):
+            return value
+    return ""
 
 
 def _provider_attempt(
@@ -362,7 +649,7 @@ def _normalize_publication_item(item: dict, provider: str) -> dict:
         "texto": texto,
         "data_disponibilizacao": _date_only(data_ref),
         "source": provider,
-        "importable": bool(texto and data_ref),
+        "importable": False,
     }
 
 
@@ -535,7 +822,7 @@ async def _try_comunicaapi_provider(
     if not grant_attempted:
         grant_attempted = "none" if auth_status == "missing_credentials" else "client_credentials"
     for item in items:
-        item.setdefault("importable", True)
+        item.setdefault("importable", _is_official_intimation_source(source))
     return {
         "items": items,
         "attempt": _provider_attempt(
@@ -671,8 +958,12 @@ async def _search_intimacoes_oab_chain(
     auth_status = comunica.get("auth_status", auth_status)
     grant_attempted = comunica.get("grant_attempted", grant_attempted)
     if comunica["items"]:
+        signed_items = _attach_deadline_source_signatures(
+            comunica["items"],
+            int(org_id) if org_id is not None else 1,
+        )
         return {
-            "items": comunica["items"],
+            "items": signed_items,
             "provider": "ComunicaAPI PJE/CNJ",
             "provider_status": "ok",
             "reason": comunica["attempt"]["reason"],
@@ -802,6 +1093,9 @@ def _get_stats(db: Session, org_id: int) -> dict:
 
     return {
         "total": total,
+        # pendentes: prazos ainda não concluídos (hero KPI — FB1 alpha UsuarioDemo).
+        # 'total' permanece intacto: eficiencia_geral usa total como denominador.
+        "pendentes": max(int(total) - int(concluidos), 0),
         "fatais_hoje": fatais_hoje,
         "vencidos": vencidos,
         "proximos": proximos,
@@ -888,6 +1182,12 @@ def _get_prazos(
             p.descricao, p.uf, p.dobro, p.created_at, p.tipo_peticao,
             COALESCE(p.dias_corridos, FALSE) AS dias_corridos,
             p.responsavel_user_id,
+            COALESCE(p.source_provider, 'manual') AS source_provider,
+            COALESCE(p.source_status, 'manual') AS source_status,
+            COALESCE(p.official_source, FALSE) AS official_source,
+            p.source_reference,
+            p.source_payload_hash,
+            p.calculation_engine_version,
             COALESCE(p.ordem, 0) AS ordem,
             COALESCE(p.processo_override, c.numero_processo, c.case_number) AS processo,
             COALESCE(p.cliente_override, TRIM(COALESCE(cl.first_name, '') || ' ' || COALESCE(cl.last_name, '')), c.case_name) AS cliente,
@@ -932,22 +1232,54 @@ def _get_prazos(
         "parte_contraria": "COALESCE(c.polo_passivo, '')",
         "observacao": "COALESCE(p.descricao, '')",
         "vencimento": "p.data_vencimento",
+        # alias usado pela aba "Concluídos" (sort="data_vencimento", desc).
+        "data_vencimento": "p.data_vencimento",
         "responsavel": "COALESCE(p.responsavel, '')",
         "status": "COALESCE(p.status, '')",
     }
-    if sort in sort_exprs:
+    is_pg = (db.get_bind().dialect.name == "postgresql") if db.get_bind() is not None else False
+    # Ordenações ancoradas na data de vencimento desempatam pelo horário do
+    # prazo (hora_vencimento) — mesma data, hora mais cedo primeiro — e por id.
+    # NULLs sempre ao final, independente da direção (UsuarioDemo 2026-06-15).
+    venc_keys = {"vencimento", "urgencia", "data_vencimento"}
+
+    def _venc_tiebreak(dir_sql):
+        """Colunas de desempate por vencimento: data, depois hora, depois id.
+        hora_vencimento NULL **ou vazia** ('') vai sempre ao fim ("sem hora =
+        fim do dia") — em PG via NULLIF + NULLS LAST, em SQLite emulado por CASE,
+        para que o comportamento seja idêntico nos dois bancos."""
+        if is_pg:
+            return (
+                f" p.data_vencimento {dir_sql} NULLS LAST,"
+                f" NULLIF(p.hora_vencimento, '') {dir_sql} NULLS LAST,"
+                " p.id ASC"
+            )
+        return (
+            " CASE WHEN p.data_vencimento IS NULL THEN 1 ELSE 0 END ASC,"
+            f" p.data_vencimento {dir_sql},"
+            " CASE WHEN p.hora_vencimento IS NULL OR p.hora_vencimento = '' THEN 1 ELSE 0 END ASC,"
+            f" p.hora_vencimento {dir_sql},"
+            " p.id ASC"
+        )
+
+    if sort == "manual":
+        # Ordem manual (drag-and-drop). Entra-se nela arrastando uma linha; a
+        # URL passa a ?sort=manual e sobrevive ao F5. Linhas com a mesma ordem
+        # (ou nunca arrastadas) desempatam pelo mesmo critério de vencimento.
+        query += " ORDER BY COALESCE(p.ordem, 999999)," + _venc_tiebreak("ASC")
+    elif sort in venc_keys:
+        query += " ORDER BY" + _venc_tiebreak(direction_sql)
+    elif sort in sort_exprs:
         sort_expr = sort_exprs[sort]
-        is_pg = (db.get_bind().dialect.name == "postgresql") if db.get_bind() is not None else False
         if is_pg:
             query += f" ORDER BY {sort_expr} {direction_sql} NULLS LAST, p.id ASC"
         else:
             query += f" ORDER BY CASE WHEN {sort_expr} IS NULL THEN 1 ELSE 0 END, {sort_expr} {direction_sql}, p.id ASC"
     else:
-        query += (
-            " ORDER BY COALESCE(p.ordem, 999999),"
-            " CASE WHEN p.data_vencimento IS NULL THEN 1 ELSE 0 END ASC,"
-            " p.data_vencimento ASC, p.id ASC"
-        )
+        # Default (sem sort / sort desconhecido): vencimento mais próximo no
+        # topo. NÃO usa p.ordem — o drag precisa ser escolhido explicitamente
+        # para a página abrir ordenada por prazo legal (feedback alpha UsuarioDemo).
+        query += " ORDER BY" + _venc_tiebreak("ASC")
     if limit is not None:
         query += " LIMIT :limit"
         params["limit"] = limit
@@ -1025,7 +1357,15 @@ def _get_prazos(
             "dobro": row.dobro,
             "dias_corridos": eh_corrido,
             "urgencia": urgencia,
-            "tipo_peticao": row.tipo_peticao or "",
+            "tipo_peticao": normalizar_tipo_produtividade(row.tipo_peticao, row.tipo)
+            if row.tipo_peticao or row.status == "concluido"
+            else "",
+            "source_provider": row.source_provider or "manual",
+            "source_status": row.source_status or "manual",
+            "official_source": bool(row.official_source),
+            "source_reference": row.source_reference or "",
+            "source_payload_hash": row.source_payload_hash or "",
+            "calculation_engine_version": row.calculation_engine_version or "",
             "ordem": row.ordem or 0,
         })
 
@@ -1075,9 +1415,9 @@ def _get_produtividade_setores(db: Session, org_id: int) -> List[dict]:
                    COUNT(*) AS total,
                    SUM(CASE WHEN COALESCE(p.status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS pendentes,
                    SUM(CASE WHEN p.status = 'concluido' THEN 1 ELSE 0 END) AS concluidos,
-                   SUM(CASE WHEN p.data_vencimento < CURRENT_DATE AND COALESCE(p.status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS vencidos,
-                   SUM(CASE WHEN p.data_vencimento >= CURRENT_DATE
-                             AND p.data_vencimento <= CURRENT_DATE + INTERVAL '7 days'
+                   SUM(CASE WHEN p.data_vencimento < :today AND COALESCE(p.status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS vencidos,
+                   SUM(CASE WHEN p.data_vencimento >= :today
+                             AND p.data_vencimento <= :today_plus_7
                              AND COALESCE(p.status, 'pendente') NOT IN ('concluido', 'perdido') THEN 1 ELSE 0 END) AS proximos
             FROM prazos_processuais p
             LEFT JOIN users u
@@ -1092,7 +1432,7 @@ def _get_produtividade_setores(db: Session, org_id: int) -> List[dict]:
             ORDER BY vencidos DESC, pendentes DESC, total DESC, setor ASC
             LIMIT 8
         """),
-        {"org_id": org_id},
+        {"org_id": org_id, "today": date.today(), "today_plus_7": date.today() + timedelta(days=7)},
     ).fetchall()
     data = []
     for row in rows:
@@ -1132,7 +1472,7 @@ async def controladoria_dashboard(
     status: str = "",
     mes: str = "",
     tribunal: str = "",
-    sort: str = "",
+    sort: str = "vencimento",
     direction: str = "asc",
     db: Session = Depends(get_db),
 ):
@@ -1143,6 +1483,7 @@ async def controladoria_dashboard(
 
     org_id = _get_org_id(request)
     _ensure_controladoria_schema(db)  # lazy: garante hora_vencimento em DBs antigas
+    drag_enabled = _get_drag_enabled(db, org_id)
     stats = _get_stats(db, org_id)
     prazos_render = _get_prazos(
         db,
@@ -1236,7 +1577,7 @@ async def controladoria_dashboard(
                 "uf": oab_uf,
             })
 
-    # Opções pros dropdowns de inline-edit Cliente/Processo (29/05 Victor): clicar
+    # Opções pros dropdowns de inline-edit Cliente/Processo (29/05 Equipe CaseHub): clicar
     # a célula abre um <select> com os existentes (tenant-isolado) + "cadastrar novo".
     # cliente_override/processo_override guardam o texto escolhido.
     clientes_opc = [
@@ -1291,6 +1632,7 @@ async def controladoria_dashboard(
             "oab_options": oab_options,
             "clientes_opc": clientes_opc,
             "processos_opc": processos_opc,
+            "tipos_produtividade": TIPOS_PRODUTIVIDADE,
             "produtividade_setores": _get_produtividade_setores(db, org_id),
             "api_status_cards": _controladoria_api_status_cards(org_id),
             "search": search,
@@ -1299,6 +1641,7 @@ async def controladoria_dashboard(
             "tribunal_filter": tribunal,
             "sort_key": sort,
             "sort_direction": "desc" if direction.lower() == "desc" else "asc",
+            "drag_enabled": drag_enabled,
             "tribunais_disponiveis": tribunais_disponiveis,
             **org_ctx,
         },
@@ -1364,6 +1707,38 @@ async def buscar_cases_controladoria(
     return {"items": items}
 
 
+def _notify_prazo_assignee_dm(
+    db: Session,
+    org_id: int,
+    actor_id: int,
+    assignee_id: int,
+    tipo: str,
+    data_vencimento,
+    hora_vencimento=None,
+) -> None:
+    if not assignee_id or assignee_id == actor_id:
+        return
+    try:
+        from routes.team_messages import post_system_dm_to_user
+        title = str(tipo or "prazo").strip()[:160]
+        due = str(data_vencimento or "").strip()
+        hour = str(hora_vencimento or "").strip()[:5]
+        if hour:
+            due = f"{due} {hour}".strip()
+        due_label = f" Vence em {due}." if due else ""
+        post_system_dm_to_user(
+            db,
+            int(org_id),
+            int(assignee_id),
+            f"Controladoria: prazo \"{title}\" foi designado(a) para você.{due_label}",
+        )
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 @router.post("/novo-prazo")
 async def criar_prazo(request: Request, db: Session = Depends(get_db)):
     """Criar novo prazo processual."""
@@ -1408,7 +1783,7 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
     if isinstance(dobro, str):
         dobro = dobro.lower() in ("true", "1", "on", "sim")
 
-    # Reunião 10/06 (Ricardo/Example User) — prazo administrativo em dias corridos
+    # Reunião 10/06 (PessoaDemo/UsuarioDemo) — prazo administrativo em dias corridos
     # (INSS etc): conta dias de calendário, sem dia útil/feriado/tribunal.
     dias_corridos = data.get("dias_corridos", False)
     if isinstance(dias_corridos, str):
@@ -1418,7 +1793,7 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
     # Quando informado, tem prioridade sobre a inferência por número/UF.
     tribunal_param = (data.get("tribunal") or "").strip()
 
-    # Example User 02/06 (C11) — "enviar pro chat" opcional + DESATIVAVEL (default = nao avisa).
+    # UsuarioDemo 02/06 (C11) — "enviar pro chat" opcional + DESATIVAVEL (default = nao avisa).
     # Checkbox de form chega como "on"; JSON pode mandar true/1. Ausente = false.
     notificar_chat = data.get("notificar_chat", False)
     if isinstance(notificar_chat, str):
@@ -1443,7 +1818,7 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
     if not data_intimacao_str:
         return JSONResponse({"error": "Data de intimacao e obrigatoria"}, status_code=400)
 
-    # Example User 03/06: horário opcional do vencimento ("HH:MM"). Vazio = sem hora.
+    # UsuarioDemo 03/06: horário opcional do vencimento ("HH:MM"). Vazio = sem hora.
     hora_vencimento = (data.get("hora_vencimento") or "").strip()
     if hora_vencimento and not _HORA_RE.match(hora_vencimento):
         return JSONResponse({"error": "Horario invalido (use HH:MM)"}, status_code=400)
@@ -1504,11 +1879,15 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
                 INSERT INTO prazos_processuais
                     (case_id, org_id, tipo, data_intimacao, data_inicio, data_vencimento, hora_vencimento,
                      dias_prazo, responsavel, responsavel_user_id, status, descricao, uf, dobro, dias_corridos,
-                     processo_override, cliente_override, parte_contraria_override)
+                     processo_override, cliente_override, parte_contraria_override,
+                     source_provider, source_status, official_source,
+                     calculation_engine_version, calculation_notes)
                 VALUES
                     (:case_id, :org_id, :tipo, :data_intimacao, :data_inicio, :data_vencimento, :hora_vencimento,
                      :dias_prazo, :responsavel, :responsavel_user_id, 'pendente', :descricao, :uf, :dobro, :dias_corridos,
-                     :processo_override, :cliente_override, :parte_contraria_override)
+                     :processo_override, :cliente_override, :parte_contraria_override,
+                     :source_provider, :source_status, :official_source,
+                     :calculation_engine_version, :calculation_notes)
             """),
             {
                 "case_id": int(case_id) if case_id else None,
@@ -1528,6 +1907,11 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
                 "processo_override": processo_override,
                 "cliente_override": cliente_manual or None,
                 "parte_contraria_override": parte_contraria_manual or None,
+                "source_provider": "manual",
+                "source_status": "manual",
+                "official_source": False,
+                "calculation_engine_version": PRAZOS_CALCULATION_ENGINE_VERSION,
+                "calculation_notes": "Prazo criado manualmente pelo operador.",
             },
         )
         db.commit()
@@ -1540,8 +1924,17 @@ async def criar_prazo(request: Request, db: Session = Depends(get_db)):
         "Prazo criado: tipo=%s, intimacao=%s, vencimento=%s, responsavel=%s",
         tipo, data_intimacao, data_vencimento, responsavel,
     )
+    _notify_prazo_assignee_dm(
+        db,
+        org_id,
+        user.id,
+        responsavel_user_id,
+        tipo,
+        data_vencimento,
+        hora_vencimento,
+    )
 
-    # Example User 02/06 (C11) — opcao "enviar pro chat": ao criar o prazo, avisa a equipe.
+    # UsuarioDemo 02/06 (C11) — opcao "enviar pro chat": ao criar o prazo, avisa a equipe.
     # DESATIVAVEL: so' roda quando notificar_chat=true. Best-effort (nunca derruba o
     # fluxo). Reusa o sininho (Notification + poller que ja' toca som) e o chat real
     # (#equipe via team_messages), org-scoped por construcao.
@@ -1776,13 +2169,25 @@ async def importar_intimacoes(request: Request, db: Session = Depends(get_db)):
 
     imported = 0
     skipped = 0
+    blocked = 0
 
     for item in intimacoes:
-        numero_processo = item.get("numero_processo", "").strip()
-        texto_raw = item.get("texto", "").strip()
-        data_disponibilizacao = item.get("data_disponibilizacao", "")
-        tribunal = item.get("tribunal", "")
-        orgao = item.get("orgao", "")
+        numero_processo = str(_item_first(
+            item,
+            "numero_processo",
+            "numeroProcesso",
+            "numeroprocessocommascara",
+            "numeroProcessoComMascara",
+        )).strip()
+        texto_raw = str(_item_first(item, "texto", "textoComunicacao", "conteudo", "descricao")).strip()
+        data_disponibilizacao = _item_first(item, "data_disponibilizacao", "dataDisponibilizacao", "data", "data_publicacao")
+        tribunal = str(_item_first(item, "tribunal", "siglaTribunal")).strip()
+        orgao = str(_item_first(item, "orgao", "nomeOrgao", "orgaoJulgador")).strip()
+        source_meta = _deadline_source_metadata(item)
+        if not source_meta["official_source"] or not _valid_deadline_source_signature(item, org_id):
+            blocked += 1
+            skipped += 1
+            continue
 
         # C4: Limpar HTML/códigos da descrição
         texto = re.sub(r'<[^>]+>', '', texto_raw)  # remove HTML tags
@@ -1806,13 +2211,19 @@ async def importar_intimacoes(request: Request, db: Session = Depends(get_db)):
                     break
                 else:
                     dias_extraido = None
-        dias_prazo = dias_extraido or 15  # default 15 se não encontrou
+        if not dias_extraido:
+            blocked += 1
+            skipped += 1
+            continue
+        dias_prazo = dias_extraido
 
         # Parse date
         try:
             dt_intimacao = date.fromisoformat(data_disponibilizacao)
         except (ValueError, TypeError):
-            dt_intimacao = date.today()
+            blocked += 1
+            skipped += 1
+            continue
 
         # Check for duplicates by (processo + data_intimacao) OR (descricao + data_intimacao)
         dup_count = db.execute(
@@ -1845,9 +2256,12 @@ async def importar_intimacoes(request: Request, db: Session = Depends(get_db)):
         # Calculate vencimento using extracted or default days
         try:
             tribunal_codigo = normalizar_tribunal(tribunal or inferir_tribunal(numero_processo))
+            dt_inicio = proximo_dia_util(dt_intimacao + timedelta(days=1), estado="MG", tribunal=tribunal_codigo)
             dt_vencimento = calcular_prazo(dt_intimacao, dias_prazo, estado="MG", tribunal=tribunal_codigo)
         except Exception:
-            dt_vencimento = dt_intimacao + timedelta(days=int(dias_prazo * 1.4))
+            blocked += 1
+            skipped += 1
+            continue
 
         # Determine processo_override (only if no case match)
         processo_override = numero_processo if (numero_processo and not case_id) else None
@@ -1856,16 +2270,20 @@ async def importar_intimacoes(request: Request, db: Session = Depends(get_db)):
             text(
                 "INSERT INTO prazos_processuais "
                 "(org_id, case_id, tipo, data_intimacao, data_inicio, dias_prazo, "
-                "data_vencimento, descricao, status, responsavel, uf, processo_override, created_at) "
+                "data_vencimento, descricao, status, responsavel, uf, processo_override, "
+                "source_provider, source_status, source_reference, source_url, source_payload_hash, "
+                "source_fetched_at, source_version, official_source, calculation_engine_version, calculation_notes, created_at) "
                 "VALUES (:org_id, :case_id, :tipo, :data_intimacao, :data_inicio, :dias_prazo, "
-                ":data_vencimento, :descricao, :status, :responsavel, :uf, :processo_override, CURRENT_TIMESTAMP)"
+                ":data_vencimento, :descricao, :status, :responsavel, :uf, :processo_override, "
+                ":source_provider, :source_status, :source_reference, :source_url, :source_payload_hash, "
+                ":source_fetched_at, :source_version, :official_source, :calculation_engine_version, :calculation_notes, CURRENT_TIMESTAMP)"
             ),
             {
                 "org_id": org_id,
                 "case_id": case_id,
                 "tipo": "Prazo Processual",
                 "data_intimacao": dt_intimacao,
-                "data_inicio": dt_intimacao,
+                "data_inicio": dt_inicio,
                 "dias_prazo": dias_prazo,
                 "data_vencimento": dt_vencimento,
                 "descricao": texto,
@@ -1873,20 +2291,31 @@ async def importar_intimacoes(request: Request, db: Session = Depends(get_db)):
                 "responsavel": None,
                 "uf": "MG",
                 "processo_override": processo_override,
+                "source_provider": source_meta["source_provider"],
+                "source_status": source_meta["source_status"],
+                "source_reference": source_meta["source_reference"],
+                "source_url": item.get("url") or item.get("source_url") or None,
+                "source_payload_hash": source_meta["source_payload_hash"],
+                "source_fetched_at": datetime.utcnow(),
+                "source_version": source_meta["source_version"],
+                "official_source": source_meta["official_source"],
+                "calculation_engine_version": PRAZOS_CALCULATION_ENGINE_VERSION,
+                "calculation_notes": f"Dias do prazo extraidos da intimacao ({dias_prazo}); vencimento calculado por {PRAZOS_CALCULATION_ENGINE_VERSION}.",
             },
         )
         imported += 1
 
     db.commit()
     logger.info(
-        "Importacao intimacoes: %d importados, %d ignorados (org_id=%d)",
-        imported, skipped, org_id,
+        "Importacao intimacoes: %d importados, %d ignorados, %d bloqueados (org_id=%d)",
+        imported, skipped, blocked, org_id,
     )
 
     return JSONResponse({
         "success": True,
         "imported": imported,
         "skipped": skipped,
+        "blocked": blocked,
         "total": imported + skipped,
     })
 
@@ -1910,24 +2339,39 @@ async def concluir_prazo(prazo_id: int, request: Request, db: Session = Depends(
     if "application/json" in content_type:
         try:
             data = await request.json()
-            tipo_peticao = data.get("tipo_peticao")
-            data_conclusao_str = data.get("data_conclusao")
-            if data_conclusao_str:
-                data_conclusao = date.fromisoformat(data_conclusao_str)
         except Exception:
-            pass
+            return JSONResponse({"error": "JSON invalido"}, status_code=400)
+        tipo_peticao = data.get("tipo_peticao")
+        data_conclusao_str = data.get("data_conclusao")
+        if data_conclusao_str:
+            try:
+                data_conclusao = date.fromisoformat(data_conclusao_str)
+            except ValueError:
+                return JSONResponse({"error": "Data de conclusao invalida"}, status_code=400)
     else:
         try:
             form = await request.form()
-            tipo_peticao = form.get("tipo_peticao")
-            data_conclusao_str = form.get("data_conclusao")
-            if data_conclusao_str:
-                data_conclusao = date.fromisoformat(data_conclusao_str)
         except Exception:
-            pass
+            return JSONResponse({"error": "Formulario invalido"}, status_code=400)
+        tipo_peticao = form.get("tipo_peticao")
+        data_conclusao_str = form.get("data_conclusao")
+        if data_conclusao_str:
+            try:
+                data_conclusao = date.fromisoformat(data_conclusao_str)
+            except ValueError:
+                return JSONResponse({"error": "Data de conclusao invalida"}, status_code=400)
 
     if not data_conclusao:
         data_conclusao = date.today()
+
+    prazo_row = db.execute(
+        text("SELECT tipo FROM prazos_processuais WHERE id = :id AND org_id = :org_id"),
+        {"id": prazo_id, "org_id": org_id},
+    ).fetchone()
+    if not prazo_row:
+        return JSONResponse({"error": "Prazo nao encontrado"}, status_code=404)
+
+    tipo_peticao = normalizar_tipo_produtividade(tipo_peticao, prazo_row.tipo)
 
     result = db.execute(
         text(
@@ -1950,7 +2394,11 @@ async def concluir_prazo(prazo_id: int, request: Request, db: Session = Depends(
     logger.info("Prazo %d marcado como concluido (tipo_peticao=%s)", prazo_id, tipo_peticao)
 
     if "application/json" in content_type:
-        return JSONResponse({"success": True})
+        return JSONResponse({
+            "success": True,
+            "tipo_peticao": tipo_peticao,
+            "data_conclusao": data_conclusao.isoformat(),
+        })
     return RedirectResponse(url=f"{PREFIX}/controladoria", status_code=303)
 
 
@@ -2025,13 +2473,13 @@ async def api_produtividade(
 ):
     """Painel holístico da controladoria.
 
-    Victor 03/06: o donut precisa refletir a CONTROLADORIA COMO UM TODO usando dados que
+    Equipe CaseHub 03/06: o donut precisa refletir a CONTROLADORIA COMO UM TODO usando dados que
     EXISTEM. `groupby` controla o eixo do donut:
       - urgencia    (default): distribuição da carteira ATIVA por cor (fatal/vencido/amarelo/verde)
                     — mesma regra de cor das linhas (rota _get_prazos), sobre TODOS os prazos.
       - status      : distribuição de TODOS os prazos por status (pendente/concluido/perdido).
       - responsavel : carga da carteira ativa por responsável (NULL -> 'Sem responsável').
-      - tipo        : LEGADO — petições concluídas no mês por tipo (tipo quase sempre NULL).
+      - tipo        : petições concluídas no mês pela taxonomia gerencial da planilha.
     Sempre devolve `carteira` (a foto do todo) + `por_responsavel` (concluídos-no-mês) + meta.
     Org-scoped em toda query.
     """
@@ -2058,17 +2506,15 @@ async def api_produtividade(
     period_start = date(ano, m, 1)
     period_end = date(ano + 1, 1, 1) if m == 12 else date(ano, m + 1, 1)
 
-    # C2 (Example User 02/06): um prazo concluido conta na produtividade do mes quando a
+    # C2 (UsuarioDemo 02/06): um prazo concluido conta na produtividade do mes quando a
     # DATA DE CONCLUSAO **ou** a DATA DE VENCIMENTO cai no mes. Antes so contava por
     # data_conclusao (com updated_at de fallback), entao prazos concluidos com
     # vencimento em maio/01-jun ficavam de fora da contagem mensal.
     rows = db.execute(
         text("""
-            -- FIX (Victor 03/06): a produtividade agrupava por tipo_peticao E excluía NULL,
-            -- mas o sistema preenche a coluna `tipo` (tipo_peticao fica NULL) -> contava 0
-            -- mesmo com prazos concluídos (dessincronizado da lista). Agora usa o tipo real
-            -- (tipo_peticao -> tipo -> 'Sem tipo') e NÃO exclui concluídos sem tipo.
-            SELECT COALESCE(NULLIF(tipo_peticao,''), NULLIF(tipo,''), 'Sem tipo') AS tipo_peticao, COUNT(*) as qtd
+            SELECT NULLIF(tipo_peticao,'') AS tipo_peticao,
+                   NULLIF(tipo,'') AS tipo,
+                   COUNT(*) as qtd
             FROM prazos_processuais
             WHERE org_id = :org_id
               AND status = 'concluido'
@@ -2079,20 +2525,16 @@ async def api_produtividade(
                   OR
                   (data_conclusao IS NULL AND data_vencimento IS NULL AND updated_at >= :period_start AND updated_at < :period_end)
               )
-            GROUP BY COALESCE(NULLIF(tipo_peticao,''), NULLIF(tipo,''), 'Sem tipo')
+            GROUP BY NULLIF(tipo_peticao,''), NULLIF(tipo,'')
             ORDER BY qtd DESC
         """),
         {"org_id": org_id, "period_start": period_start, "period_end": period_end},
     ).fetchall()
 
-    tipos = {}
-    total = 0
-    for row in rows:
-        tipos[row.tipo_peticao] = row.qtd
-        total += row.qtd
+    tipos, tipos_order, total = _aggregate_tipos_produtividade(rows)
 
     # Concluidos por responsavel no mes (MESMA janela de contagem dos tipos) — alimenta o
-    # grafico de barras horizontais ao lado do donut (Victor 03/06: preencher o espaco
+    # grafico de barras horizontais ao lado do donut (Equipe CaseHub 03/06: preencher o espaco
     # horizontal vazio com mais informacao = accountability por pessoa). Org-scoped.
     resp_rows = db.execute(
         text("""
@@ -2116,7 +2558,7 @@ async def api_produtividade(
     por_responsavel = [{"nome": r.nome, "qtd": int(r.qtd or 0)} for r in resp_rows]
 
     # --- A FOTO DO TODO (carteira) — reusa _get_stats (org-scoped, all-time) + o total mensal.
-    # Victor 03/06: KPIs holísticos no topo do painel. eficiencia_geral = concluídos/total da carteira.
+    # Equipe CaseHub 03/06: KPIs holísticos no topo do painel. eficiencia_geral = concluídos/total da carteira.
     carteira_stats = _get_stats(db, org_id)
     c_total = int(carteira_stats.get("total") or 0)
     carteira = {
@@ -2131,7 +2573,7 @@ async def api_produtividade(
     }
 
     # --- DONUT: eixo escolhido. urgencia/status/responsavel = carteira REAL (dados preenchidos);
-    # tipo = legado (concluídos-no-mês). dist = {label: qtd} ordenado; dist_order preserva a ordem.
+    # tipo = concluídos-no-mês pela taxonomia do escritório. dist_order preserva a ordem.
     gb = (groupby or "urgencia").strip().lower()
     if gb not in ("urgencia", "status", "responsavel", "tipo"):
         gb = "urgencia"
@@ -2140,10 +2582,9 @@ async def api_produtividade(
     dist_order: list = []
     dist_label = "Por urgência"
     if gb == "tipo":
-        # Mantém a semântica antiga (concluídos no mês por tipo) já calculada em `tipos`.
         dist = dict(tipos)
-        dist_order = list(tipos.keys())
-        dist_label = "Por tipo (concluídos no mês)"
+        dist_order = list(tipos_order)
+        dist_label = "Petições produzidas no mês"
     elif gb == "responsavel":
         # Carga da carteira ATIVA (não concluído/perdido) por responsável — mostra quem segura o quê.
         r2 = db.execute(
@@ -2183,21 +2624,21 @@ async def api_produtividade(
             text("""
                 SELECT
                   SUM(CASE WHEN status = 'perdido'
-                            OR (status <> 'concluido' AND data_vencimento IS NOT NULL AND data_vencimento < CURRENT_DATE)
+                            OR (status <> 'concluido' AND data_vencimento IS NOT NULL AND data_vencimento < :today)
                            THEN 1 ELSE 0 END) AS vencido,
                   SUM(CASE WHEN status <> 'concluido' AND status <> 'perdido'
-                            AND data_vencimento = CURRENT_DATE THEN 1 ELSE 0 END) AS fatal,
+                            AND data_vencimento = :today THEN 1 ELSE 0 END) AS fatal,
                   SUM(CASE WHEN status <> 'concluido' AND status <> 'perdido'
-                            AND data_vencimento > CURRENT_DATE
-                            AND data_vencimento <= CURRENT_DATE + INTERVAL '7 days' THEN 1 ELSE 0 END) AS amarelo,
+                            AND data_vencimento > :today
+                            AND data_vencimento <= :today_plus_7 THEN 1 ELSE 0 END) AS amarelo,
                   SUM(CASE WHEN status <> 'concluido' AND status <> 'perdido'
-                            AND (data_vencimento IS NULL OR data_vencimento > CURRENT_DATE + INTERVAL '7 days')
+                            AND (data_vencimento IS NULL OR data_vencimento > :today_plus_7)
                            THEN 1 ELSE 0 END) AS verde,
                   SUM(CASE WHEN status = 'concluido' THEN 1 ELSE 0 END) AS concluido
                 FROM prazos_processuais
                 WHERE org_id = :org_id
             """),
-            {"org_id": org_id},
+            {"org_id": org_id, "today": date.today(), "today_plus_7": date.today() + timedelta(days=7)},
         ).fetchone()
         # Ordem semântica de gravidade (Lei de Miller: poucas faixas, fáceis de ler).
         for label, key in (("Fatal hoje", "fatal"), ("Vencidos", "vencido"),
@@ -2219,6 +2660,7 @@ async def api_produtividade(
         "dist_label": dist_label,
         "carteira": carteira,
         "tipos": tipos,
+        "tipos_produtividade": list(TIPOS_PRODUTIVIDADE),
         "por_responsavel": por_responsavel,
         "meta_batida": total >= META,
         "meta": META,
@@ -2229,7 +2671,7 @@ async def api_produtividade(
 
 @router.post("/meta")
 async def atualizar_meta(request: Request, db: Session = Depends(get_db)):
-    """Atualiza a meta mensal de produtividade da org (Example User 02/06: gestor edita a meta).
+    """Atualiza a meta mensal de produtividade da org (UsuarioDemo 02/06: gestor edita a meta).
     Ruling 2026-06-03: role-gated (settings.edit = gestor/super_admin), org-scoped SEM
     fallback->1, input validado, audit log. Storage em org_settings (existente)."""
     user = get_current_user(request, db)
@@ -2274,6 +2716,58 @@ async def atualizar_meta(request: Request, db: Session = Depends(get_db)):
         db.rollback()
         logger.error("Erro ao salvar meta: %s", e)
         return JSONResponse({"error": "Falha ao salvar a meta"}, status_code=500)
+
+
+@router.post("/drag-toggle")
+async def atualizar_drag_toggle(request: Request, db: Session = Depends(get_db)):
+    """Liga/desliga o drag-and-drop de reordenação de prazos (org-scoped).
+    Equipe CaseHub 2026-06-15: drag é nativo e ativo por padrão, com opção de desativar
+    nas configurações. Role-gated (settings.edit), audit log, sem migração —
+    storage em organizations.settings (mesmo padrão de /meta)."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+    if not has_permission(user.user_type or "", "settings.edit"):
+        return JSONResponse(
+            {"error": "Permissao negada: apenas gestor/administrador pode alterar esta configuracao"},
+            status_code=403,
+        )
+    org_id = _get_org_id_strict(request)
+    if not org_id:
+        return JSONResponse({"error": "Organizacao nao identificada"}, status_code=400)
+    try:
+        data = await request.json()
+        raw = data.get("enabled")
+        if isinstance(raw, str):
+            enabled = raw.strip().lower() in ("true", "1", "yes", "on")
+        else:
+            enabled = bool(raw)
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "Valor invalido (use enabled true/false)"}, status_code=400)
+    try:
+        old = _get_drag_enabled(db, org_id)
+        settings = _org_settings(db, org_id)
+        settings[DRAG_KEY] = enabled
+        db.execute(
+            text("UPDATE organizations SET settings = :s WHERE id = :oid"),
+            {"s": json.dumps(settings), "oid": org_id},
+        )
+        db.commit()
+        try:
+            from services.audit import log_action
+            log_action(
+                db, action="controladoria.drag_toggle", entity_type="org_settings",
+                entity_id=org_id, user_id=user.id,
+                description=f"Drag-and-drop {old} -> {enabled} (org {org_id})",
+                details={"de": old, "para": enabled, "org_id": org_id}, request=request,
+            )
+        except Exception as _audit_err:
+            logger.warning("drag_toggle sem audit log: %s", _audit_err)
+        return JSONResponse({"success": True, "enabled": enabled})
+    except Exception as e:
+        db.rollback()
+        logger.error("Erro ao salvar drag toggle: %s", e)
+        return JSONResponse({"error": "Falha ao salvar a configuracao"}, status_code=500)
 
 
 @router.post("/reordenar")
@@ -2384,15 +2878,34 @@ async def update_prazo(prazo_id: int, request: Request, db: Session = Depends(ge
     # Validate status values
     if field == "status" and value not in ("pendente", "em_andamento", "concluido", "perdido", "aguarda_correcao"):
         return JSONResponse({"error": f"Status invalido: {value}"}, status_code=400)
+    if field == "status" and value == "concluido":
+        return JSONResponse(
+            {"error": "Use /controladoria/{id}/concluir para gravar tipo_peticao e data_conclusao"},
+            status_code=400,
+        )
 
-    # Example User 03/06: horário do vencimento ("HH:MM"); vazio limpa a hora.
+    # UsuarioDemo 03/06: horário do vencimento ("HH:MM"); vazio limpa a hora.
     if field == "hora_vencimento":
         value = (value or "").strip()
         if value and not _HORA_RE.match(value):
             return JSONResponse({"error": "Horario invalido (use HH:MM)"}, status_code=400)
         value = value or None
 
+    if field == "tipo_peticao":
+        value = normalizar_tipo_produtividade(value)
+
     if field == "responsavel_user_id":
+        prazo_row = db.execute(
+            text("""
+                SELECT tipo, data_vencimento, hora_vencimento, responsavel_user_id
+                FROM prazos_processuais
+                WHERE id = :id AND org_id = :org_id
+            """),
+            {"id": prazo_id, "org_id": org_id},
+        ).fetchone()
+        if not prazo_row:
+            return JSONResponse({"error": "Prazo nao encontrado"}, status_code=404)
+        previous_user_id = prazo_row.responsavel_user_id
         try:
             user_id = int(value) if value not in (None, "", "—") else None
         except (TypeError, ValueError):
@@ -2432,6 +2945,16 @@ async def update_prazo(prazo_id: int, request: Request, db: Session = Depends(ge
         db.commit()
         if result.rowcount == 0:
             return JSONResponse({"error": "Prazo nao encontrado"}, status_code=404)
+        if user_id and user_id != previous_user_id:
+            _notify_prazo_assignee_dm(
+                db,
+                org_id,
+                user.id,
+                user_id,
+                prazo_row.tipo,
+                prazo_row.data_vencimento,
+                prazo_row.hora_vencimento,
+            )
         payload = {
             "success": True,
             "field": field,
@@ -2576,8 +3099,14 @@ async def bulk_concluir(request: Request, db: Session = Depends(get_db)):
     if not ids:
         return JSONResponse({"error": "Nenhum prazo selecionado"}, status_code=400)
 
-    tipo_peticao = data.get("tipo_peticao", "Pet. Simples")
-    data_conclusao = date.today()
+    tipo_raw = data.get("tipo_peticao")
+    if not (tipo_raw or "").strip():
+        return JSONResponse({"error": "Tipo de peticao obrigatorio"}, status_code=400)
+    tipo_peticao = normalizar_tipo_produtividade(tipo_raw)
+    try:
+        data_conclusao = date.fromisoformat(data.get("data_conclusao")) if data.get("data_conclusao") else date.today()
+    except ValueError:
+        return JSONResponse({"error": "Data de conclusao invalida"}, status_code=400)
 
     result = db.execute(
         text(
@@ -2589,7 +3118,7 @@ async def bulk_concluir(request: Request, db: Session = Depends(get_db)):
         {"ids": ids, "org_id": org_id, "tipo_peticao": tipo_peticao, "data_conclusao": data_conclusao},
     )
     db.commit()
-    return JSONResponse({"success": True, "updated": result.rowcount})
+    return JSONResponse({"success": True, "updated": result.rowcount, "tipo_peticao": tipo_peticao})
 
 
 @router.post("/bulk-excluir")
@@ -2785,7 +3314,7 @@ _MONTH_NAMES_PT = {
     7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez",
 }
 
-# Statuses considered as "won" for victory index
+# Statuses considered as "won" for productivity indexes.
 _WON_STATUSES = {
     "won", "approved", "granted", "deferido", "procedente", "ganho", "vitoria",
 }

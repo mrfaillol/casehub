@@ -6,16 +6,18 @@ render. Widget HTML and legacy dashboard data are cached with a short TTL keyed
 by product/org/user so repeated requests inside the same minute avoid duplicate
 database work.
 """
+from __future__ import annotations
+
 import json
 import re
 import logging
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Callable
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import func, text
+from sqlalchemy import bindparam, func, inspect, or_, text
 
 from config import settings
 _HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
@@ -24,6 +26,7 @@ from models import BillingItem, Case, Client, Document, Reminder, Task, TimeEntr
 from models.tenant import tenant_query
 
 logger = logging.getLogger(__name__)
+_ORG_SCOPE_DASHBOARD_ROLES = {"admin", "superadmin"}
 
 _CACHE_MISSING = object()
 _memory_cache = {}
@@ -126,6 +129,58 @@ def _redis_set_json(key: str, value, ttl_seconds: int):
         client.setex(key, _ttl_seconds(ttl_seconds), json.dumps(value, default=str))
     except Exception as exc:
         logger.warning("Dashboard Redis cache JSON write failed for %s: %s", key, exc)
+
+
+def dashboard_user_sees_org_scope(user) -> bool:
+    # Admin/superadmin enxergam o escritório inteiro. Predicado = user_type APENAS
+    # (User não tem coluna `role`; era over-grant latente). Q4 do handoff 03,
+    # resolvida 2026-06-15. Mantém normalização case-insensitive (convenção de
+    # auth.py / routes/tasks.py).
+    user_type = str(getattr(user, "user_type", None) or "").strip().lower()
+    return user_type in _ORG_SCOPE_DASHBOARD_ROLES
+
+
+def _dashboard_scoped_user_id(user, fallback_user_id=None):
+    # Admin/superadmin → None = org-wide (sem escopo de dono).
+    if dashboard_user_sees_org_scope(user):
+        return None
+    # Não-admin (inclui viewer sem identidade): exige id utilizável. Sem id
+    # resolvível, FALHA FECHADO (-1 = não casa nada) — nunca vaza org-wide para
+    # um viewer sem identidade. Red line §7 do handoff 03.
+    raw_id = getattr(user, "id", None) or fallback_user_id
+    if raw_id is None:
+        return -1
+    try:
+        return int(raw_id)
+    except (TypeError, ValueError):
+        return -1
+
+
+def dashboard_task_scope_filter(db, user, fallback_user_id=None):
+    user_id = _dashboard_scoped_user_id(user, fallback_user_id=fallback_user_id)
+    if user_id is None:
+        return None
+    # Posse = responsável (assigned_to) OU criador (created_by) OU co-responsável
+    # na junção multi-assignee. Decisão Equipe CaseHub 2026-06-15 (segue o precedente
+    # Task.visibility: tarefa privada = criador OU responsável).
+    clauses = [Task.assigned_to == user_id, Task.created_by == user_id]
+    if _table_exists(db, "task_assignees"):
+        clauses.append(
+            text("""
+                EXISTS (
+                    SELECT 1
+                    FROM task_assignees dashboard_task_assignees
+                    WHERE dashboard_task_assignees.task_id = tasks.id
+                      AND dashboard_task_assignees.user_id = :dashboard_task_user_id
+                )
+            """).bindparams(bindparam("dashboard_task_user_id", user_id))
+        )
+    return or_(*clauses)
+
+
+def apply_dashboard_task_scope(query, db, user):
+    scope_filter = dashboard_task_scope_filter(db, user)
+    return query.filter(scope_filter) if scope_filter is not None else query
 
 
 def _cached_json_value(key: str, ttl_seconds: int, renderer: Callable[[], dict]) -> dict:
@@ -273,17 +328,68 @@ def _pt_date_label(day) -> str:
     return f"{weekdays[day.weekday()].title()}, {day.strftime('%d/%m/%Y')}"
 
 
+def _coerce_date(value):
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value).date()
+        except ValueError:
+            return None
+    return None
+
+
+def _time_label(value) -> str:
+    if not value:
+        return ""
+    if hasattr(value, "strftime"):
+        return value.strftime("%H:%M")
+    return str(value)[:5]
+
+
 def get_basic_dashboard_context(db, org_id, user_id, today, user=None) -> dict:
     """Build the Basic dashboard rescue panel with real data and safe fallbacks."""
     key = _cache_key("basic-panel", org_id, user_id, today.isoformat())
     return _cached_json_value(
         key,
         _ttl_seconds(),
-        lambda: _build_basic_dashboard_context(db, org_id, today, user=user),
+        lambda: _build_basic_dashboard_context(db, org_id, today, user=user, user_id=user_id),
     )
 
 
-def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
+def _table_exists(db, table_name: str) -> bool:
+    try:
+        return inspect(db.get_bind()).has_table(table_name)
+    except Exception as exc:
+        logger.warning("Dashboard table inspection failed for %s: %s", table_name, exc)
+        return False
+
+
+def _appointment_scope_sql(*, include_junction: bool) -> str:
+    # Posse = responsável (assigned_to) OU criador (created_by) OU co-responsável
+    # na junção appointment_assignees. Decisão Equipe CaseHub 2026-06-15.
+    if not include_junction:
+        return (
+            " AND (a.assigned_to = :dashboard_user_id"
+            " OR a.created_by = :dashboard_user_id)"
+        )
+    return """
+        AND (
+            a.assigned_to = :dashboard_user_id
+            OR a.created_by = :dashboard_user_id
+            OR EXISTS (
+                SELECT 1
+                FROM appointment_assignees aa_dashboard_scope
+                WHERE aa_dashboard_scope.appointment_id = a.id
+                  AND aa_dashboard_scope.user_id = :dashboard_user_id
+            )
+        )
+    """
+
+
+def _build_basic_dashboard_context(db, org_id, today, user=None, user_id=None) -> dict:
     fourteen_days_ago = today - timedelta(days=13)
     previous_start = today - timedelta(days=27)
     previous_end = today - timedelta(days=14)
@@ -292,6 +398,10 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
     month_start = today.replace(day=1)
     previous_month_start = (month_start - relativedelta(months=1)).replace(day=1)
     previous_month_end = month_start - timedelta(days=1)
+    scoped_user_id = _dashboard_scoped_user_id(user, fallback_user_id=user_id)
+    is_personal_scope = scoped_user_id is not None
+    task_scope_filter = dashboard_task_scope_filter(db, user, fallback_user_id=user_id)
+    has_appointment_assignees = _table_exists(db, "appointment_assignees")
 
     new_cases = tenant_query(db, Case, org_id).filter(Case.created_at >= fourteen_days_ago).count()
     previous_cases = tenant_query(db, Case, org_id).filter(
@@ -313,15 +423,18 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
         try:
             sql = """
                 SELECT COUNT(*)
-                FROM appointments
-                WHERE org_id = :org_id
-                  AND date >= :start_day
-                  AND date <= :end_day
+                FROM appointments a
+                WHERE a.org_id = :org_id
+                  AND a.date >= :start_day
+                  AND a.date <= :end_day
             """
             params = {"org_id": org_id, "start_day": start_day, "end_day": end_day}
             if appt_type is not None:
-                sql += " AND type = :appt_type"
+                sql += " AND a.type = :appt_type"
                 params["appt_type"] = appt_type
+            if scoped_user_id is not None:
+                sql += _appointment_scope_sql(include_junction=has_appointment_assignees)
+                params["dashboard_user_id"] = scoped_user_id
             return db.execute(text(sql), params).scalar() or 0
         except Exception as exc:
             logger.warning("Basic dashboard appointments unavailable: %s", exc)
@@ -356,9 +469,12 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
             Case.updated_at < next_day,
         ).count())
 
-    pending_tasks = tenant_query(db, Task, org_id).filter(
-        Task.status != "completed",
-    ).order_by(Task.due_date.asc().nullslast(), Task.created_at.desc()).limit(5).all()
+    pending_tasks_query = tenant_query(db, Task, org_id).filter(Task.status != "completed")
+    if task_scope_filter is not None:
+        pending_tasks_query = pending_tasks_query.filter(task_scope_filter)
+    pending_tasks = pending_tasks_query.order_by(
+        Task.due_date.asc().nullslast(), Task.created_at.desc()
+    ).limit(5).all()
     tasks_today = []
     for task in pending_tasks:
         due = task.due_date
@@ -381,7 +497,7 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
             text("""
                 SELECT p.id, p.tipo, p.data_vencimento, p.descricao,
                        COALESCE(p.processo_override, c.case_number, c.numero_processo, 'Sem processo') AS processo,
-                       COALESCE(c.case_name, CONCAT(cl.first_name, ' ', cl.last_name), '') AS case_name
+                       COALESCE(c.case_name, TRIM(COALESCE(cl.first_name, '') || ' ' || COALESCE(cl.last_name, '')), '') AS case_name
                 FROM prazos_processuais p
                 LEFT JOIN cases c ON c.id = p.case_id
                 LEFT JOIN clients cl ON cl.id = c.client_id
@@ -394,7 +510,9 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
             {"org_id": org_id, "start": today, "end": today + timedelta(days=7)},
         ).fetchall()
         for row in rows:
-            venc = row.data_vencimento
+            venc = _coerce_date(row.data_vencimento)
+            if not venc:
+                continue
             deadlines_week.append({
                 "day": venc.day,
                 "month": venc.strftime("%b"),
@@ -433,20 +551,34 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
                 WHERE a.org_id = :org_id
                   AND a.type = 'audiencia'
                   AND a.date BETWEEN :start AND :end
+                  {scope_clause}
                 ORDER BY a.date ASC, a.time_start ASC NULLS LAST
                 LIMIT 5
-            """),
-            {"org_id": org_id, "start": today, "end": today + timedelta(days=7)},
+            """.format(
+                scope_clause=(
+                    _appointment_scope_sql(include_junction=has_appointment_assignees)
+                    if scoped_user_id is not None
+                    else ""
+                )
+            )),
+            {
+                "org_id": org_id,
+                "start": today,
+                "end": today + timedelta(days=7),
+                "dashboard_user_id": scoped_user_id,
+            },
         ).fetchall()
         for row in hearing_rows:
-            hdate = row.date
+            hdate = _coerce_date(row.date)
+            if not hdate:
+                continue
             ref_bits = [b for b in (row.processo, row.client_name) if b]
             hearings_week.append({
                 "day": hdate.day,
                 "month": hdate.strftime("%b"),
                 "title": row.title or "Audiência",
                 "case_ref": " · ".join(ref_bits) or "Sem processo",
-                "time": row.time_start.strftime("%H:%M") if row.time_start else "",
+                "time": _time_label(row.time_start),
                 "urgent": (hdate - today).days <= 2,
             })
     except Exception as exc:
@@ -494,9 +626,8 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
     # Atividade/auditoria do escritório: NÃO vazar para advogado/estagiário/staff.
     # Só gestor (admin) e superadmin recebem dados; demais cargos ficam com a
     # lista vazia (e o card é ocultado no template por gating de user_type).
-    user_type = getattr(user, "user_type", None)
     activity = []
-    if user_type in ("admin", "superadmin"):
+    if dashboard_user_sees_org_scope(user):
         recent_clients = tenant_query(db, Client, org_id).order_by(Client.created_at.desc()).limit(3).all()
         for client in recent_clients:
             activity.append({
@@ -513,8 +644,12 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
                 "target": task.title or "sem título",
             })
 
-    recent_case_rows = tenant_query(db, Case, org_id).order_by(Case.updated_at.desc().nullslast(), Case.created_at.desc()).limit(8).all()
+    # Processos recentes são org-wide para TODOS (inclusive não-admin) — decisão
+    # Equipe CaseHub 2026-06-15: só tarefas/compromissos/audiências filtram por dono.
     recent_cases = []
+    recent_case_rows = tenant_query(db, Case, org_id).order_by(
+        Case.updated_at.desc().nullslast(), Case.created_at.desc()
+    ).limit(8).all()
     for case in recent_case_rows:
         status_label, status_variant = _status_label(case.status)
         client_name = case.client.full_name if case.client else "Sem cliente"
@@ -533,7 +668,9 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
                 {"org_id": org_id, "case_id": case.id},
             ).fetchone()
             if next_prazo and next_prazo.data_vencimento:
-                next_date = next_prazo.data_vencimento.strftime("%d/%m")
+                next_deadline = _coerce_date(next_prazo.data_vencimento)
+                if next_deadline:
+                    next_date = next_deadline.strftime("%d/%m")
         except Exception:
             pass
         recent_cases.append({
@@ -547,86 +684,106 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
         })
 
     # Totais para os KPIs operacionais (não limitados às 5 linhas dos cards).
-    open_tasks_total = tenant_query(db, Task, org_id).filter(Task.status != "completed").count()
-    overdue_tasks_total = tenant_query(db, Task, org_id).filter(
+    open_tasks_query = tenant_query(db, Task, org_id).filter(Task.status != "completed")
+    overdue_tasks_query = tenant_query(db, Task, org_id).filter(
         Task.status != "completed",
         Task.due_date.isnot(None),
         Task.due_date < today,
-    ).count()
+    )
+    if task_scope_filter is not None:
+        open_tasks_query = open_tasks_query.filter(task_scope_filter)
+        overdue_tasks_query = overdue_tasks_query.filter(task_scope_filter)
+    open_tasks_total = open_tasks_query.count()
+    overdue_tasks_total = overdue_tasks_query.count()
     deadlines_week_total = len(deadlines_week)
     today_appointments = _appointment_count(today, today)
+
+    metrics = [
+        {
+            "label": "Tarefas em aberto",
+            "route": "/tasks/kanban", "go_label": "Ir para tarefas",
+            "value": open_tasks_total,
+            "unit": "",
+            "secondary": False,
+            "delta": {
+                "label": (f"{overdue_tasks_total} atrasadas" if overdue_tasks_total else "em dia"),
+                "direction": ("down" if overdue_tasks_total else "flat"),
+            },
+            "sparkline": None,
+        },
+        {
+            "label": "Compromissos (hoje)",
+            "route": "/calendar/agenda", "go_label": "Ir para agenda",
+            "value": today_appointments,
+            "unit": "",
+            "secondary": False,
+            "delta": {
+                "label": f"{appointment_week} na semana",
+                "direction": "flat",
+            },
+            "sparkline": _sparkline([float(v) for v in appointment_series]),
+        },
+        {
+            "label": "Prazos (7 dias)",
+            "route": "/controladoria", "go_label": "Ir para prazos",
+            "value": deadlines_week_total,
+            "unit": "",
+            "secondary": False,
+            "delta": {
+                "label": "vencimentos próximos",
+                "direction": "flat",
+            },
+            "sparkline": None,
+        },
+        {
+            "label": "Audiências (semana)",
+            "route": "/calendar/agenda", "go_label": "Ir para agenda",
+            "value": hearing_week,
+            "unit": "",
+            "secondary": False,
+            "delta": _pct_delta(float(hearing_week), float(hearing_previous)),
+            "sparkline": _sparkline([float(v) for v in hearing_series]),
+        },
+    ]
+    # KPIs de volume (Novos casos / Casos fechados) são org-wide para TODOS —
+    # decisão Equipe CaseHub 2026-06-15: visíveis também para não-admin (secundários).
+    metrics.extend([
+        {
+            "label": "Novos casos (14d)",
+            "route": "/cases", "go_label": "Ver processos",
+            "value": new_cases,
+            "unit": "",
+            "secondary": True,
+            "delta": _pct_delta(float(new_cases), float(previous_cases)),
+            "sparkline": _sparkline([float(v) for v in case_series]),
+        },
+        {
+            "label": "Casos fechados (mês)",
+            "route": "/cases", "go_label": "Ver processos",
+            "value": closed_month,
+            "unit": "",
+            "secondary": True,
+            "delta": _pct_delta(float(closed_month), float(closed_previous)),
+            "sparkline": _sparkline([float(v) for v in closed_series]),
+        },
+    ])
+
+    maestro_bullets = [
+        f"{open_tasks_total} tarefas em aberto ({overdue_tasks_total} atrasadas).",
+        f"{len(deadlines_week)} prazos ou lembretes nos próximos 7 dias.",
+        f"{hearing_week} audiências e {appointment_week} compromissos nesta semana.",
+        f"{closed_month} casos fechados no mês.",
+    ]
 
     dashboard = {
         "user_first_name": (user.name.split()[0] if user and user.name else "Doutor"),
         "date_label": _pt_date_label(today),
-        # KPIs reordenados (Example User/Maria 02/06): operação do dia em destaque
+        "scope_is_personal": is_personal_scope,
+        "scope_label": "Minha visão" if is_personal_scope else "Visão do escritório",
+        # KPIs reordenados (UsuarioDemo/PessoaDemo 02/06): operação do dia em destaque
         # — tarefas, compromissos do dia, prazos, audiências — e os indicadores
         # de volume (novos casos / casos fechados) rebaixados a secundário.
-        "metrics": [
-            {
-                "label": "Tarefas em aberto",
-                "route": "/tasks/kanban", "go_label": "Ir para tarefas",
-                "value": open_tasks_total,
-                "unit": "",
-                "secondary": False,
-                "delta": {
-                    "label": (f"{overdue_tasks_total} atrasadas" if overdue_tasks_total else "em dia"),
-                    "direction": ("down" if overdue_tasks_total else "flat"),
-                },
-                "sparkline": None,
-            },
-            {
-                "label": "Compromissos (hoje)",
-                "route": "/calendar/agenda", "go_label": "Ir para agenda",
-                "value": today_appointments,
-                "unit": "",
-                "secondary": False,
-                "delta": {
-                    "label": f"{appointment_week} na semana",
-                    "direction": "flat",
-                },
-                "sparkline": _sparkline([float(v) for v in appointment_series]),
-            },
-            {
-                "label": "Prazos (7 dias)",
-                "route": "/controladoria", "go_label": "Ir para prazos",
-                "value": deadlines_week_total,
-                "unit": "",
-                "secondary": False,
-                "delta": {
-                    "label": "vencimentos próximos",
-                    "direction": "flat",
-                },
-                "sparkline": None,
-            },
-            {
-                "label": "Audiências (semana)",
-                "route": "/calendar/agenda", "go_label": "Ir para agenda",
-                "value": hearing_week,
-                "unit": "",
-                "secondary": False,
-                "delta": _pct_delta(float(hearing_week), float(hearing_previous)),
-                "sparkline": _sparkline([float(v) for v in hearing_series]),
-            },
-            {
-                "label": "Novos casos (14d)",
-                "route": "/cases", "go_label": "Ver processos",
-                "value": new_cases,
-                "unit": "",
-                "secondary": True,
-                "delta": _pct_delta(float(new_cases), float(previous_cases)),
-                "sparkline": _sparkline([float(v) for v in case_series]),
-            },
-            {
-                "label": "Casos fechados (mês)",
-                "route": "/cases", "go_label": "Ver processos",
-                "value": closed_month,
-                "unit": "",
-                "secondary": True,
-                "delta": _pct_delta(float(closed_month), float(closed_previous)),
-                "sparkline": _sparkline([float(v) for v in closed_series]),
-            },
-        ],
+        "metrics": metrics,
         "tasks_today": tasks_today,
         "deadlines_week": deadlines_week,
         "hearings_week": hearings_week,
@@ -641,10 +798,7 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
                 "e tarefas sem responsável claro."
             ),
             "bullets": [
-                f"{open_tasks_total} tarefas em aberto ({overdue_tasks_total} atrasadas).",
-                f"{len(deadlines_week)} prazos ou lembretes nos próximos 7 dias.",
-                f"{hearing_week} audiências e {appointment_week} compromissos nesta semana.",
-                f"{closed_month} casos fechados no mês.",
+                *maestro_bullets,
             ],
         },
     }
@@ -652,7 +806,7 @@ def _build_basic_dashboard_context(db, org_id, today, user=None) -> dict:
     return context
 
 
-def get_legacy_dashboard_context(db, org_id, user_id, today, product: str) -> dict:
+def get_legacy_dashboard_context(db, org_id, user_id, today, product: str, user=None) -> dict:
     """
     Build the legacy dashboard aggregate context.
 
@@ -683,18 +837,24 @@ def get_legacy_dashboard_context(db, org_id, user_id, today, product: str) -> di
         Case.created_at >= first_day_of_month
     ).count()
 
-    pending_tasks = tenant_query(db, Task, org_id).filter(Task.status != "completed").count()
-    overdue_tasks = tenant_query(db, Task, org_id).filter(
+    legacy_task_scope_filter = dashboard_task_scope_filter(db, user, fallback_user_id=user_id)
+    pending_tasks_query = tenant_query(db, Task, org_id).filter(Task.status != "completed")
+    overdue_tasks_query = tenant_query(db, Task, org_id).filter(
         Task.status != "completed",
         Task.due_date < today,
-    ).count()
+    )
+    upcoming_tasks_query = tenant_query(db, Task, org_id).filter(Task.status != "completed")
+    if legacy_task_scope_filter is not None:
+        pending_tasks_query = pending_tasks_query.filter(legacy_task_scope_filter)
+        overdue_tasks_query = overdue_tasks_query.filter(legacy_task_scope_filter)
+        upcoming_tasks_query = upcoming_tasks_query.filter(legacy_task_scope_filter)
+    pending_tasks = pending_tasks_query.count()
+    overdue_tasks = overdue_tasks_query.count()
 
     recent_clients = tenant_query(db, Client, org_id).order_by(Client.created_at.desc()).limit(5).all()
     recent_cases = tenant_query(db, Case, org_id).order_by(Case.created_at.desc()).limit(5).all()
 
-    upcoming_tasks = tenant_query(db, Task, org_id).filter(
-        Task.status != "completed"
-    ).order_by(Task.due_date.asc().nullslast()).limit(5).all()
+    upcoming_tasks = upcoming_tasks_query.order_by(Task.due_date.asc().nullslast()).limit(5).all()
 
     cases_attention = tenant_query(db, Case, org_id).filter(
         Case.status == "rfe"

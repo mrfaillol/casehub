@@ -17,7 +17,7 @@ class TestSendEmail:
         with patch.object(svc, "get_service", return_value=mock_api):
             with patch.object(svc, "get_account_status", return_value={"can_send": True}):
                 result = svc.send_email(
-                    account_name="test@gmail.com",
+                    account_name="test@example.com",
                     to="cliente@exemplo.com",
                     subject="Prazo urgente",
                     body_html="<p>Atenção ao prazo</p>",
@@ -34,8 +34,8 @@ class TestSendEmail:
 
         with patch.object(svc, "get_service", return_value=None):
             result = svc.send_email(
-                account_name="x@gmail.com",
-                to="y@gmail.com",
+                account_name="x@example.com",
+                to="y@example.com",
                 subject="s",
                 body_html="b",
                 body_text="b",
@@ -53,8 +53,8 @@ class TestSendEmail:
         with patch.object(svc, "get_service", return_value=mock_api):
             with patch.object(svc, "get_account_status", return_value={"can_send": False}):
                 result = svc.send_email(
-                    account_name="x@gmail.com",
-                    to="y@gmail.com",
+                    account_name="x@example.com",
+                    to="y@example.com",
                     subject="s",
                     body_html="b",
                     body_text="b",
@@ -82,8 +82,8 @@ class TestSendEmail:
         with patch.object(svc, "get_service", return_value=mock_api):
             with patch.object(svc, "get_account_status", return_value={"can_send": True}):
                 result = svc.send_email(
-                    account_name="x@gmail.com",
-                    to="y@gmail.com",
+                    account_name="x@example.com",
+                    to="y@example.com",
                     subject="Re: test",
                     body_html="<p>reply</p>",
                     body_text="reply",
@@ -116,7 +116,7 @@ class TestSendEmail:
         with patch.object(svc, "get_service", return_value=mock_api):
             with patch.object(svc, "get_account_status", return_value={"can_send": True}):
                 svc.send_email(
-                    account_name="x@gmail.com",
+                    account_name="x@example.com",
                     to="dest@ex.com",
                     subject="Com CC",
                     body_html="<p>msg</p>",
@@ -137,7 +137,7 @@ class TestListMessagesWithMetadata:
         svc.db = None
 
         with patch.object(svc, "get_service", return_value=None):
-            result = svc.list_messages_with_metadata("x@gmail.com", max_results=5)
+            result = svc.list_messages_with_metadata("x@example.com", max_results=5)
 
         assert result == []
 
@@ -160,7 +160,7 @@ class TestListMessagesWithMetadata:
                 "headers": [
                     {"name": "Subject", "value": "Prazo"},
                     {"name": "From", "value": "cliente@ex.com"},
-                    {"name": "To", "value": "escritorio@gmail.com"},
+                    {"name": "To", "value": "escritorio@example.com"},
                 ],
                 "mimeType": "text/plain",
                 "body": {"data": ""},
@@ -168,7 +168,7 @@ class TestListMessagesWithMetadata:
         }
 
         with patch.object(svc, "get_service", return_value=mock_api):
-            result = svc.list_messages_with_metadata("x@gmail.com", max_results=5)
+            result = svc.list_messages_with_metadata("x@example.com", max_results=5)
 
         assert len(result) == 1
         assert result[0]["subject"] == "Prazo"
@@ -185,7 +185,7 @@ class TestGetMessage:
         svc.db = None
 
         with patch.object(svc, "get_service", return_value=None):
-            result = svc.get_message("x@gmail.com", "msg_id_123")
+            result = svc.get_message("x@example.com", "msg_id_123")
 
         assert result is None
 
@@ -212,7 +212,7 @@ class TestGetMessage:
         }
 
         with patch.object(svc, "get_service", return_value=mock_api):
-            result = svc.get_message("x@gmail.com", "xyz")
+            result = svc.get_message("x@example.com", "xyz")
 
         assert result is not None
         assert result["id"] == "xyz"

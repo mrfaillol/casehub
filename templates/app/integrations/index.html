@@ -37,6 +37,20 @@
     {{ drive_error_friendly }}
   </p>
 </section>
+{% elif drive_root_saved %}
+<section class="ch-card ch-card--compact" style="border-color: var(--c-green-d); margin-bottom: var(--space-5);" role="status">
+  <strong>Raiz do Google Drive salva.</strong>
+  <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+    O Explorer de documentos agora abre a pasta configurada para este escritório.
+  </p>
+</section>
+{% elif drive_root_cleared %}
+<section class="ch-card ch-card--compact" style="border-color: var(--c-green-d); margin-bottom: var(--space-5);" role="status">
+  <strong>Raiz do Google Drive removida.</strong>
+  <p style="margin: var(--space-1) 0 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+    Sem raiz do escritório, o Explorer volta a abrir Meu Drive.
+  </p>
+</section>
 {% endif %}
 
 <section class="ch-grid ch-grid--2" style="gap: var(--space-5);" aria-label="Serviços integrados">
@@ -46,9 +60,9 @@
       <div>
         <span class="ch-card__eyebrow">
           {% if item.state == 'ok' %}
-            <span style="color: var(--c-green-d);">{{ item.state_label }}</span>
+            <span style="color: var(--accent-fg);">{{ item.state_label }}</span>
           {% elif item.state == 'warn' %}
-            <span style="color: var(--c-warn);">{{ item.state_label }}</span>
+            <span style="color: var(--warn-fg);">{{ item.state_label }}</span>
           {% else %}
             <span style="color: var(--c-danger);">{{ item.state_label }}</span>
           {% endif %}
@@ -76,6 +90,28 @@
     <small style="display: block; margin-bottom: var(--space-3); font-family: var(--mono); font-size: var(--fs-xs); color: var(--fg-muted); word-break: break-word;">
       {{ item.diagnostic }}
     </small>
+    {% endif %}
+
+    {% if item.name == 'Google Drive' %}
+    <form method="POST" action="{{ PREFIX }}/integrations/google-drive/root-folder" style="margin-bottom: var(--space-3); display: grid; gap: var(--space-2);">
+      <label for="driveRootFolder" style="font-size: var(--fs-xs); font-family: var(--mono); letter-spacing: 0.10em; text-transform: uppercase; color: var(--fg-muted);">
+        Raiz do escritório
+      </label>
+      <input id="driveRootFolder"
+             name="drive_root_id"
+             class="ch-input ch-mono"
+             type="text"
+             value="{{ item.drive_root_id or '' }}"
+             placeholder="Cole o link da pasta ou o folder_id" />
+      <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;">
+        <button type="submit" class="ch-btn ch-btn--sm ch-btn--ghost">
+          <span data-icon="save" data-icon-size="12"></span> Salvar raiz
+        </button>
+        <small style="color: var(--fg-muted); font-size: var(--fs-xs);">
+          Fonte atual: {{ item.drive_root_source or 'root-fallback' }}
+        </small>
+      </div>
+    </form>
     {% endif %}
 
     <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-2);">

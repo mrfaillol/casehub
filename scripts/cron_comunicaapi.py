@@ -19,7 +19,7 @@ from datetime import date, timedelta
 
 BASE_URL = os.environ.get("CASEHUB_BASE_URL", "http://localhost:8001")
 PREFIX = os.environ.get("CASEHUB_PREFIX", "/casehub")
-ADMIN_EMAIL = os.environ.get("CASEHUB_ADMIN_EMAIL", "victor@vingren.me")
+ADMIN_EMAIL = os.environ.get("CASEHUB_ADMIN_EMAIL", "admin@example.com")
 ADMIN_PASSWORD = os.environ.get("CASEHUB_ADMIN_PASSWORD", "")
 
 # Multiple OABs: "123456/MG,789012/MG,345678/SP"

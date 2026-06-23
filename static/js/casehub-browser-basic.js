@@ -377,13 +377,23 @@
       if (url.pathname === window.location.pathname && url.search === window.location.search) return;
 
       event.preventDefault();
-      navigateSoft(url.href).catch(function () {
+      navigateSoft(url.href).catch(function (error) {
+        var msg = (error && error.message) || 'parse';
+        var reason = msg.indexOf('soft_navigation_http_') === 0 ? 'http_' + msg.slice('soft_navigation_http_'.length)
+          : msg === 'soft_navigation_missing_main' ? 'missing_main'
+          : msg;
+        console.warn('[casehub-softnav] fallback:', reason, url.href);
         window.location.assign(url.href);
       });
     });
 
     window.addEventListener('popstate', function () {
-      navigateSoft(window.location.href, { replace: true }).catch(function () {
+      navigateSoft(window.location.href, { replace: true }).catch(function (error) {
+        var msg = (error && error.message) || 'parse';
+        var reason = msg.indexOf('soft_navigation_http_') === 0 ? 'http_' + msg.slice('soft_navigation_http_'.length)
+          : msg === 'soft_navigation_missing_main' ? 'missing_main'
+          : msg;
+        console.warn('[casehub-softnav] fallback:', reason, window.location.href);
         window.location.reload();
       });
     });

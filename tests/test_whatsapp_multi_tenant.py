@@ -28,7 +28,7 @@ def stub_db(monkeypatch):
 
     # We pre-bake responses for the SELECT id FROM organizations WHERE id=:id
     # used by _resolve_inbound_org and for the org-list scan.
-    org_exists = {1, 4, 2}  # 1=default? 4=sampletenant, 2=other
+    org_exists = {1, 4, 2}  # 1=default? 4=tenanta, 2=other
     org_with_slug_default = 2
 
     def execute(stmt, params=None):

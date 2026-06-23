@@ -26,7 +26,7 @@ from models.tenant import Organization, get_org_by_slug
 # ---------------------------------------------------------------------------
 
 IMMIGRATION_CLIENTS = [
-    {"first_name": "Maria", "last_name": "Santos", "email": "maria.santos@example.com",
+    {"first_name": "PessoaDemo", "last_name": "Santos", "email": "pessoa_demo.santos@example.com",
      "phone": "+1-305-555-0101", "country_of_origin": "Brazil", "status": "active"},
     {"first_name": "James", "last_name": "Chen", "email": "james.chen@example.com",
      "phone": "+1-415-555-0202", "country_of_origin": "China", "status": "active"},
@@ -40,19 +40,19 @@ IMMIGRATION_CLIENTS = [
 
 LITE_CLIENTS = [
     {"first_name": "Carlos", "last_name": "Oliveira", "email": "carlos.oliveira@exemplo.com",
-     "phone": "(32) 99100-1001", "cpf": "123.456.789-00", "city": "Juiz de Fora",
+     "phone": "(32) 99100-1001", "cpf": "000.000.000-00", "city": "Juiz de Fora",
      "state": "MG", "status": "active"},
     {"first_name": "Ana", "last_name": "Souza", "email": "ana.souza@exemplo.com",
-     "phone": "(32) 99100-2002", "cpf": "987.654.321-00", "city": "Juiz de Fora",
+     "phone": "(32) 99100-2002", "cpf": "000.000.000-00", "city": "Juiz de Fora",
      "state": "MG", "status": "active"},
     {"first_name": "Pedro", "last_name": "Mendes", "email": "pedro.mendes@exemplo.com",
-     "phone": "(21) 99100-3003", "cpf": "456.789.123-00", "city": "Rio de Janeiro",
+     "phone": "(21) 99100-3003", "cpf": "000.000.000-00", "city": "Rio de Janeiro",
      "state": "RJ", "status": "active"},
-    {"first_name": "Mariana", "last_name": "Costa", "email": "mariana.costa@exemplo.com",
-     "phone": "(11) 99100-4004", "cpf": "321.654.987-00", "city": "Sao Paulo",
+    {"first_name": "PessoaDemona", "last_name": "Costa", "email": "pessoa_demona.costa@exemplo.com",
+     "phone": "(11) 99100-4004", "cpf": "000.000.000-00", "city": "Sao Paulo",
      "state": "SP", "status": "active"},
     {"first_name": "Rafael", "last_name": "Ferreira", "email": "rafael.ferreira@exemplo.com",
-     "phone": "(31) 99100-5005", "cpf": "654.321.987-00", "city": "Belo Horizonte",
+     "phone": "(31) 99100-5005", "cpf": "000.000.000-00", "city": "Belo Horizonte",
      "state": "MG", "status": "active"},
 ]
 

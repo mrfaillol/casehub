@@ -11,7 +11,7 @@ import logging
 import os
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -23,6 +23,27 @@ from models.document import Document
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/drive", tags=["drive-upload"])
+
+
+@router.get("", include_in_schema=False)
+@router.get("/", include_in_schema=False)
+async def drive_page_redirect(request: Request):
+    """User-facing alias for the Drive explorer.
+
+    O menu 'Drive' do shell aponta para ``{PREFIX}/documents`` (explorer
+    column-view estilo Finder), e **não existia** handler de PÁGINA em
+    ``/drive`` (só ``POST /drive/upload-from-document`` + a superfície JSON
+    ``/api/drive/*``). Então quem digitava/seguia ``{PREFIX}/drive`` direto
+    tomava **404** (feedback alpha Escritorio Demo / UsuarioDemo, 2026-06-15).
+
+    Redireciona para o explorer real preservando a query string — assim
+    ``/drive?client_id=N`` (ou ``?folder_id=...``) abre o explorer já com o
+    contexto certo. Auth é cobrada downstream por ``/documents`` (sem loop)."""
+    query = request.url.query
+    target = f"{PREFIX}/documents"
+    if query:
+        target = f"{target}?{query}"
+    return RedirectResponse(url=target, status_code=307)
 
 
 @router.post("/upload-from-document")

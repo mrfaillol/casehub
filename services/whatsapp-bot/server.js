@@ -218,27 +218,53 @@ async function startServer() {
   whatsappClient.on("ready", () => console.log("\n[OK] WhatsApp pronto!\n"));
   whatsappClient.on("qr", () => console.log("[QR] http://localhost:" + PORT + "/qr"));
 
-  // Capture outgoing messages (sent via WhatsApp Web)
-  whatsappClient.on("message_create", async (msg) => {
+  // Capture outgoing messages (sent via WhatsApp Web / proprio celular).
+  // N2: o objeto vem do wrapper WhatsAppClient (re-emitido em whatsapp-client.js)
+  // com a MESMA forma do evento 'message' (from = destinatario, fromMe: true),
+  // entao podemos reusar o mesmo caminho HMAC/X-Org-Id do inbound.
+  whatsappClient.on("message_create", async (data) => {
+    if (!data || !data.fromMe) return;
+    const phone = (data.from || "").replace(/@.*$/, "");
+    const content = (data.body || "").trim();
+
+    // Captura local (DB legado do bot) — dedup em janela curta, como antes.
     try {
-      if (!msg.fromMe) return;
-      if (msg.to.includes("@g.us")) return;
-
-      const phone = msg.to.replace("@c.us", "");
-      const content = msg.body;
-      if (!content || content.trim() === "") return;
-
-      const existingCheck = await db.query(
-        "SELECT id FROM conversations WHERE phone = ? AND role = ? AND content = ? AND created_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE) LIMIT 1",
-        [phone, "assistant", content]
-      );
-
-      if (existingCheck && existingCheck.length > 0) return;
-
-      await db.saveMessage(phone, "assistant", content);
-      console.log("[SYNC] Mensagem enviada capturada:", phone, content.substring(0, 50) + "...");
+      if (phone && content) {
+        const existingCheck = await db.query(
+          "SELECT id FROM conversations WHERE phone = ? AND role = ? AND content = ? AND created_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE) LIMIT 1",
+          [phone, "assistant", content]
+        );
+        if (!existingCheck || existingCheck.length === 0) {
+          await db.saveMessage(phone, "assistant", content);
+          console.log("[SYNC] Mensagem enviada capturada:", phone, content.substring(0, 50) + "...");
+        }
+      }
     } catch (e) {
       console.error("[SYNC] Erro ao capturar mensagem:", e.message);
+    }
+
+    // Espelha no CaseHub pelo mesmo endpoint HMAC do inbound. raw_payload.from_me
+    // (=true) sinaliza direcao outbound pro backend. Isolado em try/catch: falha
+    // do espelho NUNCA quebra a captura local nem o bot.
+    try {
+      if (data.hasMedia && data.message) {
+        try {
+          const saved = await mediaHandler.downloadAndSaveMedia(
+            data.message,
+            data.from || ""
+          );
+          if (saved && saved.success) {
+            data.media_file = saved.filename;
+            data.media_size = saved.size;
+            if (!data.mimetype) data.mimetype = saved.mimetype;
+          }
+        } catch (mediaErr) {
+          console.error("[casehub-bridge] outbound media metadata error:", mediaErr.message);
+        }
+      }
+      await casehubBridge.forwardInbound(data);
+    } catch (bridgeErr) {
+      console.error("[casehub-bridge] outbound forward error:", bridgeErr.message);
     }
   });
 

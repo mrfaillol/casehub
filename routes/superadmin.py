@@ -10,18 +10,26 @@ from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
+from sqlalchemy.exc import SQLAlchemyError
 
 from models import get_db, User
 from models.tenant import Organization
 from auth import get_current_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from core.template_config import templates, PREFIX
+from core import feature_flags
+from core.stepup import STEPUP_COOKIE_NAME, verify_token
 from config import settings
+from urllib.parse import quote
+
+# Flag name (default OFF) gating 2FA enforcement on sensitive superadmin paths.
+# Registered in core/feature_flags.py; env var CASEHUB_FF_SUPERADMIN_2FA_ENFORCEMENT.
+SUPERADMIN_2FA_FLAG = "superadmin_2fa_enforcement"
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/superadmin", tags=["superadmin"])
 
-# Canonical plans (Victor, 28/05/2026): office R$129/mês + Enterprise sob consulta.
+# Canonical plans (Equipe CaseHub, 28/05/2026): office R$129/mês + Enterprise sob consulta.
 # Enterprise has no fixed price (0 here => not counted as fixed MRR).
 PLAN_PRICES = {
     "office": 129,
@@ -35,6 +43,99 @@ def require_superadmin(request: Request, db: Session) -> User:
     if not user or user.user_type != "superadmin":
         return None
     return user
+
+
+def enforce_superadmin_2fa(request: Request, db: Session, user: User):
+    """Gate sensitive superadmin actions on TOTP 2FA (issue #805 / T10, CWE-308).
+
+    Returns ``None`` to allow the action to proceed, or a ``RedirectResponse``
+    the caller MUST return to interrupt the action.
+
+    HARD SAFETY CONTRACT (must never regress):
+
+    * The feature flag ``superadmin_2fa_enforcement`` defaults OFF. While OFF
+      (the current prod state) this function ALWAYS returns ``None`` — the
+      sensitive paths behave exactly as before, with no new 2FA requirement.
+      It can never lock a superadmin out of superadmin.
+
+    * When the flag is ON:
+        - superadmin has NOT enrolled  -> redirect to the 2FA setup page
+          (enrollment grace). This is a guided redirect, NOT a 403 dead-end,
+          so a superadmin without 2FA can always still reach /2fa/setup and
+          enroll. No lockout.
+        - superadmin IS enrolled but presents NO fresh step-up proof ->
+          redirect to the step-up challenge (/2fa/step-up?next=...) to enter a
+          current TOTP code. Also a guided redirect, never a 403 dead-end.
+        - superadmin IS enrolled AND presents a valid, unexpired, user-bound
+          step-up cookie -> allow (return None).
+
+    STEP-UP VERIFICATION (T10 real fix, supersedes the enrollment-only check
+    from PR #806): enrollment != verification. A stolen superadmin JWT alone no
+    longer passes a sensitive action while the flag is ON — the actor must also
+    prove a FRESH TOTP at action time. The proof is a short-lived, signed,
+    user-bound cookie (``sa_2fa_stepup``; see core/stepup.py) minted by
+    POST /2fa/step-up. A missing / expired / tampered / wrong-user cookie ->
+    re-challenge (never a lockout). Auth here is a stateless JWT cookie with no
+    SessionMiddleware, so the signed cookie is how "verified THIS session
+    recently" is expressed without server-side session state.
+    """
+    if not feature_flags.is_enabled(SUPERADMIN_2FA_FLAG):
+        # Flag OFF (default / current prod): behave exactly as before.
+        return None
+
+    # Flag ON. Determine enrollment. Sentinela review (2026-06-14, PR #806):
+    # fail-open ONLY on a transient DB/operational error (SQLAlchemyError) so the
+    # single platform admin is never locked out by a DB hiccup — logged at ERROR
+    # so a *persistent* fail-open is detected, not masked. Any OTHER exception
+    # (e.g. ImportError / signature drift in TwoFactorService) is left to
+    # propagate loudly rather than silently disabling the control.
+    from services.two_factor import TwoFactorService
+
+    try:
+        enrolled = bool(TwoFactorService(db).is_2fa_required(user.id))
+    except SQLAlchemyError as exc:  # transient DB error: fail-open, but loud
+        logger.error(
+            "Superadmin 2FA enforcement could not read 2FA state for user %s "
+            "(DB error -> allowing through to avoid lockout; investigate if "
+            "persistent): %s",
+            getattr(user, "id", "?"),
+            exc,
+        )
+        return None
+
+    if enrolled:
+        # Enrolled: require a FRESH, signed, user-bound step-up proof. Enrollment
+        # alone is NOT enough (closes the enrollment!=verification gap of #806).
+        stepup_cookie = request.cookies.get(STEPUP_COOKIE_NAME)
+        if verify_token(stepup_cookie, user.id):
+            return None
+
+        # No valid/fresh proof -> guide to the step-up challenge (NOT a 403).
+        # Bounce back to the originally-requested path after verifying.
+        try:
+            next_path = request.url.path
+        except Exception:
+            next_path = f"{PREFIX}/superadmin"
+        logger.info(
+            "Superadmin %s hit a 2FA-gated path without a fresh step-up proof; "
+            "redirecting to step-up challenge (flag ON).",
+            getattr(user, "email", "?"),
+        )
+        return RedirectResponse(
+            url=f"{PREFIX}/2fa/step-up?next={quote(next_path, safe='')}",
+            status_code=302,
+        )
+
+    # Flag ON but not enrolled: guide to setup (enrollment grace, no dead-end).
+    logger.warning(
+        "Superadmin %s hit a 2FA-gated path without 2FA enrolled; "
+        "redirecting to setup (flag ON).",
+        getattr(user, "email", "?"),
+    )
+    return RedirectResponse(
+        url=f"{PREFIX}/2fa/setup?enroll_required=superadmin",
+        status_code=302,
+    )
 
 
 # =========================================================================
@@ -231,6 +332,11 @@ async def superadmin_toggle_org(org_id: int, request: Request, db: Session = Dep
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
 
+    # T10 (#805): gate org enable/disable on 2FA when the (default-OFF) flag is ON.
+    guard = enforce_superadmin_2fa(request, db, user)
+    if guard is not None:
+        return guard
+
     org = db.query(Organization).filter(Organization.id == org_id).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -274,6 +380,11 @@ async def superadmin_update_plan(
     user = require_superadmin(request, db)
     if not user:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    # T10 (#805): gate plan changes on 2FA when the (default-OFF) flag is ON.
+    guard = enforce_superadmin_2fa(request, db, user)
+    if guard is not None:
+        return guard
 
     if plan not in PLAN_PRICES:
         return RedirectResponse(
@@ -393,6 +504,11 @@ async def superadmin_impersonate(
     admin = require_superadmin(request, db)
     if not admin:
         return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    # T10 (#805): gate impersonation on 2FA when the (default-OFF) flag is ON.
+    guard = enforce_superadmin_2fa(request, db, admin)
+    if guard is not None:
+        return guard
 
     target_user = db.query(User).filter(User.id == user_id).first()
     if not target_user:

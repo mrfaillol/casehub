@@ -35,8 +35,8 @@ sudo apt install -y python3.12 python3.12-venv python3-pip postgresql nginx curl
 ## 1. Clone the Repository
 
 ```bash
-git clone git@github.com:mrfaillol/casehub-prod.git casehub-whitelabel
-cd casehub-whitelabel
+git clone https://github.com/mrfaillol/casehub.git casehub
+cd casehub
 ```
 
 ---

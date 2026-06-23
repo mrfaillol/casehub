@@ -30,7 +30,7 @@ def test_report_markdown_contains_required_operational_fields():
     report = {
         "schema_version": SCHEMA_VERSION,
         "sha": "abc123",
-        "environment": {"base_url": "https://dev.vingren.me"},
+        "environment": {"base_url": "https://dev.example.invalid"},
         "tenant": {"slug": "perf-bench-dev"},
         "profile": {"name": "readme-min-current"},
         "verdict": {"status": "fail", "failures": []},

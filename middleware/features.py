@@ -24,7 +24,7 @@ from models import get_db
 logger = logging.getLogger(__name__)
 
 # Plan -> features mapping (fallback if DB plans table is unreachable).
-# Canonical plans (Victor, 28/05/2026): office (R$129) + enterprise (sob consulta).
+# Canonical plans (Equipe CaseHub, 28/05/2026): office (R$129) + enterprise (sob consulta).
 # Keep feature lists in sync with routes/subscription.PLAN_FEATURES.
 # Legacy keys (starter/professional) retained so orgs still stored under them keep
 # working until migrated.

@@ -220,7 +220,7 @@ Quick introduction: I am an Immigration Lawyer with years of experience, license
 To get started, let's schedule an onboarding call to discuss your case in more detail. Please let me know a few times that you're available for a call.
 
 Here are your credentials to log into your e-immigration account:
-https://www.eimmigration.com/immigrantlaw.Client/
+[CLIENT_PORTAL_URL]
 
 Username: {email}
 Password: [Will be provided separately]

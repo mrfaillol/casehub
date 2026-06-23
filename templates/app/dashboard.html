@@ -6,11 +6,14 @@
 {% block content %}
 <section class="ch-page-head">
   <div>
-    <span class="ch-eyebrow">Painel · {{ dash.date_label|default('Hoje') }}</span>
+    <span class="ch-eyebrow">Painel · {{ dash.scope_label|default('Visão do escritório') }} · {{ dash.date_label|default('Hoje') }}</span>
     <h1>Olá, <em>{{ dash.user_first_name|default('Doutor(a)') }}</em>.</h1>
     <p class="ch-page-head__sub">
-      Visão direta do escritório:
-      tarefas, compromissos da semana, prazos críticos, casos fechados e resumo operacional.
+      {% if dash.scope_is_personal %}
+      Sua fila operacional: tarefas, compromissos da semana, prazos críticos e resumo operacional.
+      {% else %}
+      Visão direta do escritório: tarefas, compromissos da semana, prazos críticos, casos fechados e resumo operacional.
+      {% endif %}
     </p>
   </div>
   <div class="ch-page-head__actions">
@@ -23,35 +26,13 @@
   </div>
 </section>
 
-<section class="ch-md-invite" aria-labelledby="ch-md-invite-title">
-  <div class="ch-md-invite__icon" aria-hidden="true">
-    <i data-lucide="file-pen-line"></i>
-  </div>
-  <div class="ch-md-invite__body">
-    <span class="ch-card__eyebrow">Escrita do escritório</span>
-    <h2 id="ch-md-invite-title">Use o CaseHub.md antes de abrir o Google Docs.</h2>
-    <p>
-      Redija notas, resumos e peças rápidas dentro do workspace. Quando quiser continuar fora do CaseHub,
-      conecte sua conta Google e exporte o documento para Google Docs ou Drive.
-    </p>
-  </div>
-  <div class="ch-md-invite__actions">
-    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/casehub-md">
-      <i data-lucide="file-plus-2"></i> Abrir CaseHub.md
-    </a>
-    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/integrations">
-      <i data-lucide="plug"></i> Conectar Google
-    </a>
-  </div>
-</section>
-
 {# ─────────── KPIs operacionais (destaque) ───────────
-   Example User/Maria 02/06: a operação do dia em primeiro plano — tarefas,
+   UsuarioDemo/PessoaDemo 02/06: a operação do dia em primeiro plano — tarefas,
    compromissos, prazos e audiências. Cada métrica traz secondary=false. #}
 {% set primary_metrics = (dash.metrics or [])|selectattr('secondary', 'equalto', false)|list %}
 {% set secondary_metrics = (dash.metrics or [])|selectattr('secondary', 'equalto', true)|list %}
 <style>
-/* Atalhos "Ir para…" nos KPIs (Victor 03/06) — tokens semânticos, Fitts (alvo claro) + Doherty (hover <150ms) */
+/* Atalhos "Ir para…" nos KPIs (Equipe CaseHub 03/06) — tokens semânticos, Fitts (alvo claro) + Doherty (hover <150ms) */
 .ch-kpi__go,.ch-kpi-mini__go{display:inline-flex;align-items:center;gap:4px;margin-top:var(--space-2);font-size:var(--fs-xs);font-weight:600;color:var(--accent,#1E4890);text-decoration:none;opacity:.85;transition:opacity .14s ease,transform .14s ease}
 .ch-kpi__go:hover,.ch-kpi-mini__go:hover{opacity:1;transform:translateX(2px)}
 .ch-kpi--hero .ch-kpi__go{color:var(--fg-on-accent,#fff)}
@@ -84,7 +65,7 @@
         </span>
       </div>
       {% endif %}
-      {# Atalho de navegação por bloco (Victor 03/06) — Fitts: alvo claro p/ ir à tela do KPI #}
+      {# Atalho de navegação por bloco (Equipe CaseHub 03/06) — Fitts: alvo claro p/ ir à tela do KPI #}
       {% if metric.route %}
       <a class="ch-kpi__go" href="{{ PREFIX }}{{ metric.route }}" aria-label="{{ metric.go_label or 'Abrir' }}">{{ metric.go_label or 'Abrir' }} <span data-icon="chevron_right" data-icon-size="13"></span></a>
       {% endif %}
@@ -126,7 +107,7 @@
       <div>
         <span class="ch-card__eyebrow">Hoje</span>
         <h2 class="ch-card__title">Tarefas em aberto</h2>
-        <p class="ch-card__subtitle">Próximas 5 — atrasadas em destaque.</p>
+        <p class="ch-card__subtitle">{% if dash.scope_is_personal %}Suas próximas 5 — atrasadas em destaque.{% else %}Próximas 5 — atrasadas em destaque.{% endif %}</p>
       </div>
       <a class="ch-card__action" href="{{ PREFIX }}/tasks">
         Ver todas <span data-icon="chevron_right" data-icon-size="14"></span>
@@ -296,7 +277,7 @@
         {% for member in dash.team %}
         <li style="display:flex; align-items:center; gap: var(--space-3);">
           {% if member.photo_url %}
-          <img src="{{ member.photo_url }}" alt="{{ member.name }}" class="ch-list__icon" style="border-radius:50%; object-fit:cover; box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs); background: var(--surface-app);">
+          <img src="{{ member.photo_url }}" alt="{{ member.name }}" class="ch-list__icon" style="border-radius:50%; object-fit:cover; box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs); background: var(--surface-app);" onerror="var s=document.createElement('span');s.className='ch-list__icon';s.style.cssText='border-radius:50%; background: {{ member.color or '#1C2447' }}; color: #fff; font-family: var(--display); font-weight: 700; box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);';s.textContent='{{ member.initials }}';this.replaceWith(s);">
           {% else %}
           <span class="ch-list__icon" style="border-radius:50%; background: {{ member.color or '#1C2447' }}; color: #fff; font-family: var(--display); font-weight: 700; box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);">
             {{ member.initials }}

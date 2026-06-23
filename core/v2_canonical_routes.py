@@ -47,7 +47,7 @@ def register_canonical_routes(app: FastAPI, templates: Any, get_context: Callabl
             return {}
 
     # ─────────── Financeiro: gate reutilizável (dado financeiro sensível) ───────────
-    # RED LINE (Victor 03/06): /reports/financeiro e seus endpoints de mutação são
+    # RED LINE (Equipe CaseHub 03/06): /reports/financeiro e seus endpoints de mutação são
     # restritos a SUPERADMIN OU aos sócios explícitos da org na allowlist
     # organizations.settings.financeiro_user_ids. NÃO usar has_permission(cases.edit)
     # nem 'admin' genérico (QA/admins operacionais NÃO veem dado financeiro). Sócio

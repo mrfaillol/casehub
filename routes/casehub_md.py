@@ -8,6 +8,8 @@ Próximas fatias: "folha" Google Docs, embeds, export DOCX, Drive sync, OCR, Mae
 
 Documentação: docs/casehub-md/README.md
 """
+from __future__ import annotations
+
 import logging
 import subprocess
 from datetime import datetime, timezone
@@ -15,6 +17,7 @@ from html import escape as html_escape
 
 import os
 import tempfile
+from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -114,13 +117,13 @@ async def casehub_md_poc(request: Request, db: Session = Depends(get_db)):
 
 class _DocxExportPayload(BaseModel):
     markdown: str = Field(..., description="Markdown source to convert to DOCX.")
-    filename: str | None = Field(
+    filename: Optional[str] = Field(
         None,
         max_length=120,
         description="Optional download filename (without .docx extension). "
                     "Default: casehub-md-<UTC-timestamp>.docx.",
     )
-    template: str | None = Field(
+    template: Optional[str] = Field(
         None,
         max_length=24,
         description="Optional reference.docx template. Currently supported: 'oab'. "
@@ -128,7 +131,7 @@ class _DocxExportPayload(BaseModel):
     )
 
 
-def _safe_filename(name: str | None) -> str:
+def _safe_filename(name: Optional[str]) -> str:
     """Strip path separators / dangerous chars; cap length; ensure .docx suffix."""
     base = (name or "").strip()
     if not base:
@@ -202,14 +205,14 @@ async def export_docx(
 class _DriveSavePayload(BaseModel):
     doc_id: str = Field(..., min_length=1, max_length=120)
     markdown: str
-    filename: str | None = Field(None, max_length=120)
+    filename: Optional[str] = Field(None, max_length=120)
 
 
 class _GoogleDocExportPayload(BaseModel):
     doc_id: str = Field(..., min_length=1, max_length=120)
     markdown: str
-    html: str | None = Field(None, max_length=4 * 1024 * 1024)
-    filename: str | None = Field(None, max_length=120)
+    html: Optional[str] = Field(None, max_length=4 * 1024 * 1024)
+    filename: Optional[str] = Field(None, max_length=120)
 
 
 def _require_user(request: Request, db: Session):
@@ -443,7 +446,7 @@ async def ocr_extract(
 
 class _MaestroPayload(BaseModel):
     paragraph: str = Field(..., min_length=1, max_length=16_384)
-    case_id: str | None = Field(None, max_length=120)
+    case_id: Optional[str] = Field(None, max_length=120)
     kind: str = Field("suggest_continuation", max_length=64)
 
 

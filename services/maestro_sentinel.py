@@ -58,7 +58,10 @@ def _post_as_maestro(db, org_id: int, cid: int, body: str) -> int:
         if not body:
             return 0
         db.execute(
-            text("INSERT INTO team_messages (org_id, channel_id, user_id, body) VALUES (:o, :c, :u, :b)"),
+            text("""
+                INSERT INTO team_messages (org_id, channel_id, user_id, body, actor_type, actor_label)
+                VALUES (:o, :c, :u, :b, 'maestro', 'Maestro IA 🪄')
+            """),
             {"o": org_id, "c": cid, "u": MAESTRO_UID, "b": body},
         )
         db.commit()
@@ -174,10 +177,42 @@ def _build_alert_message(db, org_id: int) -> str:
     return "\n".join(lines)
 
 
+def _sentinel_enabled(org_id=None) -> bool:
+    """Kill-switch do sentinel diario (ruling 2026-06-18 token-economy).
+    CASEHUB_SENTINEL_ENABLED=false desliga global; CASEHUB_SENTINEL_ORG_ALLOWLIST
+    (csv de org_ids) restringe; default = ligado (preserva comportamento atual)."""
+    import os as _os
+    val = (_os.getenv("CASEHUB_SENTINEL_ENABLED", "true") or "").strip().lower()
+    if val in ("0", "false", "off", "no"):
+        return False
+    allow = (_os.getenv("CASEHUB_SENTINEL_ORG_ALLOWLIST", "") or "").strip()
+    if allow and org_id is not None:
+        ids = {x.strip() for x in allow.split(",") if x.strip()}
+        return str(org_id) in ids
+    return True
+
+
 def run_sentinel_for_org(org_id: int) -> bool:
     """Roda o sentinel para uma org. Retorna True se postou mensagem."""
+    if not _sentinel_enabled(org_id):
+        return False
     db = SessionLocal()
+    # Advisory lock prevents two uvicorn workers from posting duplicate sentinel
+    # messages. Both workers start _sentinel_daily tasks; without a lock, both
+    # pass _already_posted_today before either commits the first message.
+    _LOCK_BASE = 0x5E4715E4  # arbitrary sentinel namespace
+    lock_key = (_LOCK_BASE + org_id) & 0x7FFFFFFFFFFFFFFF
+    lock_acquired = False
     try:
+        try:
+            lock_acquired = bool(
+                db.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": lock_key}).scalar()
+            )
+        except Exception:
+            lock_acquired = True  # advisory locks unavailable (SQLite/test env) — proceed
+        if not lock_acquired:
+            logger.info("sentinel: org=%s lock não adquirido (outro worker rodando)", org_id)
+            return False
         cid = _get_equipe_channel_id(db, org_id)
         if not cid:
             logger.info("sentinel: org=%s sem canal #equipe ainda — pulando", org_id)
@@ -194,11 +229,18 @@ def run_sentinel_for_org(org_id: int) -> bool:
             logger.info("sentinel: msg #%s postada org=%s canal=%s", mid, org_id, cid)
         return bool(mid)
     finally:
+        if lock_acquired:
+            try:
+                db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": lock_key})
+            except Exception:
+                pass
         db.close()
 
 
 def run_sentinel_all_orgs() -> dict:
     """Roda o sentinel em todas as orgs ativas."""
+    if not _sentinel_enabled():
+        return {"skipped": "CASEHUB_SENTINEL_ENABLED=false"}
     db = SessionLocal()
     try:
         try:

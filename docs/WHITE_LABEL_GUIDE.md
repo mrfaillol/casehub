@@ -24,9 +24,9 @@ INSERT INTO organizations (
     'Acme Legal Group',
     'acme',                              -- URL slug: acme.casehub.app
     NULL,                                -- Custom domain (set later)
-    'contact@acmelegal.com',
+    'contact.com',
     '+1-555-0100',
-    'https://acmelegal.com',
+    'https://acme.example.com',
     'immigration',                       -- or 'lite'
     'professional',                      -- starter | professional | enterprise
     'ALG',                               -- Case number prefix: ALG-2026-0001
@@ -50,7 +50,7 @@ curl -X POST https://app.casehub.io/api/v1/organizations \
   -d '{
     "name": "Acme Legal Group",
     "slug": "acme",
-    "email": "contact@acmelegal.com",
+    "email": "contact.com",
     "product_type": "immigration",
     "plan": "professional"
   }'
@@ -101,7 +101,7 @@ By default, tenants are accessed via subdomain: `acme.casehub.app`. To use a cus
 ### Step 1: Update the Organization
 
 ```sql
-UPDATE organizations SET domain = 'cases.acmelegal.com' WHERE slug = 'acme';
+UPDATE organizations SET domain = 'cases.acme.example.com' WHERE slug = 'acme';
 ```
 
 ### Step 2: DNS Configuration
@@ -121,10 +121,10 @@ Add a server block for the custom domain (see `deploy/nginx-casehub.conf` for th
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name cases.acmelegal.com;
+    server_name cases.acme.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/cases.acmelegal.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/cases.acmelegal.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/cases.acme.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cases.acme.example.com/privkey.pem;
 
     location / {
         proxy_pass http://casehub_backend;
@@ -139,7 +139,7 @@ server {
 ### Step 4: SSL Certificate
 
 ```bash
-sudo certbot certonly --nginx -d cases.acmelegal.com
+sudo certbot certonly --nginx -d cases.acme.example.com
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -169,7 +169,7 @@ Each organization can use its own SMTP server for outbound emails.
 UPDATE organizations SET
     smtp_host = 'smtp.gmail.com',
     smtp_port = 587,
-    smtp_user = 'noreply@acmelegal.com',
+    smtp_user = 'noreply.com',
     smtp_pass = 'app-password-here',
     smtp_from_name = 'Acme Legal Group'
 WHERE slug = 'acme';
@@ -190,7 +190,7 @@ The system resolves email settings in this order:
 1. Per-org SMTP fields in `organizations` table.
 2. Global SMTP settings from `.env` (fallback).
 
-The `from_email` property on the Organization model constructs the formatted sender: `"Acme Legal Group <noreply@acmelegal.com>"`.
+The `from_email` property on the Organization model constructs the formatted sender: `"Acme Legal Group <noreply.com>"`.
 
 ---
 
@@ -400,7 +400,7 @@ WHERE slug = 'acme';
 When the app starts, if no user with the `ADMIN_EMAIL` exists, it auto-creates one:
 
 ```
-Default admin user created: admin@acmelegal.com / <random-16-char-password> (must change on first login)
+Default admin user created: admin.com / <random-16-char-password> (must change on first login)
 ```
 
 The password is printed to stdout (visible in `pm2 logs` or `docker compose logs`). The user is forced to change it on first login (`must_change_password = True`).

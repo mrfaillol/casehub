@@ -27,13 +27,16 @@ via services.whatsapp_clone_service). /api/status, /api/qr, /api/send and
 /api/bot-control still proxy the bot. The JSON response shapes are unchanged —
 static/js/chat.js depends on them.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
+import base64
+import binascii
 import logging
 import os
 import re
 import httpx
 import json
+from urllib.parse import quote, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,7 @@ from sqlalchemy import or_, text
 
 from models import get_db, Client
 from auth import get_current_user
+from middleware.permissions import has_permission
 from models.tenant import tenant_query
 from i18n import get_translations
 from services.moskit import moskit_service
@@ -118,6 +122,76 @@ def _request_org_id(request: Request) -> Optional[int]:
     return getattr(getattr(request, "state", None), "org_id", None)
 
 
+def _failure_status_for_send(result: dict) -> int:
+    """HTTP status for a failed operator send."""
+    err = str((result or {}).get("error") or "").lower()
+    if any(token in err for token in (
+        "not ready", "disconnected", "awaiting_scan", "qr", "session",
+        "not connected", "client closed", "connection",
+    )):
+        return 503
+    return 502
+
+
+def _audit_outgoing_send(
+    db: Session,
+    request: Request,
+    actor_user,
+    message_row,
+    phone: str,
+    wa_message_id: Optional[str],
+    *,
+    kind: str = "text",
+) -> None:
+    """Best-effort audit trail for human WhatsApp sends.
+
+    The message body stays out of audit_log; the conversation content already
+    lives in wa_messages. This gives compliance user/org attribution without
+    duplicating privileged client communications in the audit table.
+    """
+    if actor_user is None:
+        return
+    try:
+        ip_address = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        if not ip_address and getattr(request, "client", None):
+            ip_address = request.client.host
+        user_agent = request.headers.get("user-agent", "")[:500]
+        details = {
+            "phone": whatsapp_clone_service.normalize_phone(phone) or phone,
+            "wa_message_id": wa_message_id,
+            "kind": kind,
+        }
+        db.execute(text("""
+            INSERT INTO audit_log (
+                action, entity_type, entity_id, user_id, user_email,
+                description, details, ip_address, user_agent, org_id, created_at
+            )
+            VALUES (
+                :action, :entity_type, :entity_id, :user_id, :user_email,
+                :description, :details, :ip_address, :user_agent, :org_id,
+                CURRENT_TIMESTAMP
+            )
+        """), {
+            "action": "whatsapp_send",
+            "entity_type": "wa_message",
+            "entity_id": getattr(message_row, "id", None),
+            "user_id": getattr(actor_user, "id", None),
+            "user_email": getattr(actor_user, "email", None),
+            "description": "WhatsApp message sent by CaseHub user",
+            "details": json.dumps(details),
+            "ip_address": ip_address or None,
+            "user_agent": user_agent or None,
+            "org_id": _request_org_id(request),
+        })
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("WhatsApp send audit skipped: %s", e)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 def get_context(request: Request, db: Session, **kwargs):
     """Build template context."""
     product_state = getattr(getattr(request, "app", None), "state", None)
@@ -143,6 +217,7 @@ async def get_bot_conversations(request: Optional[Request] = None):
             f"{WHATSAPP_BOT_URL}/api/conversations",
             timeout=10.0,
             headers=_bot_headers(request),
+            params={"profilePics": "1"},
         )
         if response.status_code == 200:
             return response.json()
@@ -166,6 +241,105 @@ async def get_bot_messages(phone: str, limit: int = 100, request: Optional[Reque
     except Exception as e:
         logger.error("Error fetching messages: %s", e)
     return []
+
+
+def _coerce_history_limit(value, default: int = 200) -> int:
+    try:
+        n = int(value if value is not None else default)
+    except (TypeError, ValueError):
+        n = default
+    return max(1, min(n, 200))
+
+
+def _parse_bot_message_datetime(value) -> Optional[datetime]:
+    """Parse whatsapp-web.js payload timestamps into aware UTC datetimes."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        ts = float(value)
+        if ts > 10_000_000_000:
+            ts = ts / 1000
+        return datetime.fromtimestamp(ts, tz=timezone.utc)
+    raw = str(value).strip()
+    if not raw:
+        return None
+    if raw.isdigit():
+        return _parse_bot_message_datetime(int(raw))
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _message_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value or "").strip().lower() in (
+        "1", "true", "yes", "out", "outgoing", "assistant",
+    )
+
+
+def _bot_message_id(data: dict) -> Optional[str]:
+    raw = data.get("wa_message_id") or data.get("wid") or data.get("id")
+    raw = str(raw).strip() if raw is not None else ""
+    return raw or None
+
+
+def _bot_message_status(data: dict) -> str:
+    status = str(data.get("status") or "").strip().lower()
+    if status in ("pending", "sent", "delivered", "read", "played", "failed"):
+        return status
+    from models.whatsapp_clone import WaMessage
+    return WaMessage.status_from_ack(data.get("ack"))
+
+
+def _persist_bot_history_message(db: Session, *, org_id: int, phone: str, data: dict):
+    role = str(data.get("role") or "").strip().lower()
+    direction = str(data.get("direction") or "").strip().lower()
+    from_me = (
+        _message_bool(data.get("from_me"))
+        or _message_bool(data.get("fromMe"))
+        or role == "assistant"
+        or direction in ("out", "outgoing")
+    )
+    content = (
+        data.get("content")
+        or data.get("body")
+        or data.get("message")
+        or data.get("caption")
+        or ""
+    )
+    media_type = (
+        data.get("media_type")
+        or data.get("type")
+        or ("text" if not data.get("hasMedia") else "document")
+    )
+    sent_at = _parse_bot_message_datetime(
+        data.get("sent_at") or data.get("created_at") or data.get("timestamp")
+    )
+    return whatsapp_clone_service.record_message(
+        db,
+        org_id=org_id,
+        phone=data.get("phone") or phone,
+        body=content,
+        direction="outgoing" if from_me else "incoming",
+        wa_message_id=_bot_message_id(data),
+        media_type=media_type or "text",
+        media_url=data.get("media_url") or data.get("mediaUrl"),
+        media_mime=data.get("mimetype") or data.get("media_mime") or data.get("mimeType"),
+        media_filename=data.get("filename") or data.get("media_filename"),
+        status=_bot_message_status(data),
+        from_me=from_me,
+        author_phone=data.get("author_phone") or data.get("author") or data.get("phone") or phone,
+        sent_at=sent_at,
+        increment_unread=False,
+        commit=False,
+    )
 
 
 async def get_lead_info(phone: str, request: Optional[Request] = None):
@@ -235,6 +409,8 @@ def _persist_outgoing(
     message: str,
     result: dict,
     reply_to_message_id: Optional[int] = None,
+    actor_user=None,
+    sent_by_user_id: Optional[int] = None,
 ):
     """Grava em wa_messages a mensagem que o operador acabou de enviar.
 
@@ -251,7 +427,7 @@ def _persist_outgoing(
         wa_mid = None
         if isinstance(result, dict):
             wa_mid = result.get("messageId") or result.get("id") or result.get("wa_message_id")
-        whatsapp_clone_service.record_message(
+        msg = whatsapp_clone_service.record_message(
             db,
             org_id=org_id,
             phone=phone,
@@ -260,7 +436,9 @@ def _persist_outgoing(
             wa_message_id=wa_mid,
             status="sent",
             reply_to_message_id=reply_to_message_id,
+            sent_by_user_id=sent_by_user_id,
         )
+        _audit_outgoing_send(db, request, actor_user, msg, phone, wa_mid, kind="text")
     except Exception as e:
         logger.warning("Falha ao persistir mensagem enviada para %s: %s", phone, e)
         try:
@@ -294,7 +472,7 @@ def _clone_media_url(media_file: Optional[str]) -> Optional[str]:
 
 def _persist_outgoing_media(
     db: Session, request: Request, phone: str, caption: str,
-    result: dict, mime: str, filename: Optional[str],
+    result: dict, mime: str, filename: Optional[str], actor_user=None,
 ):
     """Grava em wa_messages a midia que o operador acabou de enviar.
 
@@ -314,7 +492,7 @@ def _persist_outgoing_media(
                 or result.get("filename")
             )
             wa_mid = result.get("messageId") or result.get("id") or result.get("wa_message_id")
-        whatsapp_clone_service.record_message(
+        msg = whatsapp_clone_service.record_message(
             db,
             org_id=org_id,
             phone=phone,
@@ -327,6 +505,7 @@ def _persist_outgoing_media(
             media_filename=filename or None,
             status="sent",
         )
+        _audit_outgoing_send(db, request, actor_user, msg, phone, wa_mid, kind="media")
     except Exception as e:
         logger.warning("Falha ao persistir midia enviada para %s: %s", phone, e)
         try:
@@ -400,6 +579,50 @@ def _current_org_id(request: Request, user) -> Optional[int]:
         or getattr(user, "org_id", None)
         or getattr(user, "organization_id", None)
     )
+
+
+_PROFILE_PHOTO_HOST_SUFFIXES = (
+    "whatsapp.net",
+    "whatsapp.com",
+    "fbcdn.net",
+    "fbsbx.com",
+)
+_PROFILE_PHOTO_DATA_RE = re.compile(r"^data:(image/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$")
+_MAX_PROFILE_PHOTO_DATA_URL_CHARS = 400_000
+
+
+def _is_allowed_profile_photo_url(url: str) -> bool:
+    raw = str(url or "")
+    if raw.startswith("data:"):
+        return len(raw) <= _MAX_PROFILE_PHOTO_DATA_URL_CHARS and bool(_PROFILE_PHOTO_DATA_RE.match(raw))
+    parsed = urlparse(raw)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https" or not host:
+        return False
+    return any(host == suffix or host.endswith(f".{suffix}") for suffix in _PROFILE_PHOTO_HOST_SUFFIXES)
+
+
+def _profile_photo_proxy_url(phone: str) -> str:
+    return f"{PREFIX}{ROUTER_PREFIX}/api/profile-photo/{quote(str(phone or ''), safe='')}"
+
+
+def _proxy_conversation_profile_photos(conversations: list[dict]) -> list[dict]:
+    """Keep short-lived WhatsApp CDN photo URLs off the DOM."""
+    for conv in conversations or []:
+        raw = conv.get("profilePic") or conv.get("profile_pic_url")
+        if not raw or not _is_allowed_profile_photo_url(str(raw)):
+            continue
+        phone = conv.get("phone")
+        if phone:
+            conv["profilePic"] = _profile_photo_proxy_url(phone)
+    return conversations
+
+
+def _profile_pic_payload_url(phone: str, url: Optional[str]) -> Optional[str]:
+    if not phone or not url or not _is_allowed_profile_photo_url(url):
+        return None
+    phone_key = whatsapp_clone_service.normalize_phone(phone) or str(phone)
+    return _profile_photo_proxy_url(phone_key)
 
 
 def _json_time(value):
@@ -617,7 +840,108 @@ async def api_get_conversations(request: Request, db: Session = Depends(get_db))
         conversations = await get_bot_conversations(request=request)
         if not conversations:
             conversations = _local_conversations(db, org_id)
-    return JSONResponse(conversations)
+    return JSONResponse(_proxy_conversation_profile_photos(conversations))
+
+
+async def _fetch_fresh_profile_pic_url(phone: str, request: Request) -> Optional[str]:
+    try:
+        client = get_bot_client()
+        response = await client.get(
+            f"{WHATSAPP_BOT_URL}/api/profile-pic/{quote(str(phone), safe='')}",
+            timeout=10.0,
+            headers=_bot_headers(request),
+        )
+        data = response.json() if response.status_code < 500 else {}
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("profile-photo refresh skipped for %s: %s", phone, exc)
+        return None
+    url = (
+        data.get("url")
+        or data.get("profilePic")
+        or data.get("profile_pic_url")
+        or data.get("profilePicUrl")
+    )
+    return url if url and _is_allowed_profile_photo_url(url) else None
+
+
+async def _fetch_profile_photo_bytes(url: str):
+    if not _is_allowed_profile_photo_url(url):
+        return None
+    if str(url).startswith("data:"):
+        match = _PROFILE_PHOTO_DATA_RE.match(str(url))
+        if not match:
+            return None
+        media_type = "image/jpeg" if match.group(1) == "image/jpg" else match.group(1)
+        try:
+            body = base64.b64decode(re.sub(r"\s+", "", match.group(2)), validate=True)
+        except (binascii.Error, ValueError):
+            return None
+        return body, media_type
+    try:
+        timeout = httpx.Timeout(connect=5.0, read=15.0, write=5.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            response = await client.get(
+                url,
+                headers={
+                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                    "User-Agent": "CaseHub/1.0 profile-photo-proxy",
+                },
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("profile-photo fetch failed: %s", exc)
+        return None
+    ctype = (response.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if response.status_code >= 400 or not ctype.startswith("image/"):
+        return None
+    return response.content, ctype
+
+
+@router.get("/api/profile-photo/{phone}")
+async def profile_photo_proxy(phone: str, request: Request, db: Session = Depends(get_db)):
+    """Serve a WhatsApp contact photo through CaseHub.
+
+    Stored WhatsApp CDN URLs are signed and short-lived. This tenant-scoped
+    endpoint keeps the DOM on a stable CaseHub URL, fetches the image
+    server-side, and refreshes the stored URL from the bot when needed.
+    """
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    org_id = _current_org_id(request, user)
+    phone_key = whatsapp_clone_service.normalize_phone(phone)
+    if not org_id or not phone_key:
+        return Response(status_code=404)
+
+    from models.whatsapp_clone import WaContact
+
+    contact = (
+        db.query(WaContact)
+        .filter(WaContact.org_id == org_id, WaContact.phone == phone_key)
+        .first()
+    )
+    if contact is None:
+        return Response(status_code=404)
+
+    url = contact.profile_pic_url if _is_allowed_profile_photo_url(contact.profile_pic_url or "") else None
+    fetched = await _fetch_profile_photo_bytes(url) if url else None
+    if fetched is None:
+        fresh_url = await _fetch_fresh_profile_pic_url(phone_key, request)
+        if fresh_url:
+            contact.profile_pic_url = fresh_url
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+            fetched = await _fetch_profile_photo_bytes(fresh_url)
+    if fetched is None:
+        return Response(status_code=404)
+
+    body, media_type = fetched
+    return Response(
+        content=body,
+        media_type=media_type,
+        headers={"Cache-Control": "private, max-age=21600"},
+    )
 
 
 @router.get("/api/messages/{phone}")
@@ -737,82 +1061,146 @@ async def api_get_lead(request: Request, phone: str, db: Session = Depends(get_d
     })
 
 
-@router.post("/api/send")
-async def api_send_message(
+# --- Human send: shared error contract -----------------------------------
+# static/js/chat.js#sendMessage switches on `error_code` to show a specific
+# message instead of the old dead-end generic "Failed to send message".
+_SEND_DISCONNECTED_MSG = (
+    "WhatsApp desconectado. Abra a tela de WhatsApp e leia o QR Code para reconectar."
+)
+_SEND_FORBIDDEN_MSG = "Você não tem permissão para enviar mensagens no WhatsApp."
+
+# whatsapp-web.js / bot failure strings that really mean "session not live",
+# even when /api/status briefly reported ready (realState=RECONNECTING).
+_DISCONNECT_MARKERS = (
+    "not ready", "not connected", "session closed", "disconnected",
+    "no session", "evaluation failed", "protocol error", "target closed",
+)
+
+
+def _looks_disconnected(error: Optional[str]) -> bool:
+    e = (error or "").lower()
+    return any(m in e for m in _DISCONNECT_MARKERS)
+
+
+async def _parse_send_body(request: Request):
+    """Pull (phone, message, reply_to_message_id, reply_to_wa_message_id) from a
+    JSON or form-encoded send request."""
+    content_type = request.headers.get("content-type", "")
+    data = {}
+    try:
+        if "application/json" in content_type:
+            parsed = await request.json()
+            if isinstance(parsed, dict):
+                data = parsed
+        else:
+            data = await request.form()
+    except Exception:
+        # Malformed/empty body or a non-dict JSON payload: treat as no fields.
+        # _dispatch_human_send then returns 400 bad_request, not a 500.
+        pass
+    return (
+        data.get("phone"),
+        data.get("message"),
+        data.get("reply_to_message_id"),
+        data.get("reply_to_wa_message_id"),
+    )
+
+
+async def _dispatch_human_send(
     request: Request,
-    db: Session = Depends(get_db)
-):
-    """Send message as human operator (accepts JSON or Form)"""
+    db: Session,
+    phone: Optional[str],
+    message: Optional[str],
+    reply_to_message_id,
+    reply_to_wa_message_id,
+) -> JSONResponse:
+    """Shared send path for /api/send + /api/send-message.
+
+    Differentiates the failure modes the operator UI must distinguish:
+      * 401 unauthorized          — not logged in
+      * 403 forbidden             — authenticated but lacks whatsapp.send
+      * 400 bad_request           — missing phone/message
+      * 503 whatsapp_disconnected — the org session is not live (scan QR)
+      * 502 send_failed           — bot reachable but the send itself failed
+
+    Sending is scoped to request.state.org_id (the tenant), NOT to the human
+    who scanned the QR: any org user with whatsapp.send can send, and the
+    message is attributed to them via sent_by_user_id.
+    """
     user = get_current_user(request, db)
     if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
-
-    # Accept both JSON and Form data
-    content_type = request.headers.get("content-type", "")
-    if "application/json" in content_type:
-        data = await request.json()
-        phone = data.get("phone")
-        message = data.get("message")
-        reply_to_message_id = data.get("reply_to_message_id")
-        reply_to_wa_message_id = data.get("reply_to_wa_message_id")
-    else:
-        form = await request.form()
-        phone = form.get("phone")
-        message = form.get("message")
-        reply_to_message_id = form.get("reply_to_message_id")
-        reply_to_wa_message_id = form.get("reply_to_wa_message_id")
-
+        return JSONResponse(
+            {"ok": False, "success": False, "error_code": "unauthorized",
+             "error": "Unauthorized"},
+            status_code=401,
+        )
+    if not has_permission(getattr(user, "user_type", "") or "", "whatsapp.send"):
+        return JSONResponse(
+            {"ok": False, "success": False, "error_code": "forbidden",
+             "error": _SEND_FORBIDDEN_MSG},
+            status_code=403,
+        )
     if not phone or not message:
-        return JSONResponse({"error": "phone and message required"}, status_code=400)
+        return JSONResponse(
+            {"ok": False, "success": False, "error_code": "bad_request",
+             "error": "phone and message required"},
+            status_code=400,
+        )
+
+    # Pre-flight: a clearly-offline org session surfaces a "scan QR" error
+    # instead of a generic failure. get_bot_status is tenant-aware (X-Org-Id).
+    status = await get_bot_status(request=request)
+    if not status.get("connected"):
+        return JSONResponse(
+            {"ok": False, "success": False, "error_code": "whatsapp_disconnected",
+             "error": _SEND_DISCONNECTED_MSG, "bot_status": status.get("status")},
+            status_code=503,
+        )
 
     try:
         reply_to_pk = int(reply_to_message_id) if reply_to_message_id else None
     except (TypeError, ValueError):
         reply_to_pk = None
+
     result = await send_message_via_bot(
-        phone, message, from_human=True, reply_to_wa_message_id=reply_to_wa_message_id, request=request,
+        phone, message, from_human=True,
+        reply_to_wa_message_id=reply_to_wa_message_id, request=request,
     )
-    _persist_outgoing(db, request, phone, message, result, reply_to_message_id=reply_to_pk)
-    return JSONResponse(result, status_code=200 if result.get("success") else 502)
+    if result.get("success"):
+        _persist_outgoing(
+            db, request, phone, message, result,
+            reply_to_message_id=reply_to_pk, actor_user=user,
+            sent_by_user_id=getattr(user, "id", None),
+        )
+        return JSONResponse(result, status_code=200)
+
+    # Bot was reachable at pre-flight but the send failed. If the error smells
+    # like a dropped session, label it disconnected so the UI nudges a
+    # reconnect rather than showing a dead-end generic error.
+    if _looks_disconnected(result.get("error")):
+        return JSONResponse(
+            {**result, "error_code": "whatsapp_disconnected", "error": _SEND_DISCONNECTED_MSG},
+            status_code=503,
+        )
+    return JSONResponse({**result, "error_code": "send_failed"}, status_code=502)
+
+
+@router.post("/api/send")
+async def api_send_message(request: Request, db: Session = Depends(get_db)):
+    """Send message as human operator (accepts JSON or Form)."""
+    phone, message, reply_to_message_id, reply_to_wa_message_id = await _parse_send_body(request)
+    return await _dispatch_human_send(
+        request, db, phone, message, reply_to_message_id, reply_to_wa_message_id,
+    )
 
 
 @router.post("/api/send-message")
-async def api_send_message_alias(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Send message as human operator (alias for /api/send, accepts JSON or Form)"""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
-
-    # Accept both JSON and Form data
-    content_type = request.headers.get("content-type", "")
-    if "application/json" in content_type:
-        data = await request.json()
-        phone = data.get("phone")
-        message = data.get("message")
-        reply_to_message_id = data.get("reply_to_message_id")
-        reply_to_wa_message_id = data.get("reply_to_wa_message_id")
-    else:
-        form = await request.form()
-        phone = form.get("phone")
-        message = form.get("message")
-        reply_to_message_id = form.get("reply_to_message_id")
-        reply_to_wa_message_id = form.get("reply_to_wa_message_id")
-
-    if not phone or not message:
-        return JSONResponse({"error": "phone and message required"}, status_code=400)
-
-    try:
-        reply_to_pk = int(reply_to_message_id) if reply_to_message_id else None
-    except (TypeError, ValueError):
-        reply_to_pk = None
-    result = await send_message_via_bot(
-        phone, message, from_human=True, reply_to_wa_message_id=reply_to_wa_message_id, request=request,
+async def api_send_message_alias(request: Request, db: Session = Depends(get_db)):
+    """Send message as human operator (alias for /api/send, accepts JSON or Form)."""
+    phone, message, reply_to_message_id, reply_to_wa_message_id = await _parse_send_body(request)
+    return await _dispatch_human_send(
+        request, db, phone, message, reply_to_message_id, reply_to_wa_message_id,
     )
-    _persist_outgoing(db, request, phone, message, result, reply_to_message_id=reply_to_pk)
-    return JSONResponse(result, status_code=200 if result.get("success") else 502)
 
 
 @router.post("/api/react")
@@ -905,6 +1293,78 @@ async def api_mark_read(request: Request, phone: str, db: Session = Depends(get_
     return JSONResponse({"success": ok})
 
 
+@router.post("/api/history/backfill/{phone}")
+async def api_backfill_history(
+    request: Request,
+    phone: str,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+):
+    """Fetch currently exposed WhatsApp Web history and persist missing rows.
+
+    This is an explicit operator action, not a reconnect path: it never wipes
+    LocalAuth, never restarts the bot and never marks old imported messages as
+    unread. WhatsApp Web may expose only part of the old device history; for
+    older gaps the phone export importer remains the safer path.
+    """
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    org_id = _request_org_id(request)
+    if not org_id:
+        return JSONResponse({"success": False, "error": "No org context"}, status_code=400)
+
+    body = {}
+    if "application/json" in (request.headers.get("content-type") or ""):
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001
+            body = {}
+    limit = _coerce_history_limit(body.get("limit") if isinstance(body, dict) else limit, default=limit)
+
+    before = whatsapp_clone_service.count_messages(db, org_id=org_id, phone=phone)
+    messages = await get_bot_messages(phone, limit, request=request)
+    if not isinstance(messages, list):
+        return JSONResponse({
+            "success": False,
+            "fetched": 0,
+            "stored": 0,
+            "total": before,
+            "error": "Bot did not return a message list",
+        }, status_code=502)
+
+    skipped = 0
+    try:
+        for item in messages:
+            if not isinstance(item, dict):
+                skipped += 1
+                continue
+            _persist_bot_history_message(db, org_id=org_id, phone=phone, data=item)
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        logger.warning("history backfill failed for org=%s phone=%s: %s", org_id, phone, e)
+        return JSONResponse({
+            "success": False,
+            "fetched": len(messages),
+            "stored": 0,
+            "total": before,
+            "error": "Failed to persist history",
+        }, status_code=500)
+
+    after = whatsapp_clone_service.count_messages(db, org_id=org_id, phone=phone)
+    return JSONResponse({
+        "success": True,
+        "phone": whatsapp_clone_service.normalize_phone(phone) or phone,
+        "limit": limit,
+        "fetched": len(messages),
+        "stored": max(0, after - before),
+        "skipped": skipped,
+        "total": after,
+    })
+
+
 @router.get("/api/status")
 async def api_get_status(request: Request, db: Session = Depends(get_db)):
     """Get WhatsApp bot status"""
@@ -957,7 +1417,7 @@ async def api_disconnect(request: Request, db: Session = Depends(get_db)):
 # Bot session states from which a QR will NEVER spontaneously appear without a
 # (re)initialization. The autostarted default org (apex, org 1) can land here
 # after a stale persisted session or a failed auth, whereas a freshly
-# lazy-initialized tenant session (e.g. sampletenant on first hit) reliably
+# lazy-initialized tenant session (e.g. tenanta on first hit) reliably
 # emits a QR. We force-heal these so the apex behaves like the subdomain.
 #   - "disconnected" / "auth_failed": terminal, needs soft reconnect.
 #   - "" / "unknown" / "offline": bot has no live session object for this org.
@@ -991,7 +1451,7 @@ async def api_get_qr(request: Request, db: Session = Depends(get_db)):
     user never sees a QR — while a subdomain tenant (lazy-initialized on first
     request) always gets a fresh QR. We detect that dead state and POST
     /api/reconnect (bot softReconnect → preserves LocalAuth and emits QR only
-    when the saved session cannot reconnect), then re-read. sampletenant
+    when the saved session cannot reconnect), then re-read. tenanta
     (already awaiting_scan/ready) never hits this branch, so its working flow is
     untouched.
     """
@@ -1391,9 +1851,10 @@ async def api_send_media(request: Request, db: Session = Depends(get_db)):
         ok = bool(result.get("ok") or result.get("success")) and response.status_code < 400
         if ok:
             _persist_outgoing_media(
-                db, request, phone, caption, result, content_type, file.filename
+                db, request, phone, caption, result, content_type, file.filename,
+                actor_user=user,
             )
-        return JSONResponse(result, status_code=200 if ok else 502)
+        return JSONResponse(result, status_code=200 if ok else _failure_status_for_send(result))
 
     except httpx.TimeoutException:
         return JSONResponse({"error": "Upload timeout"}, status_code=504)
@@ -1751,13 +2212,32 @@ async def profile_pic_proxy(phone: str, request: Request, db: Session = Depends(
             f"{WHATSAPP_BOT_URL}/api/profile-pic/{phone}", timeout=10.0,
             headers=_bot_headers(request),
         )
-        return JSONResponse(response.json())
+        payload = response.json()
+        raw_url = (
+            payload.get("url")
+            or payload.get("profilePic")
+            or payload.get("profile_pic_url")
+            or payload.get("profile_pic")
+        )
+        proxied = _profile_pic_payload_url(phone, raw_url)
+        if proxied and _current_org_id(request, user):
+            try:
+                whatsapp_clone_service.upsert_contact(
+                    db,
+                    org_id=_current_org_id(request, user),
+                    phone=phone,
+                    profile_pic_url=str(raw_url),
+                    commit=True,
+                )
+            except Exception:
+                db.rollback()
+        return JSONResponse({"phone": phone, "url": proxied, "profilePic": proxied})
     except Exception as e:
         return JSONResponse({"phone": phone, "url": None})
 
 @router.post("/api/profile-pics")
 async def profile_pics_batch_proxy(request: Request, db: Session = Depends(get_db)):
-    """Batch proxy for profile picture URLs"""
+    """Batch proxy for profile picture URLs and cache them in wa_contacts."""
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
@@ -1768,8 +2248,63 @@ async def profile_pics_batch_proxy(request: Request, db: Session = Depends(get_d
             f"{WHATSAPP_BOT_URL}/api/profile-pics", json=body, timeout=15.0,
             headers=_bot_headers(request),
         )
-        return JSONResponse(response.json())
-    except Exception as e:
+        payload = response.json()
+
+        org_id = _current_org_id(request, user)
+        updated = 0
+        profiles = []
+        proxied_profiles = []
+        proxied_by_phone = {}
+        if isinstance(payload, dict) and isinstance(payload.get("profiles"), list):
+            profiles = payload.get("profiles") or []
+        elif isinstance(payload, dict):
+            profiles = [
+                {"phone": phone, "url": url}
+                for phone, url in (payload.get("byPhone") or payload).items()
+                if phone not in ("ok", "profiles", "byPhone", "updated", "error", "status")
+            ]
+
+        for item in profiles:
+            if not isinstance(item, dict):
+                continue
+            phone = item.get("phone")
+            url = (
+                item.get("url")
+                or item.get("profilePic")
+                or item.get("profile_pic_url")
+                or item.get("profile_pic")
+            )
+            if not phone:
+                continue
+            proxy_url = _profile_pic_payload_url(str(phone), url)
+            proxied_profiles.append({"phone": str(phone), "url": proxy_url, "profilePic": proxy_url})
+            proxied_by_phone[str(phone)] = proxy_url
+            normalized_phone = whatsapp_clone_service.normalize_phone(str(phone))
+            if normalized_phone:
+                proxied_by_phone[normalized_phone] = proxy_url
+            if not url or not _is_allowed_profile_photo_url(str(url)):
+                continue
+            try:
+                whatsapp_clone_service.upsert_contact(
+                    db,
+                    org_id=org_id,
+                    phone=str(phone),
+                    profile_pic_url=str(url),
+                    commit=False,
+                )
+                updated += 1
+            except Exception:
+                logger.warning("profile-pics cache skip phone=%s", phone, exc_info=True)
+        if updated:
+            db.commit()
+            if isinstance(payload, dict):
+                payload["updated"] = updated
+        if isinstance(payload, dict):
+            payload["profiles"] = proxied_profiles
+            payload["byPhone"] = proxied_by_phone
+        return JSONResponse(payload)
+    except Exception:
+        db.rollback()
         return JSONResponse({})
 
 

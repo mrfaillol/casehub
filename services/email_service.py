@@ -190,7 +190,7 @@ class EmailService:
 
         Used when an admin/superadmin creates a user. Plain, welcoming
         language for non-technical recipients. The password is delivered
-        only through this channel (per Victor's request); it is never logged.
+        only through this channel (per Equipe CaseHub's request); it is never logged.
         """
         org = org_name or settings.ORG_NAME
         subject = f"Seu acesso ao CaseHub — {org}"

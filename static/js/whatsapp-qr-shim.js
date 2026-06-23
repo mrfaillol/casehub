@@ -26,7 +26,7 @@
  *
  * Refs:
  *   - PR casehub#645 backend
- *   - WhatsApp do Example User 2026-05-28 08:27 "O QR não tá aparecendo"
+ *   - WhatsApp do UsuarioDemo 2026-05-28 08:27 "O QR não tá aparecendo"
  *   - services/whatsapp-bot/whatsapp-client.js v4.0 multi-session F29
  */
 (function () {
@@ -76,6 +76,10 @@
   let _retryHandle = null;
   let _emptyPolls = 0;
   let _reinitInFlight = false;
+  // Last QR data: URI actually painted. The bot rotates the QR every ~20s and the
+  // front polls faster; only swap the <img> when the QR truly changes so a rotated
+  // code appears immediately without rebuilding the same image every poll.
+  let _lastRenderedQr = null;
 
   function _clearRetry() {
     if (_retryHandle) {
@@ -135,16 +139,20 @@
         _clearRetry();
         _emptyPolls = 0;
         _setConnectState("Aguardando leitura do QR");
-        container.innerHTML =
-          '<img src="' +
-          _escape(data.qr) +
-          '" alt="QR code para conectar o WhatsApp">';
+        if (data.qr !== _lastRenderedQr) {
+          container.innerHTML =
+            '<img src="' +
+            _escape(data.qr) +
+            '" alt="QR code para conectar o WhatsApp">';
+          _lastRenderedQr = data.qr;
+        }
       }
       // Branch 2: sessão já autenticada/conectada → updateStatusUI cuida do
       // resto no próximo poll de checkStatus(); placeholder amigável.
       else if (ready) {
         _clearRetry();
         _emptyPolls = 0;
+        _lastRenderedQr = null;
         _setConnectState("Conectado");
         container.innerHTML =
           '<div class="wa-loading"><div class="wa-spinner" aria-hidden="true"></div>Conectado, carregando conversas…</div>';
@@ -156,6 +164,7 @@
       // sessão (cura o caso da org default que subiu stale no boot).
       else {
         _emptyPolls += 1;
+        _lastRenderedQr = null;
         if (_emptyPolls >= FORCE_REINIT_AFTER) {
           _emptyPolls = 0;
           _setConnectState("Reconectando WhatsApp");

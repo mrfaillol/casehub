@@ -57,7 +57,7 @@ async def process_auto_reply_async(db: Session, email_id: int, sender: str, subj
     Auto-reply is sent in the same thread using In-Reply-To headers.
     """
     from services.email_analyzer import analyze_email, EmailClassification
-    from services.notifications.urgent import notify_victor_urgent
+    from services.notifications.urgent import notify_casehub_team_urgent
     from services.email_service import EmailService
 
     match = re.search(r'<([^>]+)>', sender)
@@ -123,15 +123,15 @@ async def process_auto_reply_async(db: Session, email_id: int, sender: str, subj
         
         try:
             email_service = EmailService()
-            notification_results = await notify_victor_urgent(
+            notification_results = await notify_casehub_team_urgent(
                 email_service,
                 client_name,
                 subject,
                 body[:500] if body else "",
                 paralegal_key=paralegal_key
             )
-            result_data["victor_notified"] = notification_results
-            logger.info(f"AUTO-REPLY: URGENT - Victor and paralegal ({paralegal_key}) notified")
+            result_data["casehub_team_notified"] = notification_results
+            logger.info(f"AUTO-REPLY: URGENT - Equipe CaseHub and paralegal ({paralegal_key}) notified")
         except Exception as notify_err:
             logger.error(f"Failed to send urgent notifications: {notify_err}")
         

@@ -53,6 +53,13 @@
     external_link: 'M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
     mail:          'M3 6h18v12H3zM3 7l9 6 9-6',
     send:          'M21 3 3 11l7 3 3 7 8-18ZM10 14l11-11',
+    reply:         'M9 17l-6-5 6-5v3h4a8 8 0 0 1 8 8v1a10 10 0 0 0-10-10H9v-3Z',
+    reply_all:     'M7 17l-5-5 5-5v3h4a8 8 0 0 1 8 8v1a10 10 0 0 0-10-10H7v-3ZM13 7l-5 5 5 5',
+    forward:       'M15 7l6 5-6 5v-3h-4a8 8 0 0 0-8 8v-1a10 10 0 0 1 10-10h2V7Z',
+    archive:       'M4 7h16v13H4V7ZM3 4h18v3H3V4ZM10 12h4',
+    sticky_note:   'M6 3h12v13l-5 5H6V3ZM13 21v-5h5',
+    user_plus:     'M15 20a6 6 0 0 0-12 0M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M16 11h6',
+    link:          'M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1',
     shield:        'M12 3 5 6v5c0 4 3 7 7 9 4-2 7-5 7-9V6l-7-3Z',
     /* brand cube (special; not from icon set) — used as logo mark */
     cube:          'M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 0v20M3 7l9 5 9-5'

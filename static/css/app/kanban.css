@@ -24,6 +24,15 @@
   flex-wrap: wrap;
 }
 
+.ch-kanban-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 1 1 620px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 .ch-kanban-switch,
 .ch-kanban-create__form {
   display: inline-flex;
@@ -86,6 +95,90 @@
   width: 46px;
   min-width: 46px;
   padding: 4px;
+}
+
+.ch-kanban-board-select {
+  min-width: 220px;
+}
+
+.ch-kanban-filter-menu {
+  position: relative;
+}
+
+.ch-kanban-filter-menu > summary {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--surface-app);
+  color: var(--fg-muted);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+}
+
+.ch-kanban-filter-menu > summary::-webkit-details-marker { display: none; }
+
+.ch-kanban-filter-menu[open] > summary,
+.ch-kanban-filter-menu > summary:hover {
+  color: var(--fg-default);
+}
+
+.ch-kanban-filter-menu__state {
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+
+.ch-kanban-filter-menu .ch-kanban-switch {
+  margin-top: var(--space-2);
+}
+
+.ch-kanban-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+
+.ch-kanban-admin--secondary {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.ch-kanban-admin__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  cursor: pointer;
+}
+
+.ch-kanban-admin__lock input {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.ch-kanban-alert {
+  flex: 1 0 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--c-warn, #d97706) 10%, var(--surface-app));
+  color: var(--fg-default);
+  font-size: var(--fs-sm);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-warn, #d97706) 26%, transparent);
 }
 
 /* ─────────── Board scroller ─────────── */
@@ -201,7 +294,8 @@
 .ch-column__empty {
   padding: var(--space-5) var(--space-4);
   text-align: center;
-  color: var(--fg-faint);
+  /* pipeline-polish 2026-05-27: --fg-faint fails AA on bone, swap to --fg-muted */
+  color: var(--fg-muted);
   font-size: var(--fs-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -233,7 +327,7 @@
   padding: 0;
 }
 
-/* ─────────── Card = estilo Trello (Example User, 10/06) ─────────── */
+/* ─────────── Card = estilo Trello (UsuarioDemo, 10/06) ─────────── */
 /* Lei de Fitts: alvo drag ≥ card inteiro (display:block).
    Gestalt proximidade: stripe de cor no topo identifica o responsável;
    footer agrupa meta-data de forma consistente.
@@ -242,6 +336,11 @@
   display: block;
   position: relative;
   overflow: hidden;
+  /* Trello-like: o cartão NÃO encolhe. Sem isto, o .ch-column__body
+     (flex column) comprime os cartões quando a soma das alturas excede o
+     corpo — o pillrow 'urgente' some e o título achata. Com flex-shrink:0
+     o overflow-y:auto do body passa a rolar de verdade em vez de espremer. */
+  flex-shrink: 0;
   border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: var(--surface-card);
@@ -314,12 +413,24 @@
 }
 
 /* Avatar no rodapé — pequeno círculo com cor do responsável */
+.ch-task-card__avatars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 26px;
+}
+
 .ch-task-card__avatar {
   width: 26px; height: 26px; border-radius: 50%;
   flex: none; object-fit: cover;
   border: 2px solid var(--surface-card);
   box-shadow: 0 0 0 1.5px var(--line);
 }
+
+.ch-task-card__avatars .ch-task-card__avatar + .ch-task-card__avatar {
+  margin-left: -8px;
+}
+
 .ch-task-card__avatar--initials {
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--owner-color, var(--c-navy)); color: var(--c-paper);
@@ -327,7 +438,80 @@
   line-height: 1;
 }
 
-/* ── Privacidade de TAREFA (Victor 03/06: "listas privadas bem claras") ──
+.ch-task-card__avatar--more {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-app); color: var(--fg-muted);
+  font-size: 9px; font-family: var(--mono); font-weight: 700;
+}
+
+.ch-assignee-picker {
+  position: relative;
+}
+
+.ch-assignee-picker__button {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.ch-assignee-picker__menu {
+  position: absolute;
+  z-index: 40;
+  inset: calc(100% + 6px) 0 auto 0;
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  overflow: auto;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.ch-assignee-picker__menu[hidden] {
+  display: none;
+}
+
+.ch-assignee-picker__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 34px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-default);
+  cursor: pointer;
+}
+
+.ch-assignee-picker__row:hover,
+.ch-assignee-picker__row[aria-selected="true"] {
+  background: var(--surface-app);
+}
+
+.ch-assignee-picker__avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  overflow: hidden;
+  background: var(--owner-color, var(--c-navy));
+  color: var(--c-paper);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.ch-assignee-picker__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Privacidade de TAREFA (Equipe CaseHub 03/06: "listas privadas bem claras") ──
    Card privado: cadeado + faixa lateral discreta. Sinal claro mas sem ruído. */
 .ch-task-card__lock {
   display: inline-flex; align-items: center; gap: 4px;
@@ -383,6 +567,43 @@
 .ch-task-modal__privacy-text {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--fs-sm); color: var(--fg-default);
+}
+
+.ch-task-send-panel {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-app);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+
+.ch-task-send-panel__modes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  flex-wrap: wrap;
+}
+
+.ch-task-send-panel__modes label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg-default);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.ch-task-send-panel__modes input {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.ch-task-send-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
 }
 
 /* Drop target — inset well glow on the receiving column. */
@@ -462,12 +683,28 @@
 
   /* Linha quick-add e toolbar */
   .ch-kanban-create,
+  .ch-kanban-scope,
   .ch-kanban-create__form {
     align-items: stretch;
     justify-content: stretch;
+    width: 100%;
+  }
+  .ch-kanban-board-select,
+  .ch-kanban-admin {
+    width: 100%;
+  }
+  .ch-kanban-admin {
+    align-items: stretch;
   }
   .ch-kanban-switch,
   .ch-kanban-create__form {
+    width: 100%;
+  }
+  .ch-kanban-filter-menu {
+    width: 100%;
+  }
+  .ch-kanban-filter-menu > summary {
+    justify-content: center;
     width: 100%;
   }
   .ch-kanban-switch { justify-content: space-between; }
@@ -478,4 +715,93 @@
   .ch-kanban-create__form .ch-btn {
     grid-column: 1 / -1;
   }
+  .ch-task-send-panel__actions {
+    justify-content: stretch;
+  }
+  .ch-task-send-panel__actions .ch-btn {
+    width: 100%;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Multi-quadro: pílulas de seleção + quadros lado a lado (overview)
+   ════════════════════════════════════════════════════════════════════ */
+.ch-board-pills { display: flex; flex-wrap: wrap; gap: 6px; max-width: 640px; }
+.ch-board-pill {
+  min-height: 32px; padding: 0 13px; border: 0; border-radius: var(--radius-pill);
+  background: var(--surface-card-2); color: var(--fg-muted);
+  box-shadow: var(--shadow-dark-xs), var(--shadow-light-xs);
+  font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; line-height: 32px;
+  transition: box-shadow var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
+}
+.ch-board-pill:hover { color: var(--fg-default); box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm); }
+.ch-board-pill.is-active {
+  background: var(--c-pollen); color: var(--fg-on-pollen);
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ch-board-pill:focus-visible { outline: 2px solid var(--c-pollen); outline-offset: 2px; }
+
+.ch-boards-row {
+  display: flex; gap: var(--space-5); overflow-x: auto; align-items: flex-start;
+  padding: var(--space-1) var(--space-1) var(--space-5);
+  scrollbar-width: thin; scroll-snap-type: x proximity;
+}
+.ch-boards-row::-webkit-scrollbar { height: 8px; }
+.ch-boards-row::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--radius-pill); }
+.ch-board-group {
+  display: flex; flex-direction: column; gap: var(--space-3); flex: 0 0 auto;
+  padding: var(--space-3); border-radius: var(--radius-lg);
+  background: var(--surface-app); scroll-snap-align: start;
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+.ch-board-group__head {
+  display: flex; align-items: center; gap: 8px; padding: 2px 6px;
+  font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--fg-strong);
+}
+.ch-board-group__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c-green-d); flex: none; }
+.ch-board-group__ro {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--fg-faint); background: var(--surface-card-2);
+  padding: 1px 8px; border-radius: var(--radius-pill);
+}
+/* Cada quadro no modo multi não rola sozinho na horizontal — a linha externa rola */
+.ch-board--multi { overflow-x: visible; padding: 0; scroll-snap-type: none; }
+.ch-board--readonly .ch-column { opacity: 0.985; }
+
+/* Avatar (fotinha) à esquerda do nome nas pílulas de quadro */
+.ch-board-pill { display: inline-flex; align-items: center; gap: 7px; padding-left: 5px; line-height: 1; }
+.ch-board-pill__av {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  object-fit: cover; display: inline-flex; align-items: center; justify-content: center;
+}
+.ch-board-pill__av--ini {
+  background: var(--owner-color, var(--c-navy)); color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.02em;
+}
+.ch-board-pill__av--org {
+  background: var(--surface-app); color: var(--fg-muted);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ch-board-pill__av--org [data-icon] { font-size: 11px; line-height: 1; }
+.ch-board-pill.is-active .ch-board-pill__av--org { background: rgba(255,255,255,0.35); color: var(--fg-on-pollen); }
+
+/* ── Multi-quadro no MOBILE: empilha verticalmente (lado-a-lado só no desktop).
+   Sem isso, N quadros × M colunas viram um paredão horizontal gigante. ── */
+@media (max-width: 720px) {
+  .ch-boards-row {
+    flex-direction: column;
+    overflow-x: hidden;
+    gap: var(--space-4);
+    scroll-snap-type: none;
+  }
+  .ch-board-group { width: 100%; flex: 0 0 auto; }
+  /* cada quadro rola SUAS colunas na horizontal, contido na largura da tela */
+  .ch-board--multi {
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--space-2);
+  }
+  .ch-board--multi .ch-column { scroll-snap-align: start; }
 }

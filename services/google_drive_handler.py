@@ -81,7 +81,7 @@ LEGACY_FOLDER_NAMES = {
 # Reverse mapping: English → Portuguese (for fallback lookups)
 _ENGLISH_TO_PORTUGUESE = {v: k for k, v in LEGACY_FOLDER_NAMES.items()}
 
-# Folder structure by visa category - English names (per Daniel's instructions 2026-03-10)
+# Folder structure by visa category - English names.
 VISA_FOLDER_STRUCTURE = {
     "EB1A": [
         "Personal Docs",
@@ -135,7 +135,7 @@ INTERNAL_FOLDER_STRUCTURE = [
 ]
 
 # Map document types to English subfolder names
-# Updated: 2026-03-11 - Folder names now in English (per Daniel's instructions)
+# Updated: 2026-03-11 - Folder names now in English.
 DOCUMENT_TYPE_TO_FOLDER = {
     # Personal Documents
     "Passport": "Personal Docs",
@@ -372,8 +372,8 @@ class GoogleDriveHandler:
 
             {
               "paralegal_config": {
-                "active": {"Juliana": {"has_clientes_subfolder": true}, ...},
-                "archived": {"Maria": {"has_clientes_subfolder": false}, ...}
+                "active": {"Membro A": {"has_clientes_subfolder": true}, ...},
+                "archived": {"PessoaDemo": {"has_clientes_subfolder": false}, ...}
               }
             }
 
@@ -522,7 +522,7 @@ class GoogleDriveHandler:
         Searches active paralegals and archived paralegals for matching client folders.
 
         Returns:
-            List of dicts: [{"id": "...", "name": "...", "paralegal": "Juliana", "archived": False}, ...]
+            List of dicts: [{"id": "...", "name": "...", "paralegal": "Membro A", "archived": False}, ...]
         """
         if not self.service:
             return []
@@ -1014,7 +1014,7 @@ class GoogleDriveHandler:
     ) -> Dict[str, str]:
         """
         Create complete folder structure for a new client.
-        Structure per Daniel's requirements (2026-03-10):
+        Default client-folder structure:
           ClientName/
           ├── Internal/
           │   ├── Meetings/

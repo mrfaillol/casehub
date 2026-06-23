@@ -42,6 +42,22 @@ def get_context(request: Request, db: Session, **kwargs):
     }
 
 
+def require_admin(request: Request, db: Session) -> User:
+    """Authoring document templates is a firm-level (admin) action.
+
+    SECURITY: template *bodies* are untrusted Jinja rendered server-side
+    (see services/templates_service.py — now sandboxed). Authoring/preview of
+    raw content is restricted to admins as defense-in-depth so low-privilege
+    or cross-tenant users cannot store/inject arbitrary template content.
+    Document *generation* (/generate) from already-stored templates stays open
+    to all authenticated users — it never renders raw request input.
+    """
+    user = get_current_user(request, db)
+    if not user or user.user_type != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
 @router.get("", response_class=HTMLResponse)
 async def template_list(
     request: Request,
@@ -91,9 +107,7 @@ async def template_list(
 @router.get("/new", response_class=HTMLResponse)
 async def new_template_form(request: Request, db: Session = Depends(get_db)):
     """Form to create new template."""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user = require_admin(request, db)  # authoring is admin-only (SSTI hardening)
 
     service = get_template_service(db)
 
@@ -115,9 +129,7 @@ async def create_template(
     db: Session = Depends(get_db)
 ):
     """Create a new template."""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user = require_admin(request, db)  # authoring is admin-only (SSTI hardening)
 
     db.execute(text("""
         INSERT INTO document_templates (name, category, description, content, created_by, created_at)
@@ -137,9 +149,7 @@ async def create_template(
 @router.get("/{template_id}/edit", response_class=HTMLResponse)
 async def edit_template_form(request: Request, template_id: int, db: Session = Depends(get_db)):
     """Form to edit existing template."""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user = require_admin(request, db)  # authoring is admin-only (SSTI hardening)
 
     # IDOR C4: scope template lookup by tenant. A tenant may open its own
     # templates or read-only global templates (org_id IS NULL). Wrapped in
@@ -182,9 +192,7 @@ async def update_template(
     db: Session = Depends(get_db)
 ):
     """Update an existing template."""
-    user = get_current_user(request, db)
-    if not user:
-        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    user = require_admin(request, db)  # authoring is admin-only (SSTI hardening)
 
     # IDOR C4: only the owning tenant may mutate a template. Global templates
     # (org_id IS NULL) are read-only and cross-tenant writes are blocked by the
@@ -374,9 +382,9 @@ async def preview_template(
     db: Session = Depends(get_db)
 ):
     """Preview template with data."""
-    user = get_current_user(request, db)
-    if not user:
-        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    # Preview renders RAW request content through the (sandboxed) engine; treat
+    # it as authoring and restrict to admins (SSTI hardening). 403 as JSON.
+    user = require_admin(request, db)
 
     service = get_template_service(db)
     rendered = service.preview_template(content, client_id, case_id)

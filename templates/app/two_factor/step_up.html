@@ -1,0 +1,106 @@
+{% extends "app/base.html" %}
+{% set active_module = 'settings' %}
+{% block title %}{% if product == "lite" %}Verificação 2FA{% else %}2FA Verification{% endif %} · {{ org_name|default('CaseHub') }}{% endblock %}
+
+{% block content %}
+<section class="ch-page-head">
+  <div>
+    <span class="ch-eyebrow">Segurança · Verificação adicional</span>
+    <h1>Confirme sua <em>identidade</em>.</h1>
+    <p class="ch-page-head__sub">
+      {% if product == "lite" %}Esta ação é sensível. Digite um código atual do seu app autenticador para continuar.{% else %}This is a sensitive action. Enter a current code from your authenticator app to continue.{% endif %}
+    </p>
+  </div>
+</section>
+
+<section class="ch-grid ch-grid--2" style="gap: var(--space-5);">
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Verificação em duas etapas</span>
+          <h2 class="ch-card__title">{% if product == "lite" %}Verificação adicional{% else %}Step-up verification{% endif %}</h2>
+        </div>
+        <span data-icon="bolt" data-icon-size="22" style="color: var(--c-pollen);"></span>
+      </header>
+
+      <p style="margin: 0 0 var(--space-3); color: var(--fg-default);">
+        {% if product == "lite" %}Digite o código de 6 dígitos do seu app autenticador (ou um código de backup):{% else %}Enter the 6-digit code from your authenticator app (or a backup code):{% endif %}
+      </p>
+
+      <form id="stepUpForm" method="post" action="{{ PREFIX }}/2fa/step-up" novalidate>
+        <input type="hidden" name="next" value="{{ next_url }}" />
+        <div class="ch-field">
+          <label class="ch-field__label" for="stepUpCode" style="position: absolute; left: -9999px;">
+            {% if product == "lite" %}Código de verificação de 6 dígitos{% else %}6-digit verification code{% endif %}
+          </label>
+          <input type="text" id="stepUpCode" name="code" class="ch-input ch-mono"
+                 placeholder="000000" maxlength="8" pattern="[0-9A-Za-z]{6,8}"
+                 inputmode="numeric" autocomplete="one-time-code" required autofocus
+                 style="font-size: var(--fs-2xl); letter-spacing: 0.4em; text-align: center;" />
+        </div>
+        <p id="stepUpError" role="alert" aria-live="polite"
+           style="margin: var(--space-2) 0 0; color: var(--c-danger); font-size: var(--fs-sm); min-height: 1.2em;"></p>
+        <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
+          <button type="submit" class="ch-btn ch-btn--primary">
+            <span data-icon="check"></span>
+            {% if product == "lite" %}Verificar e continuar{% else %}Verify and continue{% endif %}
+          </button>
+        </div>
+      </form>
+    </article>
+  </div>
+
+  <aside>
+    <article class="ch-card">
+      <header class="ch-card__header">
+        <div>
+          <span class="ch-card__eyebrow">Por quê?</span>
+          <h2 class="ch-card__title">{% if product == "lite" %}Por que pedimos isto{% else %}Why we ask{% endif %}</h2>
+        </div>
+        <span data-icon="bolt" data-icon-size="20" style="color: var(--c-info);"></span>
+      </header>
+      <p style="margin: 0 0 var(--space-3);">
+        {% if product == "lite" %}Ações administrativas sensíveis exigem uma verificação recente, mesmo que você já esteja logado. Isso protege contra sessões ou cookies roubados.{% else %}Sensitive admin actions require a recent verification, even when you're already logged in. This protects against stolen sessions or cookies.{% endif %}
+      </p>
+      <p style="margin: 0; color: var(--fg-muted); font-size: var(--fs-sm);">
+        {% if product == "lite" %}A verificação vale por alguns minutos e depois é solicitada novamente.{% else %}The verification is valid for a few minutes and is then requested again.{% endif %}
+      </p>
+    </article>
+  </aside>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var PREFIX = '{{ PREFIX }}';
+  var ERR = {% if product == "lite" %}'Código inválido. Tente novamente.'{% else %}'Invalid code. Please try again.'{% endif %};
+  var form = document.getElementById('stepUpForm');
+  var errEl = document.getElementById('stepUpError');
+  if (!form) return;
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    errEl.textContent = '';
+    var fd = new FormData(form);
+    fetch(form.action, { method: 'POST', body: fd, redirect: 'follow' })
+      .then(function (r) {
+        // On success the server issues a 302 to `next`; fetch follows it and
+        // we land on an ok response for the target page -> navigate there.
+        if (r.ok || r.redirected) {
+          window.location.href = r.url || (fd.get('next') || (PREFIX + '/superadmin'));
+          return null;
+        }
+        return r.json().catch(function () { return {}; });
+      })
+      .then(function (data) {
+        if (data === null) return;
+        errEl.textContent = (data && data.error) || ERR;
+      })
+      .catch(function () {
+        errEl.textContent = ERR;
+      });
+  });
+})();
+</script>
+{% endblock %}

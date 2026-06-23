@@ -2,7 +2,7 @@
 missing portal_access table.
 
 The /casehub/portal/manage handler queried the portal_access table in raw SQL,
-but no migration creates that table. On fresh deploys (alpha Mumbai 2026-05)
+but no migration creates that table. On fresh deploys (alpha remote runtime 2026-05)
 the table is absent: Postgres raises UndefinedTable -> ProgrammingError,
 SQLAlchemy poisons the transaction, the handler turned into an HTTP 500
 family. Same defect class as PR #558 (emails rollback).

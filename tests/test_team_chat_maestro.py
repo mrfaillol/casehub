@@ -10,7 +10,7 @@ import routes.team_messages as tm
 
 def test_maestro_trigger_helpers_strip_mention():
     assert tm._contains_maestro_mention("@maestro revise este prazo")
-    assert tm._contains_maestro_mention("Example User, chama @Maestro nisso")
+    assert tm._contains_maestro_mention("UsuarioDemo, chama @Maestro nisso")
     assert not tm._contains_maestro_mention("maestro sem arroba")
     assert tm._strip_maestro_mention("@maestro revise este prazo") == "revise este prazo"
     assert "Analise a conversa" in tm._strip_maestro_mention("@maestro")
@@ -56,7 +56,7 @@ def test_team_history_for_maestro_is_channel_and_org_scoped(db):
 
 def test_post_message_with_maestro_mention_appends_actor_response(db, monkeypatch):
     tm._ensure_schema(db)
-    user = SimpleNamespace(id=7, org_id=1, name="Victor")
+    user = SimpleNamespace(id=7, org_id=1, name="Equipe CaseHub")
     cid = tm._ensure_default_channel(db, 1, user.id)
 
     async def fake_reply(db_arg, request_arg, **kwargs):

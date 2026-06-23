@@ -4,13 +4,17 @@ Generate documents from templates with placeholders
 """
 import os
 import re
+import logging
 from datetime import datetime, date
 from typing import Dict, Any, Optional, List
-from jinja2 import Template, Environment
+from jinja2.sandbox import SandboxedEnvironment
+from jinja2.exceptions import SecurityError, TemplateError
 from sqlalchemy.orm import Session
 
 from config import settings
 from models import Client, Case, User
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentTemplateService:
@@ -59,7 +63,12 @@ class DocumentTemplateService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.env = Environment()
+        # SECURITY (SSTI): user-authored template bodies are untrusted. Render
+        # through a SandboxedEnvironment so payloads like
+        # {{ cycler.__init__.__globals__.os.popen(...) }} are blocked
+        # (raise SecurityError) instead of executing on the server.
+        # A bare jinja2.Environment/Template does NOT sandbox — do not revert.
+        self.env = SandboxedEnvironment(autoescape=False)
 
     def get_context(self, client_id: Optional[int] = None, case_id: Optional[int] = None) -> Dict[str, Any]:
         """Build template context from client and case data."""
@@ -106,11 +115,18 @@ class DocumentTemplateService:
         return context
 
     def render_template(self, template_content: str, context: Dict[str, Any]) -> str:
-        """Render a template with the given context."""
+        """Render a template with the given context (sandboxed)."""
         try:
-            template = Template(template_content)
+            template = self.env.from_string(template_content)
             return template.render(**context)
-        except Exception as e:
+        except SecurityError as e:
+            # Sandbox blocked an unsafe operation — almost always an SSTI attempt.
+            logger.warning("Blocked sandboxed template operation (possible SSTI): %s", e)
+            return "Error rendering template: operation not permitted"
+        except TemplateError as e:
+            return f"Error rendering template: {str(e)}"
+        except Exception as e:  # noqa: BLE001 — preserve "never 500 the preview" behavior
+            logger.error("Unexpected template render error: %s", e)
             return f"Error rendering template: {str(e)}"
 
     def preview_template(self, template_content: str, client_id: Optional[int] = None, case_id: Optional[int] = None) -> str:

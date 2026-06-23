@@ -1,7 +1,7 @@
 """
 Client Portal Admin Routes
 Staff-facing management: provision portal access, send emails, batch operations.
-Client-facing portal is served by client-intake service (port 8003).
+Client-facing portal access is provisioned by the CaseHub intake module.
 """
 import secrets
 import logging
@@ -238,7 +238,7 @@ async def manage_portal_access(request: Request, db: Session = Depends(get_db)):
     """List all portal access records for staff management.
 
     The portal_access table is currently provisioned only on long-lived
-    production databases — fresh deploys (e.g. alpha Mumbai 2026-05) do not
+    production databases — fresh deploys (e.g. alpha remote runtime 2026-05) do not
     have it because no migration creates it. Querying a missing table on
     Postgres raises ``UndefinedTable`` (``ProgrammingError``) and poisons the
     transaction, turning this route into a 500 family for any caller. Same
@@ -324,6 +324,10 @@ async def toggle_portal_access(
     if not user:
         return JSONResponse({"error": "Not authenticated"}, status_code=401)
 
+    client = tenant_query(db, Client, request.state.org_id).filter(Client.id == client_id).first()
+    if not client:
+        return JSONResponse({"error": "Client not found"}, status_code=404)
+
     access = get_portal_access(db, client_id)
     if not access:
         return JSONResponse({"error": "No portal access found"}, status_code=404)
@@ -349,6 +353,10 @@ async def get_portal_status(
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Not authenticated"}, status_code=401)
+
+    client = tenant_query(db, Client, request.state.org_id).filter(Client.id == client_id).first()
+    if not client:
+        return JSONResponse({"error": "Client not found"}, status_code=404)
 
     access = get_portal_access(db, client_id)
     if not access:

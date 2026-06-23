@@ -58,6 +58,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
         "/signup",
         "/setup",
         "/superadmin",
+        # Public legal pages — must be accessible without org context for Google OAuth verification
+        "/casehub/privacy",
+        "/casehub/terms",
+        # Apex-level public legal pages (#786 / T13) — Google probes the bare
+        # /privacy and /terms (and pt-BR/policy aliases) and expects 200-direct.
+        "/privacy",
+        "/terms",
+        "/termos",
+        "/privacy-policy",
+        "/politica-de-privacidade",
     }
 
     CACHE_TTL = 300  # 5 minutes
@@ -120,7 +130,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         Ordem (Sentinela T1 fix, 27/05/2026):
         1. Subdomain (host header) — AUTHORITATIVE for tenant identity.
-           sampletenant.casehub.legal SEMPRE resolve pra org sampletenant.
+           tenanta.casehub.legal SEMPRE resolve pra org tenanta.
         2. JWT cookie org_id (user's home org) — fallback quando apex
            (casehub.legal sem subdomain) ou subdomain não resolve.
         3. Default org slug (single-tenant mode).
@@ -133,7 +143,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         Refs:
         - Sentinela audit `security-audit-multitenant-2026-05-27.md` T1.
-        - F25 — chip header mostrava DEFAULT em vez de Example Legal após login.
+        - F25 — chip header mostrava DEFAULT em vez de Escritorio Demo após login.
         """
 
         # Strategy 0 (constrained): X-Org-Id ONLY from internal IPs.
@@ -175,7 +185,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             self._org_cache_ts[host] = time.time()
             return org
 
-        # Strategy 1b: Subdomain extraction (e.g., sampletenant.casehub.legal)
+        # Strategy 1b: Subdomain extraction (e.g., tenanta.casehub.legal)
         parts = host.split(".")
         if len(parts) >= 3:
             slug = parts[0]

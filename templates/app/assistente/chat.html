@@ -226,6 +226,14 @@
         background: var(--maestro-user);
         color: #ffffff;
         box-shadow: 0 4px 12px rgba(28, 36, 71,0.25);
+        overflow: hidden;
+    }
+    .message.user .message-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+        display: block;
     }
     .message.assistant .message-avatar {
         padding: 0;
@@ -385,7 +393,7 @@
         color: var(--fg-default);
     }
     .chat-input-area textarea::placeholder {
-        color: #9ca3af;
+        color: var(--fg-muted);
         opacity: 0.6;
     }
     .chat-input-area textarea:focus {
@@ -576,8 +584,8 @@
         opacity: 0.5;
         margin-top: 4px;
     }
-    .message.user .message-time { text-align: right; color: #9ca3af; }
-    .message.assistant .message-time { color: #9ca3af; }
+    .message.user .message-time { text-align: right; color: var(--fg-muted); }
+    .message.assistant .message-time { color: var(--fg-muted); }
 
     /* ══════════════════════════════════════════════════════
        Config Sidebar
@@ -621,7 +629,7 @@
     .close-sidebar-btn {
         background: none;
         border: none;
-        color: #9ca3af;
+        color: var(--fg-muted);
         cursor: pointer;
         font-size: 1rem;
         padding: 2px;
@@ -645,7 +653,8 @@
     .sidebar-section-title {
         font-size: 0.72rem;
         font-weight: 600;
-        color: #9ca3af;
+        /* pipeline-polish 2026-05-27: var(--fg-muted) = 1.97:1 on bone fails AA. fg-muted (6.94:1) passes. */
+        color: var(--fg-muted);
         text-transform: uppercase;
         letter-spacing: 0.6px;
     }
@@ -680,11 +689,13 @@
     }
     .sidebar-status-badge.online {
         background: rgba(34,197,94,0.1);
-        color: #22c55e;
+        /* pipeline-polish 2026-05-27: #22c55e = 1.76:1 on bone fails AA. #166534 = 7.32:1 */
+        color: #166534;
     }
     .sidebar-status-badge.offline {
         background: rgba(239,68,68,0.1);
-        color: #ef4444;
+        /* pipeline-polish 2026-05-27: #ef4444 = 3.10:1 on bone fails AA. #b91c1c = 5.65:1 */
+        color: #b91c1c;
     }
     .sidebar-status-badge .sdot {
         width: 6px;
@@ -734,11 +745,21 @@
     .sidebar-link i {
         width: 18px;
         text-align: center;
-        color: #9ca3af;
+        color: var(--fg-muted);
         font-size: 0.85rem;
         transition: color 0.2s;
     }
     .sidebar-link:hover i { color: #1C2447; }
+    [data-theme="dark"] .sidebar-link {
+        color: rgba(245, 248, 255, 0.92);
+    }
+    [data-theme="dark"] .sidebar-link i { color: rgba(245, 248, 255, 0.68); }
+    [data-theme="dark"] .sidebar-link:hover {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(217, 226, 240, 0.22);
+        color: #ffffff;
+    }
+    [data-theme="dark"] .sidebar-link:hover i { color: #cfff4f; }
 
     .sidebar-divider {
         height: 1px;
@@ -846,6 +867,11 @@
         .message { max-width: 90%; }
     }
 </style>
+{# Revitalização visual Maestro (2026-06-18, direção de arte): relevo neumórfico
+   sutil (.22) + accent neon(claro)/pollen(escuro). Override NÃO-destrutivo do
+   inline legacy acima. PRESERVA: ícone maestro-hands.png + bounce maestroHandsThink.
+   Carregado APÓS o <style> inline para ganhar a cascade. #}
+<link rel="stylesheet" href="{{ asset_url('css/templates/assistente-chat-revamp.css') }}">
 {% endblock %}
 {% block content %}
 <div class="container-fluid px-4 py-3">
@@ -871,11 +897,6 @@
                         <span class="status-dot {{ 'online' if ollama_status.status == 'online' else 'offline' }}" id="statusDot"></span>
                         <span id="statusText">{{ 'Online' if ollama_status.status == 'online' else 'Offline' }}</span>
                     </span>
-                    {% if gmail_send_enabled %}
-                    <button class="toggle-config-btn" data-ch-compose title="Novo e-mail" aria-label="Novo e-mail">
-                        <i data-lucide="mail"></i>
-                    </button>
-                    {% endif %}
                     <button class="toggle-config-btn" id="toggleConfigBtn" onclick="toggleConfig()" title="Configurações" aria-expanded="false" aria-controls="configSidebar">
                         <i data-lucide="sliders-horizontal"></i>
                     </button>
@@ -985,7 +1006,7 @@
                         {% if active_model %}
                         <span class="model-tag" id="sidebarModelName">{{ active_model }}</span>
                         {% else %}
-                        <span class="model-tag" id="sidebarModelName" style="color: #9ca3af;">Nenhum</span>
+                        <span class="model-tag" id="sidebarModelName" style="color: var(--fg-muted);">Nenhum</span>
                         {% endif %}
                     </div>
                     <div class="sidebar-status-row">
@@ -1000,7 +1021,7 @@
                 <div class="sidebar-section">
                     <span class="sidebar-section-title">Fontes de Conhecimento</span>
                     <div id="fontes-list" style="margin-top:8px;">
-                        <div style="text-align:center;color:#9ca3af;font-size:12px;padding:12px;">
+                        <div style="text-align:center;color:var(--fg-muted);font-size:12px;padding:12px;">
                             <i data-lucide="folder-open" class="empty-source-icon" style="opacity:0.4;display:block;margin:0 auto 6px;"></i>
                             Nenhuma fonte adicionada
                         </div>
@@ -1061,7 +1082,7 @@ function escapeHtml(value) {
 // Load knowledge sources in sidebar
 async function loadFontes() {
     // /config/fontes é admin-only (403 p/ staff). Sem este guard, staff via 403
-    // no console em toda abertura do Maestro (29/05 Victor, console).
+    // no console em toda abertura do Maestro (29/05 Equipe CaseHub, console).
     var __u = document.querySelector('meta[name="casehub-user"]');
     if (!__u || __u.dataset.type !== 'admin') return;
     try {
@@ -1071,7 +1092,7 @@ async function loadFontes() {
             const fontes = Array.isArray(data) ? data : (data.sources || []);
             const list = document.getElementById('fontes-list');
             if (fontes.length === 0) {
-                list.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:12px;padding:12px;"><i data-lucide="folder-open" class="empty-source-icon" style="opacity:0.4;display:block;margin:0 auto 6px;"></i>Nenhuma fonte adicionada</div>';
+                list.innerHTML = '<div style="text-align:center;color:var(--fg-muted);font-size:12px;padding:12px;"><i data-lucide="folder-open" class="empty-source-icon" style="opacity:0.4;display:block;margin:0 auto 6px;"></i>Nenhuma fonte adicionada</div>';
             } else {
                 list.innerHTML = fontes.map(f => `
                     <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:#f7f7f8;margin-bottom:4px;font-size:12px;">
@@ -1163,6 +1184,28 @@ function getTimeStr() {
     return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+
+function _renderMarkdown(text) {
+    return escapeHtml(text)
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
+}
+
+function _buildSuggestionTags() {
+    const tags = document.createElement('div');
+    tags.className = 'suggestion-tags';
+    ['Me conte mais', 'Quais os próximos passos?', 'Resuma isso'].forEach(text => {
+        const btn = document.createElement('button');
+        btn.className = 'suggestion-tag';
+        btn.textContent = text;
+        btn.onclick = function() { this.disabled = true; sendQuickAction(text); };
+        tags.appendChild(btn);
+    });
+    return tags;
+}
+
 function addMessage(role, content) {
     if (welcomeCard) welcomeCard.style.display = 'none';
 
@@ -1172,7 +1215,14 @@ function addMessage(role, content) {
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
     if (role === 'user') {
-        avatar.innerHTML = '<i data-lucide="user"></i>';
+        {% if user and user.photo_url %}
+        var _uimg = document.createElement('img');
+        _uimg.src = {{ user.photo_url | tojson }};
+        _uimg.alt = '';
+        avatar.appendChild(_uimg);
+        {% else %}
+        avatar.textContent = {{ ((user.name[0]|upper) if user and user.name else 'U') | tojson }};
+        {% endif %}
     } else {
         avatar.innerHTML = renderMaestroMark('message');
     }
@@ -1181,21 +1231,8 @@ function addMessage(role, content) {
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
 
-    // Escape HTML BEFORE applying markdown so user/model content can't inject
-    // markup (XSS). After escaping, the markdown regexes only ever re-introduce
-    // the safe tags we control.
-    const escapeHtml = (s) => String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
     // Parse markdown-like formatting
-    let html = escapeHtml(content)
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/`(.*?)`/g, '<code>$1</code>')
-        .replace(/\n/g, '<br>');
+    const html = _renderMarkdown(content);
 
     if (role === 'assistant') {
         bubble.innerHTML = '<span class="msg-text">' + html + '</span>';
@@ -1210,26 +1247,8 @@ function addMessage(role, content) {
     bubbleWrap.appendChild(bubble);
     bubbleWrap.appendChild(time);
 
-    // Add suggestion tags after assistant messages
     if (role === 'assistant') {
-        const tags = document.createElement('div');
-        tags.className = 'suggestion-tags';
-        const suggestions = [
-            'Me conte mais',
-            'Quais os próximos passos?',
-            'Resuma isso'
-        ];
-        suggestions.forEach(text => {
-            const btn = document.createElement('button');
-            btn.className = 'suggestion-tag';
-            btn.textContent = text;
-            btn.onclick = function() {
-                this.disabled = true;
-                sendQuickAction(text);
-            };
-            tags.appendChild(btn);
-        });
-        bubbleWrap.appendChild(tags);
+        bubbleWrap.appendChild(_buildSuggestionTags());
     }
 
     div.appendChild(avatar);
@@ -1238,6 +1257,45 @@ function addMessage(role, content) {
     chatMessages.appendChild(div);
     window.CHLucide?.mount?.();
     chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// ── Streaming helpers ──────────────────────────────────────────────────────
+function _addStreamingMessage() {
+    if (welcomeCard) welcomeCard.style.display = 'none';
+    const div = document.createElement('div');
+    div.className = 'message assistant';
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.innerHTML = renderMaestroMark('message');
+    const bubbleWrap = document.createElement('div');
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+    const span = document.createElement('span');
+    span.className = 'msg-text';
+    bubble.appendChild(span);
+    const time = document.createElement('div');
+    time.className = 'message-time';
+    time.textContent = getTimeStr();
+    bubbleWrap.appendChild(bubble);
+    bubbleWrap.appendChild(time);
+    div.appendChild(avatar);
+    div.appendChild(bubbleWrap);
+    chatMessages.appendChild(div);
+    window.CHLucide?.mount?.();
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return { bubble, bubbleWrap };
+}
+
+function _updateStreamingText(bubble, text) {
+    const span = bubble.querySelector('.msg-text');
+    if (span) span.innerHTML = _renderMarkdown(text);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function finalizeStreamingMessage(bubbleWrap) {
+    const tags = _buildSuggestionTags();
+    if (tags) bubbleWrap.appendChild(tags);
+    window.CHLucide?.mount?.();
 }
 
 function sendQuickAction(text) {
@@ -1257,34 +1315,75 @@ async function sendMessage() {
     addMessage('user', message);
     chatHistory.push({ role: 'user', content: message });
 
-    // Show thinking
     thinkingIndicator.classList.add('active');
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
+    let msgRef = null;
+    let fullText = '';
+    let firstContentSeen = false;
+    const hideThinkingOnce = () => {
+        if (firstContentSeen) return;
+        firstContentSeen = true;
+        thinkingIndicator.classList.remove('active');
+    };
+
     try {
-        const resp = await fetch(`${PREFIX}/assistente/api/chat`, {
+        const resp = await fetch(`${PREFIX}/assistente/api/chat/stream`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message, history: chatHistory })
         });
-        const data = await resp.json();
+        if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
 
-        thinkingIndicator.classList.remove('active');
-
-        if (data.status === 'offline') {
-            addMessage('assistant', 'O assistente de IA não esta disponível no momento. Verifique se o Ollama esta rodando.');
-            updateStatus('offline');
-        } else if (data.status === 'disabled') {
-            addMessage('assistant', data.response);
-        } else {
-            addMessage('assistant', data.response);
-            chatHistory.push({ role: 'assistant', content: data.response });
-            updateStatus('online');
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data: ')) continue;
+                let evt;
+                try { evt = JSON.parse(trimmed.slice(6)); } catch (e) { continue; }
+                if (evt.chunk) {
+                    hideThinkingOnce();
+                    if (!msgRef) msgRef = _addStreamingMessage();
+                    fullText += evt.chunk;
+                    _updateStreamingText(msgRef.bubble, fullText);
+                } else if (evt.done) {
+                    hideThinkingOnce();
+                    const responseText = evt.response || fullText;
+                    if (evt.status === 'offline') {
+                        const offlineMsg = 'O assistente de IA não está disponível no momento. Verifique se o Ollama está rodando.';
+                        if (msgRef) _updateStreamingText(msgRef.bubble, offlineMsg);
+                        else addMessage('assistant', offlineMsg);
+                        updateStatus('offline');
+                    } else if (evt.status === 'disabled') {
+                        if (msgRef) _updateStreamingText(msgRef.bubble, responseText);
+                        else addMessage('assistant', responseText);
+                    } else {
+                        fullText = responseText;
+                        if (!msgRef) {
+                            addMessage('assistant', fullText);
+                        } else {
+                            _updateStreamingText(msgRef.bubble, fullText);
+                            finalizeStreamingMessage(msgRef.bubbleWrap);
+                        }
+                        chatHistory.push({ role: 'assistant', content: fullText });
+                        updateStatus('online');
+                    }
+                }
+            }
         }
+        if (!firstContentSeen) thinkingIndicator.classList.remove('active');
     } catch (err) {
         thinkingIndicator.classList.remove('active');
-        addMessage('assistant', 'Erro ao se comunicar com o servidor. Tente novamente.');
-        console.error('Chat error:', err);
+        if (!msgRef) addMessage('assistant', 'Erro ao se comunicar com o servidor. Tente novamente.');
+        console.error('Chat stream error:', err);
     }
 
     isProcessing = false;

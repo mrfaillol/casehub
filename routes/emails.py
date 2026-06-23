@@ -648,6 +648,10 @@ async def view_email(request: Request, message_id: int, db: Session = Depends(ge
         "clients": clients,
         "cases": cases,
         "thread_emails": thread_emails
+    }, headers={
+        # Revalida o HTML a cada acesso → o navegador sempre busca a CSS/JS na
+        # versão atual. Mata a defasagem em que o iOS servia a tela antiga do cache.
+        "Cache-Control": "no-cache, must-revalidate",
     })
 
 @router.post("/{message_id}/link")
@@ -795,14 +799,14 @@ def get_paralegal_mapping():
                 if client.get('email'):
                     email = client['email'].lower().strip()
                     paralegal = (client.get('paralegal') or '').lower()
-                    if 'juliana' in paralegal:
-                        mapping[email] = 'juliana'
-                    elif 'danielle' in paralegal:
-                        mapping[email] = 'danielle'
-                    elif 'ana' in paralegal:
-                        mapping[email] = 'ana'
-                    elif 'daniel' in paralegal:
-                        mapping[email] = 'daniel'
+                    if 'member_a' in paralegal or 'membro a' in paralegal:
+                        mapping[email] = 'member_a'
+                    elif 'member_b' in paralegal or 'membro b' in paralegal:
+                        mapping[email] = 'member_b'
+                    elif 'member_c' in paralegal or 'membro c' in paralegal:
+                        mapping[email] = 'member_c'
+                    elif 'member_d' in paralegal or 'membro d' in paralegal:
+                        mapping[email] = 'member_d'
             return mapping
     except Exception as e:
         logger.error("Error loading paralegal mapping: %s", e)

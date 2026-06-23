@@ -61,15 +61,18 @@ def log_action(
             if not ip_address:
                 ip_address = request.client.host if request.client else None
             user_agent = request.headers.get("user-agent", "")[:500]  # Limit length
+            org_id = getattr(getattr(request, "state", None), "org_id", None)
+        else:
+            org_id = _audit_org_id.get()
 
         db.execute(text("""
             INSERT INTO audit_log (
                 action, entity_type, entity_id, user_id, user_email,
-                description, details, ip_address, user_agent, created_at
+                description, details, ip_address, user_agent, org_id, created_at
             )
             VALUES (
                 :action, :entity_type, :entity_id, :user_id, :user_email,
-                :description, :details, :ip_address, :user_agent, NOW()
+                :description, :details, :ip_address, :user_agent, :org_id, CURRENT_TIMESTAMP
             )
         """), {
             "action": action,
@@ -81,6 +84,7 @@ def log_action(
             "details": json.dumps(details) if details else None,
             "ip_address": ip_address,
             "user_agent": user_agent,
+            "org_id": org_id,
         })
         db.commit()
 
@@ -215,11 +219,11 @@ def _write_audit_row(session, action, entity_type, entity_id, old_value, new_val
         session.execute(text("""
             INSERT INTO audit_log (
                 action, entity_type, entity_id, user_id, user_email,
-                description, details, ip_address, user_agent, created_at
+                description, details, ip_address, user_agent, org_id, created_at
             )
             VALUES (
                 :action, :entity_type, :entity_id, :user_id, :user_email,
-                :description, :details, :ip_address, :user_agent, NOW()
+                :description, :details, :ip_address, :user_agent, :org_id, CURRENT_TIMESTAMP
             )
         """), {
             "action": action,
@@ -231,6 +235,7 @@ def _write_audit_row(session, action, entity_type, entity_id, old_value, new_val
             "details": json.dumps(details) if details else None,
             "ip_address": ip_address,
             "user_agent": user_agent,
+            "org_id": org_id,
         })
     except Exception as e:
         logger.debug(f"Auto-audit write failed (non-fatal): {e}")

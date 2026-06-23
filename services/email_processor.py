@@ -42,7 +42,7 @@ def get_client_from_db(email_address: str):
         with engine.connect() as conn:
             result = conn.execute(text("""
                 SELECT c.id, c.first_name, c.last_name, c.email, 
-                       COALESCE(cs.paralegal, 'Ana Clara') as paralegal
+                       COALESCE(cs.paralegal, 'Membro B') as paralegal
                 FROM clients c
                 LEFT JOIN cases cs ON cs.client_id = c.id
                 WHERE LOWER(c.email) = LOWER(:email)
@@ -52,7 +52,7 @@ def get_client_from_db(email_address: str):
             if row:
                 return {
                     "name": f"{row[1]} {row[2]}",
-                    "paralegal": row[4] if row[4] else "Ana Clara",
+                    "paralegal": row[4] if row[4] else "Membro B",
                     "case": str(row[0])
                 }
     except Exception as e:
@@ -248,7 +248,7 @@ def load_active_clients() -> Dict[str, Dict]:
                     
                     client_info = {
                         "name": c.get("name", ""),
-                        "paralegal": c.get("paralegal", "Ana Clara"),
+                        "paralegal": c.get("paralegal", "Membro B"),
                         "case": str(c.get("caseNumber", "")),
                     }
                     

@@ -7,6 +7,32 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
+def _create_minimal_appointments_table(db):
+    from sqlalchemy import text
+
+    db.execute(text("DROP TABLE IF EXISTS gcal_calendar_selection"))
+    db.execute(text("DROP TABLE IF EXISTS gcal_sync_state_v2"))
+    db.execute(text("DROP TABLE IF EXISTS gcal_sync_state_calendar"))
+    db.execute(text("DROP TABLE IF EXISTS gcal_sync_state"))
+    db.execute(text("DROP TABLE IF EXISTS appointments"))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS appointments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            org_id INTEGER NOT NULL,
+            title VARCHAR(255),
+            type VARCHAR(50),
+            client_name VARCHAR(255),
+            date DATE,
+            time_start TIME,
+            time_end TIME,
+            is_virtual BOOLEAN DEFAULT FALSE,
+            notes TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    db.commit()
+
+
 def test_readonly_google_calendar_token_requires_reconnect(tmp_path, monkeypatch):
     from services.google_calendar import GoogleCalendarService
 
@@ -106,12 +132,12 @@ def test_oauth_state_is_signed_user_bound_and_tamper_rejected():
         _oauth_state_signature,
     )
 
-    user = SimpleNamespace(id=7, email="victor@example.com")
+    user = SimpleNamespace(id=7, email="casehub_team@example.com")
     other_user = SimpleNamespace(id=8, email="other@example.com")
     request = SimpleNamespace(
-        headers={"host": "sampletenant.casehub.legal"},
+        headers={"host": "tenanta.casehub.legal"},
         url=SimpleNamespace(scheme="https"),
-        base_url="https://sampletenant.casehub.legal/",
+        base_url="https://tenanta.casehub.legal/",
         state=SimpleNamespace(org_id=4),
     )
 
@@ -223,7 +249,7 @@ def test_sync_appointment_creates_google_event(monkeypatch, tmp_path):
     monkeypatch.setattr(
         service,
         "create_event",
-        lambda account, body: created_events.append(body) or {
+        lambda account, body, calendar_id="primary": created_events.append(body) or {
             "id": "gcal-123",
             "htmlLink": "https://calendar.google.com/event",
         },
@@ -262,7 +288,7 @@ def test_sync_appointment_exports_local_as_google_location(monkeypatch, tmp_path
     monkeypatch.setattr(
         service,
         "create_event",
-        lambda account, body: created_events.append(body) or {"id": "gcal-local"},
+        lambda account, body, calendar_id="primary": created_events.append(body) or {"id": "gcal-local"},
     )
 
     result = service.sync_appointment({
@@ -289,7 +315,7 @@ def test_sync_appointment_can_use_neutral_google_event_mode(monkeypatch, tmp_pat
     monkeypatch.setattr(
         service,
         "create_event",
-        lambda account, body: created_events.append(body) or {"id": "gcal-456"},
+        lambda account, body, calendar_id="primary": created_events.append(body) or {"id": "gcal-456"},
     )
 
     result = service.sync_appointment({
@@ -357,6 +383,560 @@ def test_sync_appointment_is_best_effort_when_no_account(tmp_path, monkeypatch):
 
     assert result["synced"] is False
     assert result["code"] == "google_calendar_not_connected"
+
+
+def test_export_unsynced_appointments_pushes_local_rows(db, monkeypatch):
+    from sqlalchemy import text
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    service._ensure_sync_schema(db)
+    db.execute(
+        text("""
+            INSERT INTO appointments
+                (org_id, title, type, date, time_start, time_end, origin, gcal_event_id)
+            VALUES
+                (4, 'Atendimento', 'atendimento', '2026-06-15', '16:00', '17:00', 'casehub', NULL),
+                (4, 'Consulta', 'consulta', '2026-06-15', '14:00', '15:00', 'casehub', 'existing-gcal'),
+                (4, 'Google importado', 'outro', '2026-06-15', '11:00', '12:00', 'google', NULL),
+                (2, 'Outra org', 'outro', '2026-06-15', '10:00', '11:00', 'casehub', NULL)
+        """)
+    )
+    db.commit()
+
+    created = []
+    monkeypatch.setattr(service, "get_default_write_account", lambda: "center")
+    monkeypatch.setattr(service, "get_write_calendar_id", lambda account: "primary")
+    monkeypatch.setattr(
+        service,
+        "create_event",
+        lambda account, body, calendar_id="primary": created.append((account, calendar_id, body)) or {
+            "id": "new-gcal",
+            "htmlLink": "https://calendar.google.com/event",
+        },
+    )
+
+    result = service.export_unsynced_appointments(
+        start_date=date(2026, 6, 15),
+        end_date=date(2026, 6, 15),
+    )
+
+    assert result["candidates"] == 1
+    assert result["processed"] == 1
+    assert result["exported"] == 1
+    assert result["failed"] == 0
+    assert created[0][0] == "center"
+    assert created[0][1] == "primary"
+    assert created[0][2]["extendedProperties"]["private"]["casehub_appointment_id"] == "1"
+    rows = db.execute(
+        text("""
+            SELECT id, gcal_event_id, google_calendar_account, google_calendar_id
+            FROM appointments
+            ORDER BY id
+        """)
+    ).fetchall()
+    assert rows[0] == (1, "new-gcal", "center", "primary")
+    assert rows[1][1] == "existing-gcal"
+    assert rows[2][1] is None
+    assert rows[3][1] is None
+
+
+def test_export_unsynced_appointments_prioritizes_requested_range(db, monkeypatch):
+    from sqlalchemy import text
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    service._ensure_sync_schema(db)
+    db.execute(
+        text("""
+            INSERT INTO appointments
+                (org_id, title, type, date, time_start, time_end, origin, gcal_event_id)
+            VALUES
+                (4, 'Antigo', 'outro', '2026-06-01', '09:00', '10:00', 'casehub', NULL),
+                (4, 'Semana visivel', 'atendimento', '2026-06-15', '16:00', '17:00', 'casehub', NULL)
+        """)
+    )
+    db.commit()
+
+    created = []
+    monkeypatch.setattr(service, "get_default_write_account", lambda: "center")
+    monkeypatch.setattr(service, "get_write_calendar_id", lambda account: "primary")
+    monkeypatch.setattr(
+        service,
+        "create_event",
+        lambda account, body, calendar_id="primary": created.append(body) or {"id": "visible-gcal"},
+    )
+
+    result = service.export_unsynced_appointments(
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 30),
+        priority_start_date=date(2026, 6, 15),
+        priority_end_date=date(2026, 6, 19),
+        limit=1,
+    )
+
+    assert result["candidates"] == 2
+    assert result["processed"] == 1
+    assert result["exported"] == 1
+    assert created[0]["summary"] == "Semana visivel"
+
+
+def test_sync_schema_additive_preserves_legacy_and_inherits_primary(db):
+    """Opção B (Council 2026-06-13): migração ADITIVA — gcal_sync_state legado fica
+    INTOCADO (sem DROP/RENAME/ALTER), o cursor 'primary' é herdado read-only via
+    fallback, e a migração é idempotente (re-run não erra nem deixa órfão)."""
+    from sqlalchemy import text
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    db.execute(text("""
+        CREATE TABLE gcal_sync_state (
+            org_id INTEGER NOT NULL,
+            account_name VARCHAR(50) NOT NULL,
+            sync_token TEXT,
+            last_run_at TIMESTAMP,
+            PRIMARY KEY (org_id, account_name)
+        )
+    """))
+    db.execute(text("""
+        INSERT INTO gcal_sync_state (org_id, account_name, sync_token, last_run_at)
+        VALUES (4, 'center', 'legacy-token', CURRENT_TIMESTAMP)
+    """))
+    db.commit()
+
+    # Idempotente: rodar 2x (G2) — sem erro, sem objeto órfão
+    GoogleCalendarService._ensure_sync_schema(db)
+    GoogleCalendarService._ensure_sync_schema(db)
+
+    # Legado INTOCADO: nenhuma coluna calendar_id adicionada, token preservado
+    columns = [row[1] for row in db.execute(text("PRAGMA table_info(gcal_sync_state)")).fetchall()]
+    assert "calendar_id" not in columns
+    legacy = db.execute(text(
+        "SELECT sync_token FROM gcal_sync_state WHERE org_id = 4 AND account_name = 'center'"
+    )).fetchone()
+    assert legacy[0] == "legacy-token"
+
+    # Sidecar criado; NENHUM órfão gcal_sync_state_v2
+    tables = {r[0] for r in db.execute(
+        text("SELECT name FROM sqlite_master WHERE type='table'")
+    ).fetchall()}
+    assert "gcal_sync_state_calendar" in tables
+    assert "gcal_sync_state_v2" not in tables
+
+    # Cursor 'primary' herdado read-only do legado via fallback
+    service = GoogleCalendarService(db, org_id=4)
+    assert service._get_sync_token("center", "primary") == "legacy-token"
+
+    # Token fresco no sidecar tem precedência; legado continua intocado
+    service._save_sync_token("center", "primary", "fresh-token")
+    assert service._get_sync_token("center", "primary") == "fresh-token"
+    legacy_after = db.execute(text(
+        "SELECT sync_token FROM gcal_sync_state WHERE org_id = 4 AND account_name = 'center'"
+    )).fetchone()
+    assert legacy_after[0] == "legacy-token"
+
+
+def test_calendar_selection_defaults_to_primary_only(db, monkeypatch):
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    monkeypatch.setattr(service, "get_calendars", lambda account: [
+        {"id": "primary", "summary": "Principal", "primary": True},
+        {"id": "shared-family", "summary": "Compartilhada"},
+    ])
+
+    selection = service.get_calendar_selection("center")
+
+    by_id = {cal["id"]: cal for cal in selection}
+    assert by_id["primary"]["enabled"] is True
+    assert by_id["primary"]["is_write_target"] is True
+    assert by_id["shared-family"]["enabled"] is False
+    assert by_id["shared-family"]["is_write_target"] is False
+    assert service._enabled_calendar_ids("center") == ["primary"]
+
+
+def test_calendar_selection_persists_enabled_and_write_target(db, monkeypatch):
+    monkeypatch.setenv("CASEHUB_FF_SECONDARY_CALENDAR_SYNC", "on")  # #803 gate: asserts secondary-cal ON behavior
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    monkeypatch.setattr(service, "get_calendars", lambda account: [
+        {"id": "primary", "summary": "Principal", "primary": True},
+        {"id": "team", "summary": "Equipe"},
+    ])
+
+    assert service.save_calendar_selection("center", ["primary", "team"], "team") is True
+
+    assert service._enabled_calendar_ids("center") == ["team", "primary"]
+    assert service.get_write_calendar_id("center") == "team"
+    selection = {cal["id"]: cal for cal in service.get_calendar_selection("center")}
+    assert selection["team"]["enabled"] is True
+    assert selection["team"]["is_write_target"] is True
+    assert selection["primary"]["enabled"] is True
+    assert selection["primary"]["is_write_target"] is False
+
+
+class _FakeGoogleEvents:
+    def __init__(self, responses, errors=None):
+        self.responses = responses
+        self.errors = errors or {}
+        self.calls = []
+
+    def list(self, **kwargs):
+        self.calls.append(kwargs)
+        calendar_id = kwargs["calendarId"]
+        error = self.errors.get(calendar_id)
+        if error:
+            return SimpleNamespace(execute=lambda: (_ for _ in ()).throw(error))
+        response = self.responses.get(calendar_id, {"items": [], "nextSyncToken": f"tok-{calendar_id}"})
+        return SimpleNamespace(execute=lambda: response)
+
+
+class _FakeGoogleService:
+    def __init__(self, events):
+        self._events = events
+
+    def events(self):
+        return self._events
+
+
+def _google_event(event_id, title):
+    return {
+        "id": event_id,
+        "summary": title,
+        "status": "confirmed",
+        "etag": f"etag-{event_id}",
+        "start": {"date": "2026-06-20"},
+        "end": {"date": "2026-06-21"},
+    }
+
+
+def test_import_events_iterates_enabled_calendars_and_persists_account(db, monkeypatch):
+    monkeypatch.setenv("CASEHUB_FF_SECONDARY_CALENDAR_SYNC", "on")  # #803 gate: asserts secondary-cal ON behavior
+    from sqlalchemy import text
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    monkeypatch.setattr(service, "get_calendars", lambda account: [
+        {"id": "primary", "summary": "Principal", "primary": True},
+        {"id": "team", "summary": "Equipe"},
+    ])
+    assert service.save_calendar_selection("center", ["primary", "team"], "team") is True
+    fake_events = _FakeGoogleEvents({
+        "primary": {"items": [_google_event("gcal-primary", "Primary")], "nextSyncToken": "tok-primary"},
+        "team": {"items": [_google_event("gcal-team", "Team")], "nextSyncToken": "tok-team"},
+    })
+    monkeypatch.setattr(service, "get_service", lambda account: _FakeGoogleService(fake_events))
+
+    summary = service.import_events("center")
+
+    assert summary["imported"] == 2
+    assert [call["calendarId"] for call in fake_events.calls] == ["team", "primary"]
+    rows = db.execute(text("""
+        SELECT gcal_event_id, google_calendar_id, google_calendar_account
+        FROM appointments
+        ORDER BY gcal_event_id
+    """)).fetchall()
+    assert [tuple(row) for row in rows] == [
+        ("gcal-primary", "primary", "center"),
+        ("gcal-team", "team", "center"),
+    ]
+    token_rows = db.execute(text("""
+        SELECT calendar_id, sync_token
+        FROM gcal_sync_state_calendar
+        WHERE org_id = 4 AND account_name = 'center'
+        ORDER BY calendar_id
+    """)).fetchall()
+    assert [tuple(row) for row in token_rows] == [("primary", "tok-primary"), ("team", "tok-team")]
+
+
+def test_import_events_resets_only_expired_calendar_token(db, monkeypatch):
+    monkeypatch.setenv("CASEHUB_FF_SECONDARY_CALENDAR_SYNC", "on")  # #803 gate: asserts secondary-cal ON behavior
+    from sqlalchemy import text
+    from googleapiclient.errors import HttpError
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    monkeypatch.setattr(service, "get_calendars", lambda account: [
+        {"id": "primary", "summary": "Principal", "primary": True},
+        {"id": "team", "summary": "Equipe"},
+    ])
+    assert service.save_calendar_selection("center", ["primary", "team"], "team") is True
+    service._save_sync_token("center", "primary", "old-primary")
+    service._save_sync_token("center", "team", "old-team")
+    gone = HttpError(SimpleNamespace(status=410, reason="Gone"), b"")
+    fake_events = _FakeGoogleEvents(
+        {"primary": {"items": [], "nextSyncToken": "new-primary"}},
+        errors={"team": gone},
+    )
+    monkeypatch.setattr(service, "get_service", lambda account: _FakeGoogleService(fake_events))
+
+    summary = service.import_events("center")
+
+    assert summary["error"] == "sync_token_expired_reset"
+    tokens = dict(db.execute(text("""
+        SELECT calendar_id, sync_token
+        FROM gcal_sync_state_calendar
+        WHERE org_id = 4 AND account_name = 'center'
+    """)).fetchall())
+    assert tokens["primary"] == "new-primary"
+    assert tokens["team"] is None
+
+
+def test_sync_appointment_uses_configured_write_calendar(db, monkeypatch):
+    monkeypatch.setenv("CASEHUB_FF_SECONDARY_CALENDAR_SYNC", "on")  # #803 gate: asserts secondary-cal ON behavior
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    monkeypatch.setattr(service, "get_default_write_account", lambda: "center")
+    monkeypatch.setattr(service, "get_calendars", lambda account: [
+        {"id": "primary", "summary": "Principal", "primary": True},
+        {"id": "team", "summary": "Equipe"},
+    ])
+    assert service.save_calendar_selection("center", ["primary", "team"], "team") is True
+    created = []
+    monkeypatch.setattr(
+        service,
+        "create_event",
+        lambda account, body, calendar_id="primary": created.append((account, calendar_id, body)) or {"id": "gcal-team"},
+    )
+
+    result = service.sync_appointment({
+        "id": 99,
+        "title": "Reuniao",
+        "date": date(2026, 6, 20),
+    })
+
+    assert result["synced"] is True
+    assert result["calendar_id"] == "team"
+    assert created[0][0:2] == ("center", "team")
+
+
+def test_get_all_events_uses_enabled_calendar_selection(db, monkeypatch):
+    monkeypatch.setenv("CASEHUB_FF_SECONDARY_CALENDAR_SYNC", "on")  # #803 gate: asserts secondary-cal ON behavior
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    monkeypatch.setattr(service, "has_credentials", lambda account: True)
+    monkeypatch.setattr(service, "get_calendars", lambda account: [
+        {"id": "primary", "summary": "Principal", "primary": True},
+        {"id": "team", "summary": "Equipe"},
+        {"id": "personal", "summary": "Pessoal"},
+    ])
+    assert service.save_calendar_selection("center", ["primary", "team"], "team") is True
+    calls = []
+
+    def fake_get_events(account, calendar_id="primary", time_min=None, time_max=None, max_results=100):
+        calls.append((account, calendar_id))
+        return [{
+            "id": f"event-{calendar_id}",
+            "title": "Evento",
+            "start": "2026-06-20",
+            "calendar_id": calendar_id,
+            "source": account,
+        }]
+
+    monkeypatch.setattr(service, "get_events", fake_get_events)
+
+    events = service.get_all_events(["center"])
+
+    assert calls == [("center", "team"), ("center", "primary")]
+    assert [event["calendar_id"] for event in events] == ["team", "primary"]
+
+
+def test_delete_appointment_event_uses_stored_account_and_calendar(db, monkeypatch):
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    calls = []
+    monkeypatch.setattr(service, "has_credentials", lambda account: account == "center")
+    monkeypatch.setattr(
+        service,
+        "delete_event",
+        lambda account, event_id, calendar_id="primary": calls.append((account, event_id, calendar_id)),
+    )
+
+    result = service.delete_appointment_event(
+        "gcal-team",
+        account_name="center",
+        calendar_id="team",
+    )
+
+    assert result["synced"] is True
+    assert result["calendar_id"] == "team"
+    assert calls == [("center", "gcal-team", "team")]
+
+
+def test_delete_appointment_event_does_not_fallback_to_primary_when_target_known(db, monkeypatch):
+    from googleapiclient.errors import HttpError
+    from services.google_calendar import GoogleCalendarService
+
+    _create_minimal_appointments_table(db)
+    service = GoogleCalendarService(db, org_id=4)
+    calls = []
+    not_found = HttpError(SimpleNamespace(status=404, reason="Not Found"), b"")
+    monkeypatch.setattr(service, "has_credentials", lambda account: True)
+    monkeypatch.setattr(service, "default_accounts", lambda: ["center", "info"])
+
+    def fake_delete(account, event_id, calendar_id="primary"):
+        calls.append((account, event_id, calendar_id))
+        raise not_found
+
+    monkeypatch.setattr(service, "delete_event", fake_delete)
+
+    result = service.delete_appointment_event(
+        "gcal-team",
+        account_name="center",
+        calendar_id="team",
+    )
+
+    assert result["synced"] is False
+    assert result["code"] == "google_delete_failed"
+    assert calls == [("center", "gcal-team", "team")]
+
+
+def test_calendar_selection_route_persists_enabled_and_write_target(db, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from routes import google_calendar as route_mod
+
+    captured = {}
+
+    def _get_db_override():
+        yield db
+
+    def fake_has_credentials(self, account_name):
+        captured["org_id"] = self.org_id
+        return account_name == "center"
+
+    def fake_save_selection(self, account_name, calendar_ids, write_calendar_id=None):
+        captured["account_name"] = account_name
+        captured["calendar_ids"] = calendar_ids
+        captured["write_calendar_id"] = write_calendar_id
+        return True
+
+    monkeypatch.setattr(
+        route_mod,
+        "get_current_user",
+        lambda request, db: SimpleNamespace(id=7, email="casehub_team@example.com", org_id=4),
+    )
+    monkeypatch.setattr(route_mod.GoogleCalendarService, "has_credentials", fake_has_credentials)
+    monkeypatch.setattr(route_mod.GoogleCalendarService, "save_calendar_selection", fake_save_selection)
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_org_context(request, call_next):
+        request.state.org_id = 4
+        return await call_next(request)
+
+    app.include_router(route_mod.router, prefix="/casehub")
+    app.dependency_overrides[route_mod.get_db] = _get_db_override
+    client = TestClient(app)
+
+    response = client.post(
+        "/casehub/google-calendar/calendars/center/selection",
+        data={"calendar_ids": ["primary", "team"], "write_calendar_id": "team"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"].endswith(
+        "/casehub/google-calendar/settings?success=calendar_selection_saved"
+    )
+    assert captured == {
+        "org_id": 4,
+        "account_name": "center",
+        "calendar_ids": ["primary", "team"],
+        "write_calendar_id": "team",
+    }
+
+
+def test_manual_sync_endpoint_message_reports_updated_count(db, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from routes import calendar as route_mod
+
+    def _get_db_override():
+        yield db
+
+    def fake_import_all_connected(self):
+        return {
+            "accounts": [{"account": "center"}],
+            "imported": 1,
+            "updated": 2,
+            "cancelled": 3,
+            "skipped_loop": 0,
+        }
+
+    captured_export = {}
+
+    def fake_export_unsynced_appointments(self, **kwargs):
+        captured_export.update(kwargs)
+        return {
+            "account": "center",
+            "candidates": 4,
+            "processed": 4,
+            "exported": 4,
+            "failed": 0,
+            "skipped": 0,
+            "error": "",
+        }
+
+    monkeypatch.setattr(
+        route_mod,
+        "get_current_user",
+        lambda request, db: SimpleNamespace(id=7, email="casehub_team@example.com", org_id=4),
+    )
+    monkeypatch.setattr(route_mod.GoogleCalendarService, "import_all_connected", fake_import_all_connected)
+    monkeypatch.setattr(
+        route_mod.GoogleCalendarService,
+        "export_unsynced_appointments",
+        fake_export_unsynced_appointments,
+    )
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_org_context(request, call_next):
+        request.state.org_id = 4
+        return await call_next(request)
+
+    app.include_router(route_mod.router, prefix="/casehub")
+    app.dependency_overrides[route_mod.get_db] = _get_db_override
+    client = TestClient(app)
+
+    response = client.post(
+        "/casehub/calendar/sync-google?start_date=2026-06-15&end_date=2026-06-19"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+
+    assert payload["imported"] == 1
+    assert payload["updated"] == 2
+    assert payload["cancelled"] == 3
+    assert payload["exported"] == 4
+    assert payload["export_candidates"] == 4
+    assert payload["export_processed"] == 4
+    assert payload["export_pending"] == 0
+    assert payload["message"] == (
+        "Sincronizado: 1 novo(s), 2 atualizado(s), 3 removido(s), "
+        "4 enviado(s) ao Google."
+    )
+    assert captured_export == {
+        "priority_start_date": date(2026, 6, 15),
+        "priority_end_date": date(2026, 6, 19),
+    }
 
 
 # ── events.watch realtime push (webhook receiver) — DORMANT behind flag ──────

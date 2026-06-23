@@ -52,8 +52,8 @@ function cleanAndParseJSON(text) {
 }
 
 const NOTIFICATION_CONFIG = {
-    googleChatWebhook: process.env.GOOGLE_CHAT_WEBHOOK_VICTOR || '',
-    emailTo: 'victorvingren.me',
+    googleChatWebhook: process.env.GOOGLE_CHAT_WEBHOOK_ADMIN || '',
+    emailTo: process.env.ALERT_EMAIL || 'admin@example.com',
     checkIntervalMinutes: 5,
     alertThresholdMinutes: 30,
     llmResponseThresholdMinutes: 5

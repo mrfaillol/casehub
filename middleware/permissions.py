@@ -29,23 +29,26 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     "admin": [
         "org.*", "admin.*", "billing.*", "reports.*", "settings.*",
         "cases.*", "clients.*", "documents.*", "tasks.*", "emails.*",
-        "intake.*", "calendar.*",
+        "intake.*", "calendar.*", "whatsapp.*",
     ],
     "attorney": [
         "cases.*", "clients.*", "documents.*", "billing.*",
-        "reports.view", "tasks.*", "emails.*",
+        "reports.view", "tasks.*", "emails.*", "whatsapp.*",
     ],
     "paralegal": [
         "cases.view", "cases.edit", "clients.view", "clients.edit",
         "documents.*", "tasks.*", "intake.*", "emails.view",
+        "whatsapp.view", "whatsapp.send",
     ],
     "case_worker": [
         "cases.view", "cases.edit", "clients.view", "clients.edit",
         "documents.*", "tasks.*", "intake.*", "emails.view",
+        "whatsapp.view", "whatsapp.send",
     ],
     "assistant": [
         "cases.view", "clients.view", "tasks.view", "tasks.edit",
         "calendar.*", "documents.view",
+        "whatsapp.view", "whatsapp.send",
     ],
 }
 

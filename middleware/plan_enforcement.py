@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # Map POST endpoints to the model they create and the org column that holds the limit.
 # Limit value of -1 (or None) means unlimited.
 #
-# Spec (Victor, 28/05/2026): usuários ILIMITADOS por enquanto em todos os planos.
+# Spec (Equipe CaseHub, 28/05/2026): usuários ILIMITADOS por enquanto em todos os planos.
 # A regra de /admin/users/new fica intencionalmente FORA deste mapa para que o
 # cadastro de usuários nunca seja bloqueado, independente de valores legados de
 # max_users ainda gravados em organizations. Reativar quando houver limite de

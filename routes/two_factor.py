@@ -15,6 +15,12 @@ from models import get_db, User
 from auth import get_current_user
 from i18n import get_translations
 from services.two_factor import TwoFactorService
+from config import settings
+from core.stepup import (
+    STEPUP_COOKIE_NAME,
+    STEPUP_TTL_SECONDS,
+    issue_token,
+)
 
 # PREFIX = "/casehub"  # Imported from template_config.py
 
@@ -192,3 +198,92 @@ async def regenerate_backup_codes(
         "success": True,
         "backup_codes": codes
     })
+
+
+# =========================================================================
+# Step-up verification (T10 / #805, CWE-308)
+#
+# Proves a FRESH TOTP verification at the moment of a sensitive superadmin
+# action. On success we set a short-lived, signed, user-bound cookie
+# (core.stepup). routes.superadmin.enforce_superadmin_2fa requires that cookie
+# when the default-OFF flag is ON.
+#
+# SAFETY: these two endpoints must NEVER be gated by enforce_superadmin_2fa
+# (that would be a chicken-and-egg lockout: you'd need step-up to reach the
+# page that grants step-up). They only require a logged-in user.
+# =========================================================================
+
+def _stepup_cookie_kwargs() -> dict:
+    """Cookie flags for the step-up marker.
+
+    Mirrors the existing auth cookies in core/app_factory.py (HttpOnly + SameSite
+    lax + path=/). ``Secure`` is added in non-DEBUG (prod over HTTPS) but left
+    off under DEBUG so local HTTP dev still works.
+    """
+    return {
+        "httponly": True,
+        "samesite": "lax",
+        "secure": not settings.DEBUG,
+        "max_age": STEPUP_TTL_SECONDS,
+        "path": "/",
+    }
+
+
+@router.get("/step-up", response_class=HTMLResponse)
+async def step_up_challenge_page(request: Request, db: Session = Depends(get_db)):
+    """Render the step-up TOTP challenge form.
+
+    ``next`` carries the original sensitive URL to bounce back to after a
+    successful verification (validated to be a local path to avoid open-redirect).
+    """
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    next_url = request.query_params.get("next", "")
+    # Open-redirect guard: only allow same-app relative paths.
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = f"{PREFIX}/superadmin"
+
+    return templates.TemplateResponse("app/two_factor/step_up.html", {
+        **get_context(request, db),
+        "next_url": next_url,
+    })
+
+
+@router.post("/step-up")
+async def step_up_verify(
+    request: Request,
+    code: str = Form(...),
+    next: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Validate a TOTP ``code`` and, on success, set the signed step-up cookie."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    service = TwoFactorService(db)
+    try:
+        valid = service.verify_code(user.id, code)
+    except SQLAlchemyError as exc:
+        logger.warning("2FA step-up unavailable for user %s: %s", user.id, exc)
+        return unavailable_response(db)
+
+    if not valid:
+        return JSONResponse(
+            {"success": False, "error": "Invalid verification code"},
+            status_code=400,
+        )
+
+    # Open-redirect guard (same as the GET page).
+    next_url = next if (next.startswith("/") and not next.startswith("//")) else f"{PREFIX}/superadmin"
+
+    response = RedirectResponse(url=next_url, status_code=302)
+    response.set_cookie(
+        key=STEPUP_COOKIE_NAME,
+        value=issue_token(user.id),
+        **_stepup_cookie_kwargs(),
+    )
+    logger.info("Superadmin step-up 2FA verified for user id=%s", user.id)
+    return response

@@ -1,11 +1,13 @@
-"""Regression tests for routes/whatsapp_lite page handlers — error-path resilience.
+"""Regression tests for routes/whatsapp_lite page handlers.
 
-When the raw `whatsapp_messages` SELECT fails (table absent in a given schema,
-transient DB error), the page handler must roll back the session *before* the
-next ORM query. On Postgres a failed statement aborts the transaction; any
-later statement on the same un-rolled-back session raises PendingRollbackError
--> HTTP 500. `whatsapp_dashboard` and `_get_message_stats` already roll back;
-`message_history` did not — this suite locks the parity in.
+The Lite dashboard still needs error-path resilience: when the raw
+`whatsapp_messages` SELECT fails (table absent in a given schema, transient DB
+error), the handler must roll back the session *before* the next ORM query. On
+Postgres a failed statement aborts the transaction; any later statement on the
+same un-rolled-back session raises PendingRollbackError -> HTTP 500.
+
+The Lite `/mensagens` entry is different: it must redirect to the full
+WhatsApp clone instead of rendering a stale dashboard/history surface.
 
 The fake `tenant_query` below encodes that Postgres contract (raise while the
 session is poisoned, until rollback clears it), so the test is deterministic
@@ -19,6 +21,7 @@ import pytest
 from sqlalchemy.exc import OperationalError, PendingRollbackError
 
 import routes.whatsapp_lite as wl
+from models import Client
 from models.tenant import Organization
 
 _ORG_ID = 7
@@ -76,22 +79,40 @@ def request_stub(mock_request):
     return mock_request
 
 
-def test_message_history_survives_failed_messages_query(db, monkeypatch, request_stub):
-    """message_history must not 500 when the whatsapp_messages query fails: it
-    rolls back, then renders the empty/error state. Regression for the missing
-    db.rollback() in the except block (would raise PendingRollbackError on the
-    follow-up clients tenant_query)."""
+def test_message_history_redirects_to_clone_chat(db, monkeypatch, request_stub):
+    """The Lite "Mensagens" entry should open the full chat experience, not
+    render the stale Lite dashboard as a fake history screen."""
     db.add(Organization(id=_ORG_ID, uuid=f"uuid-{_ORG_ID}", name="Org 7", slug="org-7"))
     db.flush()
-    state = _install_harness(db, monkeypatch)
+    monkeypatch.setattr(wl, "get_current_user", lambda req, d: object())
+    monkeypatch.delenv("CASEHUB_WHATSAPP_CLONE_ENABLED", raising=False)
 
     result = asyncio.run(wl.message_history(request_stub, client_id=None, db=db))
 
-    assert isinstance(result, dict)
-    assert result["_template"] == "app/whatsapp/lite_dashboard.html"
-    assert result["recent"] == []          # empty state, not a 500
-    assert result["view"] == "mensagens"
-    assert state["rollbacks"] >= 1          # the except path rolled back
+    assert result.status_code == 302
+    assert result.headers["location"] == f"{wl.PREFIX}/whatsapp-chat"
+
+
+def test_message_history_redirects_client_to_clone_deeplink(db, monkeypatch, request_stub):
+    db.add(Organization(id=_ORG_ID, uuid=f"uuid-{_ORG_ID}", name="Org 7", slug="org-7"))
+    client = Client(
+        id=42,
+        org_id=_ORG_ID,
+        first_name="PessoaDemo",
+        last_name="Teste",
+        whatsapp="+55 11 99999-9999",
+    )
+    db.add(client)
+    db.flush()
+    monkeypatch.setattr(wl, "get_current_user", lambda req, d: object())
+    monkeypatch.delenv("CASEHUB_WHATSAPP_CLONE_ENABLED", raising=False)
+
+    result = asyncio.run(wl.message_history(request_stub, client_id=42, db=db))
+
+    assert result.status_code == 302
+    assert result.headers["location"] == (
+        f"{wl.PREFIX}/whatsapp-chat?phone=%2B55+11+99999-9999"
+    )
 
 
 def test_whatsapp_dashboard_survives_failed_messages_query(db, monkeypatch, request_stub):

@@ -339,7 +339,7 @@ def personalize_template(text: str, contact_payload: Optional[dict], agent_name:
 # ===========================================================================
 # Ephemeral AI assist — live Gemini calls, ZERO persistence.
 # ===========================================================================
-# Modelo Gemini dos assists efêmeros. Configurável por env para o Victor
+# Modelo Gemini dos assists efêmeros. Configurável por env para o Equipe CaseHub
 # subir para um modelo mais forte (ex.: gemini-2.0-pro) sem alterar código.
 _GEMINI_MODEL = os.getenv("WHATSAPP_AI_MODEL", "gemini-2.0-flash")
 _GEMINI_URL = (
@@ -372,7 +372,7 @@ async def _gemini_generate(prompt: str, *, temperature: float = 0.7,
     """Single live AI call via the configured provider (PR9 — provider-agnostic).
 
     Delegates to services.ai_provider.get_ai_provider(). The DEFAULT provider is
-    NullProvider (AI OFF, non-Gemini per Victor's decision), so this returns None
+    NullProvider (AI OFF, non-Gemini per Equipe CaseHub's decision), so this returns None
     unless a provider is explicitly selected via CASEHUB_AI_PROVIDER and its key is
     present. Persists NOTHING (Council training-data VETO). Kept as a thin wrapper
     so the existing AI-assist call sites stay unchanged.
@@ -383,7 +383,7 @@ async def _gemini_generate(prompt: str, *, temperature: float = 0.7,
 
 async def _maestro_generate(prompt: str, *, temperature: float = 0.4,
                             max_tokens: int = 300) -> Optional[str]:
-    """IA do bloco CRM via MAESTRO LOCAL (Ollama hermes3) — Victor 10/06: o resumo
+    """IA do bloco CRM via MAESTRO LOCAL (Ollama hermes3) — Equipe CaseHub 10/06: o resumo
     da conversa e a sugestão das próximas mensagens devem sair do Maestro local,
     não de um provider externo (chaves Gemini esgotadas; zero transferência).
     Cai pro provider configurado (OpenRouter/etc.) só se o Ollama estiver fora.

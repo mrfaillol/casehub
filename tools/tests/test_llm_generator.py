@@ -195,7 +195,7 @@ I give my strongest possible recommendation for Jane Smith's EB-2 NIW petition a
                     recommender_name="Dr. Security Expert",
                     recommender_title="CISO",
                     recommender_org="Major Bank",
-                    recommender_email="ciso@bank.com",
+                    recommender_email="ciso@example.com",
                     relationship="Direct supervisor",
                     years_known="5 years",
                 )
@@ -291,7 +291,7 @@ class TestLiveAPI:
             recommender_name="Dr. Test Recommender",
             recommender_title="Professor",
             recommender_org="Test University",
-            recommender_email="test@university.edu",
+            recommender_email="test@example.com",
             relationship="Academic advisor",
             years_known="3 years",
         )

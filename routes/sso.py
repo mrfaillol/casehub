@@ -3,9 +3,11 @@ CaseHub - SSO Routes
 Single Sign-On with Google and Microsoft OAuth2.
 """
 import json
+import secrets
 import httpx
 import logging
 from typing import Optional
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta
@@ -34,11 +36,11 @@ def _build_request_base(request: Request) -> str:
     """Build base URL (scheme://host[:port]) from the incoming request.
 
     Preserves the subdomain so OAuth redirect_uri matches the tenant the user
-    started from (e.g. ``sampletenant.casehub.legal``). Falls back to
+    started from (e.g. ``tenanta.casehub.legal``). Falls back to
     ``request.url.hostname`` when the proxy header is missing.
 
     ``X-Forwarded-Host`` / ``X-Forwarded-Proto`` are trusted because the
-    Mumbai nginx config (deploy/nginx-casehub.conf) sets both unconditionally
+    remote runtime nginx config (deploy/nginx-casehub.conf) sets both unconditionally
     on every upstream proxy_pass block. The app is not reachable without that
     proxy in production.
     """
@@ -74,10 +76,38 @@ def _build_request_base(request: Request) -> str:
     return base
 
 
+def _normalize_sso_redirect_url(redirect_url: Optional[str]) -> str:
+    """Return a local post-SSO redirect path or the CaseHub root fallback."""
+    fallback = f"{PREFIX}/"
+    if not redirect_url:
+        return fallback
+
+    candidate = redirect_url.strip()
+    parsed = urlparse(candidate)
+    if parsed.scheme or parsed.netloc:
+        return fallback
+
+    if candidate == PREFIX:
+        return fallback
+
+    if not candidate.startswith(f"{PREFIX}/"):
+        return fallback
+
+    return candidate
+
+
 def ensure_tables(db: Session):
     """Ensure SSO tables exist."""
     try:
         db.execute(text(CREATE_SSO_TABLE))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS sso_bridge_tokens (
+                token TEXT PRIMARY KEY,
+                sso_email TEXT NOT NULL,
+                target_org_id INTEGER NOT NULL,
+                expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '5 minutes')
+            )
+        """))
         db.commit()
     except Exception as e:
         db.rollback()
@@ -135,7 +165,7 @@ async def sso_login(
     state = sso_service.generate_state()
 
     # Build redirect URI from the live request so the subdomain is preserved
-    # (sampletenant.casehub.legal stays on sampletenant instead of falling
+    # (tenanta.casehub.legal stays on tenanta instead of falling
     # back to the apex BASE_URL, which would resolve to the default org).
     base = _build_request_base(request)
     redirect_uri = f"{base}{PREFIX}/sso/callback/{provider}"
@@ -198,7 +228,7 @@ async def sso_callback(
         if not state_row:
             return RedirectResponse(url=f"{PREFIX}/login?error=invalid_state", status_code=302)
 
-        redirect_url = state_row.redirect_url or f"{PREFIX}/"
+        redirect_url = _normalize_sso_redirect_url(state_row.redirect_url)
 
         # Tenant integrity check: the org we left from (login) must match the
         # org the callback resolved to (subdomain). A mismatch usually means
@@ -358,12 +388,58 @@ async def sso_callback(
                         .order_by(User.name.asc())
                         .all()
                     )
+                    _org = getattr(request.state, "org", None) or {}
+                    _org_slug = _org.get("slug", "") if isinstance(_org, dict) else getattr(_org, "slug", "")
+                    _org_logo = _org.get("logo_url", "") if isinstance(_org, dict) else getattr(_org, "logo_url", "")
+                    _org_name = _org.get("name", "") if isinstance(_org, dict) else getattr(_org, "name", "")
                     return templates.TemplateResponse("app/sso/tenant_select.html", {
                         "request": request,
                         "PREFIX": PREFIX,
                         "users": org_users,
                         "sso_email": _sso_mail,
+                        "org_slug": _org_slug,
+                        "org_logo": _org_logo,
+                        "org_name": _org_name,
                     })
+                # Cross-domain bridge: scan other orgs for this email in sso_shared_accounts.
+                # Handles the case where demo@example-law.test logs in from casehub.legal
+                # (apex) and needs to be redirected to tenanta.casehub.legal user selection.
+                if _sso_mail:
+                    try:
+                        _bridge_rows = db.execute(text("""
+                            SELECT os.org_id, os.value, o.slug
+                            FROM org_settings os
+                            JOIN organizations o ON o.id = os.org_id
+                            WHERE os.key = 'sso_shared_accounts'
+                            AND os.org_id != :current_org_id
+                        """), {"current_org_id": request.state.org_id}).fetchall()
+                        _target_org_id = None
+                        _target_slug = None
+                        for _brow in _bridge_rows:
+                            _brow_emails = {e.strip().lower() for e in (_brow[1] or "").split(",") if e.strip()}
+                            if _sso_mail in _brow_emails:
+                                _target_org_id = _brow[0]
+                                _target_slug = _brow[2]
+                                break
+                        if _target_org_id and _target_slug:
+                            bridge_token = secrets.token_urlsafe(32)
+                            db.execute(text("""
+                                INSERT INTO sso_bridge_tokens (token, sso_email, target_org_id)
+                                VALUES (:token, :email, :org_id)
+                            """), {"token": bridge_token, "email": _sso_mail, "org_id": _target_org_id})
+                            db.commit()
+                            _req_base = _build_request_base(request)
+                            _host_only = _req_base.split("://", 1)[1]
+                            _host_parts = _host_only.split(".")
+                            _apex = ".".join(_host_parts[-2:]) if len(_host_parts) > 2 else _host_only
+                            _scheme = _req_base.split("://")[0]
+                            _target_base = f"{_scheme}://{_target_slug}.{_apex}"
+                            return RedirectResponse(
+                                url=f"{_target_base}{PREFIX}/sso/bridge/{bridge_token}",
+                                status_code=302,
+                            )
+                    except Exception as _be:
+                        logger.error("SSO cross-domain bridge error: %s", _be)
                 return RedirectResponse(
                     url=f"{PREFIX}/login?error=no_account",
                     status_code=302,
@@ -374,6 +450,64 @@ async def sso_callback(
         return RedirectResponse(url=f"{PREFIX}/login?error=db_error", status_code=302)
 
     return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+
+@router.get("/bridge/{token}", response_class=HTMLResponse)
+async def sso_bridge(
+    request: Request,
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """Cross-domain bridge: validates a bridge token and shows user selector on the target org's subdomain."""
+    ensure_tables(db)
+    try:
+        row = db.execute(text("""
+            SELECT token, sso_email, target_org_id
+            FROM sso_bridge_tokens
+            WHERE token = :token AND expires_at > NOW()
+        """), {"token": token}).fetchone()
+        if not row:
+            return RedirectResponse(url=f"{PREFIX}/login?error=bridge_expired", status_code=302)
+        db.execute(text("DELETE FROM sso_bridge_tokens WHERE token = :token"), {"token": token})
+        db.commit()
+    except Exception as e:
+        logger.error("SSO bridge token lookup error: %s", e)
+        db.rollback()
+        return RedirectResponse(url=f"{PREFIX}/login?error=bridge_error", status_code=302)
+
+    sso_email = row[1]
+    target_org_id = row[2]
+
+    current_org_id = getattr(request.state, "org_id", None)
+    if current_org_id is not None and current_org_id != target_org_id:
+        logger.warning("SSO bridge org mismatch: token_org=%s request_org=%s", target_org_id, current_org_id)
+        return RedirectResponse(url=f"{PREFIX}/login?error=bridge_mismatch", status_code=302)
+
+    try:
+        org_users = (
+            tenant_query(db, User, target_org_id)
+            .filter(User.enabled.is_(True))
+            .order_by(User.name.asc())
+            .all()
+        )
+    except Exception as e:
+        logger.error("SSO bridge user query error: %s", e)
+        return RedirectResponse(url=f"{PREFIX}/login?error=bridge_error", status_code=302)
+
+    _org = getattr(request.state, "org", None) or {}
+    _org_slug = _org.get("slug", "") if isinstance(_org, dict) else getattr(_org, "slug", "")
+    _org_logo = _org.get("logo_url", "") if isinstance(_org, dict) else getattr(_org, "logo_url", "")
+    _org_name = _org.get("name", "") if isinstance(_org, dict) else getattr(_org, "name", "")
+
+    return templates.TemplateResponse("app/sso/tenant_select.html", {
+        "request": request,
+        "PREFIX": PREFIX,
+        "users": org_users,
+        "sso_email": sso_email,
+        "org_slug": _org_slug,
+        "org_logo": _org_logo,
+        "org_name": _org_name,
+    })
 
 
 @router.post("/connect/{provider}")

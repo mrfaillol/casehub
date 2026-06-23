@@ -58,7 +58,7 @@ class TestOrganizationModel:
 
     def test_org_defaults(self, db):
         org = _create_org(db)
-        # Spec (Victor, 28/05/2026): default plan = office, usuários ilimitados (-1).
+        # Spec (Equipe CaseHub, 28/05/2026): default plan = office, usuários ilimitados (-1).
         assert org.plan == "office"
         assert org.max_users == -1
         assert org.max_clients == 100

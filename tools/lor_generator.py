@@ -607,7 +607,7 @@ OPENING_STYLES = {
     "project_collaboration": {
         "description": "Start with specific project context",
         "template": "I came to know {beneficiary_name} during the work on {project_name}. At that time, we collaborated closely on {project_description} across multiple sites.",
-        "example": "I came to know Omar during his tenure as Technical Service Manager..."
+        "example": "I came to know Cliente Demo during his tenure as Technical Service Manager..."
     },
     "independent_evaluator": {
         "description": "Emphasize objective, independent perspective",
@@ -618,12 +618,12 @@ OPENING_STYLES = {
     "strong_support": {
         "description": "Lead with strong support declaration",
         "template": "I am writing to offer my strong support for {beneficiary_name} in the application for permanent residency in the United States, under the {visa_type} visa category. My name is {recommender_name}, and I am {recommender_title} at {recommender_org}.",
-        "example": "I am writing to offer my strong support for Mr. Omar Abdelmotelb..."
+        "example": "I am writing to offer my strong support for Mr. Cliente Demo..."
     },
     "strongest_support": {
         "description": "Emphatic support with professional context",
         "template": "I would like to offer my strongest support to {beneficiary_name}'s {visa_type} application. My name is {recommender_name}, and I am currently {recommender_title} at {recommender_org}.",
-        "example": "I would like to offer my strongest support to Mr. Omar Abdelmotelb's EB-2 NIW application..."
+        "example": "I would like to offer my strongest support to Mr. Cliente Demo's EB-2 NIW application..."
     },
     "recognition": {
         "description": "Frame as recognition letter",
@@ -1471,7 +1471,7 @@ class LORGenerator:
             recommender_name="Jane Smith",
             recommender_title="VP of Engineering",
             recommender_org="TechCorp Inc.",
-            recommender_email="jane@techcorp.com",
+            recommender_email="jane@example.com",
             relationship="supervisor",
             paragraphs=[...],
         )

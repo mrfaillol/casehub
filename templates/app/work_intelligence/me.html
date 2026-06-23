@@ -1,0 +1,71 @@
+{% extends "app/base.html" %}
+
+{% block title %}Transparencia Work Intelligence{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/work-intelligence.css">
+{% endblock %}
+
+{% block content %}
+<section class="wi-shell" aria-labelledby="wi-me-title">
+  <header class="wi-header">
+    <div>
+      <p class="wi-kicker">Transparencia</p>
+      <h1 id="wi-me-title">Categorias coletadas</h1>
+    </div>
+    {% if user and user.user_type in ['admin', 'superadmin'] %}
+    <a class="wi-button wi-button--ghost" href="{{ PREFIX }}/work-intelligence">Painel admin</a>
+    {% endif %}
+  </header>
+
+  {% if payload.excluded %}
+  <section class="wi-banner">
+    <strong>Seu usuario esta excluido dos agregados.</strong>
+    <span>Contas de desenvolvimento, QA, automacao e teste nao entram no algoritmo.</span>
+  </section>
+  {% endif %}
+
+  <section class="wi-grid wi-grid--sources">
+    <article class="wi-panel">
+      <h2>Coletado</h2>
+      <ul class="wi-list">
+        {% for item in payload.policy.collected_categories %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </article>
+    <article class="wi-panel">
+      <h2>Nunca coletado</h2>
+      <ul class="wi-list">
+        {% for item in payload.policy.not_collected %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </article>
+  </section>
+
+  <section class="wi-panel wi-panel--wide">
+    <h2>Suas categorias recentes</h2>
+    {% if payload.event_categories %}
+    <dl class="wi-category-list">
+      {% for key, count in payload.event_categories.items() %}
+      <div><dt>{{ key }}</dt><dd>{{ count }}</dd></div>
+      {% endfor %}
+    </dl>
+    {% else %}
+    <p class="wi-empty">Nenhuma categoria registrada para seu usuario.</p>
+    {% endif %}
+  </section>
+
+  <section class="wi-panel wi-panel--wide">
+    <h2>Contestar interpretacao</h2>
+    <form class="wi-feedback" data-work-intelligence-feedback>
+      <input type="hidden" name="feedback_type" value="contestacao">
+      <label for="wi-feedback-comment">Correcao ou contexto</label>
+      <textarea id="wi-feedback-comment" name="comment" maxlength="500" rows="4"></textarea>
+      <button class="wi-button" type="submit">Enviar</button>
+      <p class="wi-feedback-status" data-feedback-status></p>
+    </form>
+  </section>
+</section>
+{% endblock %}

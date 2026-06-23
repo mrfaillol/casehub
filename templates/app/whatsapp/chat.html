@@ -174,7 +174,7 @@
                     <p class="wa-phone-pairing__hint">No celular: WhatsApp &gt; Aparelhos conectados &gt; Conectar com número de telefone.</p>
                 </div>
                 <div class="wa-qr-refresh" id="qrRefreshHint">Abra o WhatsApp no celular &gt; Aparelhos conectados &gt; Conectar aparelho.</div>
-                <p class="wa-connect-note" id="waQrWarning">
+                <p class="wa-connect-note" id="waQrConnectNote">
                     <i class="fas fa-circle-info" aria-hidden="true"></i>
                     O pareamento pode substituir outra sessão Web se o limite de aparelhos conectados tiver sido atingido.
                     <a href="{{ PREFIX }}/legal/privacy">Privacidade</a>
@@ -196,6 +196,9 @@
                         <button class="wa-header-action-btn" type="button" id="btnSearchMessages" onclick="toggleSearchMessages()" aria-label="Buscar na conversa (Ctrl+F)" title="Buscar na conversa (Ctrl+F)">
                             <i class="fas fa-search" aria-hidden="true"></i>
                         </button>
+                        <button class="wa-header-action-btn" type="button" id="btnBackfillHistory" onclick="backfillHistory()" aria-label="Resgatar histórico desta conversa" title="Resgatar histórico">
+                            <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                        </button>
                         <button class="wa-header-action-btn" type="button" id="btnUrgent" onclick="toggleUrgent()" aria-label="Marcar como urgente" title="Marcar como urgente">
                             <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
                         </button>
@@ -211,6 +214,7 @@
                         <button class="wa-header-action-btn" type="button" id="btnArchive" onclick="archiveConversation()" aria-label="Arquivar conversa" title="Arquivar conversa">
                             <i class="fas fa-archive" aria-hidden="true"></i>
                         </button>
+                        <span class="wa-header-divider" aria-hidden="true"></span>
                         <button class="wa-bot-toggle bot-active" type="button" id="botToggle" onclick="toggleBot()" aria-pressed="true">
                             <i class="fas fa-robot" aria-hidden="true"></i>
                             <span id="botToggleText">Bot</span>
@@ -236,6 +240,7 @@
                     </div>
                     <button class="wa-header-action-btn" type="button" onclick="toggleSearchMessages()" aria-label="Fechar busca"><i class="fas fa-times" aria-hidden="true"></i></button>
                 </div>
+                <div class="wa-history-status" id="historyBackfillStatus" role="status" aria-live="polite" hidden></div>
 
                 <aside class="wa-client-info-panel" id="clientInfoPanel" aria-label="Informações do cliente" hidden>
                     <div class="wa-client-info-header">
@@ -364,6 +369,14 @@
                     <i class="fas fa-chevron-down" aria-hidden="true"></i>
                     <span class="unread-count" id="newMsgCount" hidden>0</span>
                 </button>
+
+                <div class="wa-reply-bar" id="replyBar" role="status" aria-label="Respondendo a uma mensagem">
+                    <div class="wa-reply-bar-body">
+                        <span class="wa-reply-bar-author" id="replyBarAuthor">-</span>
+                        <span class="wa-reply-bar-text" id="replyBarText">-</span>
+                    </div>
+                    <button class="wa-reply-bar-close" type="button" onclick="cancelReply()" aria-label="Cancelar resposta">&times;</button>
+                </div>
 
                 <div class="wa-input-area">
                     <div class="wa-input-toolbar" role="toolbar" aria-label="Anexar conteúdo">
@@ -556,14 +569,19 @@
         <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="replyToMessage()">
             <i class="fas fa-reply" aria-hidden="true"></i> Responder
         </div>
+        <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="openReactionPickerFromMenu()">
+            <i class="fas fa-face-smile" aria-hidden="true"></i> Reagir
+        </div>
         <div class="wa-context-menu-divider" role="separator"></div>
-        <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="markMessageImportant()">
-            <i class="fas fa-star" aria-hidden="true"></i> Marcar importante
+        <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="toggleStarMessage()">
+            <i class="fas fa-star" aria-hidden="true"></i> Favoritar
         </div>
         <div class="wa-context-menu-item" role="menuitem" tabindex="-1" onclick="forwardMessage()">
             <i class="fas fa-share" aria-hidden="true"></i> Encaminhar
         </div>
     </div>
+
+    <div class="wa-reaction-picker" id="reactionPicker" role="menu" aria-label="Reagir à mensagem"></div>
 
     <div class="wa-modal-overlay" id="templateModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="wa-modal">
@@ -618,12 +636,23 @@
     var WA_API_BASE = "{{ PREFIX }}{{ wa_router_prefix | default('/whatsapp-chat') }}";
     window.WA_API_BASE = WA_API_BASE;
 
-    // Backward-compatible no-op kept for older cached inline handlers.
+    // Ao clicar "Entendi, mostrar QR": alem de revelar o painel, dispara
+    // proativamente o fluxo de QR. showQrConnect() forca o modo QR (nao cai
+    // na sub-tela de Telefone), busca o QR imediatamente (sem esperar ate 5s
+    // do proximo poll) e (re)inicia o polling. Chamadas via typeof sao
+    // defensivas caso chat.js (defer) ainda nao tenha carregado.
     window.acknowledgeQrWarning = function () {
+        var warningEl = document.getElementById("waQrWarning");
+        if (warningEl) { warningEl.hidden = true; }
         var connectMode = document.getElementById("waConnectMode");
         var qrCode = document.getElementById("qrCode");
         if (connectMode) { connectMode.hidden = false; }
         if (qrCode) { qrCode.hidden = false; }
+        if (typeof window.showQrConnect === 'function') {
+            window.showQrConnect();
+        } else if (typeof window.loadQRCode === 'function') {
+            window.loadQRCode();
+        }
     };
 </script>
 <script defer src="{{ asset_url('js/chat.js') }}"></script>
@@ -668,6 +697,28 @@
 
 <div class="wa-lightbox" id="imageLightbox" onclick="closeLightbox()" role="dialog" aria-label="Visualização de imagem">
     <button class="wa-lightbox-close" type="button" onclick="closeLightbox()" aria-label="Fechar">&times;</button>
-    <img id="lightboxImage" src="" alt="">
+    <button class="wa-lightbox-download" id="lightboxDownload" type="button"
+            onclick="event.stopPropagation();downloadMedia(this.dataset.src, this.dataset.filename)"
+            aria-label="Baixar imagem" title="Baixar imagem"><i class="fas fa-download" aria-hidden="true"></i></button>
+    <span class="wa-lightbox-counter" id="lightboxCounter"></span>
+    <button class="wa-lightbox-nav wa-lightbox-prev" id="lightboxPrev" type="button"
+            onclick="event.stopPropagation();lightboxNav(-1)" aria-label="Imagem anterior" title="Anterior"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+    <img id="lightboxImage" src="" alt="" onclick="lightboxToggleZoom(event)">
+    <button class="wa-lightbox-nav wa-lightbox-next" id="lightboxNext" type="button"
+            onclick="event.stopPropagation();lightboxNav(1)" aria-label="Próxima imagem" title="Próxima"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+</div>
+
+<div class="wa-doc-preview" id="docPreview" role="dialog" aria-label="Visualização de documento" onclick="if(event.target===this)closeDocPreview()">
+    <div class="wa-doc-preview-window">
+        <div class="wa-doc-preview-bar">
+            <span class="wa-doc-preview-name" id="docPreviewName"></span>
+            <a class="wa-doc-preview-action" id="docPreviewDownload" href="#"
+               onclick="event.preventDefault();downloadMedia(this.dataset.src, this.dataset.filename)"
+               role="button" aria-label="Baixar" title="Baixar"><i class="fas fa-download" aria-hidden="true"></i></a>
+            <button class="wa-doc-preview-action wa-doc-preview-close" type="button"
+                    onclick="closeDocPreview()" aria-label="Fechar" title="Fechar">&times;</button>
+        </div>
+        <iframe id="docPreviewFrame" class="wa-doc-preview-frame" title="Documento" src="about:blank"></iframe>
+    </div>
 </div>
 {% endblock %}

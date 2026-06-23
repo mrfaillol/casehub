@@ -7,6 +7,7 @@ Usage:
     app = create_app("immigration")   # Full immigration product
     app = create_app("lite")          # Lightweight CRM-only product
 """
+import asyncio
 import logging
 import os
 import secrets
@@ -27,7 +28,7 @@ from sqlalchemy import func, text
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import settings
-from models import Base, engine, get_db, init_db, User
+from models import Base, engine, get_db, init_db, SessionLocal, User
 from auth import get_current_user, create_access_token, create_refresh_token, validate_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 from core.static_assets import asset_url, brand_kit_fallback_favicon_url
 from core.jinja_runtime import configure_jinja_templates
@@ -264,7 +265,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
                 "connect-src 'self' https://cdn.jsdelivr.net; "
                 "frame-src 'self' https:; "
-                "frame-ancestors 'self' https://vingren.me"
+                "frame-ancestors 'self'"
             )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -472,7 +473,7 @@ CORE_ROUTERS = [
     "onboarding", "superadmin", "password_reset", "subscription",
     "tribunal", "prazos", "files", "checklist",
     "email_worker_status", "leads_analytics", "leads_scoring", "tickets",
-    "controladoria", "tools_br", "tools_criminal", "tools_bancario", "tools_tributario", "pecas", "dashboard_api",
+    "controladoria", "dje", "tools_br", "tools_criminal", "tools_bancario", "tools_tributario", "pecas", "dashboard_api",
     "assistente", "customizacao",
     "profile",
     "import_br",
@@ -482,9 +483,11 @@ CORE_ROUTERS = [
     "template_notes",
     "pdpj_oauth",
     "improvement_tasks",
+    "work_intelligence",
     "casehub_md",
     "search",
     "team_messages",  # chat de equipe seguro org-scoped (/api/team-chat) — substitui o team_chat inseguro
+    "legal",  # /privacy + /terms públicos (pré-requisito verificação Google OAuth)
 ]
 
 # IMMIGRATION-specific routers (NOT loaded for Lite)
@@ -609,8 +612,6 @@ PRODUCT_DEFAULTS = {
         },
     },
 }
-
-
 def get_product_defaults(product: str) -> dict:
     """Get defaults for a product, with env var overrides."""
     defaults = PRODUCT_DEFAULTS.get(product, PRODUCT_DEFAULTS["immigration"]).copy()
@@ -760,6 +761,16 @@ def _run_pending_migrations():
             ("prazos_processuais", "data_conclusao", "DATE"),
             ("prazos_processuais", "ordem", "INTEGER DEFAULT 0"),
             ("prazos_processuais", "responsavel_user_id", "INTEGER"),
+            ("prazos_processuais", "source_provider", "VARCHAR(120)"),
+            ("prazos_processuais", "source_status", "VARCHAR(50) DEFAULT 'manual'"),
+            ("prazos_processuais", "source_reference", "VARCHAR(255)"),
+            ("prazos_processuais", "source_url", "TEXT"),
+            ("prazos_processuais", "source_payload_hash", "VARCHAR(64)"),
+            ("prazos_processuais", "source_fetched_at", "TIMESTAMP"),
+            ("prazos_processuais", "source_version", "VARCHAR(80)"),
+            ("prazos_processuais", "official_source", f"BOOLEAN DEFAULT {false_default}"),
+            ("prazos_processuais", "calculation_engine_version", "VARCHAR(80)"),
+            ("prazos_processuais", "calculation_notes", "TEXT"),
             ("appointments", "case_id", "INTEGER"),
             ("appointments", "prazo_id", "INTEGER"),
             ("appointments", "task_id", "INTEGER"),
@@ -787,6 +798,10 @@ def _run_pending_migrations():
             ("wa_contacts", "follow_up_date", "DATE"),
             ("wa_contacts", "follow_up_note", "TEXT"),
             ("wa_contacts", "normalized_phone", "VARCHAR(32)"),
+            # Operator attribution on outgoing clone messages. Nullable so
+            # incoming/legacy/AI rows stay valid; records which CaseHub user
+            # sent, independent of the QR-connector profile.
+            ("wa_messages", "sent_by_user_id", "INTEGER"),
             # Automatic SQLAlchemy audit listeners run for every ORM insert.
             # If this table is absent, Postgres marks the main transaction as
             # aborted even though the listener catches the exception.
@@ -902,6 +917,74 @@ def _run_pending_migrations():
                 user_agent VARCHAR(500),
                 created_at TIMESTAMP DEFAULT {now_default}
             )""",
+            f"""CREATE TABLE IF NOT EXISTS org_settings (
+                org_id INTEGER NOT NULL,
+                key VARCHAR(120) NOT NULL,
+                value TEXT,
+                PRIMARY KEY (org_id, key)
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS work_intelligence_events (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                user_id INTEGER,
+                event_type VARCHAR(80) NOT NULL,
+                route VARCHAR(255),
+                surface VARCHAR(120),
+                duration_ms INTEGER,
+                metadata TEXT,
+                source VARCHAR(40) DEFAULT 'server',
+                session_hash VARCHAR(64),
+                occurred_at TIMESTAMP DEFAULT {now_default},
+                created_at TIMESTAMP DEFAULT {now_default}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS work_intelligence_daily_metrics (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                metric_date DATE NOT NULL,
+                workflow VARCHAR(120) NOT NULL,
+                module VARCHAR(120),
+                team_key VARCHAR(120) DEFAULT 'org',
+                active_users INTEGER DEFAULT 0,
+                event_count INTEGER DEFAULT 0,
+                completed_count INTEGER DEFAULT 0,
+                error_count INTEGER DEFAULT 0,
+                backlog_count INTEGER DEFAULT 0,
+                overdue_count INTEGER DEFAULT 0,
+                avg_cycle_seconds INTEGER,
+                friction_index NUMERIC(6, 2) DEFAULT 0,
+                demand_resource_score NUMERIC(6, 2) DEFAULT 0,
+                fragmentation_signal NUMERIC(6, 2) DEFAULT 0,
+                quality_signal NUMERIC(6, 2) DEFAULT 0,
+                metrics_json TEXT,
+                sources_json TEXT,
+                created_at TIMESTAMP DEFAULT {now_default},
+                updated_at TIMESTAMP DEFAULT {now_default}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS work_intelligence_insights (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                insight_date DATE NOT NULL,
+                scope_key VARCHAR(120) DEFAULT 'org',
+                category VARCHAR(80) NOT NULL,
+                severity VARCHAR(30) DEFAULT 'info',
+                title VARCHAR(240) NOT NULL,
+                body TEXT NOT NULL,
+                evidence_json TEXT,
+                source_refs_json TEXT,
+                status VARCHAR(30) DEFAULT 'open',
+                created_at TIMESTAMP DEFAULT {now_default},
+                updated_at TIMESTAMP DEFAULT {now_default}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS work_intelligence_feedback (
+                id {pk},
+                org_id INTEGER NOT NULL,
+                user_id INTEGER,
+                insight_id INTEGER,
+                feedback_type VARCHAR(40) NOT NULL,
+                usefulness INTEGER,
+                comment_redacted TEXT,
+                created_at TIMESTAMP DEFAULT {now_default}
+            )""",
             f"""CREATE TABLE IF NOT EXISTS org_ai_policies (
                 id {pk},
                 org_id INTEGER NOT NULL,
@@ -955,6 +1038,16 @@ def _run_pending_migrations():
                 data_conclusao DATE,
                 ordem INTEGER DEFAULT 0,
                 responsavel_user_id INTEGER,
+                source_provider VARCHAR(120),
+                source_status VARCHAR(50) DEFAULT 'manual',
+                source_reference VARCHAR(255),
+                source_url TEXT,
+                source_payload_hash VARCHAR(64),
+                source_fetched_at TIMESTAMP,
+                source_version VARCHAR(80),
+                official_source BOOLEAN DEFAULT {false_default},
+                calculation_engine_version VARCHAR(80),
+                calculation_notes TEXT,
                 created_at TIMESTAMP DEFAULT {now_default},
                 updated_at TIMESTAMP DEFAULT {now_default}
             )""",
@@ -1003,6 +1096,11 @@ def _run_pending_migrations():
                 created_at TIMESTAMP DEFAULT {now_default},
                 updated_at TIMESTAMP DEFAULT {now_default},
                 UNIQUE(user_id, task_id)
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS task_assignees (
+                task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                PRIMARY KEY (task_id, user_id)
             )""",
             f"""CREATE TABLE IF NOT EXISTS email_verifications (
                 id {pk},
@@ -1134,6 +1232,9 @@ def _run_pending_migrations():
             "CREATE INDEX IF NOT EXISTS ix_kanban_columns_org_position ON kanban_columns (org_id, position)",
             "CREATE INDEX IF NOT EXISTS ix_kanban_columns_owner_visibility ON kanban_columns (org_id, owner_user_id, visibility)",
             "CREATE INDEX IF NOT EXISTS ix_task_kanban_placements_column ON task_kanban_placements (org_id, user_id, column_id, position)",
+            "CREATE INDEX IF NOT EXISTS idx_task_assignees_user ON task_assignees (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_task_assignees_task ON task_assignees (task_id)",
+            "INSERT INTO task_assignees (task_id, user_id) SELECT id, assigned_to FROM tasks WHERE assigned_to IS NOT NULL ON CONFLICT DO NOTHING",
             "CREATE INDEX IF NOT EXISTS ix_users_onboarding_completed_at ON users (onboarding_completed_at)",
             "CREATE INDEX IF NOT EXISTS ix_users_email_verified_at ON users (email_verified_at)",
             "CREATE INDEX IF NOT EXISTS ix_users_last_activity ON users (last_activity)",
@@ -1151,6 +1252,12 @@ def _run_pending_migrations():
             "CREATE INDEX IF NOT EXISTS ix_audit_log_entity ON audit_log (entity_type, entity_id)",
             "CREATE INDEX IF NOT EXISTS ix_audit_log_user ON audit_log (user_id)",
             "CREATE INDEX IF NOT EXISTS ix_audit_log_action ON audit_log (action)",
+            "CREATE INDEX IF NOT EXISTS ix_wi_events_org_occurred ON work_intelligence_events (org_id, occurred_at)",
+            "CREATE INDEX IF NOT EXISTS ix_wi_events_org_type ON work_intelligence_events (org_id, event_type)",
+            "CREATE INDEX IF NOT EXISTS ix_wi_events_org_user ON work_intelligence_events (org_id, user_id)",
+            "CREATE INDEX IF NOT EXISTS ix_wi_daily_org_date ON work_intelligence_daily_metrics (org_id, metric_date)",
+            "CREATE INDEX IF NOT EXISTS ix_wi_insights_org_date ON work_intelligence_insights (org_id, insight_date)",
+            "CREATE INDEX IF NOT EXISTS ix_wi_feedback_org_insight ON work_intelligence_feedback (org_id, insight_id)",
             "CREATE INDEX IF NOT EXISTS ix_case_processes_org_name ON case_processes (org_id, name)",
             "CREATE INDEX IF NOT EXISTS ix_process_steps_process_order ON process_steps (process_id, step_number)",
             "CREATE INDEX IF NOT EXISTS ix_case_process_tracking_case ON case_process_tracking (case_id)",
@@ -1176,6 +1283,70 @@ def _run_pending_migrations():
         db.rollback()
     finally:
         db.close()
+
+
+STARTUP_DB_BOOTSTRAP_RETRY_SECONDS = 5
+STARTUP_DB_BOOTSTRAP_MAX_RETRY_SECONDS = 60
+
+
+def _bootstrap_default_admin() -> None:
+    db = None
+    try:
+        db = SessionLocal()
+        admin = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
+        if not admin:
+            temp_password = secrets.token_urlsafe(16)
+            admin = User(
+                email=settings.ADMIN_EMAIL,
+                name="Administrator",
+                password_hash=User.hash_password(temp_password),
+                user_type="admin",
+                must_change_password=True,
+            )
+            db.add(admin)
+            db.commit()
+            logger.info(
+                "Default admin user created: %s / %s (must change on first login)",
+                settings.ADMIN_EMAIL,
+                temp_password,
+            )
+    except Exception:
+        if db is not None:
+            db.rollback()
+        raise
+    finally:
+        if db is not None:
+            db.close()
+
+
+def _run_startup_db_bootstrap() -> bool:
+    """Run the DB-dependent boot work once, returning False instead of crashing."""
+    try:
+        init_db()
+        _run_pending_migrations()
+        _bootstrap_default_admin()
+    except Exception as exc:
+        logger.critical(
+            "Startup DB bootstrap incomplete: database unavailable at boot "
+            "(%s). App starts DEGRADED; /casehub/healthz returns 503 until the "
+            "DB is reachable. Scheduling retry instead of crashing into a 502 "
+            "loop.",
+            exc,
+        )
+        return False
+    return True
+
+
+async def _retry_startup_db_bootstrap() -> None:
+    delay = STARTUP_DB_BOOTSTRAP_RETRY_SECONDS
+    attempt = 1
+    while True:
+        await asyncio.sleep(delay)
+        if _run_startup_db_bootstrap():
+            logger.info("Startup DB bootstrap recovered after %s retry attempt(s)", attempt)
+            return
+        attempt += 1
+        delay = min(delay * 2, STARTUP_DB_BOOTSTRAP_MAX_RETRY_SECONDS)
 
 
 # ---------------------------------------------------------------------------
@@ -1248,7 +1419,7 @@ def create_app(product: str = "immigration") -> FastAPI:
     app = FastAPI(
         title=f"{settings.ORG_NAME} CaseHub",
         description=f"{settings.ORG_NAME} Case Management System ({product})",
-        version="2.0.0",
+        version="0.9.12-alpha",
         docs_url=None if settings.DEMO_MODE else "/docs",
         redoc_url=None if settings.DEMO_MODE else "/redoc",
         openapi_url=None if settings.DEMO_MODE else "/openapi.json",
@@ -1308,11 +1479,11 @@ def create_app(product: str = "immigration") -> FastAPI:
 
     # LegalOps Co. public contact info — used by landing + login templates.
     # Override at runtime via env if any of these change without re-deploy.
-    templates.env.globals["LEGALOPS_CNPJ"] = os.getenv("LEGALOPS_CNPJ", "66.733.831/0001-80")
+    templates.env.globals["LEGALOPS_CNPJ"] = os.getenv("LEGALOPS_CNPJ", "")
     templates.env.globals["LEGALOPS_EMAIL"] = os.getenv("LEGALOPS_EMAIL", "casehub@legalopsco.work")
-    templates.env.globals["LEGALOPS_WHATSAPP"] = os.getenv("LEGALOPS_WHATSAPP", "+55 32 99860-6341")
-    templates.env.globals["LEGALOPS_WHATSAPP_DIGITS"] = os.getenv("LEGALOPS_WHATSAPP_DIGITS", "5532998606341")
-    templates.env.globals["LEGALOPS_LOCATION"] = os.getenv("LEGALOPS_LOCATION", "Juiz de Fora · MG · BR")
+    templates.env.globals["LEGALOPS_WHATSAPP"] = os.getenv("LEGALOPS_WHATSAPP", "")
+    templates.env.globals["LEGALOPS_WHATSAPP_DIGITS"] = os.getenv("LEGALOPS_WHATSAPP_DIGITS", "")
+    templates.env.globals["LEGALOPS_LOCATION"] = os.getenv("LEGALOPS_LOCATION", "")
 
     # Translation function as a global (so templates don't depend on each route passing it)
     def _jinja_t():
@@ -1342,13 +1513,7 @@ def create_app(product: str = "immigration") -> FastAPI:
     @app.on_event("startup")
     async def startup():
         _run_preflight_checks()
-        init_db()
-
-        # Run pending SQL migrations (adds missing columns to existing tables)
-        try:
-            _run_pending_migrations()
-        except Exception as e:
-            logger.warning("Migration check failed (non-critical): %s", e)
+        db_bootstrap_ok = _run_startup_db_bootstrap()
 
         # Register automatic audit listeners on all SQLAlchemy models
         try:
@@ -1357,25 +1522,11 @@ def create_app(product: str = "immigration") -> FastAPI:
         except Exception as e:
             logger.warning("Audit listeners setup failed (non-critical): %s", e)
 
-        db = next(get_db())
-        admin = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
-        if not admin:
-            temp_password = secrets.token_urlsafe(16)
-            admin = User(
-                email=settings.ADMIN_EMAIL,
-                name="Administrator",
-                password_hash=User.hash_password(temp_password),
-                user_type="admin",
-                must_change_password=True,
-            )
-            db.add(admin)
-            db.commit()
-            logger.info("Default admin user created: %s / %s (must change on first login)", settings.ADMIN_EMAIL, temp_password)
-        db.close()
+        if not db_bootstrap_ok:
+            asyncio.create_task(_retry_startup_db_bootstrap())
 
         # Start surveillance background worker
         try:
-            import asyncio
             from services.lead_surveillance import surveillance_loop
             asyncio.create_task(surveillance_loop())
             logger.info("Lead surveillance worker started")
@@ -1445,10 +1596,27 @@ def create_app(product: str = "immigration") -> FastAPI:
     async def root(request: Request, db: Session = Depends(get_db)):
         # Public landing — renders for anyone hitting casehub.legal/ (not authenticated).
         # Authenticated users skip the marketing page and go straight to the product.
+        # O root NUNCA pode ser cacheado: browsers mobile cacheavam a landing 200
+        # de antes do redirect e a serviam do disco sem rebater no servidor, então
+        # o redirect tenant→login "não acontecia" no celular. no-store força
+        # revalidação em toda navegação e faz o cache stale se auto-curar.
+        _no_store = "no-store, no-cache, must-revalidate, max-age=0"
         user = get_current_user(request, db)
         if user:
-            return RedirectResponse(url=f"{PREFIX}/dashboard", status_code=302)
-        return templates.TemplateResponse("landing.html", get_context(request))
+            _r = RedirectResponse(url=f"{PREFIX}/dashboard", status_code=302)
+            _r.headers["Cache-Control"] = _no_store
+            return _r
+        # Tenant subdomains are login portals, not
+        # marketing pages — redirect unauthenticated users directly to the login page.
+        _org = getattr(request.state, "org", None)
+        _org_slug = (_org.get("slug") if isinstance(_org, dict) else getattr(_org, "slug", "")) or ""
+        if _org_slug and _org_slug != "default":
+            _r = RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+            _r.headers["Cache-Control"] = _no_store
+            return _r
+        _resp = templates.TemplateResponse("landing.html", get_context(request))
+        _resp.headers["Cache-Control"] = _no_store
+        return _resp
 
     @app.get(PREFIX, response_class=HTMLResponse, include_in_schema=False)
     @app.get(f"{PREFIX}/", response_class=HTMLResponse, include_in_schema=False)
@@ -1469,6 +1637,29 @@ def create_app(product: str = "immigration") -> FastAPI:
     async def legal_privacy_page(request: Request):
         """LGPD privacy policy — referenced by Connect/Disconnect LGPD disclosures."""
         return templates.TemplateResponse("legal/privacy.html", get_context(request))
+
+    # ------------------------------------------------------------------
+    # Apex-level public legal pages (NO PREFIX) — Google OAuth consent-screen
+    # verification (#786 / T13) probes the bare https://<host>/privacy and
+    # /terms URLs and is smoother when they answer HTTP 200 *directly* (no
+    # 301/302 redirect). The `routes/legal.py` router is mounted under PREFIX,
+    # so its /privacy lands at /casehub/privacy and the bare paths 404'd. These
+    # apex aliases serve the same templates 200-direct. The /static/legal/*.html
+    # files and the StaticFiles mount stay intact (unchanged).
+    @app.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
+    @app.get("/privacy/", response_class=HTMLResponse, include_in_schema=False)
+    @app.get("/privacy-policy", response_class=HTMLResponse, include_in_schema=False)
+    @app.get("/politica-de-privacidade", response_class=HTMLResponse, include_in_schema=False)
+    async def public_privacy_page(request: Request):
+        """Public privacy policy — 200-direct for Google OAuth verification (#786)."""
+        return templates.TemplateResponse("legal/privacy.html", get_context(request))
+
+    @app.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+    @app.get("/terms/", response_class=HTMLResponse, include_in_schema=False)
+    @app.get("/termos", response_class=HTMLResponse, include_in_schema=False)
+    async def public_terms_page(request: Request):
+        """Public terms of service — 200-direct for Google OAuth verification (#786)."""
+        return templates.TemplateResponse("legal/terms.html", get_context(request))
 
     @app.get(f"{PREFIX}/kanban", include_in_schema=False)
     @app.get(f"{PREFIX}/kanban/", include_in_schema=False)
@@ -1493,7 +1684,7 @@ def create_app(product: str = "immigration") -> FastAPI:
 
     @app.get(f"{PREFIX}/showcase", response_class=HTMLResponse)
     async def showcase_page(request: Request):
-        """Read-only login preview for embedding on vingren.me — no auth, no form action."""
+        """Read-only login preview for embedding on a public marketing site."""
         ctx = get_context(request)
         ctx["showcase"] = True
         ctx["product"] = "lite"
@@ -1501,7 +1692,7 @@ def create_app(product: str = "immigration") -> FastAPI:
         ctx["org_slug"] = "showcase"
         ctx["org_settings"] = {}
         resp = templates.TemplateResponse("login.html", ctx)
-        # Allow iframe from vingren.me
+        # Allow iframe only from the current origin by default.
         resp.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
@@ -1509,7 +1700,7 @@ def create_app(product: str = "immigration") -> FastAPI:
             "img-src 'self' data: https:; "
             "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; "
             "connect-src 'self' https://cdn.jsdelivr.net; "
-            "frame-ancestors 'self' https://vingren.me https://www.vingren.me"
+            "frame-ancestors 'self'"
         )
         if "X-Frame-Options" in resp.headers:
             del resp.headers["X-Frame-Options"]
@@ -1653,7 +1844,7 @@ def create_app(product: str = "immigration") -> FastAPI:
             return HTMLResponse(html)
         dashboard_context = get_legacy_dashboard_context(
             db=db, org_id=request.state.org_id, user_id=user.id,
-            today=today, product=product,
+            today=today, product=product, user=user,
         )
         return templates.TemplateResponse(template_name, {
             **get_context(request, db, user=user),
@@ -1775,7 +1966,7 @@ def create_app(product: str = "immigration") -> FastAPI:
 
     @app.get(f"{PREFIX}/calendar", response_class=HTMLResponse)
     async def calendar_canonical(request: Request, db: Session = Depends(get_db)):
-        # 03/06 (Example User/Victor): a tela canônica da aba Agenda é /calendar/agenda
+        # 03/06 (UsuarioDemo/Equipe CaseHub): a tela canônica da aba Agenda é /calendar/agenda
         # (lista + calendário logo abaixo, com seletor de visualização Lista+Calendário /
         # Só lista / Só calendário). Este handler prevalece sobre routes/calendar.py, então
         # o redirect TEM que estar aqui: qualquer hit em /calendar (aba antiga persistida,
@@ -1815,6 +2006,16 @@ def create_app(product: str = "immigration") -> FastAPI:
         ctx = getattr(legacy, "context", None) or {}
         ctx.setdefault("user", user); ctx.setdefault("today", date.today())
         return templates.TemplateResponse("app/documents/list.html", ctx)
+
+    @app.get(f"{PREFIX}/drive", response_class=HTMLResponse)
+    @app.get(f"{PREFIX}/drive/", response_class=HTMLResponse)
+    async def drive_legacy_alias(request: Request):
+        # 15/06 alpha feedback: users refer to the module as "Drive"; keep the
+        # old/direct URL alive while the canonical app surface remains
+        # /documents.
+        q = request.url.query
+        target = f"{PREFIX}/documents" + (f"?{q}" if q else "")
+        return RedirectResponse(url=target, status_code=302)
 
     @app.get(f"{PREFIX}/signup", response_class=HTMLResponse)
     async def signup_canonical(request: Request):
@@ -2017,7 +2218,11 @@ def create_app(product: str = "immigration") -> FastAPI:
         checks = {"db": False, "templates": False}
         try:
             db = next(get_db())
-            db.execute(func.count(User.id)).scalar()
+            # Cheap connectivity probe — NOT a full-table COUNT(User.id), which
+            # blocks the worker proportional to row count on every health hit
+            # (incident 2026-06-16 VS 504: worker saturation). SELECT 1 confirms
+            # the pool/connection is usable without scanning a table.
+            db.execute(text("SELECT 1")).scalar()
             checks["db"] = True
             db.close()
         except Exception as e:
@@ -2032,7 +2237,7 @@ def create_app(product: str = "immigration") -> FastAPI:
             "status": "healthy" if all_ok else "degraded",
             "service": "casehub",
             "product": product,
-            "version": "2.0.0",
+            "version": "0.9.12-alpha",
             "commit": _version_commit(),
             "checks": checks,
             "response_ms": elapsed_ms,
@@ -2061,6 +2266,27 @@ def create_app(product: str = "immigration") -> FastAPI:
         payload, all_ok = _health_payload(include_marker=True)
         status_code = 200 if all_ok else 503
         return JSONResponse(payload, status_code=status_code)
+
+    # Pure LIVENESS — proves the process + event loop can answer, WITHOUT
+    # touching the DB, disk, or any external upstream (Ollama/WhatsApp/Maestro).
+    # An external restart-probe MUST target /livez, not /healthz: coupling a
+    # restart trigger to the DB or an upstream turns a transient dependency
+    # hiccup into a restart-loop that amplifies an outage (incident 2026-06-16
+    # VS 504). Readiness (DB connectivity) stays in /healthz, which may 503.
+    # _version_commit() is cached at startup, so this never touches disk.
+    @app.get(f"{PREFIX}/livez")
+    async def casehub_livez():
+        return JSONResponse(
+            {
+                "status": "alive",
+                "service": "casehub",
+                "product": product,
+                "version": "0.9.12-alpha",
+                "commit": _version_commit(),
+                "marker": "casehub-live-v1",
+            },
+            status_code=200,
+        )
 
     # Goal frente A lists ``/casehub/google/status`` — the existing
     # surface is ``/casehub/google-calendar/status`` (auth-gated, returns

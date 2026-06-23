@@ -8,7 +8,7 @@ const FOLLOWUP_CONFIG = {
   // TEST MODE - When true, all emails go to testRecipient instead of clients
   // v11.0: DESATIVADO para produção
   testMode: false,
-  testRecipient: 'victor.vingren.2025@gmail.com',
+  testRecipient: 'admin@example.com',
 
   // Email Configuration
   fromEmail: (process.env.ORG_EMAIL || 'info@casehub.app'),

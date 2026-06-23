@@ -1,0 +1,104 @@
+{% extends "app/base.html" %}
+
+{% block title %}Work Intelligence{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="/static/css/templates/work-intelligence.css">
+{% endblock %}
+
+{% block content %}
+<section class="wi-shell" aria-labelledby="wi-title">
+  <header class="wi-header">
+    <div>
+      <p class="wi-kicker">Observabilidade de processo</p>
+      <h1 id="wi-title">Work Intelligence</h1>
+    </div>
+    <div class="wi-actions">
+      <a class="wi-button wi-button--ghost" href="{{ PREFIX }}/work-intelligence/me">Minha transparencia</a>
+      <form method="get" class="wi-period">
+        <label for="wi-days">Periodo</label>
+        <select id="wi-days" name="days" onchange="this.form.submit()">
+          {% for option in [1, 7, 14, 30] %}
+          <option value="{{ option }}" {% if days == option %}selected{% endif %}>{{ option }} dia{% if option > 1 %}s{% endif %}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+  </header>
+
+  {% if not summary.enabled %}
+  <section class="wi-banner">
+    <strong>Feature desligada.</strong>
+    <span>Ative `CASEHUB_WORK_INTELLIGENCE_ENABLED` e a chave de tenant `work_intelligence_enabled=true` para iniciar agregacao.</span>
+  </section>
+  {% elif summary.suppressed %}
+  <section class="wi-banner">
+    <strong>Dados suprimidos.</strong>
+    <span>A coorte real tem menos de {{ summary.min_group_size }} usuarios; os agregados ficam ocultos para evitar identificacao indevida.</span>
+  </section>
+  {% endif %}
+
+  <section class="wi-grid wi-grid--stats" aria-label="Indices agregados">
+    <article class="wi-stat">
+      <span>Friccao</span>
+      <strong>{{ summary.scores.friction_index|default(0) }}</strong>
+    </article>
+    <article class="wi-stat">
+      <span>Demanda/Recurso</span>
+      <strong>{{ summary.scores.demand_resource_balance|default(0) }}</strong>
+    </article>
+    <article class="wi-stat">
+      <span>Fragmentacao</span>
+      <strong>{{ summary.scores.fragmentation_signal|default(0) }}</strong>
+    </article>
+    <article class="wi-stat">
+      <span>Qualidade</span>
+      <strong>{{ summary.scores.quality_guard|default(0) }}</strong>
+    </article>
+  </section>
+
+  <section class="wi-grid wi-grid--sources" aria-label="Fontes agregadas">
+    <article class="wi-panel">
+      <h2>Tarefas</h2>
+      <dl>
+        <div><dt>Total</dt><dd>{{ summary.sources.tasks.total|default(0) }}</dd></div>
+        <div><dt>WIP</dt><dd>{{ summary.sources.tasks.wip|default(0) }}</dd></div>
+        <div><dt>Vencidas</dt><dd>{{ summary.sources.tasks.overdue|default(0) }}</dd></div>
+      </dl>
+    </article>
+    <article class="wi-panel">
+      <h2>Prazos</h2>
+      <dl>
+        <div><dt>Total</dt><dd>{{ summary.sources.prazos.total|default(0) }}</dd></div>
+        <div><dt>Vencidos</dt><dd>{{ summary.sources.prazos.overdue|default(0) }}</dd></div>
+        <div><dt>Prox. 7 dias</dt><dd>{{ summary.sources.prazos.upcoming_7d|default(0) }}</dd></div>
+      </dl>
+    </article>
+    <article class="wi-panel">
+      <h2>Eventos leves</h2>
+      <dl>
+        <div><dt>Total</dt><dd>{{ summary.sources.client_events.total|default(0) }}</dd></div>
+        <div><dt>Erros</dt><dd>{{ summary.sources.client_events.errors|default(0) }}</dd></div>
+        <div><dt>Abandono</dt><dd>{{ summary.sources.client_events.abandonments|default(0) }}</dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <section class="wi-panel wi-panel--wide" aria-labelledby="wi-insights-title">
+    <h2 id="wi-insights-title">Insights explicaveis</h2>
+    {% if summary.insights %}
+    <ul class="wi-insights">
+      {% for item in summary.insights %}
+      <li>
+        <span class="wi-badge">{{ item.category }}</span>
+        <strong>{{ item.title }}</strong>
+        <p>{{ item.body }}</p>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="wi-empty">Nenhum insight agregado disponivel nesta janela.</p>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

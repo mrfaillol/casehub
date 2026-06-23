@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
 
 
 def test_jinja_runtime_development_keeps_reload(tmp_path):
@@ -172,7 +173,7 @@ def test_basic_dashboard_context_caches_json_context_in_redis(db, monkeypatch):
 
     fake_redis = FakeRedis()
     today = date(2026, 5, 5)
-    user = SimpleNamespace(id=7, name="Ana Maria")
+    user = SimpleNamespace(id=7, name="Ana PessoaDemo")
 
     dashboard_metrics.clear_dashboard_cache()
     monkeypatch.setattr(dashboard_metrics, "_redis", lambda: fake_redis)
@@ -186,6 +187,327 @@ def test_basic_dashboard_context_caches_json_context_in_redis(db, monkeypatch):
     assert second == first
     assert second["basic_dashboard"]["user_first_name"] == "Ana"
     assert list(fake_redis.ttls.values()) == [60]
+
+
+def _create_dashboard_appointment_tables(db):
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS appointments (
+            id INTEGER PRIMARY KEY,
+            org_id INTEGER,
+            title VARCHAR(255) NOT NULL,
+            type VARCHAR(50) NOT NULL DEFAULT 'atendimento',
+            assigned_to INTEGER,
+            created_by INTEGER,
+            client_name VARCHAR(255),
+            case_id INTEGER,
+            date DATE NOT NULL,
+            time_start TIME,
+            time_end TIME,
+            outcome VARCHAR(50)
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS appointment_assignees (
+            appointment_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            PRIMARY KEY (appointment_id, user_id)
+        )
+    """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS task_assignees (
+            task_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            PRIMARY KEY (task_id, user_id)
+        )
+    """))
+    db.commit()
+
+
+def _metric_map(dashboard):
+    return {metric["label"]: metric for metric in dashboard["metrics"]}
+
+
+def test_basic_dashboard_scopes_tasks_appointments_and_hearings_by_user(db, monkeypatch):
+    from models import Case, Client, Reminder, Task, User
+    from services import dashboard_metrics
+
+    _create_dashboard_appointment_tables(db)
+    dashboard_metrics.clear_dashboard_cache()
+    monkeypatch.setattr(dashboard_metrics, "_redis", lambda: None)
+    today = date(2026, 6, 15)
+    admin = User(email="admin-scope@test.com", name="Admin Scope", password_hash="x", org_id=42, user_type="admin")
+    ana = User(email="ana-scope@test.com", name="Ana Scope", password_hash="x", org_id=42, user_type="attorney")
+    bruno = User(email="bruno-scope@test.com", name="Bruno Scope", password_hash="x", org_id=42, user_type="attorney")
+    db.add_all([admin, ana, bruno])
+    db.flush()
+
+    # Volume do escritório (casos) é org-wide para TODOS, inclusive não-admin
+    # (decisão de produto Equipe CaseHub 2026-06-15): só tarefas/compromissos/audiências filtram.
+    cliente = Client(first_name="Cliente", last_name="Escritório", org_id=42)
+    db.add(cliente)
+    db.flush()
+    db.add(Case(org_id=42, client_id=cliente.id, case_name="Caso Escritório", status="intake"))
+    db.flush()
+
+    ana_task = Task(org_id=42, title="Ana direta", status="pending", assigned_to=ana.id, due_date=today - timedelta(days=1))
+    bruno_task = Task(org_id=42, title="Bruno direta", status="pending", assigned_to=bruno.id, due_date=today)
+    ana_junction_task = Task(org_id=42, title="Ana junction", status="pending", assigned_to=None, due_date=today)
+    db.add_all([ana_task, bruno_task, ana_junction_task])
+    db.flush()
+    db.execute(
+        text("INSERT INTO task_assignees (task_id, user_id) VALUES (:task_id, :user_id)"),
+        {"task_id": ana_junction_task.id, "user_id": ana.id},
+    )
+    db.execute(
+        text("""
+            INSERT INTO appointments (id, org_id, title, type, assigned_to, date, time_start)
+            VALUES
+              (1, 42, 'Ana compromisso', 'atendimento', :ana_id, :today, '09:00'),
+              (2, 42, 'Bruno compromisso', 'atendimento', :bruno_id, :today, '10:00'),
+              (3, 42, 'Ana audiencia junction', 'audiencia', NULL, :tomorrow, '11:00'),
+              (4, 42, 'Bruno audiencia', 'audiencia', :bruno_id, :tomorrow, '13:00')
+        """),
+        {"ana_id": ana.id, "bruno_id": bruno.id, "today": today, "tomorrow": today + timedelta(days=1)},
+    )
+    db.execute(
+        text("INSERT INTO appointment_assignees (appointment_id, user_id) VALUES (3, :ana_id)"),
+        {"ana_id": ana.id},
+    )
+    db.add(Reminder(
+        org_id=42,
+        title="Prazo geral",
+        due_date=datetime.combine(today + timedelta(days=2), time(hour=10)),
+        is_completed=False,
+    ))
+    db.commit()
+
+    personal = dashboard_metrics.get_basic_dashboard_context(db, 42, ana.id, today, user=ana)["basic_dashboard"]
+    personal_metrics = _metric_map(personal)
+
+    assert personal["scope_is_personal"] is True
+    assert personal["scope_label"] == "Minha visão"
+    assert personal_metrics["Tarefas em aberto"]["value"] == 2
+    assert personal_metrics["Tarefas em aberto"]["delta"]["label"] == "1 atrasadas"
+    assert personal_metrics["Compromissos (hoje)"]["value"] == 1
+    assert personal_metrics["Compromissos (hoje)"]["delta"]["label"] == "2 na semana"
+    assert personal_metrics["Audiências (semana)"]["value"] == 1
+    assert personal_metrics["Prazos (7 dias)"]["value"] == 1
+    # KPIs de volume da org permanecem visíveis e org-wide para não-admin.
+    assert "Novos casos (14d)" in personal_metrics
+    assert personal_metrics["Novos casos (14d)"]["value"] == 1
+    assert [task["title"] for task in personal["tasks_today"]] == ["Ana direta", "Ana junction"]
+    assert [hearing["title"] for hearing in personal["hearings_week"]] == ["Ana audiencia junction"]
+    # Lista de processos recentes também é org-wide (não filtra por dono).
+    assert [case["title"] for case in personal["recent_cases"]] == ["Caso Escritório"]
+
+    dashboard_metrics.clear_dashboard_cache()
+    bruno_dashboard = dashboard_metrics.get_basic_dashboard_context(db, 42, bruno.id, today, user=bruno)["basic_dashboard"]
+    bruno_metrics = _metric_map(bruno_dashboard)
+
+    assert bruno_dashboard["scope_is_personal"] is True
+    assert bruno_metrics["Tarefas em aberto"]["value"] == 1
+    assert bruno_metrics["Compromissos (hoje)"]["value"] == 1
+    assert bruno_metrics["Audiências (semana)"]["value"] == 1
+    assert [task["title"] for task in bruno_dashboard["tasks_today"]] == ["Bruno direta"]
+    assert [hearing["title"] for hearing in bruno_dashboard["hearings_week"]] == ["Bruno audiencia"]
+
+    dashboard_metrics.clear_dashboard_cache()
+    admin_dashboard = dashboard_metrics.get_basic_dashboard_context(db, 42, admin.id, today, user=admin)["basic_dashboard"]
+    admin_metrics = _metric_map(admin_dashboard)
+
+    assert admin_dashboard["scope_is_personal"] is False
+    assert admin_metrics["Tarefas em aberto"]["value"] == 3
+    assert admin_metrics["Compromissos (hoje)"]["value"] == 2
+    assert admin_metrics["Audiências (semana)"]["value"] == 2
+    assert "Novos casos (14d)" in admin_metrics
+    # Volume é idêntico (org-wide) entre admin e não-admin.
+    assert admin_metrics["Novos casos (14d)"]["value"] == personal_metrics["Novos casos (14d)"]["value"]
+    assert [case["title"] for case in admin_dashboard["recent_cases"]] == ["Caso Escritório"]
+
+    dashboard_metrics.clear_dashboard_cache()
+    legacy_personal = dashboard_metrics.get_legacy_dashboard_context(
+        db, 42, ana.id, today, "lite", user=ana,
+    )
+    dashboard_metrics.clear_dashboard_cache()
+    legacy_admin = dashboard_metrics.get_legacy_dashboard_context(
+        db, 42, admin.id, today, "lite", user=admin,
+    )
+
+    assert legacy_personal["stats"]["pending_tasks"] == 2
+    assert legacy_personal["stats"]["overdue_tasks"] == 1
+    assert [task.title for task in legacy_personal["upcoming_tasks"]] == ["Ana direta", "Ana junction"]
+    assert legacy_admin["stats"]["pending_tasks"] == 3
+
+
+def test_basic_dashboard_includes_items_created_by_non_admin(db, monkeypatch):
+    """Não-admin vê o que CRIOU, mesmo sem ser o responsável (decisão Equipe CaseHub 2026-06-15):
+    posse = assigned_to OR created_by OR junção multi-assignee."""
+    from models import Task, User
+    from services import dashboard_metrics
+
+    _create_dashboard_appointment_tables(db)
+    dashboard_metrics.clear_dashboard_cache()
+    monkeypatch.setattr(dashboard_metrics, "_redis", lambda: None)
+    today = date(2026, 6, 15)
+    ana = User(email="ana-created@test.com", name="Ana Created", password_hash="x", org_id=77, user_type="attorney")
+    bruno = User(email="bruno-created@test.com", name="Bruno Created", password_hash="x", org_id=77, user_type="attorney")
+    db.add_all([ana, bruno])
+    db.flush()
+
+    # Tarefa criada por Ana, atribuída a Bruno (não é responsável nem está na junção).
+    db.add(Task(org_id=77, title="Criada por Ana", status="pending", assigned_to=bruno.id, created_by=ana.id, due_date=today))
+    # Controle: tarefa só de Bruno — Ana não deve ver.
+    db.add(Task(org_id=77, title="Só de Bruno", status="pending", assigned_to=bruno.id, created_by=bruno.id, due_date=today))
+    db.flush()
+    db.execute(
+        text("""
+            INSERT INTO appointments (id, org_id, title, type, assigned_to, created_by, date, time_start)
+            VALUES
+              (10, 77, 'Compromisso criado por Ana', 'atendimento', :bruno_id, :ana_id, :today, '09:00'),
+              (11, 77, 'Compromisso só de Bruno', 'atendimento', :bruno_id, :bruno_id, :today, '10:00')
+        """),
+        {"ana_id": ana.id, "bruno_id": bruno.id, "today": today},
+    )
+    db.commit()
+
+    personal = dashboard_metrics.get_basic_dashboard_context(db, 77, ana.id, today, user=ana)["basic_dashboard"]
+    personal_metrics = _metric_map(personal)
+
+    assert personal_metrics["Tarefas em aberto"]["value"] == 1
+    assert [task["title"] for task in personal["tasks_today"]] == ["Criada por Ana"]
+    assert personal_metrics["Compromissos (hoje)"]["value"] == 1
+
+
+def test_dashboard_scope_fails_closed_for_identityless_viewer(db):
+    """Red line §7 do handoff 03: viewer sem identidade NÃO pode vazar org-wide.
+    O primitivo de escopo deve falhar FECHADO (-1 = não casa nada), nunca None
+    (None significa org-wide e é reservado a admin/superadmin)."""
+    from types import SimpleNamespace
+    from services import dashboard_metrics
+
+    # Viewer sem objeto user e sem id de fallback → fail-closed (-1).
+    assert dashboard_metrics._dashboard_scoped_user_id(None) == -1
+    assert dashboard_metrics._dashboard_scoped_user_id(None, fallback_user_id=None) == -1
+    # User sem id resolvível e sem fallback → fail-closed.
+    assert dashboard_metrics._dashboard_scoped_user_id(SimpleNamespace(id=None, user_type="attorney")) == -1
+    # O filtro de tarefa correspondente NÃO é None (None abriria org-wide).
+    assert dashboard_metrics.dashboard_task_scope_filter(db, None) is not None
+
+    # Sanidade: admin continua org-wide (None), não fail-closed.
+    admin = SimpleNamespace(id=1, user_type="admin", role=None, name="Adm")
+    assert dashboard_metrics._dashboard_scoped_user_id(admin) is None
+    assert dashboard_metrics.dashboard_task_scope_filter(db, admin) is None
+
+
+def test_dashboard_admin_predicate_is_user_type_only(db):
+    """Q4 do handoff 03 (resolvida 2026-06-15): admin do dashboard = user_type in
+    (admin, superadmin) APENAS. O atributo `role` (que nunca é populado no model)
+    não concede mais visão org-wide — evita over-grant latente."""
+    from types import SimpleNamespace
+    from services import dashboard_metrics
+
+    # user_type admin/superadmin → org-wide (case-insensitive preservado).
+    assert dashboard_metrics.dashboard_user_sees_org_scope(SimpleNamespace(user_type="admin")) is True
+    assert dashboard_metrics.dashboard_user_sees_org_scope(SimpleNamespace(user_type="superadmin")) is True
+    assert dashboard_metrics.dashboard_user_sees_org_scope(SimpleNamespace(user_type="ADMIN")) is True
+
+    # Não-admin por user_type → escopado, MESMO que tenha role='admin'.
+    leaky = SimpleNamespace(id=5, user_type="attorney", role="admin")
+    assert dashboard_metrics.dashboard_user_sees_org_scope(leaky) is False
+    assert dashboard_metrics._dashboard_scoped_user_id(leaky) == 5
+    assert dashboard_metrics.dashboard_task_scope_filter(db, leaky) is not None
+
+    # Não-admin comum → escopado.
+    assert dashboard_metrics.dashboard_user_sees_org_scope(SimpleNamespace(user_type="paralegal")) is False
+
+
+def test_basic_dashboard_keeps_process_deadlines_org_wide_for_non_admin(db, monkeypatch):
+    from models import User
+    from services import dashboard_metrics
+
+    _create_dashboard_appointment_tables(db)
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS prazos_processuais (
+            id INTEGER PRIMARY KEY,
+            org_id INTEGER,
+            case_id INTEGER,
+            tipo VARCHAR(100),
+            data_vencimento DATE,
+            status VARCHAR(50),
+            descricao TEXT,
+            processo_override VARCHAR(80)
+        )
+    """))
+    dashboard_metrics.clear_dashboard_cache()
+    monkeypatch.setattr(dashboard_metrics, "_redis", lambda: None)
+    today = date(2026, 6, 15)
+    ana = User(
+        email="ana-prazos@test.com",
+        name="Ana Prazos",
+        password_hash="x",
+        org_id=55,
+        user_type="paralegal",
+    )
+    db.add(ana)
+    db.flush()
+    db.execute(
+        text("""
+            INSERT INTO prazos_processuais (id, org_id, tipo, data_vencimento, status, processo_override)
+            VALUES
+              (1, 55, 'Contestacao', :today, 'pendente', 'PROC-1'),
+              (2, 55, 'Recurso', :tomorrow, 'pendente', 'PROC-2')
+        """),
+        {"today": today, "tomorrow": today + timedelta(days=1)},
+    )
+    db.commit()
+
+    personal = dashboard_metrics.get_basic_dashboard_context(db, 55, ana.id, today, user=ana)["basic_dashboard"]
+    personal_metrics = _metric_map(personal)
+
+    assert personal["scope_is_personal"] is True
+    assert personal_metrics["Prazos (7 dias)"]["value"] == 2
+    assert [deadline["title"] for deadline in personal["deadlines_week"]] == ["Contestacao", "Recurso"]
+
+
+def test_widget_tasks_scopes_non_admin_task_list(db):
+    from models import Task, User
+    from routes.dashboard_api import _widget_tasks
+
+    _create_dashboard_appointment_tables(db)
+    today = date(2026, 6, 15)
+    ana = User(email="ana-widget@test.com", name="Ana Widget", password_hash="x", org_id=42, user_type="attorney")
+    bruno = User(email="bruno-widget@test.com", name="Bruno Widget", password_hash="x", org_id=42, user_type="attorney")
+    db.add_all([ana, bruno])
+    db.flush()
+    db.add_all([
+        Task(title="Minha tarefa widget", org_id=42, status="pending", assigned_to=ana.id, due_date=today),
+        Task(title="Tarefa de Bruno widget", org_id=42, status="pending", assigned_to=bruno.id, due_date=today),
+    ])
+    db.commit()
+
+    html = _widget_tasks(db, 42, ana, today)
+
+    assert "Minha tarefa widget" in html
+    assert "Tarefa de Bruno widget" not in html
+
+
+def test_widget_activity_is_admin_only(db):
+    from models import Client, User
+    from routes.dashboard_api import _widget_activity
+
+    today = date(2026, 6, 15)
+    admin = User(email="admin-activity@test.com", name="Admin Activity", password_hash="x", org_id=42, user_type="admin")
+    ana = User(email="ana-activity@test.com", name="Ana Activity", password_hash="x", org_id=42, user_type="attorney")
+    client = Client(first_name="Cliente", last_name="Sigiloso", org_id=42)
+    db.add_all([admin, ana, client])
+    db.commit()
+
+    personal_html = _widget_activity(db, 42, ana, today)
+    admin_html = _widget_activity(db, 42, admin, today)
+
+    assert "Atividade restrita aos administradores" in personal_html
+    assert "Cliente Sigiloso" not in personal_html
+    assert "Cliente Sigiloso" in admin_html
 
 
 def test_widget_prazos_uses_is_completed_flag(db):

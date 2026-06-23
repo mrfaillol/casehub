@@ -29,6 +29,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from config import settings
+from core.feature_flags import is_enabled
 from i18n import get_translations
 from services.per_org_credentials import (
     DEFAULT_ORG_ID,
@@ -537,7 +538,7 @@ class GoogleCalendarService:
     # scope. No SMTP password, no personal mailbox. Org-scoped: only the
     # office account(s) connected for THIS org can send. Best-effort:
     # tokens granted before gmail.send was added return a clear
-    # 'needs_gmail_consent' status instead of crashing — Victor reconnects
+    # 'needs_gmail_consent' status instead of crashing — Equipe CaseHub reconnects
     # the office account once and consent widens to include send.
 
     def _account_can_send_email(self, account_name: str) -> bool:
@@ -597,7 +598,7 @@ class GoogleCalendarService:
         account = account_name or self.get_email_send_account()
         if not account or not self._account_can_send_email(account):
             # Office account connected for calendar, but token predates the
-            # gmail.send scope → Victor must reconnect to widen consent.
+            # gmail.send scope → Equipe CaseHub must reconnect to widen consent.
             return {"success": False, "error": "needs_gmail_consent"}
 
         creds = self.get_credentials(account)
@@ -890,6 +891,7 @@ class GoogleCalendarService:
                         "location": event.get("location", ""),
                         "htmlLink": event.get("htmlLink", ""),
                         "source": account_name,
+                        "calendar_id": calendar_id,
                     })
 
                 page_token = events_result.get("nextPageToken")
@@ -912,13 +914,14 @@ class GoogleCalendarService:
 
         for account in accounts:
             if self.has_credentials(account):
-                events = self.get_events(
-                    account,
-                    calendar_id="primary",
-                    time_min=time_min,
-                    time_max=time_max,
-                )
-                all_events.extend(events)
+                for calendar_id in self._enabled_calendar_ids(account):
+                    events = self.get_events(
+                        account,
+                        calendar_id=calendar_id,
+                        time_min=time_min,
+                        time_max=time_max,
+                    )
+                    all_events.extend(events)
 
         all_events.sort(key=lambda x: x["start"])
         return all_events
@@ -940,7 +943,9 @@ class GoogleCalendarService:
     #   (d) Google cancellations (status='cancelled') delete the imported row;
     #       CaseHub deletions already remove the Google event (delete_appointment_event).
     #
-    # Incremental: a per-(org, account) syncToken is persisted in gcal_sync_state.
+    # Incremental: a per-(org, account, calendar) syncToken is persisted in
+    # gcal_sync_state. Calendar selection is opt-in: an account starts with only
+    # its primary calendar enabled, never every visible calendar.
     # On the first run (or HTTP 410 GONE) we fall back to a -30d..+120d window
     # and re-seed the token. All best-effort: failures never raise to the agenda.
 
@@ -954,12 +959,28 @@ class GoogleCalendarService:
         bind = db.get_bind()
         dialect = bind.dialect.name if bind is not None else "sqlite"
         ts_type = "TIMESTAMPTZ" if dialect == "postgresql" else "TIMESTAMP"
+
+        def _has_column(table: str, column: str) -> bool:
+            if dialect == "postgresql":
+                return bool(db.execute(
+                    text("""
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = :table AND column_name = :column
+                    """),
+                    {"table": table, "column": column},
+                ).first())
+            return any(
+                row[1] == column
+                for row in db.execute(text(f"PRAGMA table_info({table})")).fetchall()
+            )
+
         additions = [
             # gcal_event_id already exists in the live alpha schema; ADD is
             # guarded by the information_schema check below, so it's a no-op there.
             ("appointments", "gcal_event_id", "VARCHAR(255)"),
             ("appointments", "origin", "VARCHAR(20) DEFAULT 'casehub'"),
             ("appointments", "google_calendar_id", "VARCHAR(255)"),
+            ("appointments", "google_calendar_account", "VARCHAR(50)"),
             ("appointments", "gcal_etag", "VARCHAR(255)"),
             ("appointments", "last_synced_at", ts_type),
             ("appointments", "local", "VARCHAR(255)"),
@@ -967,64 +988,300 @@ class GoogleCalendarService:
         ]
         for table, column, definition in additions:
             try:
-                if dialect == "postgresql":
-                    exists = db.execute(
-                        text("""
-                            SELECT 1 FROM information_schema.columns
-                            WHERE table_name = :table AND column_name = :column
-                        """),
-                        {"table": table, "column": column},
-                    ).first()
-                else:
-                    exists = any(
-                        row[1] == column
-                        for row in db.execute(text(f"PRAGMA table_info({table})")).fetchall()
-                    )
-                if not exists:
+                if not _has_column(table, column):
                     db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
                     db.commit()
             except Exception:
                 db.rollback()
-        # Per-(org, account) incremental syncToken store.
+        # Per-(org, account, calendar) incremental syncToken store. Existing
+        # two-column PK tables are migrated by copy+swap and their cursor is
+        # preserved as the account's primary-calendar cursor.
         try:
+            # ADDITIVE per-(org, account, calendar) syncToken store — Council ruling
+            # 2026-06-13-t6-gcal-multicalendar-migration (Opção B). The legacy 2-col
+            # gcal_sync_state table is left UNTOUCHED (NO DROP/RENAME/ALTER, sem perda
+            # de dados em prod org-4); per-calendar cursors live in this sidecar and the
+            # account's existing 'primary' cursor is inherited READ-ONLY from the legacy
+            # table on first read (ver _get_sync_token). Idempotente (IF NOT EXISTS) e
+            # rollback-trivial (DROP TABLE gcal_sync_state_calendar).
             db.execute(text("""
-                CREATE TABLE IF NOT EXISTS gcal_sync_state (
+                CREATE TABLE IF NOT EXISTS gcal_sync_state_calendar (
                     org_id INTEGER NOT NULL,
                     account_name VARCHAR(50) NOT NULL,
+                    calendar_id VARCHAR(255) NOT NULL DEFAULT 'primary',
                     sync_token TEXT,
                     last_run_at TIMESTAMP,
-                    PRIMARY KEY (org_id, account_name)
+                    PRIMARY KEY (org_id, account_name, calendar_id)
+                )
+            """))
+            db.execute(text("""
+                CREATE TABLE IF NOT EXISTS gcal_calendar_selection (
+                    org_id INTEGER NOT NULL,
+                    account_name VARCHAR(50) NOT NULL,
+                    calendar_id VARCHAR(255) NOT NULL,
+                    enabled BOOLEAN DEFAULT TRUE,
+                    summary VARCHAR(255),
+                    is_write_target BOOLEAN DEFAULT FALSE,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (org_id, account_name, calendar_id)
                 )
             """))
             db.execute(text(
                 "CREATE INDEX IF NOT EXISTS ix_appointments_gcal_event "
                 "ON appointments (org_id, gcal_event_id)"
             ))
+            db.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_appointments_gcal_account_calendar "
+                "ON appointments (org_id, google_calendar_account, google_calendar_id)"
+            ))
             db.commit()
         except Exception:
             db.rollback()
 
-    def _get_sync_token(self, account_name: str) -> Optional[str]:
+    @staticmethod
+    def _clean_calendar_id(calendar_id: Optional[str]) -> str:
+        value = str(calendar_id or "").strip()
+        if not value or "\x00" in value:
+            return ""
+        return value[:255]
+
+    @staticmethod
+    def _calendar_summary(cal: Dict[str, Any]) -> str:
+        return str(cal.get("summary") or cal.get("id") or "Calendario Google")[:255]
+
+    @staticmethod
+    def _primary_calendar_id(calendars: List[Dict[str, Any]]) -> str:
+        for cal in calendars:
+            if cal.get("primary") and cal.get("id"):
+                return str(cal.get("id"))[:255]
+        return "primary"
+
+    def _selection_rows(self, account_name: str) -> List[Dict[str, Any]]:
+        rows = self.db.execute(
+            text("""
+                SELECT calendar_id, enabled, summary, is_write_target
+                FROM gcal_calendar_selection
+                WHERE org_id = :o AND account_name = :a
+                ORDER BY CASE WHEN is_write_target THEN 0 ELSE 1 END, calendar_id
+            """),
+            {"o": self.org_id, "a": account_name},
+        ).fetchall()
+        return [dict(row._mapping) for row in rows]
+
+    def _seed_default_calendar_selection(
+        self,
+        account_name: str,
+        calendars: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
+        calendars = calendars or []
+        primary_id = self._primary_calendar_id(calendars)
+        summary = "Primary"
+        for cal in calendars:
+            if str(cal.get("id") or "") == primary_id:
+                summary = self._calendar_summary(cal)
+                break
+        self.db.execute(
+            text("""
+                INSERT INTO gcal_calendar_selection
+                    (org_id, account_name, calendar_id, enabled, summary, is_write_target, updated_at)
+                VALUES (:o, :a, :cid, TRUE, :summary, TRUE, CURRENT_TIMESTAMP)
+                ON CONFLICT (org_id, account_name, calendar_id)
+                DO UPDATE SET enabled = TRUE, summary = :summary,
+                              is_write_target = TRUE, updated_at = CURRENT_TIMESTAMP
+            """),
+            {"o": self.org_id, "a": account_name, "cid": primary_id, "summary": summary},
+        )
+        self.db.commit()
+        return primary_id
+
+    def get_calendar_selection(self, account_name: str) -> List[Dict[str, Any]]:
+        """Return visible calendars plus persisted opt-in/write-target state."""
+        if self.db is None:
+            return []
+        self._ensure_sync_schema(self.db)
+        calendars = self.get_calendars(account_name)
         try:
-            row = self.db.execute(
-                text("SELECT sync_token FROM gcal_sync_state WHERE org_id = :o AND account_name = :a"),
-                {"o": self.org_id, "a": account_name},
-            ).fetchone()
-            return row[0] if row and row[0] else None
+            rows = self._selection_rows(account_name)
+            if not rows:
+                self._seed_default_calendar_selection(account_name, calendars)
+                rows = self._selection_rows(account_name)
         except Exception:
             self.db.rollback()
-            return None
+            rows = []
 
-    def _save_sync_token(self, account_name: str, token: Optional[str]) -> None:
+        selected = {str(row["calendar_id"]): row for row in rows}
+        output: List[Dict[str, Any]] = []
+        seen = set()
+        for cal in calendars:
+            cid = self._clean_calendar_id(cal.get("id"))
+            if not cid:
+                continue
+            row = selected.get(cid, {})
+            seen.add(cid)
+            output.append({
+                "id": cid,
+                "summary": self._calendar_summary(cal),
+                "primary": bool(cal.get("primary")),
+                "backgroundColor": cal.get("backgroundColor", "#4285f4"),
+                "enabled": bool(row.get("enabled", False)),
+                "is_write_target": bool(row.get("is_write_target", False)),
+            })
+        for cid, row in selected.items():
+            if cid in seen:
+                continue
+            output.append({
+                "id": cid,
+                "summary": row.get("summary") or cid,
+                "primary": cid == "primary",
+                "backgroundColor": "#4285f4",
+                "enabled": bool(row.get("enabled", False)),
+                "is_write_target": bool(row.get("is_write_target", False)),
+            })
+        return output
+
+    def save_calendar_selection(
+        self,
+        account_name: str,
+        calendar_ids: List[str],
+        write_calendar_id: Optional[str] = None,
+    ) -> bool:
+        """Persist the user's explicit calendar opt-in for one account."""
+        if self.db is None:
+            return False
+        self._ensure_sync_schema(self.db)
+        calendars = self.get_calendars(account_name)
+        visible = {self._clean_calendar_id(cal.get("id")): cal for cal in calendars}
+        selected = []
+        for calendar_id in calendar_ids:
+            cid = self._clean_calendar_id(calendar_id)
+            if not cid:
+                continue
+            if visible and cid not in visible:
+                continue
+            if cid not in selected:
+                selected.append(cid)
+        if not selected:
+            return False
+        write_id = self._clean_calendar_id(write_calendar_id) or selected[0]
+        if write_id not in selected:
+            write_id = selected[0]
+        source_ids = list(visible.keys()) if visible else selected
+        try:
+            for cid in source_ids:
+                cal = visible.get(cid, {})
+                self.db.execute(
+                    text("""
+                        INSERT INTO gcal_calendar_selection
+                            (org_id, account_name, calendar_id, enabled, summary, is_write_target, updated_at)
+                        VALUES (:o, :a, :cid, :enabled, :summary, :write, CURRENT_TIMESTAMP)
+                        ON CONFLICT (org_id, account_name, calendar_id)
+                        DO UPDATE SET enabled = :enabled, summary = :summary,
+                                      is_write_target = :write, updated_at = CURRENT_TIMESTAMP
+                    """),
+                    {
+                        "o": self.org_id,
+                        "a": account_name,
+                        "cid": cid,
+                        "enabled": cid in selected,
+                        "summary": self._calendar_summary(cal) if cal else cid,
+                        "write": cid == write_id,
+                    },
+                )
+            self.db.commit()
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
+
+    def _enabled_calendar_ids(self, account_name: str) -> List[str]:
+        if self.db is None:
+            return ["primary"]
+        # [deploy gated] T6 secondary-calendar sync (#781, gated by #800).
+        # When the flag is OFF (default = current prod behavior) only the
+        # 'primary' calendar is read/synced — secondary/non-primary calendar
+        # opt-in is never activated. The additive schema (_ensure_sync_schema)
+        # still runs everywhere; only the multi-calendar activation is gated.
+        if not is_enabled("secondary_calendar_sync"):
+            return ["primary"]
+        self._ensure_sync_schema(self.db)
+        try:
+            rows = self._selection_rows(account_name)
+            if not rows:
+                calendars = self.get_calendars(account_name)
+                self._seed_default_calendar_selection(account_name, calendars)
+                rows = self._selection_rows(account_name)
+            enabled = [str(row["calendar_id"]) for row in rows if row.get("enabled")]
+            return enabled or ["primary"]
+        except Exception:
+            self.db.rollback()
+            return ["primary"]
+
+    def get_write_calendar_id(self, account_name: str) -> str:
+        if self.db is None:
+            return "primary"
+        # [deploy gated] T6 secondary-calendar sync (#781, gated by #800).
+        # OFF (default) = writes always target the 'primary' calendar, i.e.
+        # current prod behavior; a non-primary write target is never honored
+        # until the flag is explicitly enabled.
+        if not is_enabled("secondary_calendar_sync"):
+            return "primary"
+        self._ensure_sync_schema(self.db)
+        try:
+            rows = self._selection_rows(account_name)
+            if not rows:
+                calendars = self.get_calendars(account_name)
+                self._seed_default_calendar_selection(account_name, calendars)
+                rows = self._selection_rows(account_name)
+            for row in rows:
+                if row.get("enabled") and row.get("is_write_target"):
+                    return str(row["calendar_id"])
+            for row in rows:
+                if row.get("enabled"):
+                    return str(row["calendar_id"])
+        except Exception:
+            self.db.rollback()
+        return "primary"
+
+    def _get_sync_token(self, account_name: str, calendar_id: str = "primary") -> Optional[str]:
+        try:
+            row = self.db.execute(
+                text("""
+                    SELECT sync_token FROM gcal_sync_state_calendar
+                    WHERE org_id = :o AND account_name = :a AND calendar_id = :cid
+                """),
+                {"o": self.org_id, "a": account_name, "cid": calendar_id},
+            ).fetchone()
+            if row and row[0]:
+                return row[0]
+        except Exception:
+            self.db.rollback()
+        # Additive fallback: inherit the account's primary cursor from the legacy
+        # 2-col gcal_sync_state table (read-only) so prod sync continues seamlessly
+        # without migrating/dropping it. Only for the primary calendar; once a fresh
+        # token is saved to the sidecar it takes precedence. Legacy table absent on
+        # fresh DBs → handled by except.
+        if calendar_id == "primary":
+            try:
+                row = self.db.execute(
+                    text("SELECT sync_token FROM gcal_sync_state WHERE org_id = :o AND account_name = :a"),
+                    {"o": self.org_id, "a": account_name},
+                ).fetchone()
+                return row[0] if row and row[0] else None
+            except Exception:
+                self.db.rollback()
+        return None
+
+    def _save_sync_token(self, account_name: str, calendar_id: str, token: Optional[str]) -> None:
         try:
             self.db.execute(
                 text("""
-                    INSERT INTO gcal_sync_state (org_id, account_name, sync_token, last_run_at)
-                    VALUES (:o, :a, :tok, CURRENT_TIMESTAMP)
-                    ON CONFLICT (org_id, account_name)
+                    INSERT INTO gcal_sync_state_calendar
+                        (org_id, account_name, calendar_id, sync_token, last_run_at)
+                    VALUES (:o, :a, :cid, :tok, CURRENT_TIMESTAMP)
+                    ON CONFLICT (org_id, account_name, calendar_id)
                     DO UPDATE SET sync_token = :tok, last_run_at = CURRENT_TIMESTAMP
                 """),
-                {"o": self.org_id, "a": account_name, "tok": token},
+                {"o": self.org_id, "a": account_name, "cid": calendar_id, "tok": token},
             )
             self.db.commit()
         except Exception:
@@ -1078,52 +1335,56 @@ class GoogleCalendarService:
         try:
             self._ensure_sync_schema(self.db)
 
-            list_kwargs: Dict[str, Any] = {
-                "calendarId": "primary",
-                "singleEvents": True,
-                "maxResults": 250,
-                "showDeleted": True,  # need cancellations to reflect deletes
-            }
-            sync_token = self._get_sync_token(account_name)
-            if sync_token:
-                list_kwargs["syncToken"] = sync_token
-            else:
-                now = datetime.utcnow()
-                list_kwargs["timeMin"] = self._to_utc_string(now - timedelta(days=self.SYNC_WINDOW_PAST_DAYS))
-                list_kwargs["timeMax"] = self._to_utc_string(now + timedelta(days=self.SYNC_WINDOW_FUTURE_DAYS))
-                list_kwargs["orderBy"] = "startTime"
+            calendar_ids = self._enabled_calendar_ids(account_name)
+            summary["calendars"] = calendar_ids
 
-            page_token = None
-            next_sync_token = None
-            while True:
-                if page_token:
-                    list_kwargs["pageToken"] = page_token
-                try:
-                    resp = service.events().list(**list_kwargs).execute()
-                except HttpError as e:
-                    status = getattr(getattr(e, "resp", None), "status", None)
-                    if status == 410:
-                        # Token expired/invalid: drop it and do a full window re-seed next call.
-                        self._save_sync_token(account_name, None)
-                        summary["error"] = "sync_token_expired_reset"
-                        return summary
-                    raise
+            for calendar_id in calendar_ids:
+                list_kwargs: Dict[str, Any] = {
+                    "calendarId": calendar_id,
+                    "singleEvents": True,
+                    "maxResults": 250,
+                    "showDeleted": True,  # need cancellations to reflect deletes
+                }
+                sync_token = self._get_sync_token(account_name, calendar_id)
+                if sync_token:
+                    list_kwargs["syncToken"] = sync_token
+                else:
+                    now = datetime.utcnow()
+                    list_kwargs["timeMin"] = self._to_utc_string(now - timedelta(days=self.SYNC_WINDOW_PAST_DAYS))
+                    list_kwargs["timeMax"] = self._to_utc_string(now + timedelta(days=self.SYNC_WINDOW_FUTURE_DAYS))
+                    list_kwargs["orderBy"] = "startTime"
 
-                for ev in resp.get("items", []):
-                    self._apply_google_event(account_name, ev, summary)
+                page_token = None
+                next_sync_token = None
+                while True:
+                    if page_token:
+                        list_kwargs["pageToken"] = page_token
+                    try:
+                        resp = service.events().list(**list_kwargs).execute()
+                    except HttpError as e:
+                        status = getattr(getattr(e, "resp", None), "status", None)
+                        if status == 410:
+                            # Token expired/invalid: drop only this calendar cursor.
+                            self._save_sync_token(account_name, calendar_id, None)
+                            summary["error"] = "sync_token_expired_reset"
+                            break
+                        raise
 
-                page_token = resp.get("nextPageToken")
-                next_sync_token = resp.get("nextSyncToken") or next_sync_token
-                if not page_token:
-                    break
-                # syncToken/timeMin are page-1 only; clear time bounds for paging.
-                list_kwargs.pop("syncToken", None)
-                list_kwargs.pop("timeMin", None)
-                list_kwargs.pop("timeMax", None)
-                list_kwargs.pop("orderBy", None)
+                    for ev in resp.get("items", []):
+                        self._apply_google_event(account_name, calendar_id, ev, summary)
 
-            if next_sync_token:
-                self._save_sync_token(account_name, next_sync_token)
+                    page_token = resp.get("nextPageToken")
+                    next_sync_token = resp.get("nextSyncToken") or next_sync_token
+                    if not page_token:
+                        break
+                    # syncToken/timeMin are page-1 only; clear time bounds for paging.
+                    list_kwargs.pop("syncToken", None)
+                    list_kwargs.pop("timeMin", None)
+                    list_kwargs.pop("timeMax", None)
+                    list_kwargs.pop("orderBy", None)
+
+                if next_sync_token:
+                    self._save_sync_token(account_name, calendar_id, next_sync_token)
             self.db.commit()
         except HttpError as e:
             self.db.rollback()
@@ -1138,7 +1399,13 @@ class GoogleCalendarService:
                            self.org_id, account_name, e)
         return summary
 
-    def _apply_google_event(self, account_name: str, ev: Dict[str, Any], summary: Dict[str, Any]) -> None:
+    def _apply_google_event(
+        self,
+        account_name: str,
+        calendar_id: str,
+        ev: Dict[str, Any],
+        summary: Dict[str, Any],
+    ) -> None:
         """UPSERT a single Google event into appointments (org-scoped, anti-loop)."""
         gcal_id = ev.get("id")
         if not gcal_id:
@@ -1172,6 +1439,7 @@ class GoogleCalendarService:
                 else:
                     self.db.execute(
                         text("UPDATE appointments SET gcal_event_id = NULL, "
+                             "google_calendar_account = NULL, google_calendar_id = NULL, "
                              "last_synced_at = CURRENT_TIMESTAMP "
                              "WHERE id = :id AND org_id = :o"),
                         {"id": existing[0], "o": self.org_id},
@@ -1184,8 +1452,7 @@ class GoogleCalendarService:
         if location:
             location = location[:255]
         etag = (ev.get("etag") or "")[:255]
-        gcal_calendar_id = (ev.get("organizer") or {}).get("email") or "primary"
-        gcal_calendar_id = str(gcal_calendar_id)[:255]
+        gcal_calendar_id = self._clean_calendar_id(calendar_id) or "primary"
 
         s_date, s_time, _all_day = self._parse_gcal_datetime(ev.get("start") or {})
         _e_date, e_time, _ = self._parse_gcal_datetime(ev.get("end") or {})
@@ -1203,12 +1470,13 @@ class GoogleCalendarService:
                         SET title = :title, date = :date, time_start = :ts,
                             time_end = :te, notes = :notes, local = :loc,
                             gcal_etag = :etag, google_calendar_id = :cal,
+                            google_calendar_account = :acct,
                             last_synced_at = CURRENT_TIMESTAMP,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :id AND org_id = :o
                     """),
                     {"title": title, "date": s_date, "ts": s_time, "te": e_time,
-                     "notes": description, "loc": location, "etag": etag,
+                     "notes": description, "loc": location, "etag": etag, "acct": account_name,
                      "cal": gcal_calendar_id, "id": existing[0], "o": self.org_id},
                 )
                 summary["updated"] += 1
@@ -1218,10 +1486,12 @@ class GoogleCalendarService:
                     text("""
                         UPDATE appointments
                         SET gcal_etag = :etag, google_calendar_id = :cal,
+                            google_calendar_account = :acct,
                             last_synced_at = CURRENT_TIMESTAMP
                         WHERE id = :id AND org_id = :o
                     """),
-                    {"etag": etag, "cal": gcal_calendar_id, "id": existing[0], "o": self.org_id},
+                    {"etag": etag, "cal": gcal_calendar_id, "acct": account_name,
+                     "id": existing[0], "o": self.org_id},
                 )
             summary["skipped_loop"] += 1
             return
@@ -1237,10 +1507,11 @@ class GoogleCalendarService:
                 text("""
                     UPDATE appointments
                     SET gcal_event_id = :g, gcal_etag = :etag,
-                        google_calendar_id = :cal, last_synced_at = CURRENT_TIMESTAMP
+                        google_calendar_id = :cal, google_calendar_account = :acct,
+                        last_synced_at = CURRENT_TIMESTAMP
                     WHERE id = :id AND org_id = :o AND gcal_event_id IS NULL
                 """),
-                {"g": gcal_id, "etag": etag, "cal": gcal_calendar_id,
+                {"g": gcal_id, "etag": etag, "cal": gcal_calendar_id, "acct": account_name,
                  "id": appt_int, "o": self.org_id},
             )
             summary["skipped_loop"] += 1
@@ -1251,14 +1522,15 @@ class GoogleCalendarService:
             text("""
                 INSERT INTO appointments
                     (org_id, title, type, date, time_start, time_end, notes, local,
-                     gcal_event_id, origin, google_calendar_id, gcal_etag, last_synced_at)
+                     gcal_event_id, origin, google_calendar_id, google_calendar_account,
+                     gcal_etag, last_synced_at)
                 VALUES
                     (:o, :title, 'outro', :date, :ts, :te, :notes, :loc,
-                     :g, 'google', :cal, :etag, CURRENT_TIMESTAMP)
+                     :g, 'google', :cal, :acct, :etag, CURRENT_TIMESTAMP)
             """),
             {"o": self.org_id, "title": title, "date": s_date,
              "ts": s_time, "te": e_time, "notes": description, "loc": location,
-             "g": gcal_id, "cal": gcal_calendar_id, "etag": etag},
+             "g": gcal_id, "cal": gcal_calendar_id, "acct": account_name, "etag": etag},
         )
         summary["imported"] += 1
 
@@ -1286,6 +1558,150 @@ class GoogleCalendarService:
             result["cancelled"] += s.get("cancelled", 0)
             result["skipped_loop"] += s.get("skipped_loop", 0)
         return result
+
+    def export_unsynced_appointments(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        limit: int = 20,
+        priority_start_date: Optional[date] = None,
+        priority_end_date: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """Push local CaseHub appointments that still have no Google event id.
+
+        Manual "Sincronizar agora" is the operator backfill path: page-load sync
+        only pulls Google -> CaseHub, while this method exports existing local
+        rows that predate successful write-sync or were saved while Google was
+        unavailable. Google-origin rows are explicitly skipped to preserve the
+        anti-loop contract.
+        """
+        summary = {
+            "account": "",
+            "candidates": 0,
+            "processed": 0,
+            "exported": 0,
+            "failed": 0,
+            "skipped": 0,
+            "error": "",
+        }
+        if self.db is None:
+            summary["error"] = "no_db"
+            return summary
+
+        account = self.get_default_write_account()
+        if not account:
+            summary["error"] = "not_connected"
+            return summary
+        summary["account"] = account
+
+        today = date.today()
+        start_date = start_date or (today - timedelta(days=self.SYNC_WINDOW_PAST_DAYS))
+        end_date = end_date or (today + timedelta(days=self.SYNC_WINDOW_FUTURE_DAYS))
+        priority_start_date = priority_start_date or start_date
+        priority_end_date = priority_end_date or end_date
+        try:
+            limit = max(1, min(int(limit or 20), 50))
+        except (TypeError, ValueError):
+            limit = 20
+
+        try:
+            self._ensure_sync_schema(self.db)
+            total = self.db.execute(
+                text("""
+                    SELECT COUNT(*)
+                    FROM appointments
+                    WHERE org_id = :org_id
+                      AND date BETWEEN :start_date AND :end_date
+                      AND gcal_event_id IS NULL
+                      AND COALESCE(origin, 'casehub') <> 'google'
+                """),
+                {
+                    "org_id": self.org_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                },
+            ).scalar() or 0
+            rows = self.db.execute(
+                text("""
+                    SELECT id, title, type, client_name, date, time_start, time_end,
+                           is_virtual, notes, local, pericia_status, gcal_event_id,
+                           google_calendar_id, google_calendar_account,
+                           COALESCE(origin, 'casehub') AS origin
+                    FROM appointments
+                    WHERE org_id = :org_id
+                      AND date BETWEEN :start_date AND :end_date
+                      AND gcal_event_id IS NULL
+                      AND COALESCE(origin, 'casehub') <> 'google'
+                    ORDER BY
+                      CASE
+                        WHEN date BETWEEN :priority_start_date AND :priority_end_date THEN 0
+                        ELSE 1
+                      END,
+                      date ASC, time_start ASC NULLS LAST, id ASC
+                    LIMIT :limit
+                """),
+                {
+                    "org_id": self.org_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "priority_start_date": priority_start_date,
+                    "priority_end_date": priority_end_date,
+                    "limit": limit,
+                },
+            ).fetchall()
+        except Exception as e:  # noqa: BLE001 — best-effort, route must stay 200
+            self.db.rollback()
+            summary["error"] = "query_failed"
+            logger.warning("Google Calendar export query failed org=%s: %s", self.org_id, e)
+            return summary
+
+        summary["candidates"] = int(total)
+        summary["processed"] = len(rows)
+        for row in rows:
+            appointment = dict(row._mapping)
+            if (appointment.get("origin") or "casehub") == "google":
+                summary["skipped"] += 1
+                continue
+
+            result = self.sync_appointment(appointment, account_name=account)
+            event_id = result.get("event_id")
+            if result.get("synced") and event_id:
+                try:
+                    self.db.execute(
+                        text("""
+                            UPDATE appointments
+                            SET gcal_event_id = :event_id,
+                                google_calendar_id = :calendar_id,
+                                google_calendar_account = :account,
+                                last_synced_at = CURRENT_TIMESTAMP,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = :id AND org_id = :org_id
+                        """),
+                        {
+                            "event_id": event_id,
+                            "calendar_id": result.get("calendar_id"),
+                            "account": result.get("account") or account,
+                            "id": appointment.get("id"),
+                            "org_id": self.org_id,
+                        },
+                    )
+                    self.db.commit()
+                    summary["exported"] += 1
+                except Exception as e:  # noqa: BLE001
+                    self.db.rollback()
+                    summary["failed"] += 1
+                    summary["error"] = summary["error"] or "save_failed"
+                    logger.warning(
+                        "Google Calendar export link save failed org=%s appt=%s: %s",
+                        self.org_id,
+                        appointment.get("id"),
+                        e,
+                    )
+            else:
+                summary["failed"] += 1
+                summary["error"] = summary["error"] or result.get("code") or "export_failed"
+
+        return summary
 
     # ── Realtime push: events.watch / channels.stop (DORMANT, Fase 4) ────
     #
@@ -1608,7 +2024,7 @@ class GoogleCalendarService:
 
     def sync_appointment(self, appointment: Dict[str, Any], account_name: Optional[str] = None) -> Dict[str, Any]:
         """Create or update a Google event for a CaseHub appointment."""
-        account = account_name or self.get_default_write_account()
+        account = account_name or appointment.get("google_calendar_account") or self.get_default_write_account()
         if not account:
             return {
                 "synced": False,
@@ -1618,15 +2034,20 @@ class GoogleCalendarService:
 
         event_body = self._appointment_event_body(appointment)
         existing_event_id = appointment.get("gcal_event_id")
+        calendar_id = (
+            self._clean_calendar_id(appointment.get("google_calendar_id"))
+            if existing_event_id else ""
+        ) or self.get_write_calendar_id(account)
 
         try:
             if existing_event_id:
-                event = self.update_event(account, existing_event_id, event_body)
+                event = self.update_event(account, existing_event_id, event_body, calendar_id=calendar_id)
             else:
-                event = self.create_event(account, event_body)
+                event = self.create_event(account, event_body, calendar_id=calendar_id)
             return {
                 "synced": True,
                 "account": account,
+                "calendar_id": calendar_id,
                 "event_id": event.get("id", existing_event_id),
                 "htmlLink": event.get("htmlLink", ""),
                 "meetLink": event.get("hangoutLink", ""),
@@ -1635,10 +2056,12 @@ class GoogleCalendarService:
             status = getattr(getattr(e, "resp", None), "status", None)
             if existing_event_id and status == 404:
                 try:
-                    event = self.create_event(account, event_body)
+                    write_calendar_id = self.get_write_calendar_id(account)
+                    event = self.create_event(account, event_body, calendar_id=write_calendar_id)
                     return {
                         "synced": True,
                         "account": account,
+                        "calendar_id": write_calendar_id,
                         "event_id": event.get("id"),
                         "htmlLink": event.get("htmlLink", ""),
                         "meetLink": event.get("hangoutLink", ""),
@@ -1660,13 +2083,28 @@ class GoogleCalendarService:
                 "message": "Compromisso salvo no CaseHub, mas nao sincronizado com Google Calendar.",
             }
 
-    def delete_appointment_event(self, event_id: Optional[str]) -> Dict[str, Any]:
-        """Delete a Google event from any connected default account."""
+    def delete_appointment_event(
+        self,
+        event_id: Optional[str],
+        account_name: Optional[str] = None,
+        calendar_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Delete a Google event from its stored account/calendar when known."""
         if not event_id:
             return {"synced": False, "code": "no_google_event", "message": ""}
 
-        connected_accounts = [account for account in self.default_accounts() if self.has_credentials(account)]
-        if not connected_accounts:
+        candidates = []
+        stored_calendar_id = self._clean_calendar_id(calendar_id)
+        if account_name:
+            if self.has_credentials(account_name):
+                candidates.append((account_name, stored_calendar_id or "primary"))
+        else:
+            fallback_calendar_id = stored_calendar_id or "primary"
+            for account in self.default_accounts():
+                if self.has_credentials(account):
+                    candidates.append((account, fallback_calendar_id))
+
+        if not candidates:
             return {
                 "synced": False,
                 "code": "google_calendar_not_connected",
@@ -1674,10 +2112,15 @@ class GoogleCalendarService:
             }
 
         last_error = None
-        for account in connected_accounts:
+        for account, target_calendar_id in candidates:
             try:
-                self.delete_event(account, event_id)
-                return {"synced": True, "account": account, "event_id": event_id}
+                self.delete_event(account, event_id, calendar_id=target_calendar_id)
+                return {
+                    "synced": True,
+                    "account": account,
+                    "calendar_id": target_calendar_id,
+                    "event_id": event_id,
+                }
             except HttpError as e:
                 status = getattr(getattr(e, "resp", None), "status", None)
                 if status == 404:

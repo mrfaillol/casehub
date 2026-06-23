@@ -44,7 +44,7 @@ Usage:
 Fallback:
     Se credenciais PDPJ não estiverem configuradas, o cliente loga warning
     e retorna estrutura vazia (não crasha). Isso permite que o sistema
-    continue operacional enquanto Example User configura o PDPJ.
+    continue operacional enquanto UsuarioDemo configura o PDPJ.
 """
 import asyncio
 import hashlib
@@ -748,6 +748,13 @@ class ComunicaAPIClient:
 
     def _normalize_item(self, item: dict) -> dict:
         """Normaliza um item da ComunicaAPI para o formato CaseHub padrão."""
+        def first(*keys):
+            for key in keys:
+                value = item.get(key)
+                if value not in (None, ""):
+                    return value
+            return ""
+
         advogados = [
             {"nome": adv.get("nome", ""), "oab": adv.get("oab", "")}
             for adv in item.get("destinatarioadvogados", [])
@@ -759,13 +766,18 @@ class ComunicaAPIClient:
         ]
 
         return {
-            "id": item.get("id", ""),
-            "numero_processo": item.get("numeroprocessocommascara") or item.get("numero_processo", ""),
-            "tribunal": item.get("siglaTribunal", ""),
-            "orgao": item.get("nomeOrgao", ""),
-            "tipo_comunicacao": item.get("tipoComunicacao", ""),
-            "texto": item.get("texto", ""),
-            "data_disponibilizacao": item.get("data_disponibilizacao", ""),
+            "id": first("id", "numeroComunicacao", "numero_comunicacao"),
+            "numero_processo": first(
+                "numeroprocessocommascara",
+                "numeroProcessoComMascara",
+                "numero_processo",
+                "numeroProcesso",
+            ),
+            "tribunal": first("siglaTribunal", "tribunal"),
+            "orgao": first("nomeOrgao", "orgao", "orgaoJulgador"),
+            "tipo_comunicacao": first("tipoComunicacao", "tipo_comunicacao", "tipo"),
+            "texto": first("texto", "textoComunicacao", "conteudo", "descricao"),
+            "data_disponibilizacao": first("data_disponibilizacao", "dataDisponibilizacao", "data"),
             "status": item.get("status", ""),
             "advogados": advogados,
             "destinatarios": destinatarios,

@@ -34,7 +34,7 @@
 .ch-intimacoes-item__date{font-size:var(--fs-xs);font-weight:700;color:var(--fg-default);font-variant-numeric:tabular-nums}
 .ch-intimacoes-empty{padding:var(--space-4);border:1px dashed var(--line);border-radius:var(--radius-md);color:var(--fg-muted);font-size:var(--fs-sm);text-align:center}
 @media (max-width:760px){.ch-intimacoes-status{grid-template-columns:repeat(2,minmax(0,1fr))}.ch-intimacoes-item{grid-template-columns:auto 1fr}.ch-intimacoes-item__date{grid-column:2}}
-/* Produtividade (Victor 09/06): grid regular (auto-fill, trilho fixo) + align-items:stretch
+/* Produtividade (Equipe CaseHub 09/06): grid regular (auto-fill, trilho fixo) + align-items:stretch
  * para os cards de responsável ficarem distribuídos por igual, sem o "esticão" do auto-fit. */
 .ch-controladoria-productivity{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:var(--space-3);align-items:stretch;margin-bottom:var(--space-5)}
 /* Neu raised: mesmo material do app (--surface-app), relevo por sombra dupla, sem borda dura. */
@@ -77,7 +77,7 @@
 .ch-table tr.is-drop-target{outline:2px solid color-mix(in srgb,var(--c-green) 70%,transparent);outline-offset:-2px}
 .ch-row-grip-col{width:30px;text-align:center}
 .ch-row-grip-cell{width:30px;text-align:center;vertical-align:middle}
-.ch-row-grip{width:32px;height:32px;display:inline-grid;place-items:center;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--fg-muted);cursor:grab;transition:box-shadow var(--motion-fast,.16s) ease,color var(--motion-fast,.16s) ease}
+.ch-row-grip{width:32px;height:32px;display:inline-grid;place-items:center;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--fg-muted);cursor:grab;touch-action:none;transition:box-shadow var(--motion-fast,.16s) ease,color var(--motion-fast,.16s) ease}
 /* Neu: hover/focus ganha relevo leve em vez de borda dura. */
 .ch-row-grip:hover,.ch-row-grip:focus-visible{color:var(--fg-default);background:var(--surface-app);box-shadow:var(--shadow-dark-xs),var(--shadow-light-xs)}
 .ch-row-grip:active{cursor:grabbing}
@@ -93,16 +93,27 @@
 .ch-th-sort__arrow{display:inline-block;margin-left:4px;font-size:10px;opacity:0;transition:opacity .16s ease}
 .ch-table thead th.ch-th-sort.is-sorted .ch-th-sort__arrow{opacity:.85}
 /* === Lista controladoria: layout FIXO (mata quebra de linha interna) +
-   min-width para scroll horizontal em viewports menores (< ~920px) em vez
-   de esmagar colunas a ponto de cortar botões. Victor/Example User 11/06. === */
-.ch-table--cfix{table-layout:fixed;width:100%;min-width:920px}
-.ch-table--cfix th,.ch-table--cfix td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+   min-width para scroll horizontal em viewports menores (< ~940px) em vez
+   de esmagar colunas a ponto de cortar botões. min-width recalibrado para a
+   soma real da colgroup (10 col fixas = 690px + 3 flexíveis com piso) → ~880px:
+   em telas ≥~940px não há scroll e a tabela fica centralizada com os KPIs;
+   abaixo disso o scroll-x do .ch-table-wrap permanece. Equipe CaseHub/UsuarioDemo 13/06. === */
+.ch-table--cfix{table-layout:fixed;width:100%;min-width:880px}
+/* Apenas td trunca — th NÃO recebe overflow:hidden (cliparia resize-handles abs. posicionados). */
+.ch-table--cfix th{white-space:nowrap}
+.ch-table--cfix td{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Células com controles ou ícones interativos: overflow:visible para que box-shadow e
+   transforms de hover não sejam clipados; text-overflow:clip suprime o "..." residual.
+   Observação incluída: o ícone ⤢ usa scale(1.08) no hover e sofria clip. */
+.ch-table--cfix td[data-label="Ações"],.ch-table--cfix td[data-label="Responsável"],.ch-table--cfix td[data-label="Status"],.ch-table--cfix td[data-label="Observação"],.ch-table--cfix td.ch-row-grip-cell{overflow:visible;text-overflow:clip}
+/* Respiro lateral nas colunas estreitas de controle (avatar 24px + botões cabem) */
+.ch-table--cfix td[data-label="Ações"],.ch-table--cfix td[data-label="Responsável"]{padding-left:6px;padding-right:6px}
 .ch-table--cfix tbody td{padding-top:7px;padding-bottom:7px;vertical-align:middle}
 .ch-table--cfix td[data-edit-field="tipo"] strong{display:inline}
 .ch-table--cfix td[data-edit-field="tipo"] span{margin-left:4px}
 .ch-table--cfix .ch-cell-resp .ch-resp{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%}
 .ch-table--cfix .ch-cell-resp .ch-resp__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-/* Responsável só-avatar (reunião Ricardo/Example User 10/06 — estilo STF, economiza espaço; nome no hover/title) */
+/* Responsável só-avatar (reunião PessoaDemo/UsuarioDemo 10/06 — estilo STF, economiza espaço; nome no hover/title) */
 .ch-cell-resp--avatar .ch-user-label{justify-content:center}
 .ch-cell-resp--avatar .ch-user-label>span:last-child{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .ch-table--cfix td[data-label="Dia de Início"]{white-space:nowrap}
@@ -127,10 +138,10 @@
 .ch-table--cfix tbody tr.ch-prazo-row--verde:hover td{background:rgba(0,140,77,0.60)}
 .ch-table--cfix tbody tr.ch-prazo-row--concluido td{background:rgba(0,140,77,0.12)}
 .ch-table--cfix tbody tr.ch-prazo-row--concluido:hover td{background:rgba(0,140,77,0.20)}
-/* Pills: sem bolinhas na controladoria (só ocupam espaço); tribunal pills mais compactos. Victor 11/06. */
+/* Pills: sem bolinhas na controladoria (só ocupam espaço); tribunal pills mais compactos. Equipe CaseHub 11/06. */
 .ch-table--cfix .ch-pill .dot{display:none}
 .ch-table--cfix td[data-label="Tribunal"] .ch-pill{padding:2px 6px;font-size:9px;letter-spacing:0.06em}
-/* Responsável — avatar (display) + dropdown custom com fotinha (Victor 03/06). Fitts: alvos ≥40px. Hick: lista enxuta de membros. */
+/* Responsável — avatar (display) + dropdown custom com fotinha (Equipe CaseHub 03/06). Fitts: alvos ≥40px. Hick: lista enxuta de membros. */
 .ch-resp{display:inline-flex;align-items:center;gap:8px;min-height:24px}
 .ch-avatar{flex:0 0 auto;width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;font-size:10px;font-weight:700;line-height:1;text-transform:uppercase;color:#fff;background:var(--c-navy);overflow:hidden}
 .ch-avatar img{width:100%;height:100%;object-fit:cover;display:block}
@@ -141,6 +152,20 @@
 .ch-resp-menu__item{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:6px 10px;border:0;border-radius:var(--radius-sm);background:none;color:var(--fg-default);font:inherit;text-align:left;cursor:pointer}
 .ch-resp-menu__item:hover,.ch-resp-menu__item:focus-visible{background:color-mix(in srgb,var(--c-navy) 12%,transparent);outline:none}
 .ch-resp-menu__item[aria-selected="true"]{font-weight:700}
+/* PessoaDemo 2026-06-19: no modo escuro, dropdown nativo branco deixava responsável/status ilegível.
+   A11y contrast + Hick: mesma superfície escura para todos os selects da tabela. */
+[data-theme="dark"] .controladoria-shell .ch-select,
+[data-theme="dark"] .controladoria-shell select.ch-inline-input{
+  background-color:var(--surface-card)!important;
+  color:var(--fg-default)!important;
+  border-color:var(--line)!important;
+  color-scheme:dark;
+}
+[data-theme="dark"] .controladoria-shell .ch-select option,
+[data-theme="dark"] .controladoria-shell select.ch-inline-input option{
+  background-color:var(--surface-card);
+  color:var(--fg-default);
+}
 /* C8 — observação multilinha no modal */
 /* Campo neu: poço afundado (inset), sem borda dura. */
 #ch-obs-textarea{width:100%;min-height:200px;resize:vertical;font:inherit;line-height:1.5;padding:var(--space-3);border:0;border-radius:var(--radius-sm);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);color:var(--fg-default);box-sizing:border-box}
@@ -179,8 +204,8 @@
  * Ritmo único: gap macro = --space-5; sub-painéis = --space-4 / --space-3.
  * ========================================================================== */
 
-/* Foto do todo: KPIs holísticos da carteira no topo do painel (Victor 03/06). Lei de Miller: 6 chunks. */
-.ch-prod-kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:var(--space-2);align-items:stretch;margin-bottom:var(--space-5)}
+/* Foto do todo: KPIs holísticos da carteira no topo do painel (Equipe CaseHub 03/06). Lei de Miller: 6 chunks. 3 colunas fixas → grade sempre 3×2, sem linha ímpar. */
+.ch-prod-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2);align-items:stretch;margin-bottom:var(--space-5)}
 /* Poço neu: afundado no material --surface-card-2, sem borda dura. Hover sutil (transform GPU). */
 .ch-prod-kpi{position:relative;display:flex;flex-direction:column;justify-content:center;gap:5px;padding:10px 12px;border-radius:var(--radius-sm);background:var(--surface-card-2);box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs);transition:transform var(--motion-fast,150ms) var(--ease-out,ease)}
 .ch-prod-kpi:hover{transform:translateY(-1px)}
@@ -238,11 +263,10 @@
 .ch-prod-meta-edit__btn:focus-visible{outline:none;box-shadow:var(--focus-ring)}
 .ch-prod-meta-edit.is-error .ch-prod-meta-edit__input{box-shadow:inset var(--shadow-dark-xs),inset var(--shadow-light-xs),0 0 0 2px color-mix(in srgb,var(--c-danger) 60%,transparent)}
 
-/* CORPO — grid de 2 trilhos quando HÁ barras: donut+legenda à esquerda (largura
- * de conteúdo) | barras fluidas à direita. align-items:START -> topos alinham,
- * nada centra verticalmente, sem vão. Quando NÃO há barras (.is-empty via JS,
- * fallback :has), vira 1 trilho e o cluster do donut vira herói centralizado. */
-.ch-prod-mensal__body{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:var(--space-5);align-items:start}
+/* CORPO — 2 trilhos IGUAIS (50/50) quando HÁ barras: painel esquerdo e direito
+ * em equilíbrio simétrico. Topos alinham. Quando NÃO há barras (.is-empty via
+ * JS / fallback :has), vira 1 trilho e o donut vira herói centralizado. */
+.ch-prod-mensal__body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-5);align-items:start}
 .ch-prod-mensal__body:has(.ch-prod-bars.is-empty){grid-template-columns:minmax(0,1fr)}
 
 /* CHART CLUSTER: donut + legenda, sub-painel coeso afundado no material. */
@@ -287,12 +311,12 @@
 .ch-prod-progress.is-hit .ch-prod-progress__fill{background:var(--c-green-d)}
 .ch-prod-progress__foot{font-size:var(--fs-xs);color:var(--fg-muted);margin-top:6px}
 
-/* Responsivo: <860px o grid empilha (chart em cima, barras embaixo) sem reservar
- * trilho lateral; ritmo de gap mantido. <640px o cluster de controles ocupa a
- * linha inteira e os selects esticam. <520px encolhe o donut. */
+/* Responsivo: <860px empilha corpo (chart → barras); <720px KPIs em 2 cols;
+ * <640px controles em linha inteira; <520px KPIs em 1 col + donut menor. */
 @media(max-width:860px){.ch-prod-mensal__body,.ch-prod-mensal__body:has(.ch-prod-bars.is-empty){grid-template-columns:minmax(0,1fr)}}
+@media(max-width:720px){.ch-prod-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.ch-prod-mensal__head{flex-direction:column;align-items:stretch}.ch-prod-mensal__controls{justify-content:flex-start}.ch-prod-mensal__controls .ch-select{flex:1 1 auto}}
-@media(max-width:520px){.ch-prod-pie,.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-pie{width:140px;height:140px;flex-basis:140px}.ch-prod-pie-wrap{flex-direction:column;align-items:center}.ch-prod-legend,.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-legend{min-width:0;width:100%;grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){.ch-prod-kpis{grid-template-columns:minmax(0,1fr)}.ch-prod-pie,.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-pie{width:140px;height:140px;flex-basis:140px}.ch-prod-pie-wrap{flex-direction:column;align-items:center}.ch-prod-legend,.ch-prod-mensal__body:has(.ch-prod-bars.is-empty) .ch-prod-legend{min-width:0;width:100%;grid-template-columns:minmax(0,1fr)}}
 
 /* Sem :has() (engines antigas): degrada para 1 coluna empilhada — nunca vão morto. */
 @supports not selector(:has(*)){.ch-prod-mensal__body{grid-template-columns:minmax(0,1fr)}.ch-prod-pie-wrap{flex-wrap:wrap}}
@@ -406,11 +430,11 @@
 {% set s = stats|default({}) %}
 <section class="ch-grid ch-grid--4" style="margin-bottom: var(--space-6);">
   <article class="ch-kpi ch-kpi--hero">
-    <span class="ch-kpi__label">Total ativos</span>
+    <span class="ch-kpi__label">Prazos pendentes</span>
     <div class="ch-kpi__row">
-      <span class="ch-kpi__value">{{ s.total|default(0) }}</span>
+      <span class="ch-kpi__value">{{ s.pendentes|default(0) }}</span>
     </div>
-    <span class="ch-kpi__hint">Prazos cadastrados na controladoria</span>
+    <span class="ch-kpi__hint">Prazos ainda não concluídos · de {{ s.total|default(0) }} cadastrados</span>
   </article>
   <article class="ch-kpi {% if s.fatais_hoje and s.fatais_hoje > 0 %}is-danger{% endif %}">
     <span class="ch-kpi__label">Fatais HOJE</span>
@@ -469,7 +493,7 @@
 </section>
 {% endif %}
 
-{# Painel holístico da controladoria (Victor 03/06): "foto do todo" (KPIs da carteira) + donut
+{# Painel holístico da controladoria (Equipe CaseHub 03/06): "foto do todo" (KPIs da carteira) + donut
    por eixo escolhido (urgência/status/responsável/tipo) usando dados que EXISTEM, + meta + barras
    por responsável. Antes o donut só agrupava por TIPO (NULL em ~100%) e parecia morto. #}
 <section class="ch-card ch-card--compact ch-prod-mensal" aria-label="Painel de produtividade da controladoria">
@@ -481,7 +505,7 @@
         <option value="urgencia">Por urgência</option>
         <option value="status">Por status</option>
         <option value="responsavel">Por responsável</option>
-        <option value="tipo">Por tipo (mês)</option>
+        <option value="tipo">Tipo de petições (mês)</option>
       </select>
       <select class="ch-select" id="prodMesSelect" aria-label="Mês" style="width:auto">
         {% set meses_prod = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'] %}
@@ -494,7 +518,7 @@
         <option value="count">Maior volume</option>
         <option value="tipo">Tipo A-Z</option>
       </select>
-      {# META — chip discreto. Quando editável (gestor/super_admin; Example User 02/06, ruling 2026-06-03),
+      {# META — chip discreto. Quando editável (gestor/super_admin; UsuarioDemo 02/06, ruling 2026-06-03),
          o próprio chip vira botão (cursor + lápis embutido) e troca IN-PLACE pelo mini-form. Sem faixa gigante. #}
       <button type="button" class="ch-prod-meta is-miss" id="prodMetaBadge" aria-label="Meta mensal"><b id="prodTotal">0</b><span class="ch-prod-meta__sep" aria-hidden="true">/</span><span id="prodMetaTarget">100</span> · <span id="prodMetaText">meta</span><span class="ch-prod-meta__edit" data-icon="edit" data-icon-size="13" aria-hidden="true"></span></button>
       <span class="ch-prod-meta-edit" id="prodMetaBox" hidden>
@@ -519,7 +543,7 @@
       <div class="ch-prod-pie" id="prodPie" role="img" aria-label="Distribuição da carteira por urgência"></div>
       <ul class="ch-prod-legend" id="prodLegend"><li class="ch-prod-legend__empty">Carregando…</li></ul>
     </div>
-    {# Gráfico 2 (Victor 03/06): barras horizontais "por responsável". Onda2 09/06:
+    {# Gráfico 2 (Equipe CaseHub 03/06): barras horizontais "por responsável". Onda2 09/06:
        colapsa de vez quando vazio (.is-empty via JS) — sem reservar trilho/vão morto. #}
     <div class="ch-prod-bars is-empty" id="prodBars" role="img" aria-label="Petições concluídas por responsável no mês">
       <div class="ch-prod-bars__title">Por responsável</div>
@@ -592,22 +616,29 @@
          Urgencia/Tribunal/Data final ficam compactas; Cliente/Parte/Observacao
          sem width = flexiveis (absorvem a folga). #}
       <colgroup>
-        <col style="width:28px"><col style="width:56px"><col style="width:54px"><col><col><col style="width:136px"><col style="width:74px"><col style="width:46px"><col style="width:70px"><col><col style="width:86px"><col style="width:50px"><col style="width:72px">
+        <col style="width:28px"><col style="width:56px"><col style="width:54px"><col><col><col style="width:136px"><col style="width:74px"><col style="width:46px"><col style="width:70px"><col><col style="width:86px"><col style="width:56px"><col style="width:84px">
       </colgroup>
+      {# Cabeçalho ordenável: estado visual (is-sorted/seta/aria-sort) vem do
+         servidor via sort_key/sort_direction — reflete a ordem real e sobrevive
+         ao F5. O default é vencimento ASC. #}
+      {%- macro ch_sort_th(key, label, stype='text', extra='') -%}
+        {%- set _active = (sort_key == key) -%}
+        <th class="ch-th-sort{% if extra %} {{ extra }}{% endif %}{% if _active %} is-sorted{% endif %}" data-sort-key="{{ key }}" data-sort-type="{{ stype }}" aria-sort="{% if _active %}{{ 'descending' if sort_direction == 'desc' else 'ascending' }}{% else %}none{% endif %}">{{ label }}<span class="ch-th-sort__arrow" aria-hidden="true">{% if _active %}{{ '↓' if sort_direction == 'desc' else '↑' }}{% else %}↕{% endif %}</span></th>
+      {%- endmacro -%}
       <thead>
         <tr>
           <th class="ch-row-grip-col"><span class="sr-only">Reordenar</span></th>
           <th>Urgência</th>
-          <th class="ch-th-sort" data-sort-key="tribunal" data-sort-type="text" aria-sort="none">Tribunal<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
-          <th class="ch-th-sort" data-sort-key="cliente" data-sort-type="text" aria-sort="none">Cliente<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
-          <th class="ch-th-sort" data-sort-key="parte_contraria" data-sort-type="text" aria-sort="none">Parte Contrária<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
-          <th class="ch-th-sort" data-sort-key="processo" data-sort-type="text" aria-sort="none">Nº Processo<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
-          <th class="ch-th-sort" data-sort-key="inicio" data-sort-type="date" aria-sort="none">Dia de Início<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
-          <th class="ch-th-sort ch-col-prazo" data-sort-key="dias" data-sort-type="number" aria-sort="none">Prazo<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
-          <th class="ch-th-sort is-sorted" data-sort-key="vencimento" data-sort-type="date" aria-sort="ascending">Data final<span class="ch-th-sort__arrow" aria-hidden="true">↑</span></th>
-          <th class="ch-th-sort" data-sort-key="observacao" data-sort-type="text" aria-sort="none">Observação<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
-          <th class="ch-th-sort" data-sort-key="status" data-sort-type="text" aria-sort="none">Status<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
-          <th class="ch-th-sort" data-sort-key="responsavel" data-sort-type="text" aria-sort="none">Responsável<span class="ch-th-sort__arrow" aria-hidden="true">↕</span></th>
+          {{ ch_sort_th('tribunal', 'Tribunal') }}
+          {{ ch_sort_th('cliente', 'Cliente') }}
+          {{ ch_sort_th('parte_contraria', 'Parte Contrária') }}
+          {{ ch_sort_th('processo', 'Nº Processo') }}
+          {{ ch_sort_th('inicio', 'Dia de Início', 'date') }}
+          {{ ch_sort_th('dias', 'Prazo', 'number', 'ch-col-prazo') }}
+          {{ ch_sort_th('vencimento', 'Data final', 'date') }}
+          {{ ch_sort_th('observacao', 'Observação') }}
+          {{ ch_sort_th('status', 'Status') }}
+          {{ ch_sort_th('responsavel', 'Responsável') }}
           <th>Ações</th>
         </tr>
       </thead>
@@ -630,12 +661,15 @@
             data-uf="{{ p.uf or 'MG' }}"
             data-dobro="{{ '1' if p.dobro else '0' }}"
             data-descricao="{{ p.descricao|e }}"
+            data-tipo-peticao="{{ p.tipo_peticao|e }}"
             data-status="{{ p.status }}"
             data-urgencia="{{ p.urgencia }}">
           <td class="ch-row-grip-cell" data-label="Reordenar">
-            <button class="ch-row-grip" type="button" draggable="true" data-prazo-handle aria-label="Arrastar prazo para reordenar">
+            {% if drag_enabled %}
+            <button class="ch-row-grip" type="button" data-prazo-handle aria-label="Arrastar prazo para reordenar">
               <span data-icon="grip" data-icon-size="16"></span>
             </button>
+            {% endif %}
           </td>
           <td data-label="Urgência">
             {% if p.urgencia == 'fatal' %}
@@ -671,7 +705,7 @@
             </button>
           </td>
           <td data-label="Status">
-            <select class="ch-select" data-prazo-status="{{ p.id }}" aria-label="Status do prazo" style="width:100%;min-width:0;">
+            <select class="ch-select" data-prazo-status="{{ p.id }}" data-prev-status="{{ p.status or 'pendente' }}" aria-label="Status do prazo" style="width:100%;min-width:0;">
               <option value="pendente" {% if p.status == 'pendente' %}selected{% endif %}>Pendente</option>
               <option value="em_andamento" {% if p.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
               <option value="aguarda_correcao" {% if p.status == 'aguarda_correcao' %}selected{% endif %}>Aguarda Correção</option>
@@ -754,6 +788,7 @@
             class="ch-prazo-row ch-prazo-row--concluido"
             data-prazo-id="{{ p.id }}"
             data-id="{{ p.id }}"
+            data-tipo-peticao="{{ p.tipo_peticao|e }}"
             data-status="concluido"
             data-archived="1">
           <td></td>
@@ -904,14 +939,14 @@
         Prazo em dobro
       </label>
 
-      {# Reunião 10/06 (Ricardo/Example User) — prazo administrativo em dias corridos (INSS etc):
+      {# Reunião 10/06 (PessoaDemo/UsuarioDemo) — prazo administrativo em dias corridos (INSS etc):
          conta dias de calendário, sem dia útil/feriado/tribunal. #}
       <label class="ch-chip" style="align-self: flex-start; cursor: pointer;">
         <input type="checkbox" name="dias_corridos" style="accent-color: var(--c-green-d); margin-right: 6px;" />
         Dias corridos (administrativo)
       </label>
 
-      {# C11 (Example User 02/06) — opcao desativavel: avisa a equipe no chat + sininho ao salvar. #}
+      {# C11 (UsuarioDemo 02/06) — opcao desativavel: avisa a equipe no chat + sininho ao salvar. #}
       <label class="ch-chip" style="align-self: flex-start; cursor: pointer;">
         <input type="checkbox" name="notificar_chat" style="accent-color: var(--c-green-d); margin-right: 6px;" />
         Avisar a equipe no chat
@@ -1037,9 +1072,51 @@
     </footer>
   </div>
 </div>
+
+<div class="ch-overlay" id="ch-concluir-modal" hidden>
+  <div class="ch-modal" role="dialog" aria-labelledby="ch-concluir-title" aria-modal="true">
+    <header class="ch-modal__header">
+      <div>
+        <span class="ch-card__eyebrow">Controladoria</span>
+        <h2 class="ch-card__title" id="ch-concluir-title">Concluir prazo</h2>
+      </div>
+      <button type="button" class="ch-btn ch-btn--ghost ch-btn--sm" data-concluir-close aria-label="Fechar">
+        <span data-icon="x"></span>
+      </button>
+    </header>
+    <div class="ch-modal__body">
+      <input type="hidden" id="ch-concluir-id" value="" />
+      <div class="ch-grid ch-grid--2">
+        <div class="ch-field">
+          <label class="ch-field__label" for="ch-concluir-tipo">Tipo de petição produzida</label>
+          <select class="ch-select" id="ch-concluir-tipo" required>
+            <option value="">Selecione</option>
+            {% for tipo in tipos_produtividade %}
+            <option value="{{ tipo }}">{{ tipo }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ch-field">
+          <label class="ch-field__label" for="ch-concluir-data">Data de conclusão</label>
+          <input class="ch-input" id="ch-concluir-data" type="date" />
+        </div>
+      </div>
+    </div>
+    <footer class="ch-modal__footer" style="display: flex; justify-content: flex-end; gap: var(--space-2);">
+      <button type="button" class="ch-btn ch-btn--ghost" data-concluir-close>Cancelar</button>
+      <button type="button" class="ch-btn ch-btn--primary" id="ch-concluir-save">
+        <span data-icon="check"></span> Concluir prazo
+      </button>
+    </footer>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+{# SortableJS: reordenação de prazos por drag — funciona em desktop e touch
+   (HTML5 drag-events não disparam em mobile). Versão pinada (mesma de
+   admin/customizacao.html); biblioteca já sancionada no app. #}
+{% if drag_enabled %}<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" integrity="sha384-BSxuMLxX+FCbTdYec3TbXlnMGEEM2QXTFdtDaveen71o+jswm2J36+xFqp8k4VHM" crossorigin="anonymous"></script>{% endif %}
 <script>
 (function () {
   'use strict';
@@ -1196,7 +1273,7 @@
       var obsTd = tds[9];
       var obsText = row.getAttribute('data-descricao') || (obsTd.querySelector('.ch-obs-text') ? obsTd.querySelector('.ch-obs-text').textContent : '') || '—';
       obsTd.innerHTML = '<span style="font-size:var(--fs-xs);color:var(--fg-muted);">' + escHtml(obsText) + '</span>';
-      tds[10].innerHTML = row.getAttribute('data-tipo') || '—';
+      tds[10].innerHTML = escHtml(row.getAttribute('data-tipo-peticao') || 'Outros');
       // tds[11] responsavel — keep
       tds[12].innerHTML = '<span class="ch-prazo-actions"><button type="button" data-prazo-reopen="' + escHtml(id) + '" aria-label="Reabrir" title="Reabrir prazo"><span data-icon="rotate-ccw"></span></button><button type="button" data-prazo-delete="' + escHtml(id) + '" aria-label="Excluir"><span data-icon="trash"></span></button></span>';
     }
@@ -1232,7 +1309,10 @@
     });
     row.classList.add(status === 'concluido' ? 'ch-prazo-row--concluido' : (status === 'perdido' ? 'ch-prazo-row--vencido' : (status === 'aguarda_correcao' ? 'ch-prazo-row--amarelo' : 'ch-prazo-row--verde')));
     var select = row.querySelector('[data-prazo-status]');
-    if (select) select.value = status;
+    if (select) {
+      select.value = status;
+      select.setAttribute('data-prev-status', status);
+    }
   }
   // Atualiza a célula "Data final" quando o backend recalcula o vencimento
   // (ao editar Dia de Início ou Prazo). Reunião 10/06.
@@ -1243,7 +1323,7 @@
   }
   // Concluir um prazo: na visão padrão (que não mostra concluídos) a linha some na
   // hora; se a visão inclui concluídos (status=concluido|todos) só restila. Reunião
-  // 10/06 — antes a linha só saía após F5 (bug relatado pelo Ricardo).
+  // 10/06 — antes a linha só saía após F5 (bug relatado pelo PessoaDemo).
   function chConcluiUpdate(row, status) {
     if (status === 'concluido') {
       moveToArquivados(row);
@@ -1284,7 +1364,7 @@
       window._prodPodeEditarMeta=!!data.pode_editar_meta;
       if(badge){badge.classList.toggle('is-editable',!!data.pode_editar_meta);badge.classList.toggle('is-hit',!!data.meta_batida);badge.classList.toggle('is-miss',!data.meta_batida);}
       if(txt)txt.textContent=data.meta_batida?'meta batida ✓':'meta';
-      // Gráfico 2 + barra de progresso da meta (Victor 03/06). Renderiza SEMPRE, antes do early-return do donut vazio.
+      // Gráfico 2 + barra de progresso da meta (Equipe CaseHub 03/06). Renderiza SEMPRE, antes do early-return do donut vazio.
       (function renderExtras(){
         var metaVal=data.meta||100, totalVal=data.total||0;
         var prog=document.getElementById('prodProgress'),pf=document.getElementById('prodProgFill'),
@@ -1292,15 +1372,14 @@
             pfoot=document.getElementById('prodProgFoot');
         if(pt)pt.textContent=totalVal; if(pm)pm.textContent=metaVal;
         if(prog)prog.classList.toggle('is-hit',totalVal>=metaVal);
-        if(pf){var pctMeta=metaVal>0?Math.min(totalVal/metaVal*100,100):0;requestAnimationFrame(function(){pf.style.width=pctMeta.toFixed(1)+'%';});}
+        if(pf){var pctMeta=metaVal>0?Math.min(totalVal/metaVal*100,100):0;pf.style.width=pctMeta.toFixed(1)+'%';}
         if(pfoot){var falta=metaVal-totalVal;pfoot.textContent=totalVal>=metaVal?('Meta batida'+(totalVal>metaVal?(' · '+(totalVal-metaVal)+' acima'):' · no alvo')):('Faltam '+falta+' '+(falta===1?'petição':'petições')+' para a meta');}
         var bl=document.getElementById('prodBarsList'),barsBox=document.getElementById('prodBars');
         if(bl){var resp=data.por_responsavel||[];
           // Onda2 09/06: colapsa o trilho inteiro quando vazio (.is-empty) — sem vão morto.
           if(!resp.length){bl.innerHTML='';if(barsBox)barsBox.classList.add('is-empty');}
           else{if(barsBox)barsBox.classList.remove('is-empty');var maxq=resp.reduce(function(a,b){return Math.max(a,b.qtd||0);},0)||1;
-            bl.innerHTML=resp.map(function(r){var w=Math.max((r.qtd||0)/maxq*100,4);return '<div class="ch-prod-bars__row"><span class="ch-prod-bars__name" title="'+_escProd(r.nome)+'">'+_escProd(r.nome)+'</span><span class="ch-prod-bars__track"><span class="ch-prod-bars__fill" data-w="'+w.toFixed(1)+'"></span></span><span class="ch-prod-bars__val">'+(r.qtd||0)+'</span></div>';}).join('');
-            requestAnimationFrame(function(){Array.prototype.forEach.call(bl.querySelectorAll('.ch-prod-bars__fill'),function(el){el.style.width=el.getAttribute('data-w')+'%';});});}
+            bl.innerHTML=resp.map(function(r){var w=Math.max((r.qtd||0)/maxq*100,0).toFixed(1);return '<div class="ch-prod-bars__row"><span class="ch-prod-bars__name" title="'+_escProd(r.nome)+'">'+_escProd(r.nome)+'</span><span class="ch-prod-bars__track"><span class="ch-prod-bars__fill" style="width:'+w+'%"></span></span><span class="ch-prod-bars__val">'+(r.qtd||0)+'</span></div>';}).join('');}
         }
       })();
       // Donut por EIXO escolhido (dist/dist_order vêm do backend já ordenados).
@@ -1322,7 +1401,7 @@
         return PROD_COLORS[i%PROD_COLORS.length];
       }
       var total=values.reduce(function(a,b){return a+b;},0)||1,acc=0,stops=[],leg='';
-      labels.forEach(function(l,i){var c=_colorFor(l,i),pct=values[i]/total*100;stops.push(c+' '+acc.toFixed(2)+'% '+(acc+pct).toFixed(2)+'%');acc+=pct;leg+='<li><span class="ch-prod-dot" style="background:'+c+'"></span>'+_escProd(l)+' <b>'+_nf(values[i])+'</b></li>';});
+      labels.forEach(function(l,i){var c=_colorFor(l,i),pct=values[i]/total*100;stops.push(c+' '+acc.toFixed(2)+'% '+(acc+pct).toFixed(2)+'%');acc+=pct;leg+='<li><span class="ch-prod-dot" style="background:'+c+'"></span>'+_escProd(l)+' <b>'+_nf(values[i])+' · '+pct.toFixed(0)+'%</b></li>';});
       pie.style.background='conic-gradient('+stops.join(',')+')';
       legend.innerHTML=leg;
     }catch(e){if(legend)legend.innerHTML='<li class="ch-prod-legend__empty">Não foi possível carregar.</li>';var _bl=document.getElementById('prodBarsList'),_bx=document.getElementById('prodBars');if(_bl)_bl.innerHTML='';if(_bx)_bx.classList.add('is-empty');}
@@ -1364,7 +1443,7 @@
     if(gbSel)gbSel.addEventListener('change',function(){loadProdutividade(sel.value);});
     if(sortSel)sortSel.addEventListener('change',function(){loadProdutividade(sel.value);});
   })();
-  // --- DataJud embutido: painel retrátil + busca pública no CNJ (Example User 29/05) ---
+  // --- DataJud embutido: painel retrátil + busca pública no CNJ (UsuarioDemo 29/05) ---
   (function initDataJud(){
     var root=document.querySelector('[data-datajud]');if(!root)return;
     var toggle=root.querySelector('[data-datajud-toggle]');
@@ -1376,7 +1455,7 @@
     var tribSel=root.querySelector('[data-datajud-tribunal]');
     function setOpen(open){root.toggleAttribute('data-open',open);if(body)body.hidden=!open;if(toggle)toggle.setAttribute('aria-expanded',open?'true':'false');}
     if(toggle)toggle.addEventListener('click',function(){setOpen(!root.hasAttribute('data-open'));});
-    var PLACE={numero:'Ex.: 0001234-56.2024.8.13.0024',oab:'Ex.: MG123456 (ou só 123456)',nome:'Ex.: Maria Pacheco'};
+    var PLACE={numero:'Ex.: 0001234-56.2024.8.13.0024',oab:'Ex.: MG123456 (ou só 123456)',nome:'Ex.: PessoaDemo Pacheco'};
     if(tipoSel&&qInput)tipoSel.addEventListener('change',function(){qInput.placeholder=PLACE[tipoSel.value]||'';});
     function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
     function fmtData(s){if(!s)return '';try{return new Date(s).toLocaleDateString('pt-BR');}catch(e){return s;}}
@@ -1408,13 +1487,92 @@
       body: body ? JSON.stringify(body) : '{}'
     });
   }
+  var concluirPendingRow = null;
+  var concluirPendingSelect = null;
+  function todayIso() {
+    var d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  }
+  function openConcluirModal(id, row, selectEl) {
+    var modal = document.getElementById('ch-concluir-modal');
+    var inputId = document.getElementById('ch-concluir-id');
+    var tipo = document.getElementById('ch-concluir-tipo');
+    var data = document.getElementById('ch-concluir-data');
+    if (!modal || !inputId || !tipo || !data) return;
+    concluirPendingRow = row || null;
+    concluirPendingSelect = selectEl || null;
+    inputId.value = id || '';
+    tipo.value = '';
+    data.value = todayIso();
+    modal.hidden = false;
+    modal.setAttribute('data-open', 'true');
+    setTimeout(function () { try { tipo.focus(); } catch (e) {} }, 0);
+  }
+  function closeConcluirModal(resetSelect) {
+    var modal = document.getElementById('ch-concluir-modal');
+    if (modal) {
+      modal.removeAttribute('data-open');
+      modal.hidden = true;
+    }
+    if (resetSelect && concluirPendingSelect) {
+      concluirPendingSelect.value = concluirPendingSelect.getAttribute('data-prev-status') || 'pendente';
+    }
+    concluirPendingRow = null;
+    concluirPendingSelect = null;
+  }
+  function reloadProdutividadeAtual() {
+    if (typeof loadProdutividade !== 'function') return;
+    var mes = document.getElementById('prodMesSelect');
+    loadProdutividade(mes ? mes.value : todayIso().slice(0, 7));
+  }
+  function submitConcluirModal() {
+    var id = document.getElementById('ch-concluir-id').value;
+    var tipo = document.getElementById('ch-concluir-tipo').value;
+    var data = document.getElementById('ch-concluir-data').value || todayIso();
+    if (!id || !tipo) {
+      alert('Selecione o tipo de petição para concluir.');
+      return;
+    }
+    var btn = document.getElementById('ch-concluir-save');
+    if (btn) btn.disabled = true;
+    postPrazo(id, '/concluir', { tipo_peticao: tipo, data_conclusao: data })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (payload) {
+          if (!r.ok) throw new Error(payload.error || 'Falha ao concluir prazo');
+          return payload;
+        });
+      })
+      .then(function (payload) {
+        var tipoSalvo = payload.tipo_peticao || tipo;
+        if (concluirPendingRow) concluirPendingRow.setAttribute('data-tipo-peticao', tipoSalvo);
+        if (concluirPendingSelect) {
+          concluirPendingSelect.value = 'concluido';
+          concluirPendingSelect.setAttribute('data-prev-status', 'concluido');
+        }
+        chConcluiUpdate(concluirPendingRow, 'concluido');
+        closeConcluirModal(false);
+        reloadProdutividadeAtual();
+        if (typeof notify === 'function') notify('Prazo concluído como ' + tipoSalvo, 'success');
+      })
+      .catch(function (err) { alert(err.message || 'Falha ao concluir prazo'); })
+      .then(function () { if (btn) btn.disabled = false; });
+  }
   document.addEventListener('click', function (ev) {
+    if (ev.target.closest('[data-concluir-close]')) {
+      ev.preventDefault();
+      closeConcluirModal(true);
+      return;
+    }
+    if (ev.target === document.getElementById('ch-concluir-modal')) {
+      closeConcluirModal(true);
+      return;
+    }
     var done = ev.target.closest('[data-prazo-done]');
     if (done) {
       ev.preventDefault();
       var doneRow = done.closest('tr');
-      postPrazo(done.getAttribute('data-prazo-done'), '/update', { field: 'status', value: 'concluido' })
-        .then(function (r) { if (r.ok) { chConcluiUpdate(doneRow, 'concluido'); } else { alert('Falha ao concluir prazo'); } });
+      openConcluirModal(done.getAttribute('data-prazo-done'), doneRow, null);
       return;
     }
     var reopen = ev.target.closest('[data-prazo-reopen]');
@@ -1441,23 +1599,45 @@
       return;
     }
   });
+  var concluirSave = document.getElementById('ch-concluir-save');
+  if (concluirSave) concluirSave.addEventListener('click', submitConcluirModal);
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && document.getElementById('ch-concluir-modal') && !document.getElementById('ch-concluir-modal').hidden) {
+      closeConcluirModal(true);
+    }
+  });
+  document.addEventListener('focusin', function (ev) {
+    var sel = ev.target.closest('[data-prazo-status]');
+    if (sel) sel.setAttribute('data-prev-status', sel.value || 'pendente');
+  });
   document.addEventListener('change', function (ev) {
     var sel = ev.target.closest('[data-prazo-status]');
     if (!sel) return;
     var row = sel.closest('tr');
+    if (sel.value === 'concluido') {
+      sel.value = sel.getAttribute('data-prev-status') || (row ? row.getAttribute('data-status') : '') || 'pendente';
+      openConcluirModal(sel.getAttribute('data-prazo-status'), row, sel);
+      return;
+    }
     postPrazo(sel.getAttribute('data-prazo-status'), '/update', { field: 'status', value: sel.value })
-      .then(function (r) { if (r.ok) { chConcluiUpdate(row, sel.value); } else { alert('Falha ao mudar status'); } });
+      .then(function (r) {
+        if (r.ok) {
+          sel.setAttribute('data-prev-status', sel.value);
+          chConcluiUpdate(row, sel.value);
+        } else { alert('Falha ao mudar status'); }
+      });
   });
 
   // Opções dos dropdowns Cliente/Processo (inline-edit) — tenant-isoladas, vindas do route.
   var CH_PREFIX = '{{ PREFIX }}';
   var CH_CLIENTES = {{ clientes_opc | tojson }};
   var CH_PROCESSOS = {{ processos_opc | tojson }};
-  // Membros da org (id, name, initials, photo_url) p/ avatar + dropdown de responsável (Victor 03/06).
+  // Membros da org (id, name, initials, photo_url) p/ avatar + dropdown de responsável (Equipe CaseHub 03/06).
   var CH_USERS = {{ org_users | tojson }};
   var CH_OAB_OPTIONS = {{ oab_options | tojson }};
   // Tipos de prazo comuns — prazos_comuns é dict {key:{dias,descricao}}; usamos o rótulo (descricao).
   var CH_TIPOS = {{ (prazos_comuns.values() | map(attribute='descricao') | list) | tojson }};
+  var CH_TIPOS_PRODUTIVIDADE = {{ tipos_produtividade | tojson }};
 
   var chIntimacoesData = [];
 
@@ -1715,10 +1895,10 @@
     });
   })();
 
-  // --- Inline-edit de célula na LISTA (29/05 Victor): clicar célula → editar ali, sem popup ---
+  // --- Inline-edit de célula na LISTA (29/05 Equipe CaseHub): clicar célula → editar ali, sem popup ---
   document.addEventListener('click', function (ev) {
     var cell = ev.target.closest('.ch-cell-edit');
-    // FIX (Victor 03/06): o guard antes só detectava input.ch-inline-input; um <select>
+    // FIX (Equipe CaseHub 03/06): o guard antes só detectava input.ch-inline-input; um <select>
     // aberto NÃO era detectado, então clicar no select reentrava aqui e RECRIAVA o select
     // — o popup fechava na hora ("abre e fecha sem dar pra selecionar"). Agora qualquer
     // editor ativo na célula (.ch-inline-input ou o menu de responsável) bloqueia a recriação.
@@ -1879,7 +2059,7 @@
     }
 
     // Tipo: dropdown (tipos comuns ∪ tipos já na tabela) + "Outro (digitar)" efêmero
-    // (Victor 03/06). Mantido p/ compatibilidade; "Tipo" não é mais coluna na lista
+    // (Equipe CaseHub 03/06). Mantido p/ compatibilidade; "Tipo" não é mais coluna na lista
     // (reunião 10/06 — só no cadastro). Demais campos = texto livre.
     if (field === 'tipo') {
       var opts;
@@ -1954,7 +2134,7 @@
         });
         requestAnimationFrame(function () { ti.focus(); ti.select(); ti.addEventListener('blur', function () { tFinish(true); }); });
       }
-      // C-resp/C-cliente fix (Victor 03/06): commit SÓ no 'change' (seleção feita); Escape reverte.
+      // C-resp/C-cliente fix (Equipe CaseHub 03/06): commit SÓ no 'change' (seleção feita); Escape reverte.
       // Removido o commit-no-blur — em <select> nativo o blur dispara ao abrir o popup e revertia
       // a edição prematuramente ("clico e some"). No blur só reverte se nada foi escolhido.
       sel.addEventListener('change', function () {
@@ -1995,7 +2175,7 @@
       return;
     }
 
-    // Vencimento → horário (Example User 03/06): clicar na célula abre <input type="time">.
+    // Vencimento → horário (UsuarioDemo 03/06): clicar na célula abre <input type="time">.
     // A DATA não muda aqui (continua sendo a chave de sort); só edita a hora opcional.
     if (field === 'hora_vencimento') {
       ev.stopPropagation();
@@ -2158,82 +2338,37 @@
     });
   })();
 
-  // ── C5 — Ordenação por cabeçalho (Processo / Cliente / Tipo / Observação / Responsável / Vencimento / Status) ─────
+  // ── C5 — Ordenação por cabeçalho via URL (server-side; sobrevive ao F5) ─────
   (function initSort() {
     var table = document.querySelector('.ch-table');
     if (!table) return;
-    var tbody = table.querySelector('tbody');
-    if (!tbody) return;
-
-	    function rowValue(row, key) {
-	      switch (key) {
-	        case 'tribunal':   return (row.getAttribute('data-tribunal') || '').toLowerCase();
-	        case 'processo':   return (row.getAttribute('data-processo') || '').toLowerCase();
-        case 'cliente':    return (row.getAttribute('data-cliente') || '').toLowerCase();
-        case 'tipo':       return (row.getAttribute('data-tipo') || '').toLowerCase();
-        case 'observacao': return (row.getAttribute('data-descricao') || '').toLowerCase();
-        case 'responsavel':return (row.getAttribute('data-responsavel') || '').toLowerCase();
-        case 'status':     return (row.getAttribute('data-status') || '').toLowerCase();
-        case 'vencimento': return row.getAttribute('data-vencimento') || '';
-        default:           return '';
-      }
-    }
-
-    function applySort(th) {
-      var key = th.getAttribute('data-sort-key');
-      var type = th.getAttribute('data-sort-type') || 'text';
-      var current = th.getAttribute('aria-sort');
-      var asc = current !== 'ascending'; // toggle; se não estava asc, vira asc
-
-      // Reseta estado visual de todos os cabeçalhos.
-      table.querySelectorAll('thead th.ch-th-sort').forEach(function (h) {
-        h.setAttribute('aria-sort', 'none');
-        h.classList.remove('is-sorted');
-        var ar = h.querySelector('.ch-th-sort__arrow');
-        if (ar) ar.textContent = '↕';
-      });
-      th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
-      th.classList.add('is-sorted');
-      var arrow = th.querySelector('.ch-th-sort__arrow');
-      if (arrow) arrow.textContent = asc ? '↑' : '↓';
-
-      var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-prazo-row]'));
-      rows.sort(function (a, b) {
-        var va = rowValue(a, key);
-        var vb = rowValue(b, key);
-        // Vazios sempre ao fim, independente da direção.
-        if (va === '' && vb !== '') return 1;
-        if (vb === '' && va !== '') return -1;
-        var cmp;
-        if (type === 'date') {
-          cmp = va < vb ? -1 : (va > vb ? 1 : 0); // ISO YYYY-MM-DD compara como string
-        } else {
-          cmp = va.localeCompare(vb, 'pt-BR', { numeric: true, sensitivity: 'base' });
-        }
-        return asc ? cmp : -cmp;
-      });
-      rows.forEach(function (r) { tbody.appendChild(r); });
-    }
-
     table.querySelectorAll('thead th.ch-th-sort').forEach(function (th) {
-      th.addEventListener('click', function () { applySort(th); });
+      th.style.cursor = 'pointer';
+      th.addEventListener('click', function () {
+        var key = th.getAttribute('data-sort-key');
+        if (!key) return;
+        // Coluna ativa -> alterna asc/desc; senão começa asc. Navega ao servidor:
+        // a lista volta já ordenada e o F5 preserva a ordem via querystring.
+        var asc = th.getAttribute('aria-sort') !== 'ascending';
+        var url = new URL(window.location.href);
+        url.searchParams.set('sort', key);
+        url.searchParams.set('direction', asc ? 'asc' : 'desc');
+        window.location.href = url.toString();
+      });
     });
   })();
 
-  // ── C3 — Drag-and-drop de reordenação (pelo grip) + persistência ────────────
+  // ── C3 — Drag-and-drop de reordenação (grip) via SortableJS — desktop + touch.
+  //         Gated por drag_enabled (organizations.settings). Arrastar entra no
+  //         modo manual e fixa ?sort=manual na URL p/ sobreviver ao F5. ─────────
   (function initRowDrag() {
+    var dragEnabled = {{ 'true' if drag_enabled else 'false' }};
+    if (!dragEnabled) return;
     var table = document.querySelector('.ch-table');
     if (!table) return;
     var tbody = table.querySelector('tbody');
     if (!tbody) return;
-
-    var draggingRow = null;
-
-    function clearDropTargets() {
-      tbody.querySelectorAll('tr.is-drop-target').forEach(function (r) {
-        r.classList.remove('is-drop-target');
-      });
-    }
+    if (typeof window.Sortable === 'undefined') return; // lib ausente: degrada sem quebrar
 
     function persistOrder() {
       var ids = Array.prototype.slice.call(tbody.querySelectorAll('tr[data-prazo-row]'))
@@ -2247,53 +2382,24 @@
         body: JSON.stringify({ ids: ids })
       })
         .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+        .then(function () {
+          var url = new URL(window.location.href);
+          if (url.searchParams.get('sort') !== 'manual') {
+            url.searchParams.set('sort', 'manual');
+            url.searchParams.delete('direction');
+            window.history.replaceState(null, '', url.toString());
+          }
+        })
         .catch(function () { alert('Falha ao salvar a nova ordem dos prazos.'); });
     }
 
-    // O grip é o único elemento [draggable]; a linha recebe o efeito visual.
-    tbody.addEventListener('dragstart', function (ev) {
-      var handle = ev.target.closest('[data-prazo-handle]');
-      if (!handle) return;
-      draggingRow = handle.closest('tr[data-prazo-row]');
-      if (!draggingRow) return;
-      ev.dataTransfer.effectAllowed = 'move';
-      // Firefox exige setData pra iniciar o drag.
-      try { ev.dataTransfer.setData('text/plain', draggingRow.getAttribute('data-id') || ''); } catch (e) {}
-      // Atraso para a classe não cancelar o snapshot de arraste.
-      requestAnimationFrame(function () {
-        if (draggingRow) draggingRow.classList.add('is-dragging');
-      });
-    });
-
-    tbody.addEventListener('dragover', function (ev) {
-      if (!draggingRow) return;
-      ev.preventDefault();
-      ev.dataTransfer.dropEffect = 'move';
-      var overRow = ev.target.closest('tr[data-prazo-row]');
-      if (!overRow || overRow === draggingRow) return;
-      clearDropTargets();
-      overRow.classList.add('is-drop-target');
-      // Insere antes ou depois conforme a metade do alvo (estável visualmente).
-      var rect = overRow.getBoundingClientRect();
-      var after = (ev.clientY - rect.top) > rect.height / 2;
-      if (after) {
-        if (overRow.nextSibling !== draggingRow) tbody.insertBefore(draggingRow, overRow.nextSibling);
-      } else {
-        if (overRow.previousSibling !== draggingRow) tbody.insertBefore(draggingRow, overRow);
-      }
-    });
-
-    tbody.addEventListener('dragend', function () {
-      if (draggingRow) draggingRow.classList.remove('is-dragging');
-      clearDropTargets();
-      if (draggingRow) persistOrder();
-      draggingRow = null;
-    });
-
-    tbody.addEventListener('drop', function (ev) {
-      if (!draggingRow) return;
-      ev.preventDefault();
-      clearDropTargets();
+    window.Sortable.create(tbody, {
+      handle: '[data-prazo-handle]',
+      draggable: 'tr[data-prazo-row]',
+      animation: 150,
+      ghostClass: 'is-drop-target', // placeholder no slot de destino (contorno)
+      chosenClass: 'is-dragging',    // linha sendo arrastada (esmaecida)
+      onEnd: function () { persistOrder(); }
     });
   })();
 })();

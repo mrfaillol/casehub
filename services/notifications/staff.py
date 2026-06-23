@@ -41,7 +41,7 @@ def send_task_notification_email(
     Email is sent as a reply (Re:) to maintain thread with original client email.
 
     Args:
-        paralegal_key: 'juliana' or 'ana'
+        paralegal_key: 'member_a' or 'member_b'
         client_name: Name of the client
         email_subject: Subject of the ORIGINAL client email
         notion_task_url: Direct URL to the Notion task
@@ -126,7 +126,7 @@ CaseHub - CaseHub
     
     try:
         email_service = EmailService()
-        # CC center@ so Daniel has visibility (but NOT info@ to avoid polluting that inbox)
+        # CC center@ so the operations lead has visibility without polluting the public inbox.
         center_email = os.getenv("ORG_CENTER_EMAIL", "")
         cc = center_email if to_email != center_email and center_email else None
         result = email_service.send_email(

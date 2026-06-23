@@ -206,7 +206,7 @@ def _load_appointment_attachment_files(db: Session, org_id: int, appointment_ids
     try:
         rows = db.execute(
             text("""
-                SELECT appointment_id, file_path, filename
+                SELECT id, appointment_id, file_path, filename
                 FROM appointment_attachments
                 WHERE org_id = :org_id AND appointment_id IN :ids
                 ORDER BY created_at ASC, id ASC
@@ -222,6 +222,7 @@ def _load_appointment_attachment_files(db: Session, org_id: int, appointment_ids
         if not stored:
             continue
         files.setdefault(row.appointment_id, []).append({
+            "id": row.id,
             "name": row.filename or stored,
             "url": f"/uploads/{APPOINTMENT_ATTACHMENT_KIND}/{stored}",
         })
@@ -236,6 +237,7 @@ def _load_appointment_for_sync(db: Session, org_id: int, appt_id: int) -> Option
             text("""
                 SELECT id, title, type, client_name, date, time_start, time_end,
                        is_virtual, notes, local, pericia_status, gcal_event_id,
+                       google_calendar_id, google_calendar_account,
                        COALESCE(origin, 'casehub') AS origin
                 FROM appointments
                 WHERE id = :id AND org_id = :org_id
@@ -349,14 +351,23 @@ def _sync_google_appointment(db: Session, org_id: int, appt_id: int) -> dict:
             "message": "Compromisso salvo localmente; Google Calendar nao esta conectado.",
         }
     event_id = result.get("event_id")
-    if result.get("synced") and event_id and event_id != appointment.get("gcal_event_id"):
+    if result.get("synced") and event_id:
         db.execute(
             text("""
                 UPDATE appointments
-                SET gcal_event_id = :event_id, updated_at = CURRENT_TIMESTAMP
+                SET gcal_event_id = :event_id,
+                    google_calendar_id = :calendar_id,
+                    google_calendar_account = :account,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id AND org_id = :org_id
             """),
-            {"event_id": event_id, "id": appt_id, "org_id": org_id},
+            {
+                "event_id": event_id,
+                "calendar_id": result.get("calendar_id"),
+                "account": result.get("account"),
+                "id": appt_id,
+                "org_id": org_id,
+            },
         )
         db.commit()
     return result
@@ -373,7 +384,7 @@ def _local_only_calendar_status() -> dict:
 def _wants_google_sync(body: dict) -> bool:
     """Decide se devemos propagar pro Google Calendar.
 
-    Bug Example User 02/06: compromissos salvavam na DB mas nunca refletiam no Google
+    Bug UsuarioDemo 02/06: compromissos salvavam na DB mas nunca refletiam no Google
     Agenda porque o front nunca enviava `sync_google`, e o backend só
     sincronizava quando esse flag era verdadeiro. Agora o default e SINCRONIZAR
     (push pro Google) sempre que houver conta conectada; o front so precisa
@@ -385,6 +396,15 @@ def _wants_google_sync(body: dict) -> bool:
     if isinstance(value, str):
         return value.strip().lower() not in {"false", "0", "no", "off", ""}
     return bool(value)
+
+
+def _parse_iso_date_param(value: Optional[str]):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
 
 
 def _optional_int(value, field: str):
@@ -523,6 +543,36 @@ def _save_appointment_assignees(db: Session, appt_id: int, user_ids: list[int]) 
         logger.warning("Could not persist multi-assignees for appointment %s", appt_id)
 
 
+def _notify_new_appointment_assignees(
+    db: Session,
+    org_id: int,
+    actor_id: int,
+    assignee_ids: set[int],
+    title: str,
+    appt_date: str,
+    time_start: str,
+) -> None:
+    notify_ids = [uid for uid in sorted(assignee_ids) if uid and uid != actor_id]
+    if not notify_ids:
+        return
+    try:
+        from routes.team_messages import post_system_dm_to_user
+        title = str(title or "compromisso").strip()[:160]
+        when = str(appt_date or "").strip()
+        start = str(time_start or "").strip()[:5]
+        if start:
+            when = f"{when} {start}".strip()
+        when_label = f" em {when}" if when else ""
+        body = f"Agenda: você foi designado(a) para \"{title}\"{when_label}."
+        for user_id in notify_ids:
+            post_system_dm_to_user(db, org_id, user_id, body)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 def _linked_row_exists(db: Session, table: str, org_id: int, row_id: int) -> bool:
     allowed = {
         "cases": "cases",
@@ -540,7 +590,7 @@ def _linked_row_exists(db: Session, table: str, org_id: int, row_id: int) -> boo
 async def calendar_view(request: Request):
     """Rota legada da aba Agenda.
 
-    03/06 (Example User): a aba "Agenda" da navegação levava a /calendar (esta rota)
+    03/06 (UsuarioDemo): a aba "Agenda" da navegação levava a /calendar (esta rota)
     em vez de /calendar/agenda, que é a rota canônica da tela (lista +
     calendário, seletor de visualização, modal de novo compromisso). A nav
     agora aponta direto para /calendar/agenda; mantemos esta rota como um
@@ -730,12 +780,12 @@ async def get_events(
                     "start": evt_start,
                     "end": evt_end,
                     "color": color,
-                    # Deep-link pro editor do compromisso na visão lista (29/05 Victor:
+                    # Deep-link pro editor do compromisso na visão lista (29/05 Equipe CaseHub:
                     # clicar num compromisso no grid abria href="#" e só dava refresh).
                     "url": f"{PREFIX}/calendar/agenda?appt={appt.id}",
                     # extendedProps carrega os campos crus do compromisso p/ a Visão
                     # do Dia (timeline) reconstruir o bloco e reabrir o editor existente
-                    # (openEditAppt) sem precisar de um endpoint novo — 03/06 Example User.
+                    # (openEditAppt) sem precisar de um endpoint novo — 03/06 UsuarioDemo.
                     "extendedProps": {
                         "type": "appointment",
                         "title": appt.title or "",
@@ -878,14 +928,15 @@ async def quick_add_task(
 
 
 @router.post("/sync-google")
-async def sync_google_now(request: Request, db: Session = Depends(get_db)):
-    """Botão "Sincronizar agora": pull incremental Google → CaseHub sob demanda.
+def sync_google_now(request: Request, db: Session = Depends(get_db)):
+    """Botão "Sincronizar agora": two-way manual sync sob demanda.
 
     Importa eventos novos/alterados/cancelados das contas Google conectadas
-    desta org para a tabela appointments (origin='google', anti-loop). O push
-    CaseHub → Google continua acontecendo no save/update/delete dos
-    compromissos. Best-effort: retorna o resumo do import (200) mesmo se uma
-    conta falhar; não derruba a página.
+    desta org para a tabela appointments (origin='google', anti-loop) e depois
+    exporta compromissos locais ainda sem gcal_event_id. O push normal
+    CaseHub → Google continua acontecendo no save/update/delete dos novos
+    compromissos. Best-effort: retorna resumo (200) mesmo se uma conta falhar;
+    não derruba a página.
 
     Webhook events.watch (push em tempo real) existe como caminho DORMANTE em
     POST /calendar/gcal-webhook, atrás da flag GOOGLE_CALENDAR_WATCH_ENABLED
@@ -896,7 +947,14 @@ async def sync_google_now(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
     org_id = request.state.org_id
     try:
-        result = GoogleCalendarService(db, org_id=org_id).import_all_connected()
+        service = GoogleCalendarService(db, org_id=org_id)
+        result = service.import_all_connected()
+        priority_start = _parse_iso_date_param(request.query_params.get("start_date"))
+        priority_end = _parse_iso_date_param(request.query_params.get("end_date"))
+        export_result = service.export_unsynced_appointments(
+            priority_start_date=priority_start,
+            priority_end_date=priority_end,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("Manual Google sync failed org=%s: %s", org_id, exc)
         return JSONResponse(
@@ -904,18 +962,39 @@ async def sync_google_now(request: Request, db: Session = Depends(get_db)):
              "message": "Nao foi possivel sincronizar com o Google Calendar agora."},
             status_code=200,
         )
-    connected = bool(result.get("accounts"))
+    connected = bool(result.get("accounts") or export_result.get("account"))
+    imported = result.get("imported", 0)
+    updated = result.get("updated", 0)
+    cancelled = result.get("cancelled", 0)
+    exported = export_result.get("exported", 0)
+    failed = export_result.get("failed", 0)
+    candidates = export_result.get("candidates", 0)
+    pending = max(candidates - exported, 0)
+    any_change = any((imported, updated, cancelled, exported))
+    message = "Google Calendar nao esta conectado."
+    if connected:
+        message = (
+            f"Sincronizado: {imported} novo(s), "
+            f"{updated} atualizado(s), "
+            f"{cancelled} removido(s), "
+            f"{exported} enviado(s) ao Google."
+        )
+        if not any_change and not pending:
+            message += " (nenhuma mudança desde a última sincronização)"
+        if pending:
+            message += f" {pending} compromisso(s) ainda pendente(s)."
     return JSONResponse({
         "success": True,
         "connected": connected,
-        "imported": result.get("imported", 0),
-        "updated": result.get("updated", 0),
-        "cancelled": result.get("cancelled", 0),
-        "message": (
-            "Google Calendar nao esta conectado." if not connected
-            else f"Sincronizado: {result.get('imported', 0)} novo(s), "
-                 f"{result.get('cancelled', 0)} removido(s)."
-        ),
+        "imported": imported,
+        "updated": updated,
+        "cancelled": cancelled,
+        "exported": exported,
+        "export_failed": failed,
+        "export_candidates": candidates,
+        "export_processed": export_result.get("processed", 0),
+        "export_pending": pending,
+        "message": message,
     })
 
 
@@ -984,7 +1063,19 @@ async def agenda_lista_view(request: Request, db: Session = Depends(get_db)):
         "Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho",
         "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
     ]
-    month_start = week_start.replace(day=1)
+    # Mês independente da semana: month_offset (offset em meses a partir do mês
+    # corrente) desacopla a grade mensal do ?week. DECISÃO DE PRODUTO: quando
+    # ?month ausente, abrir SEMPRE no mês de hoje (mais previsível). ?week segue
+    # governando Lista/Ambos sem interferir aqui.
+    try:
+        month_offset = int(request.query_params.get("month", 0))
+    except (ValueError, TypeError):
+        month_offset = 0
+    # Aritmética de mês segura a partir de today.replace(day=1) (dia já = 1, sem
+    # clamp necessário): avança/retrocede month_offset meses.
+    base_month = today.replace(day=1)
+    total_month = (base_month.year * 12 + (base_month.month - 1)) + month_offset
+    month_start = date(total_month // 12, (total_month % 12) + 1, 1)
     next_month = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
     month_end = next_month - timedelta(days=1)
     calendar_start = month_start - timedelta(days=month_start.weekday())
@@ -1140,6 +1231,9 @@ async def agenda_lista_view(request: Request, db: Session = Depends(get_db)):
         "week_start": week_start,
         "week_end": week_end,
         "week_offset": week_offset,
+        "month_offset": month_offset,
+        "month_prev_offset": month_offset - 1,
+        "month_next_offset": month_offset + 1,
         "month_label": f"{month_names[month_start.month - 1]} {month_start.year}",
         "month_weeks": month_weeks,
         "org_users": org_users,
@@ -1249,6 +1343,15 @@ async def create_appointment(request: Request, db: Session = Depends(get_db)):
     appt_id = result.scalar()
     db.commit()
     _save_appointment_assignees(db, appt_id, valid_assigned_to_ids)
+    _notify_new_appointment_assignees(
+        db,
+        org_id,
+        user.id,
+        set(valid_assigned_to_ids),
+        title,
+        appt_date,
+        time_start,
+    )
 
     google_calendar = _sync_google_appointment(db, org_id, appt_id) if _wants_google_sync(body) else _local_only_calendar_status()
 
@@ -1267,6 +1370,16 @@ async def update_appointment(request: Request, appt_id: int, db: Session = Depen
     body = await request.json()
 
     org_id = request.state.org_id
+    existing = db.execute(
+        text("SELECT assigned_to FROM appointments WHERE id = :id AND org_id = :org_id"),
+        {"id": appt_id, "org_id": org_id},
+    ).fetchone()
+    if not existing:
+        return JSONResponse({"error": "Compromisso nao encontrado"}, status_code=404)
+    previous_assignees = set(_load_appointment_assignee_ids(db, [appt_id]).get(appt_id) or [])
+    if existing.assigned_to:
+        previous_assignees.add(existing.assigned_to)
+
     assigned_to_ids = _coerce_assigned_to_ids(body)
     valid_assigned_to_ids = _validate_org_user_ids(db, org_id, assigned_to_ids)
     if len(valid_assigned_to_ids) != len(assigned_to_ids):
@@ -1341,6 +1454,15 @@ async def update_appointment(request: Request, appt_id: int, db: Session = Depen
     )
     db.commit()
     _save_appointment_assignees(db, appt_id, valid_assigned_to_ids)
+    _notify_new_appointment_assignees(
+        db,
+        org_id,
+        user.id,
+        set(valid_assigned_to_ids) - previous_assignees,
+        body.get("title", ""),
+        body.get("date", ""),
+        body.get("time_start", ""),
+    )
     google_calendar = _sync_google_appointment(db, request.state.org_id, appt_id) if _wants_google_sync(body) else _local_only_calendar_status()
     return JSONResponse({"success": True, "id": appt_id, "conflicts": conflicts, "google_calendar": google_calendar})
 
@@ -1428,16 +1550,63 @@ async def upload_appointment_attachment(
     })
 
 
+@router.delete("/appointments/{appt_id}/attachments/{attachment_id}")
+async def delete_appointment_attachment(
+    request: Request,
+    appt_id: int,
+    attachment_id: int,
+    db: Session = Depends(get_db),
+):
+    """Remove a single appointment attachment (row + file on disk), org-scoped."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Nao autenticado"}, status_code=401)
+
+    org_id = request.state.org_id
+    row = db.execute(
+        text("""
+            SELECT file_path FROM appointment_attachments
+            WHERE id = :id AND appointment_id = :appt_id AND org_id = :org_id
+        """),
+        {"id": attachment_id, "appt_id": appt_id, "org_id": org_id},
+    ).first()
+    if not row:
+        return JSONResponse({"error": "Anexo nao encontrado"}, status_code=404)
+
+    db.execute(
+        text("DELETE FROM appointment_attachments WHERE id = :id AND org_id = :org_id"),
+        {"id": attachment_id, "org_id": org_id},
+    )
+    db.commit()
+
+    # Best-effort file cleanup, confined to the uploads root (defensive).
+    try:
+        stored = Path(row.file_path)
+        stored.resolve().relative_to(UPLOADS_ROOT)
+        if stored.is_file():
+            stored.unlink()
+    except (ValueError, OSError):
+        pass
+
+    return JSONResponse({"success": True})
+
+
 @router.delete("/appointments/{appt_id}")
 async def delete_appointment(request: Request, appt_id: int, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Nao autenticado"}, status_code=401)
     row = db.execute(
-        text("SELECT gcal_event_id FROM appointments WHERE id = :id AND org_id = :org_id"),
+        text("""
+            SELECT gcal_event_id, google_calendar_id, google_calendar_account
+            FROM appointments
+            WHERE id = :id AND org_id = :org_id
+        """),
         {"id": appt_id, "org_id": request.state.org_id},
     ).fetchone()
     gcal_event_id = row[0] if row else None
+    google_calendar_id = row[1] if row else None
+    google_calendar_account = row[2] if row else None
     db.execute(
         text("DELETE FROM appointments WHERE id = :id AND org_id = :org_id"),
         {"id": appt_id, "org_id": request.state.org_id},
@@ -1447,7 +1616,11 @@ async def delete_appointment(request: Request, appt_id: int, db: Session = Depen
         try:
             google_calendar = GoogleCalendarService(
                 db, org_id=getattr(request.state, "org_id", None)
-            ).delete_appointment_event(gcal_event_id)
+            ).delete_appointment_event(
+                gcal_event_id,
+                account_name=google_calendar_account,
+                calendar_id=google_calendar_id,
+            )
         except Exception as exc:
             logger.warning("Google Calendar delete skipped for appointment %s: %s", appt_id, exc)
             google_calendar = _local_only_calendar_status()

@@ -567,7 +567,7 @@ def format_display_name(lead: dict) -> str:
 
 
 def parse_lead_name(name: str) -> dict:
-    """Parse [LEAD WPP 75 FAM] Maria Silva format."""
+    """Parse [LEAD WPP 75 FAM] PessoaDemo Silva format."""
     match = re.match(r"\[LEAD\s+(\w+)\s+(\d+)\s*(\w*)\]\s*(.*)", name)
     if match:
         return {

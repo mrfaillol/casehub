@@ -1,6 +1,6 @@
 -- Migration: WhatsApp inbound support + field-request tracking + Maestro training samples
 -- Date: 2026-05-19
--- Author: Claude Opus 4.7 (session-2026-05-19-maestro-backend, authorized by Victor 19/05)
+-- Author: Claude Opus 4.7 (session-2026-05-19-maestro-backend, authorized by Equipe CaseHub 19/05)
 --
 -- Purpose:
 --   1. Enable inbound WhatsApp messages to be persisted on existing whatsapp_messages table

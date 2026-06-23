@@ -4,7 +4,7 @@
 # Alerta em 80%, ação em 95%
 # Usage: ./scripts/dev-ram-monitor.sh [--once] [--log /path/to/log]
 
-LOG_FILE="${2:-/Users/beijaflor/Documents/Trabalho/TEMP/ram-monitor.log}"
+LOG_FILE="${2:-/tmp/casehub-ram-monitor.log}"
 WARN_THRESHOLD=80
 CRIT_THRESHOLD=95
 INTERVAL=30

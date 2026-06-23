@@ -2,7 +2,7 @@
 
 Goal frente A1 requires "Smoke E2E todas 63 rotas autenticadas: 200 ou
 intentional redirect" on the live alpha. Authenticated probes on the
-real alpha need Victor's credentials + a completed rsync deploy —
+real alpha need Equipe CaseHub's credentials + a completed rsync deploy —
 neither available in the agent context.
 
 This module is the SELF-HOSTED equivalent: it builds the same
@@ -20,10 +20,10 @@ What it proves:
 
 What it does **not** prove:
 
-- That the alpha deploy is current (rsync is Victor's task — see
+- That the alpha deploy is current (rsync is Equipe CaseHub's task — see
   PR #571 §11).
 - That per-tenant data renders correctly (no fixtures here).
-- That network latency on Mumbai is acceptable (covered by PR #587
+- That network latency on remote runtime is acceptable (covered by PR #587
   keepalive sample).
 
 Run: pytest tests/test_selfhosted_p0_auth_smoke.py -v
@@ -80,7 +80,7 @@ def app_and_client():
     from fastapi.testclient import TestClient
     from core.app_factory import create_app
 
-    # Lite is the product Example Legal will run on alpha — see PR #583
+    # Lite is the product Escritorio Demo will run on alpha — see PR #583
     # findings (suspected mismatch). Using lite here keeps the smoke
     # aligned with the goal-listed module set (Controladoria/Tarefas/
     # CRM/Agenda).

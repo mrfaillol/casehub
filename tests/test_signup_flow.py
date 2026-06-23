@@ -64,7 +64,7 @@ class TestSlugify:
 class TestPlanTiers:
     """Validate PLAN_TIERS constant used in onboarding.
 
-    Spec (Victor, 28/05/2026): exatamente 2 planos — office (R$129) e enterprise
+    Spec (Equipe CaseHub, 28/05/2026): exatamente 2 planos — office (R$129) e enterprise
     (sob consulta). Usuários ILIMITADOS por enquanto em ambos (max_users == -1)."""
 
     def test_plan_tiers_exactly_two_plans(self):

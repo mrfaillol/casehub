@@ -161,7 +161,7 @@ def _resolve_inbound_org(
     0. `requested_org_id` (header X-Org-Id do bot multi-session) — fonte
        deterministica; pula heuristica. Quando setado, garantimos so que a
        org existe; senao caimos no fluxo legacy. Isto resolve definitivamente
-       o bug "sampletenant ve mensagens da default" sem depender do telefone.
+       o bug "tenanta ve mensagens da default" sem depender do telefone.
     1. `matched_org_id` (telefone casou com um cliente) -> org desse cliente.
     2. sem match, deploy single-tenant (exatamente 1 org) -> essa org.
     3. 2+ orgs sem match -> fallback org slug='default' (ex.: id=2 em
@@ -228,7 +228,7 @@ def persist_inbound_message(
     # tenant dono da sessao que recebeu a mensagem. Sem isto, a linha ficava com
     # org_id NULL p/ remetentes nao-cadastrados (sem match de client) -> /api/messages
     # e /api/conversations (filtrados por org_id) nao achavam nada -> "Loading
-    # messages..." eterno (Example User, alpha 29/05). Prefere o header; cai no match so se ausente.
+    # messages..." eterno (UsuarioDemo, alpha 29/05). Prefere o header; cai no match so se ausente.
     if requested_org_id and requested_org_id > 0:
         org_id = requested_org_id
 
@@ -393,6 +393,11 @@ def mirror_inbound_to_clone(
         media_ocr_text = raw.get("ocr_text") or raw.get("media_ocr_text")
         display_name = raw.get("display_name") or raw.get("pushname") or raw.get("name")
         profile_pic_url = raw.get("profile_pic_url") or raw.get("profilePicUrl")
+        # N2: o bridge encaminha mensagens enviadas pelo proprio celular (outbound
+        # manual) pelo mesmo endpoint /whatsapp/inbound, sinalizando via from_me.
+        # Quando True, espelhamos como outgoing (record_message deriva
+        # direction='outgoing'/status='sent' a partir de from_me).
+        is_from_me = bool(raw.get("from_me"))
         e164_phone = normalize_phone(from_phone)
         existing_contact = None
         if e164_phone:
@@ -407,14 +412,14 @@ def mirror_inbound_to_clone(
             org_id=org_id,
             phone=from_phone,
             body=message,
-            direction="incoming",
+            direction="outgoing" if is_from_me else "incoming",
             wa_message_id=wa_message_id,
             media_type=media_type or "text",
             media_url=media_url,
             media_mime=media_mime,
             media_filename=media_filename,
             media_ocr_text=media_ocr_text,
-            from_me=False,
+            from_me=is_from_me,
             author_phone=from_phone,
             display_name=display_name,
             profile_pic_url=profile_pic_url,

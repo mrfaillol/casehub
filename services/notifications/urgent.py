@@ -13,9 +13,9 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 # Admin notification
-VICTOR_EMAIL = settings.ADMIN_EMAIL or os.getenv("ALERT_EMAIL", "")
-VICTOR_WHATSAPP = settings.ALERT_WHATSAPP or os.getenv("VICTOR_WHATSAPP_NUMBER", "")
-GOOGLE_CHAT_WEBHOOK_VICTOR = os.getenv("GOOGLE_CHAT_WEBHOOK_VICTOR", "")
+ADMIN_ALERT_EMAIL = settings.ADMIN_EMAIL or os.getenv("ALERT_EMAIL", "")
+ADMIN_ALERT_WHATSAPP = settings.ALERT_WHATSAPP or os.getenv("ALERT_WHATSAPP_NUMBER", "")
+GOOGLE_CHAT_WEBHOOK_ADMIN = os.getenv("GOOGLE_CHAT_WEBHOOK_ADMIN", "")
 
 # Paralegal emails - loaded from TEAM_EMAILS config or defaults
 def _load_paralegal_emails():
@@ -32,8 +32,8 @@ def _load_paralegal_emails():
 PARALEGAL_EMAILS = _load_paralegal_emails()
 
 
-async def notify_victor_email(email_service, client_name: str, subject: str, body_preview: str):
-    """Send email notification to Victor"""
+async def notify_casehub_team_email(email_service, client_name: str, subject: str, body_preview: str):
+    """Send email notification to Equipe CaseHub"""
     html_content = f"""
     <div style="font-family: Arial; padding: 20px; border-left: 4px solid red;">
         <h2 style="color: red;">⚠️ EMAIL URGENTE RECEBIDO</h2>
@@ -51,16 +51,16 @@ async def notify_victor_email(email_service, client_name: str, subject: str, bod
     
     try:
         result = email_service.send_email(
-            to_email=VICTOR_EMAIL,
+            to_email=ADMIN_ALERT_EMAIL,
             subject=f"🚨 URGENTE: {subject}",
             html_content=html_content,
             text_content=text_content
         )
         if result.get("success"):
-            logger.info(f"Urgent notification sent to Victor at {VICTOR_EMAIL}")
+            logger.info(f"Urgent notification sent to admin at {ADMIN_ALERT_EMAIL}")
             return True
     except Exception as e:
-        logger.error(f"Failed to send email to Victor: {e}")
+        logger.error(f"Failed to send email to Equipe CaseHub: {e}")
     
     return False
 
@@ -104,10 +104,10 @@ async def notify_paralegal_email(email_service, paralegal_key: str, client_name:
     return False
 
 
-async def notify_victor_whatsapp(client_name: str, subject: str):
-    """Send WhatsApp notification to Victor via existing bot API"""
-    if not VICTOR_WHATSAPP:
-        logger.warning("VICTOR_WHATSAPP_NUMBER not configured")
+async def notify_casehub_team_whatsapp(client_name: str, subject: str):
+    """Send WhatsApp notification to Equipe CaseHub via existing bot API"""
+    if not ADMIN_ALERT_WHATSAPP:
+        logger.warning("ALERT_WHATSAPP_NUMBER not configured")
         return False
 
     try:
@@ -115,20 +115,20 @@ async def notify_victor_whatsapp(client_name: str, subject: str):
             response = await client.post(
                 f"{settings.WHATSAPP_BOT_URL}/api/send",
                 json={
-                    "phone": VICTOR_WHATSAPP,
+                    "phone": ADMIN_ALERT_WHATSAPP,
                     "message": f"🚨 *EMAIL URGENTE*\\n\\n👤 Cliente: {client_name or Desconhecido}\\n📧 Assunto: {subject}\\n\\n➡️ {settings.BASE_URL}{settings.PREFIX}/emails"
                 }
             )
             return response.status_code == 200 and response.json().get("success", False)
     except Exception as e:
-        logger.error(f"Failed to send WhatsApp to Victor: {e}")
+        logger.error(f"Failed to send WhatsApp to Equipe CaseHub: {e}")
         return False
 
 
-async def notify_victor_google_chat(client_name: str, subject: str, body_preview: str):
-    """Send Google Chat notification to Victor"""
-    if not GOOGLE_CHAT_WEBHOOK_VICTOR:
-        logger.warning("GOOGLE_CHAT_WEBHOOK_VICTOR not configured")
+async def notify_casehub_team_google_chat(client_name: str, subject: str, body_preview: str):
+    """Send Google Chat notification to Equipe CaseHub"""
+    if not GOOGLE_CHAT_WEBHOOK_ADMIN:
+        logger.warning("GOOGLE_CHAT_WEBHOOK_ADMIN not configured")
         return False
 
     try:
@@ -137,14 +137,14 @@ async def notify_victor_google_chat(client_name: str, subject: str, body_preview
         }
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(GOOGLE_CHAT_WEBHOOK_VICTOR, json=message)
+            response = await client.post(GOOGLE_CHAT_WEBHOOK_ADMIN, json=message)
             return response.status_code == 200
     except Exception as e:
-        logger.error(f"Failed to send Google Chat to Victor: {e}")
+        logger.error(f"Failed to send Google Chat to Equipe CaseHub: {e}")
         return False
 
 
-async def notify_victor_urgent(
+async def notify_casehub_team_urgent(
     email_service,
     client_name: str,
     subject: str,
@@ -152,7 +152,7 @@ async def notify_victor_urgent(
     paralegal_key: Optional[str] = None
 ) -> Dict[str, bool]:
     """
-    Send urgent email notification to Victor via ALL channels.
+    Send urgent email notification to Equipe CaseHub via ALL channels.
     Also notify the responsible paralegal if provided.
 
     Returns dict with success status for each channel.
@@ -160,7 +160,7 @@ async def notify_victor_urgent(
     import asyncio
 
     results = {
-        "email_victor": False,
+        "email_casehub_team": False,
         "email_paralegal": False,
         "whatsapp": False,
         "google_chat": False
@@ -168,9 +168,9 @@ async def notify_victor_urgent(
 
     # Send to all channels in parallel
     tasks = [
-        notify_victor_email(email_service, client_name, subject, body_preview),
-        notify_victor_whatsapp(client_name, subject),
-        notify_victor_google_chat(client_name, subject, body_preview)
+        notify_casehub_team_email(email_service, client_name, subject, body_preview),
+        notify_casehub_team_whatsapp(client_name, subject),
+        notify_casehub_team_google_chat(client_name, subject, body_preview)
     ]
     
     # Add paralegal notification if we know who is responsible
@@ -184,11 +184,11 @@ async def notify_victor_urgent(
         return_exceptions=True
     )
 
-    results["email_victor"] = email_result is True
+    results["email_casehub_team"] = email_result is True
     results["whatsapp"] = whatsapp_result is True
     results["google_chat"] = gchat_result is True
     results["email_paralegal"] = paralegal_result is True if paralegal_key else False
 
     logger.info(f"Urgent notification results: {results}")
-    logger.info(f"URGENT NOTIFICATION: Victor={results['email_victor']}, Paralegal={results['email_paralegal']}, WhatsApp={results['whatsapp']}")
+    logger.info(f"URGENT NOTIFICATION: Equipe CaseHub={results['email_casehub_team']}, Paralegal={results['email_paralegal']}, WhatsApp={results['whatsapp']}")
     return results

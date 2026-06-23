@@ -1,4 +1,4 @@
--- Task privacy (Victor 03/06/2026: "listas privadas bem claras")
+-- Task privacy (Equipe CaseHub 03/06/2026: "listas privadas bem claras")
 -- Tarefa privada (visibility='private') só é visível ao CRIADOR (created_by) e ao
 -- RESPONSÁVEL (assigned_to), sempre org-scoped. Default 'org' preserva o comportamento
 -- atual (toda a org vê) p/ não quebrar tarefas existentes.

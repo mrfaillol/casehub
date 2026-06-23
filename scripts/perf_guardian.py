@@ -31,7 +31,7 @@ DEFAULT_TENANT = "perf-bench-dev"
 DEFAULT_EMAIL = "perf-bench@casehub.local"
 DEFAULT_PASSWORD = "perf-bench-dev-only"
 MANAGED_BY = "casehub-performance-guardian"
-ISSUE_URL = "https://github.com/mrfaillol/casehub-prod/issues/359"
+ISSUE_URL = "https://github.com/mrfaillol/casehub/issues"
 
 
 ROUTES = [
@@ -340,7 +340,7 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
 
 def require_non_production(target: str) -> None:
     if target == "production":
-        raise SystemExit("Refusing production target. Performance Guardian never mutates managed production.")
+        raise SystemExit("Refusing production target. Performance Guardian never mutates production target.")
 
 
 def ensure_project_root_on_path() -> None:

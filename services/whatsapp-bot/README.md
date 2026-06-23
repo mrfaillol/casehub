@@ -7,7 +7,7 @@
 ## Por que existe esta camada
 
 O CaseHub roda multi-tenant: cada escritório tem seu próprio subdomínio
-(`sampletenant.casehub.legal`, `outroescritorio.casehub.legal`). Cada um
+(`escritorio-a.casehub.legal`, `escritorio-b.casehub.legal`). Cada um
 quer **sua** linha WhatsApp e **suas** conversas — não a da org default.
 
 A biblioteca [`whatsapp-web.js`](https://github.com/pedroslopez/whatsapp-web.js)
@@ -19,7 +19,7 @@ isolar profiles do Chromium.
 ## Arquitetura
 
 ```
-Browser (sampletenant.casehub.legal/casehub/whatsapp-chat)
+Browser (escritorio-a.casehub.legal/casehub/whatsapp-chat)
   └ nginx → FastAPI (casehub:8001)
        └ TenantMiddleware resolve org_id=4 via Host header
        └ routes/whatsapp_chat.py + routes/whatsapp_proxy.py
@@ -82,7 +82,7 @@ Todo endpoint do bot aceita (e o FastAPI sempre envia) o header
 ├── session-org-1/                 # org default
 │   ├── Default/                   # profile Chromium
 │   └── ...
-├── session-org-4/                 # sampletenant
+├── session-org-2/                 # tenant example
 │   ├── Default/
 │   └── ...
 └── session-org-N/                 # cada tenant ganha o seu
@@ -102,7 +102,7 @@ zera apenas uma — é tudo ou nada.
 | `CASEHUB_INBOUND_HMAC_SECRET`      | (obrigatório)                                  | Segredo HMAC compartilhado com o backend                                   |
 | `PUPPETEER_EXECUTABLE_PATH`        | `/usr/bin/chromium` (Docker)                   | Chromium do sistema                                                        |
 | `CASEHUB_DEFAULT_ORG_ID`           | `1`                                            | Org assumida quando `X-Org-Id` está ausente (compat single-tenant)         |
-| `CASEHUB_AUTOSTART_ORGS`           | `<DEFAULT_ORG_ID>` (e.g. `"1"`)                | CSV de orgs pra inicializar no boot. Alpha: `"1,4"` (default + sampletenant) |
+| `CASEHUB_AUTOSTART_ORGS`           | `<DEFAULT_ORG_ID>` (e.g. `"1"`)                | CSV de orgs pra inicializar no boot, por exemplo `"1,2"` |
 | `CASEHUB_BRIDGE_ENABLED`           | `true`                                         | Set `false` pra desabilitar forward (debug)                                |
 
 ## Considerações de performance
@@ -173,8 +173,8 @@ Volume existente (`./.wwebjs_auth/` sem subdiretórios `session-org-*`):
 
 ## Limitações conhecidas
 
-- **Não testado com 5+ orgs simultâneas em prod**. Alpha tem 2 (default +
-  sampletenant). Validação de escala faz parte do roadmap pós-alpha.
+- **Não testado com 5+ orgs simultâneas em prod**. Validar escala antes de
+  aumentar o número de sessões ativas no mesmo container.
 - **Sem migração on-the-fly de sessão entre profiles**. Se uma org troca
   de número WhatsApp, deve `/api/disconnect` + escanear novo QR.
 - **`/qr` HTML usa a org default**. O fluxo correto pra um tenant

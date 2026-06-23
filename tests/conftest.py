@@ -3,6 +3,7 @@ CaseHub Test Configuration
 Shared fixtures for all test modules.
 """
 import os
+import asyncio
 import pytest
 from unittest.mock import patch, MagicMock
 from sqlalchemy import create_engine
@@ -35,9 +36,16 @@ TestSession = sessionmaker(bind=TEST_ENGINE)
 @pytest.fixture(autouse=True)
 def setup_database():
     """Create all tables before each test, drop after."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     Base.metadata.create_all(bind=TEST_ENGINE)
-    yield
-    Base.metadata.drop_all(bind=TEST_ENGINE)
+    try:
+        yield
+    finally:
+        Base.metadata.drop_all(bind=TEST_ENGINE)
+        if not loop.is_closed():
+            loop.close()
+        asyncio.set_event_loop(None)
 
 
 @pytest.fixture

@@ -22,10 +22,22 @@
 
   var ORDER_KEY = 'casehub.navtabs.order.v1';
   var CLOSED_KEY = 'casehub.navtabs.closed.v1';
+  var PINNED_EXTRA_KEY = 'casehub.navtabs.pinned_extra.v1';
 
   var catalog = null;
   var rail = null;          // .ch-tabs[data-nav-tabs]
   var moreList = null;      // [data-tabs-more-list]
+
+  // ── overflow (priority-plus) state ──────────────────────────────────────
+  // Tabs that don't fit in the rail are diverted to the TOP of the "Mais"
+  // dropdown (never silently hidden). This is DERIVED from width — not
+  // persisted — so the visible set is deterministic per device, not driven by
+  // a silent scroll position. `overflowKeys` is the ordered list of keys
+  // currently diverted; `overflowTabs` maps key → detached .ch-tab element.
+  var overflowKeys = [];
+  var overflowTabs = {};
+  var reflowRaf = 0;
+  var reflowDebounce = 0;
 
   // ── utils ───────────────────────────────────────────────────────────────
   function reducedMotion() {
@@ -80,6 +92,27 @@
     setClosed(c);
   }
 
+  // ── pinned-extras set (catalog.extra routes the user promoted to the rail) ──
+  // PessoaDemo 16/06: clicar uma rota no "Mais" deve fixá-la no tab bar e ela ficar
+  // ali (por usuário → localStorage, como a ordem/closed das abas). Abas
+  // primárias fechadas voltam via CLOSED_KEY; rotas "extra" (que vivem fora do
+  // rail) ganham esta lista própria, injetada no rail a cada load.
+  function getPinnedExtras() {
+    var p = lsGet(PINNED_EXTRA_KEY);
+    return Array.isArray(p) ? p : [];
+  }
+  function setPinnedExtras(arr) { lsSet(PINNED_EXTRA_KEY, arr); }
+  function addPinnedExtra(key) {
+    var p = getPinnedExtras();
+    if (p.indexOf(key) === -1) { p.push(key); setPinnedExtras(p); }
+  }
+  function removePinnedExtra(key) {
+    setPinnedExtras(getPinnedExtras().filter(function (k) { return k !== key; }));
+  }
+  function isExtraKey(key) {
+    return (catalog && catalog.extra || []).some(function (t) { return t.key === key; });
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   //  DESKTOP RAIL — order, close buttons, drag reorder
   // ─────────────────────────────────────────────────────────────────────────
@@ -113,6 +146,11 @@
 
   function persistOrder() {
     var keys = railTabs().map(function (t) { return t.getAttribute('data-route-key'); });
+    // Width-diverted tabs aren't in the DOM rail right now, but they ARE open
+    // and belong after the visible ones (they were diverted from the right end,
+    // overflowKeys is already left→right). Keep them in the saved order so a
+    // later restore (bigger viewport) preserves position.
+    if (overflowKeys.length) keys = keys.concat(overflowKeys);
     lsSet(ORDER_KEY, keys);
   }
 
@@ -158,22 +196,80 @@
     if (!tab || tab.getAttribute('data-pinned') === 'true') return;
     var key = tab.getAttribute('data-route-key');
     var wasActive = tab.classList.contains('is-active');
-    markClosed(key);
+    // Pinned extra (promoted from "Mais") → just unpin it; primary tab → mark
+    // closed so it surfaces in "Mais" as a re-openable route.
+    if (tab.getAttribute('data-extra') === 'true') removePinnedExtra(key);
+    else markClosed(key);
     tab.parentNode && tab.parentNode.removeChild(tab);
     persistOrder();
-    rebuildMoreList();
+    // Closing frees rail width → re-evaluate overflow (a diverted tab may now
+    // fit back in). reflowOverflow() rebuilds the "Mais" list itself.
+    reflowOverflow();
     if (wasActive && catalog) {
       // Navigate to dashboard (pinned) when the open route is closed.
       window.location.href = (catalog.prefix || '/casehub') + '/dashboard';
     }
   }
 
-  /** Re-open a previously closed tab (from the "Mais" dropdown) → navigate to it. */
-  function openRoute(key) {
+  /** Build a rail tab element from catalog meta, matching the static markup so
+   *  reflow/drag/close machinery treats it like any other tab. `isExtra` marks
+   *  catalog.extra routes promoted from "Mais" (persisted in PINNED_EXTRA_KEY). */
+  function createRailTab(meta, isExtra) {
+    var a = document.createElement('a');
+    a.className = 'ch-tab';
+    a.setAttribute('role', 'tab');
+    a.setAttribute('data-route-key', meta.key);
+    if (isExtra) a.setAttribute('data-extra', 'true');
+    a.href = meta.href;
+    if (catalog && catalog.active === meta.key) a.classList.add('is-active');
+    a.innerHTML = '<i data-lucide="' + (meta.icon || 'circle') + '"></i> '
+                + '<span class="ch-tab__label">' + escapeHtml(meta.label) + '</span>';
+    return a;
+  }
+
+  /** Inject persisted pinned-extra routes into the rail (run at init). */
+  function injectPinnedExtras() {
+    if (!rail || !catalog) return;
+    var have = {};
+    railTabs().forEach(function (t) { have[t.getAttribute('data-route-key')] = 1; });
+    getPinnedExtras().forEach(function (key) {
+      if (have[key]) return;
+      var meta = tabKeyByKey(key);
+      if (meta) rail.appendChild(createRailTab(meta, true));
+    });
+  }
+
+  /** Pin a route from "Mais" into the rail and keep it there. Closed primary
+   *  tabs clear their closed flag; catalog.extra routes join PINNED_EXTRA. When
+   *  `navigate` is true we also go to the route (clicking the label); when false
+   *  the tab is added in place (the discoverable "+" affordance) — PessoaDemo 16/06. */
+  function pinRouteToRail(key, navigate) {
     var meta = tabKeyByKey(key);
     if (!meta) return;
-    unmarkClosed(key);
-    window.location.href = meta.href;
+    var extra = isExtraKey(key);
+    if (extra) addPinnedExtra(key);
+    else unmarkClosed(key);
+
+    if (rail) {
+      var exists = railTabs().some(function (t) { return t.getAttribute('data-route-key') === key; });
+      if (!exists) {
+        var tab = createRailTab(meta, extra);
+        rail.appendChild(tab);
+        makeDraggable(tab);
+      }
+      addCloseButtons();
+      persistOrder();
+      mountIcons();
+      reflowOverflow();   // also rebuilds the "Mais" list
+    } else {
+      rebuildMoreList();
+    }
+    if (navigate) window.location.href = meta.href;
+  }
+
+  /** Re-open/pin a route from the "Mais" dropdown → pin to rail + navigate. */
+  function openRoute(key) {
+    pinRouteToRail(key, true);
   }
 
   // ── HTML5 drag reorder (desktop) ──
@@ -201,6 +297,9 @@
       railTabs().forEach(function (t) { t.classList.remove('is-drop-before', 'is-drop-after'); });
       dragEl = null;
       persistOrder();
+      // Reorder can change which tab sits at the right edge → re-evaluate which
+      // ones overflow into "Mais".
+      reflowOverflow();
     });
     tab.addEventListener('dragover', function (e) {
       if (!dragEl || dragEl === tab) return;
@@ -232,41 +331,185 @@
   //  "MAIS" DROPDOWN — routes not in the rail, with per-page icons
   // ─────────────────────────────────────────────────────────────────────────
 
-  function railKeys() {
-    var s = {};
-    railTabs().forEach(function (t) { s[t.getAttribute('data-route-key')] = 1; });
-    return s;
+  // ─────────────────────────────────────────────────────────────────────────
+  //  OVERFLOW (priority-plus) — divert tabs that don't fit into "Mais"
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** A tab is "protected" from overflow: the active route (user is on it) and
+   *  any pinned tab (none today — Painel is a separate bubble — but kept for
+   *  safety). Protected tabs never leave the rail. */
+  function isProtectedTab(tab) {
+    if (!tab) return true;
+    if (tab.getAttribute('data-pinned') === 'true') return true;
+    if (tab.classList.contains('is-active')) return true;
+    return false;
+  }
+
+  /** Reflow the rail: bring every diverted tab back, then (while the rail
+   *  overflows its container) move the LAST non-protected tab out to the
+   *  overflow list — which renders at the TOP of "Mais". Deterministic by
+   *  width, so the visible set is stable per device. Skipped on mobile (the
+   *  bottom-nav owns navigation there). */
+  function reflowOverflow() {
+    if (!rail) return;
+    // Mobile: bottom-nav governs; the desktop rail is display:none. Restore any
+    // diverted tabs so nothing is stuck out of the rail if the viewport grew.
+    if (isMobile() || rail.offsetParent === null) {
+      restoreAllOverflow();
+      updateOverflowIndicator();
+      return;
+    }
+    // 1) Bring all diverted tabs back into the rail (in catalog order via the
+    //    persisted order pass) before re-measuring.
+    restoreAllOverflow();
+    applyOrder();
+
+    // 2) While the rail content is wider than the rail, divert the last
+    //    eligible (non-protected) tab. Guard the loop against runaway.
+    var guard = 0;
+    while (rail.scrollWidth > rail.clientWidth + 1 && guard < 64) {
+      guard++;
+      var tabs = railTabs();
+      var victim = null;
+      for (var i = tabs.length - 1; i >= 0; i--) {
+        if (!isProtectedTab(tabs[i])) { victim = tabs[i]; break; }
+      }
+      if (!victim) break; // only protected tabs remain — stop (can't shrink more)
+      var key = victim.getAttribute('data-route-key');
+      overflowTabs[key] = victim;
+      overflowKeys.unshift(key); // most-recently-diverted first → top of "Mais"
+      if (victim.parentNode) victim.parentNode.removeChild(victim);
+    }
+
+    rebuildMoreList();
+    updateOverflowIndicator();
+  }
+
+  /** Re-attach every diverted tab back into the rail and clear overflow state.
+   *  Order is fixed afterwards by applyOrder()/catalog order. */
+  function restoreAllOverflow() {
+    if (!overflowKeys.length) return;
+    // Append in original (catalog) order: overflowKeys is newest-first, so the
+    // catalog-ordered re-insert is handled by applyOrder() after this.
+    overflowKeys.slice().forEach(function (k) {
+      var el = overflowTabs[k];
+      if (el && rail) rail.appendChild(el);
+    });
+    overflowKeys = [];
+    overflowTabs = {};
+  }
+
+  /** Edge-fade indicator (mirrors the mobile bottom-nav pattern, shell.css):
+   *  set data-overflow-start/-end on the rail per scroll position so it's clear
+   *  the rail can be dragged/scrolled (and that "Mais" holds the rest). */
+  function updateOverflowIndicator() {
+    if (!rail) return;
+    var hasOverflow = rail.scrollWidth > rail.clientWidth + 1;
+    if (!hasOverflow) {
+      rail.removeAttribute('data-overflow-start');
+      rail.removeAttribute('data-overflow-end');
+      return;
+    }
+    var atStart = rail.scrollLeft <= 1;
+    var atEnd = rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 1;
+    rail.setAttribute('data-overflow-start', atStart ? 'false' : 'true');
+    rail.setAttribute('data-overflow-end', atEnd ? 'false' : 'true');
+  }
+
+  /** Schedule a reflow on the next frame (coalesces ResizeObserver bursts). */
+  function scheduleReflow() {
+    if (reflowRaf) return;
+    reflowRaf = (window.requestAnimationFrame || function (f) { return setTimeout(f, 16); })(function () {
+      reflowRaf = 0;
+      reflowOverflow();
+    });
+  }
+
+  /** Observe rail/container size + window resize (debounced ~100ms) and the
+   *  rail's own scroll (to update the edge fades). */
+  function bindReflow() {
+    if (rail.__chReflow) return;
+    rail.__chReflow = true;
+
+    if (window.ResizeObserver) {
+      var shell = rail.closest('.ch-tabs-shell') || rail;
+      var ro = new ResizeObserver(function () { scheduleReflow(); });
+      try { ro.observe(shell); ro.observe(rail); } catch (_) {}
+    }
+    window.addEventListener('resize', function () {
+      if (reflowDebounce) clearTimeout(reflowDebounce);
+      reflowDebounce = setTimeout(reflowOverflow, 100);
+    });
+    rail.addEventListener('scroll', updateOverflowIndicator, { passive: true });
   }
 
   function rebuildMoreList() {
     if (!moreList || !catalog) return;
-    var inRail = railKeys();
+    var byKey = {};
+    (catalog.tabs || []).forEach(function (t) { byKey[t.key] = t; });
+    // Keys physically in the rail right now (excludes width-diverted ones).
+    var domKeys = {};
+    railTabs().forEach(function (t) { domKeys[t.getAttribute('data-route-key')] = 1; });
+
     var items = [];
-    // 1) tabs that were closed (so the user can re-open them)
-    (catalog.tabs || []).forEach(function (t) {
-      if (!inRail[t.key] && !t.pinned) items.push(t);
+    var overflowItem = {}; // mark which list entries came from width-overflow
+    // 1) tabs diverted by WIDTH (priority-plus): always at the TOP so Drive (and
+    //    Emails, when gestor) appear WITH their label instead of vanishing.
+    overflowKeys.forEach(function (k) {
+      var t = byKey[k];
+      if (t) { items.push(t); overflowItem[k] = 1; }
     });
-    // 2) catalog "extra" routes (always live outside the rail)
+    // 2) tabs the user CLOSED via × (so they can re-open them).
+    (catalog.tabs || []).forEach(function (t) {
+      if (!domKeys[t.key] && !overflowItem[t.key] && !t.pinned) items.push(t);
+    });
+    // 3) catalog "extra" routes (always live outside the rail).
     (catalog.extra || []).forEach(function (t) {
-      if (!inRail[t.key]) items.push(t);
+      if (!domKeys[t.key] && !overflowItem[t.key]) items.push(t);
     });
     moreList.innerHTML = '';
     items.forEach(function (it) {
+      // Width-diverted tabs are still "open" (they only spilled out of the rail
+      // for lack of space) → no pin affordance, plain navigation.
+      var isOverflow = !!overflowItem[it.key];
+      // Pinnable = a closed primary tab OR a catalog.extra route. Clicking the
+      // label pins + navigates; the "+" pins in place (stays on the page).
+      var pinnable = !isOverflow && (tabIsCloseable(it.key) || isExtraKey(it.key));
+
       var a = document.createElement('a');
       a.className = 'ch-menu__item';
       a.setAttribute('role', 'menuitem');
       a.href = it.href;
       a.setAttribute('data-route-key', it.key);
       a.innerHTML = '<i data-lucide="' + (it.icon || 'circle') + '"></i> ' + escapeHtml(it.label);
-      // Re-open closed *tab* routes through openRoute (clears closed flag);
-      // plain extras just navigate.
+
+      if (!pinnable) { moreList.appendChild(a); return; }
+
+      // Pin label click → pin to rail + navigate (Equipe CaseHub: "aparece no tab bar e fica ali").
       a.addEventListener('click', function (e) {
-        if (tabIsCloseable(it.key)) {
-          e.preventDefault();
-          openRoute(it.key);
-        }
+        e.preventDefault();
+        pinRouteToRail(it.key, true);
       });
-      moreList.appendChild(a);
+      // Discoverable "+" → fixa no tab bar SEM sair da página (PessoaDemo: "como jogo daqui pra cá?").
+      var pin = document.createElement('button');
+      pin.type = 'button';
+      pin.className = 'ch-menu__pin';
+      pin.setAttribute('aria-label', 'Fixar "' + it.label + '" nas abas');
+      pin.setAttribute('title', 'Fixar nas abas');
+      pin.style.cssText = 'border:0;background:transparent;cursor:pointer;color:var(--text-muted,#888);display:inline-flex;align-items:center;padding:4px;flex:0 0 auto';
+      pin.innerHTML = '<i data-lucide="pin"></i>';
+      pin.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        pinRouteToRail(it.key, false);
+      });
+      var row = document.createElement('div');
+      row.className = 'ch-menu__row';
+      row.style.cssText = 'display:flex;align-items:center';
+      a.style.flex = '1 1 auto';
+      row.appendChild(a);
+      row.appendChild(pin);
+      moreList.appendChild(row);
     });
     if (!items.length) {
       var empty = document.createElement('div');
@@ -487,11 +730,22 @@
 
     if (rail) {
       pruneClosed();
+      injectPinnedExtras();   // restore catalog.extra routes the user pinned
       applyOrder();
       addCloseButtons();
       bindDrag();
     }
     rebuildMoreList();
+    if (rail) {
+      // Priority-plus overflow: measure now, then keep in sync on resize. Icons
+      // must be mounted first so tab width is final before we measure.
+      mountIcons();
+      reflowOverflow();
+      bindReflow();
+      // Re-measure once after Lucide CDN finishes (icons can land async and
+      // change tab widths), so the initial divert isn't off by one.
+      scheduleReflow();
+    }
     pruneClosedBottomNav();
     bindMobileDragOut();
     bindMobileSearch();

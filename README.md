@@ -1,188 +1,158 @@
 # CaseHub
 
-> Case management platform for law firms. Two products, one codebase.
+**Versao publica:** `0.9.12-alpha`
+**Data do snapshot:** 2026-06-23
+**Estado:** alpha em desenvolvimento ativo, com acesso manual para escritorios.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white" alt="Python 3.12">
-  <img src="https://img.shields.io/badge/FastAPI-0.109-009688?logo=fastapi&logoColor=white" alt="FastAPI">
-  <img src="https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql&logoColor=white" alt="PostgreSQL 15">
-  <img src="https://img.shields.io/badge/License-Proprietary-red" alt="License">
-</p>
+CaseHub e um framework juridico para escritorios brasileiros: prazos,
+processos, documentos, agenda, comunicacao e IA contextual no mesmo ambiente.
+Este repositorio publico e um snapshot sanitizado do produto alpha, sem dados de
+clientes, segredos, sessoes WhatsApp, uploads, logs, backups ou topologia de
+producao.
 
----
+## Demo
 
-## Products
+- Site publico: https://casehub.legal
+- Acesso ao produto alpha: liberado manualmente para escritorios aprovados.
+- Mockups demonstrativos sem dados reais:
 
-### CaseHub
+![Dashboard demo](docs/screenshots/casehub-dashboard-demo.svg)
 
-Built for Brazilian law firms (inspired by ADVbox, Astrea, LegalOne).
+![Developer surface demo](docs/screenshots/casehub-dev-demo.svg)
 
-- Brazilian legal fields -- CPF, RG, CNPJ, numero_processo, vara, comarca, tribunal
-- Controladoria jurídica
-- Tarefas com kanban dinâmico
-- Agenda integrada ao Google Drive
-- Processo tracking, prazos processuais, tribunal integration, OAB validation
-- Notion, Slack, and Google Workspace integration
-- Dark/light mode, pt-BR interface
-- Currency: BRL | Language: pt-BR | Timezone: America/Sao_Paulo
+## O que existe no alpha
 
-### Shared across both products
+- Controladoria juridica: prazos fatais, responsaveis, fontes e status.
+- Agenda: compromissos, audiencias, tarefas e sincronizacao Google Calendar.
+- Kanban: tarefas, anexos, multi-responsavel e arquivamento reversivel.
+- Clientes e processos: cadastro, historico, documentos e filtros.
+- Documentos: Drive, Docs, upload, modelos e trilha de auditoria.
+- Gmail/SMTP: leitura, envio, integracoes e configuracao por tenant.
+- WhatsApp Chat: conversas, midia, follow-up, avatar e proxy multi-tenant.
+- WhatsApp Bot: `whatsapp-web.js`, sessoes isoladas por org e HMAC inbound.
+- Maestro: assistente contextual, com politica de IA por escritorio.
+- Work Intelligence: eventos agregados e opt-in para metricas operacionais.
+- MCP/SDK/CLI: superficies para agentes, scripts e terminal.
 
-Client management, case tracking, document management, task board, calendar, billing & invoicing, email integration, client portal, notifications, audit logging, RBAC (5 roles), 2FA, reports, team chat, SSO, webhooks, REST API, multi-tenancy with per-org branding.
+## IA e provedores
 
----
+CaseHub nao depende de um unico provedor de IA. A camada Maestro pode ser
+configurada por escritorio conforme politica de dados, custo e preferencia:
+
+- local/self-hosted, incluindo modelos estilo Hermes via runtime compativel;
+- NVIDIA API;
+- OpenRouter ou gateway compativel;
+- Gemini;
+- Claude, Codex, GLM ou outro provedor via adaptador apropriado.
+
+Dados reais de clientes nao devem sair do tenant sem configuracao explicita,
+base legal e politica do escritorio. Repos publicos devem usar apenas fixtures
+sinteticas.
+
+## MCP, SDK e CLI
+
+Projetos relacionados mantidos localmente:
+
+| Projeto | Versao atual | Estado |
+| --- | --- | --- |
+| `casehub-mcp-server` | `0.2.0` | MCP stdio, read-only, 6 ferramentas allowlisted |
+| `casehub-sdk-py` | `0.1.x` | SDK Python em WIP |
+| `casehub-cli` | `0.1.x` | CLI em WIP sobre o SDK |
+
+Ferramentas MCP documentadas no v0.2:
+
+- `search_cases`
+- `get_case`
+- `list_clients`
+- `validate_documento`
+- `get_system_status`
+- `list_templates`
 
 ## Quick Start
 
-### Docker (recommended)
+### Docker
 
 ```bash
-# Immigration product
-docker compose -f docker-compose.yml -f docker-compose.immigration.yml up --build
-
-# Lite product
+git clone https://github.com/mrfaillol/casehub.git
+cd casehub
+cp .env.example .env
 docker compose -f docker-compose.yml -f docker-compose.lite.yml up --build
 ```
 
-### Local Development
+Abra http://localhost:8001/casehub.
+
+### Local
 
 ```bash
-# Clone and install
-git clone git@github.com:mrfaillol/casehub-prod.git && cd casehub
-python3.12 -m venv venv && source venv/bin/activate
+python3.12 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Database
-createdb casehub
-psql casehub < migrations/2026-03-20_multi_tenancy.sql
-
-# Configure
-cp .env.example .env   # Set SECRET_KEY, DATABASE_URL, ADMIN_EMAIL at minimum
-
-# Run
-make dev          # Immigration product
-make dev-lite     # Lite product
+cp .env.example .env
+make dev-lite
 ```
 
-Both expand to `CASEHUB_PRODUCT=<product> uvicorn app:app --host 0.0.0.0 --port 8001 --reload`.
+Requisitos principais:
 
-Open [http://localhost:8001/casehub](http://localhost:8001/casehub). On first run, an admin account is created from `ADMIN_EMAIL` (password printed to stdout).
+- Python 3.12+
+- PostgreSQL 15+
+- Redis 7 opcional
+- Node.js 20+ para o bot WhatsApp
 
-### Prerequisites
+## Configuracao minima
 
-- Python 3.12+, PostgreSQL 15+, Redis 7+ (optional; in-memory fallback)
-- Node.js 20+ (only for WhatsApp bot)
+| Variavel | Uso |
+| --- | --- |
+| `SECRET_KEY` | Assinatura de sessoes e tokens |
+| `DATABASE_URL` | Banco PostgreSQL |
+| `ADMIN_EMAIL` | Admin inicial |
+| `CASEHUB_PRODUCT` | `lite`, `immigration` ou `whitelabel` |
+| `PREFIX` | Prefixo HTTP, padrao `/casehub` |
 
----
+Integracoes opcionais usam variaveis por provedor, por exemplo
+`GOOGLE_*`, `GMAIL_*`, `OPENROUTER_API_KEY`, `NVIDIA_API_KEY`,
+`GEMINI_API_KEY`, `SMTP_*`, `PDPJ_*`, `CALENDLY_*`, `NOTION_*` e
+`CASEHUB_INBOUND_HMAC_SECRET`.
 
-## Architecture
+## Estrutura
 
-CaseHub uses an **app factory pattern** (`core/app_factory.py`). The `CASEHUB_PRODUCT` env var selects which product to boot:
-
+```text
+casehub/
+|-- app.py
+|-- core/                 # app factory, assets, runtime Jinja, flags
+|-- middleware/           # tenant, permissoes, rate limit
+|-- models/               # SQLAlchemy
+|-- routes/               # FastAPI routers
+|-- services/             # dominio e integracoes
+|-- templates/            # Jinja
+|-- static/               # CSS, JS, brand kit
+|-- migrations/           # SQL idempotente
+|-- services/whatsapp-bot # bot Node.js
+|-- docs/
+`-- tests/
 ```
-CASEHUB_PRODUCT=immigration  ->  core routers + immigration routers + communication routers
-CASEHUB_PRODUCT=lite         ->  core routers + communication routers
-```
 
-Product-specific defaults (currency, locale, timezone, feature flags) are resolved automatically. Per-org overrides and plan-based feature flags layer on top.
+## Politica do repositorio publico
 
-```
-casehub-whitelabel/
-|-- app.py                          # Entry point
-|-- config.py                       # Pydantic Settings (.env)
-|-- core/app_factory.py             # create_app(product) factory
-|-- products/immigration/           # Immigration-specific modules
-|-- products/lite/                  # Lite-specific modules
-|-- models/                         # SQLAlchemy models (tenant-scoped)
-|-- routes/                         # FastAPI routers (~60 modules)
-|-- services/                       # Business logic (~70 modules)
-|-- middleware/                     # Tenant, features, permissions, rate limiting
-|-- templates/                      # Jinja2 templates
-|-- static/                         # CSS (Tailwind), JS, images
-|-- migrations/                     # SQL migration files
-|-- i18n/                           # Translations (en, pt-BR)
-+-- docs/                           # Full documentation
-```
+Antes de publicar qualquer mudanca:
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the complete system design.
+- rodar scan de segredo e PII;
+- remover logs, uploads, backups, caches, sessoes e dados de cliente;
+- usar apenas dados demonstrativos;
+- nao commitar `.env`, credenciais Google, tokens WhatsApp, `.wwebjs_auth`,
+  dumps de banco, screenshots reais com nomes ou artefatos de VPS.
 
----
+## Documentacao
 
-## Configuration
+- [Arquitetura](docs/ARCHITECTURE.md)
+- [Setup local](docs/DEVELOPER_SETUP.md)
+- [API](docs/API_REFERENCE.md)
+- [Manual do usuario](docs/USER_MANUAL.md)
+- [White-label](docs/WHITE_LABEL_GUIDE.md)
+- [Hardware](docs/HARDWARE_REQUIREMENTS.md)
+- [Security](SECURITY.md)
 
-### Required
+## Licenca
 
-| Variable | Description |
-|---|---|
-| `SECRET_KEY` | JWT signing key (app exits if unset) |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `ADMIN_EMAIL` | Auto-created admin account |
-
-### Product selection
-
-| Variable | Default | Description |
-|---|---|---|
-| `CASEHUB_PRODUCT` | `immigration` | `immigration` or `lite` |
-| `DEFAULT_CURRENCY` | Auto per product | `USD` or `BRL` |
-| `DEFAULT_TIMEZONE` | Auto per product | IANA timezone |
-
-### Optional integrations
-
-Stripe (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`), Notion (`NOTION_TOKEN`), Google Drive (`GOOGLE_DRIVE_*`), Twilio/WhatsApp (`TWILIO_*`), Gemini AI (`GEMINI_API_KEY`), Perplexity (`PERPLEXITY_API_KEY`), SMTP (`SMTP_*`), Resend (`RESEND_API_KEY`).
-
-See `.env.example` for all variables.
-
----
-
-## White-Label Customization
-
-### Organization branding
-
-Each tenant can customize logo, favicon, primary/secondary colors, and display name via the Branding settings page (`/casehub/settings/branding`) or the API.
-
-### Custom domains
-
-Subdomain or custom domain routing per organization. See [docs/WHITE_LABEL_GUIDE.md](docs/WHITE_LABEL_GUIDE.md).
-
-### Plans & feature flags
-
-Three plans (`starter`, `professional`, `enterprise`) with per-org JSON overrides. Features resolve as: plan defaults -> org overrides -> hardcoded fallback.
-
----
-
-## Hardware Requirements
-
-| Tier | CPU | RAM | Disk |
-|---|---|---|---|
-| Minimum | 2 cores | 4 GB | 20 GB |
-| Recommended | 4 cores | 8 GB | 50 GB |
-| Production (multi-tenant) | 8 cores | 16 GB | 100 GB SSD |
-
-See [docs/HARDWARE_REQUIREMENTS.md](docs/HARDWARE_REQUIREMENTS.md) for benchmarks.
-
----
-
-## Tech Stack
-
-Python 3.12, FastAPI 0.109, SQLAlchemy 2.0, PostgreSQL 15, Redis 7, Jinja2, TailwindCSS, JWT + bcrypt, Fernet encryption, Docker, Nginx, PM2, Google Gemini, Perplexity.
-
----
-
-## Documentation
-
-| Document | Description |
-|---|---|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, app factory, request flow |
-| [DEVELOPER_SETUP.md](docs/DEVELOPER_SETUP.md) | Local dev environment setup |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker, PM2, bare metal deployment |
-| [WHITE_LABEL_GUIDE.md](docs/WHITE_LABEL_GUIDE.md) | Tenant creation, branding, domains, feature flags |
-| [API_REFERENCE.md](docs/API_REFERENCE.md) | REST API endpoints |
-| [FORM_ENRICHMENT_GUIDE.md](docs/FORM_ENRICHMENT_GUIDE.md) | USCIS form expander development |
-| [HARDWARE_REQUIREMENTS.md](docs/HARDWARE_REQUIREMENTS.md) | Server sizing and benchmarks |
-| [USER_MANUAL.md](docs/USER_MANUAL.md) | End-user manual |
-
----
-
-## License
-
-Proprietary. All rights reserved. Victor Vingren / [vingren.me](https://vingren.me)
+Este snapshot publico nao inclui um arquivo `LICENSE`. Ate que uma licenca seja
+adicionada, nao assuma permissao de uso comercial, redistribuicao ou hospedagem
+de uma instancia derivada fora dos termos combinados com os mantenedores.
