@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="static/brand-kit/favicon/casehub-favicon-degrade-1.svg" alt="CaseHub" width="180" />
+<img src="static/brand-kit/favicon/casehub-favicon-degrade-4.svg" alt="CaseHub" width="180" />
 
 # CaseHub
 
