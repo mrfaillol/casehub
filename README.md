@@ -285,20 +285,21 @@ Contribuições são bem-vindas. Antes de abrir um PR, leia o guia em [`CONTRIBU
 
 ---
 
-## Marca registrada
+## Propriedade intelectual
 
-**CaseHub®** é uma marca registrada no **INPI** (Instituto Nacional da Propriedade Industrial,
-Brasil). A licença de software AGPL-3.0 cobre apenas o **código-fonte** e **não** concede direitos
-sobre a marca nominativa, o logotipo ou a identidade visual do CaseHub.
+O **programa de computador CaseHub** é registrado no **INPI** (Brasil) como obra autoral, nos
+termos da Lei nº 9.609/98 — processo `BR 51 2026 004219-4`, publicado na RPI nº 2893 (16/06/2026).
 
-Você pode usar, estudar, modificar e redistribuir o **código** conforme a AGPL-3.0, mas **não** pode
-usar o nome ou os logotipos "CaseHub" de forma que sugira endosso, afiliação ou origem oficial sem
-autorização. Forks e distribuições derivadas devem adotar **identidade própria** (nome, logo e cores
-distintos).
+A licença de software AGPL-3.0 cobre apenas o **código-fonte** e **não** concede direitos sobre a
+marca nominativa, o logotipo ou a identidade visual do CaseHub. Você pode usar, estudar, modificar e
+redistribuir o **código** conforme a AGPL-3.0, mas **não** pode usar o nome ou os logotipos
+"CaseHub" de forma que sugira endosso, afiliação ou origem oficial sem autorização. Forks e
+distribuições derivadas devem adotar **identidade própria** (nome, logo e cores distintos).
 
 Os ativos de marca em `static/brand-kit/` seguem regras próprias de uso documentadas em
 [`static/brand-kit/README.md`](static/brand-kit/README.md) e **não** estão sob a licença de software.
-A declaração completa de marca está em [`TRADEMARK.md`](TRADEMARK.md).
+A declaração completa (registro de software + licença + marca) está em
+[`TRADEMARK.md`](TRADEMARK.md).
 
 ---
 
@@ -329,11 +330,14 @@ Currently in **alpha**, in controlled production, focused on the Brazilian legal
 - **Security & privacy:** PII encrypted at rest, tenant isolation, LGPD-aligned. Report
   vulnerabilities privately via [`SECURITY.md`](SECURITY.md) — do not open public issues.
 - **Contributing:** see [`CONTRIBUTING.md`](CONTRIBUTING.md). DCO sign-off required (`git commit -s`).
-- **Trademark:** "CaseHub"® is a registered trademark (INPI, Brazil) and is not covered by the
-  software license; forks must adopt their own identity. See [`TRADEMARK.md`](TRADEMARK.md).
+- **IP:** the CaseHub software is registered with the INPI (Brazil) as a computer program
+  (Law 9.609/98, process `BR 51 2026 004219-4`). The name "CaseHub", logos and visual identity
+  are not covered by the software license; forks must adopt their own identity. See
+  [`TRADEMARK.md`](TRADEMARK.md).
 
 > *The norm is code. The code is the norm.* — [casehub.legal](https://casehub.legal)
 
-<sub>© LegalOps Co. · CaseHub® — marca registrada no INPI (Brasil).</sub>
+<sub>© Jayme Vieira Salles de Almeida e Legal Ops Co. Ltda · CaseHub registrado no INPI como
+programa de computador (Lei 9.609/98, processo BR 51 2026 004219-4).</sub>
 
 </div>
