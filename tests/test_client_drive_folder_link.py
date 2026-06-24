@@ -56,7 +56,7 @@ def _patch_auth(monkeypatch, user=object()):
     monkeypatch.setattr(clients, "get_current_user", lambda req, db: user)
 
 
-def _seed_client(db, org_id=_ORG_ID, first="Maria", last="Silva"):
+def _seed_client(db, org_id=_ORG_ID, first="PessoaDemo", last="Silva"):
     c = Client(org_id=org_id, first_name=first, last_name=last)
     db.add(c)
     db.commit()
@@ -120,7 +120,7 @@ def test_post_persists_drive_folder_id_from_url(db, monkeypatch):
 
     body = {
         "drive_folder_id": "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQ",
-        "drive_folder_name": "Cliente Maria — Imigração",
+        "drive_folder_name": "Cliente PessoaDemo — Imigração",
     }
     payload = _run(clients.set_client_drive_folder(_make_request(body), c.id, db))
 
@@ -128,7 +128,7 @@ def test_post_persists_drive_folder_id_from_url(db, monkeypatch):
     assert payload["drive_folder_id"] == "1AbCdEfGhIjKlMnOpQ"
     db.refresh(c)
     assert c.drive_folder_id == "1AbCdEfGhIjKlMnOpQ"
-    assert c.drive_folder_name == "Cliente Maria — Imigração"
+    assert c.drive_folder_name == "Cliente PessoaDemo — Imigração"
 
 
 def test_post_persists_bare_id(db, monkeypatch):
@@ -187,7 +187,7 @@ def test_get_prefers_stored_drive_folder_id(db, monkeypatch):
     _patch_auth(monkeypatch)
     c = _seed_client(db)
     c.drive_folder_id = "1AbCdEfGhIjKlMnOpQ"
-    c.drive_folder_name = "Cliente Maria"
+    c.drive_folder_name = "Cliente PessoaDemo"
     db.commit()
 
     # If the legacy fallback ran it would import GoogleDriveHandler.

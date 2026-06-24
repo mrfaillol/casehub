@@ -13,3 +13,9 @@ from .improvement_task import ImprovementTask
 from .whatsapp_inbound import WhatsappFieldRequest, MaestroTrainingSample
 from .whatsapp_clone import WaContact, WaConversation, WaMessage
 from .maestro_learning import MaestroLearningEntry
+from .maestro_legal import (
+    MaestroLegalChunk,
+    MaestroLegalDocument,
+    MaestroLegalEmbedding,
+    MaestroLegalSource,
+)

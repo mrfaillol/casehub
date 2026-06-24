@@ -18,8 +18,8 @@ def _http_status_error(status_code=400, payload=None):
 def _create_org(db, settings=None):
     org = Organization(
         uuid=str(uuid.uuid4()),
-        name="Example Legal",
-        slug=f"vieira-{uuid.uuid4().hex[:8]}",
+        name="Escritorio Demo",
+        slug=f"example-{uuid.uuid4().hex[:8]}",
         settings=settings or {},
     )
     db.add(org)
@@ -154,7 +154,7 @@ async def test_get_access_token_preserves_invalid_client(monkeypatch):
     from services.comunicaapi import PDPJAuthClient
 
     auth = PDPJAuthClient()
-    auth.client_id = "vieira-sales-adv"
+    auth.client_id = "example-law-client"
     auth.client_secret = "secret"
 
     async def fail_client_credentials(org_id=None):

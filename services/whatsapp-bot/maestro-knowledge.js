@@ -82,8 +82,7 @@ const SYSTEM_KNOWLEDGE = {
     },
     services: {
       'whatsapp-bot': { port: 3001, pm2: true },
-      'casehub': { port: 8001, pm2: true },
-      'ilc-tools': { port: 8000, pm2: true }
+      'casehub': { port: 8001, pm2: true }
     },
     database: {
       type: 'MySQL',
@@ -180,12 +179,11 @@ const ALLOWED_SHELL_COMMANDS = [
   'mysql --version'
 ];
 
-// Telefones de administradores autorizados
-const ADMIN_PHONES = [
-  '5532991513405',
-  '5519998523218',
-  '19405550000' // placeholder para o +1 (940)
-];
+// Authorized admin phones are deployment config, never repository data.
+const ADMIN_PHONES = (process.env.MAESTRO_ADMIN_PHONES || '')
+  .split(',')
+  .map((phone) => phone.trim())
+  .filter(Boolean);
 
 // Função para verificar se é admin
 function isAdminPhone(phone) {

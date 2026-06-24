@@ -2,7 +2,7 @@
 {% set active_module = 'agenda' %}
 {% block title %}Calendar · Agenda_Lista · {{ org_name|default('CaseHub') }}{% endblock %}
 {% block extra_head %}
-  <link rel="stylesheet" href="/static/css/templates/calendar-agenda-lista.css?v=20260609-neu">
+  <link rel="stylesheet" href="/static/css/templates/calendar-agenda-lista.css?v=20260615-neon-cta">
 {% endblock %}
 {% block content %}
 <main class="agenda-main" aria-labelledby="agenda-title">
@@ -47,8 +47,27 @@
                 {% endif %}
             </nav>
 
+            <nav class="agenda-month-nav" aria-label="Navegação mensal" hidden>
+                <a class="agenda-nav-btn"
+                   href="{{ PREFIX }}/calendar/agenda?month={{ month_prev_offset }}"
+                   aria-label="Mês anterior">
+                    <i data-lucide="chevron-left" aria-hidden="true"></i>
+                </a>
+                <span class="agenda-nav-label">{{ month_label }}</span>
+                <a class="agenda-nav-btn"
+                   href="{{ PREFIX }}/calendar/agenda?month={{ month_next_offset }}"
+                   aria-label="Próximo mês">
+                    <i data-lucide="chevron-right" aria-hidden="true"></i>
+                </a>
+                {% if month_offset != 0 %}
+                <a href="{{ PREFIX }}/calendar/agenda?month=0" class="agenda-nav-btn agenda-nav-btn--today">Mês atual</a>
+                {% endif %}
+            </nav>
+
             <div class="agenda-actions">
             <button type="button" class="agenda-action agenda-action--ghost" id="btnSyncGoogle" data-sync-google
+                    data-week-start="{{ week_start.isoformat() }}"
+                    data-week-end="{{ week_end.isoformat() }}"
                     title="Importar eventos do Google Calendar para a agenda">
                 <i data-lucide="refresh-cw" aria-hidden="true"></i>
                 <span>Sincronizar agora</span>
@@ -108,71 +127,10 @@
             </div>
         </article>
 
-        <article class="agenda-stat">
-            <div class="agenda-stat-content">
-                <div class="agenda-stat-value">{{ stats_pericia_semana }}</div>
-                <div class="agenda-stat-label">Perícias semana</div>
-            </div>
-            <div class="agenda-stat-icon agenda-stat-icon--warning" aria-hidden="true">
-                <i data-lucide="microscope"></i>
-            </div>
-        </article>
     </section>
 
-    {# Mini-dashboard "Perícias próximas" (estilo aba Pe-Das1 da planilha VS).
-       Miller: lista enxuta (<=8) com a info essencial — data, dias restantes,
-       responsável e local. Só aparece quando há perícias futuras. #}
-    {% if pericias_proximas %}
-    <section class="agenda-pericias" aria-label="Perícias próximas">
-        <header class="agenda-pericias__header">
-            <span class="ch-card__eyebrow"><i data-lucide="microscope" aria-hidden="true"></i> Perícias próximas</span>
-        </header>
-        <div class="agenda-pericias__list">
-            {% for p in pericias_proximas %}
-            <button type="button" class="agenda-pericia-card"
-                    data-appt-id="{{ p.id }}"
-                    data-appt-title="{{ p.title|e }}"
-                    data-appt-type="pericia"
-                    data-appt-assigned="{{ p.assigned_to or '' }}"
-                    data-appt-assigned-ids="{{ appt_assignee_ids.get(p.id, [p.assigned_to] if p.assigned_to else [])|join(',') }}"
-                    data-appt-client="{{ p.client_name|e if p.client_name else '' }}"
-                    data-appt-date="{{ p.date.isoformat() }}"
-                    data-appt-time-start="{{ p.time_start.strftime('%H:%M') if p.time_start else '' }}"
-                    data-appt-time-end="{{ p.time_end.strftime('%H:%M') if p.time_end else '' }}"
-                    data-appt-virtual="{{ '1' if p.is_virtual else '0' }}"
-                    data-appt-notes="{{ p.notes|e if p.notes else '' }}"
-                    data-appt-checklist="{{ p.checklist|e if p.checklist else '' }}"
-                    data-appt-attachments="{{ p.attachments|e if p.attachments else '' }}"
-                    data-appt-files='{{ appt_files.get(p.id, [])|tojson|e }}'
-                    data-appt-local="{{ p.local|e if p.local else '' }}"
-                    data-appt-pericia-status="{{ p.pericia_status|e if p.pericia_status else '' }}"
-                    data-appt-outcome="{{ p.outcome|e if p.outcome else '' }}">
-                <span class="agenda-pericia-card__dias">
-                    {% if p.dias_ate == 0 %}Hoje{% elif p.dias_ate == 1 %}Amanhã{% else %}{{ p.dias_ate }} dias{% endif %}
-                </span>
-                <span class="agenda-pericia-card__date">{{ p.date.strftime('%d/%m') }}{% if p.time_start %} · {{ p.time_start.strftime('%H:%M') }}{% endif %}</span>
-                <strong class="agenda-pericia-card__title">{{ p.title }}</strong>
-                {% if p.client_name %}<span class="agenda-pericia-card__client">{{ p.client_name }}</span>{% endif %}
-                {% set p_people = appt_assignees.get(p.id) if appt_assignees else [] %}
-                {% if p_people %}
-                <span class="agenda-pericia-card__people">
-                    <span class="agenda-avatar-stack agenda-avatar-stack--mini" aria-hidden="true">
-                        {% for person in p_people[:3] %}
-                        <span class="agenda-user-avatar agenda-user-avatar--mini" style="--appt-color: {{ person.color }};">
-                            {% if person.photo_url %}<img src="{{ person.photo_url }}" alt="">{% else %}{{ person.initials }}{% endif %}
-                        </span>
-                        {% endfor %}
-                    </span>
-                    {{ p_people[0].short_name }}{% if p_people|length > 1 %} +{{ p_people|length - 1 }}{% endif %}
-                </span>
-                {% endif %}
-                {% if p.local %}<span class="agenda-pericia-card__local"><i data-lucide="map-pin" aria-hidden="true"></i> {{ p.local }}</span>{% endif %}
-                {% if p.pericia_status %}<span class="agenda-pericia-card__status">{{ p.pericia_status }}</span>{% endif %}
-            </button>
-            {% endfor %}
-        </div>
-    </section>
-    {% endif %}
+    {# Seção "Perícias próximas" removida (contabilização de perícia) a pedido do
+       escritório — PessoaDemo, 12/06. Perícias seguem aparecendo na agenda normal. #}
 
     <section class="agenda-grid" aria-label="Compromissos da semana">
         {% for day in days %}
@@ -485,8 +443,15 @@
 
             <div class="ch-grid ch-grid--2">
                 <div class="ch-field">
-                    <label class="ch-field__label" for="appt_checklist">Checklist</label>
-                    <textarea id="appt_checklist" class="ch-textarea" rows="3" placeholder="Uma tarefa por linha…"></textarea>
+                    <label class="ch-field__label" for="appt_checklist_new">Checklist</label>
+                    {# Checklist interativo (PessoaDemo 16/06): cada item vira uma caixinha
+                       marcável. O estado é serializado no textarea oculto (fonte de
+                       verdade, coluna TEXT) como "[x] tarefa" / "[ ] tarefa" — sem
+                       migração e retrocompatível com checklists em texto puro. #}
+                    <div id="appt_checklist_items" class="ch-checklist" data-checklist></div>
+                    <input id="appt_checklist_new" class="ch-input ch-checklist__new" type="text"
+                           placeholder="Escreva uma tarefa e tecle Enter…" autocomplete="off">
+                    <textarea id="appt_checklist" class="ch-textarea" rows="3" placeholder="Uma tarefa por linha…" hidden></textarea>
                 </div>
                 <div class="ch-field">
                     <label class="ch-field__label" for="appt_attachments">Anexos e links</label>
@@ -496,27 +461,13 @@
                 </div>
             </div>
 
-            {# Campos extras de Perícia (aba Peric da planilha VS). Só ficam
-               visíveis quando Tipo = Perícia — Hick: não polui o formulário dos
-               demais tipos. data-pericia-fields é alternado por toggleApptType(). #}
-            <div class="ch-grid ch-grid--2" data-pericia-fields hidden style="margin-bottom: 0;">
-                <div class="ch-field">
-                    <label class="ch-field__label" for="appt_local">Local da perícia</label>
-                    <input type="text" id="appt_local" class="ch-input" placeholder="Ex: IML, clínica, online">
-                </div>
-                <div class="ch-field">
-                    <label class="ch-field__label" for="appt_pericia_status">Status da perícia</label>
-                    <select id="appt_pericia_status" class="ch-select">
-                        <option value="">— Selecionar —</option>
-                        <option value="agendada">Agendada</option>
-                        <option value="confirmada">Confirmada</option>
-                        <option value="realizada">Realizada</option>
-                        <option value="laudo_pendente">Laudo pendente</option>
-                        <option value="concluida">Concluída</option>
-                        <option value="cancelada">Cancelada</option>
-                    </select>
-                </div>
-            </div>
+            {# Perícia: a "contabilização" (campos visíveis Local/Status + stat
+               "Perícias semana" + seção "Perícias próximas") foi removida a pedido
+               do escritório (PessoaDemo, 12/06): a perícia é enviada aos clientes, não
+               há contagem interna. Mantemos os valores como hidden para preservar
+               os dados de compromissos de perícia já existentes no edit/save. #}
+            <input type="hidden" id="appt_local">
+            <input type="hidden" id="appt_pericia_status">
         </form>
 
         <footer class="ch-modal__footer" style="justify-content: space-between;">
@@ -533,7 +484,7 @@
     </div>
 </div>
 
-<!-- Visão do Dia (timeline estilo Google Calendar) — drawer overlay, 03/06 Example User.
+<!-- Visão do Dia (timeline estilo Google Calendar) — drawer overlay, 03/06 UsuarioDemo.
      Hick: uma só coluna de horas, leitura linear do dia. Fitts: blocos grandes
      clicáveis reabrem o editor existente. Conteúdo (cabeçalho/horas/blocos) é
      montado client-side a partir de GET /calendar/events. -->
@@ -610,7 +561,7 @@
         document.body.style.overflow = '';
     }
 
-    // Item 2 (Example User 03/06): 3 visualizações da Agenda.
+    // Item 2 (UsuarioDemo 03/06): 3 visualizações da Agenda.
     //   both       → Lista (stats + nav + grid semanal) E o calendário logo
     //                abaixo, mostrando os MESMOS compromissos. É o DEFAULT.
     //   lista      → só a lista semanal (sem o calendário embaixo).
@@ -662,6 +613,7 @@
         const grid = $('.agenda-grid');
         const cal = $('#calendarInlineView');
         const nav = $('.agenda-nav');
+        const monthNav = $('.agenda-month-nav');
         const stats = $('.agenda-stats');
         const btnBoth = $('#btnViewBoth');
         const btnLista = $('#btnViewLista');
@@ -669,11 +621,13 @@
 
         const showList = (view === 'both' || view === 'lista');
         const showCal = (view === 'both' || view === 'calendario');
+        const calOnly = (view === 'calendario');
 
         // [hidden] + regra CSS [hidden]{display:none !important} garante que
         // esconder de fato remova o bloco do fluxo (sem espaço vazio/quebra).
         if (grid) grid.hidden = !showList;
-        if (nav) nav.hidden = !showList;
+        if (nav) nav.hidden = calOnly;
+        if (monthNav) monthNav.hidden = !calOnly;
         if (stats) stats.hidden = !showList;
         if (cal) cal.hidden = !showCal;
 
@@ -778,6 +732,7 @@
         $('#appt_virtual').checked = false;
         $('#appt_notes').value = '';
         $('#appt_checklist').value = '';
+        renderChecklistFromTextarea();
         $('#appt_attachments').value = '';
         $('#appt_files').value = '';
         renderApptFiles([]);
@@ -807,6 +762,7 @@
         $('#appt_virtual').checked = data.apptVirtual === '1';
         $('#appt_notes').value = data.apptNotes || '';
         $('#appt_checklist').value = data.apptChecklist || '';
+        renderChecklistFromTextarea();
         $('#appt_attachments').value = data.apptAttachments || '';
         $('#appt_files').value = '';
         renderApptFiles(parseApptFiles(data.apptFiles));
@@ -819,7 +775,7 @@
     }
 
     // ====================================================================
-    // Visão do Dia (timeline) — 03/06 Example User.
+    // Visão do Dia (timeline) — 03/06 UsuarioDemo.
     // Clicar numa célula do dia abre um drawer com a linha do tempo daquele
     // dia (horas no eixo vertical, compromissos como blocos posicionados por
     // horário). Reusa GET /calendar/events (org-scoped) e o editor existente
@@ -1035,9 +991,17 @@
         }
     }
 
+    // Aviso de "Google Calendar nao conectado" deixa de ser beco sem saida:
+    // anexa orientacao de onde conectar (botao "Google Calendar" no topo).
+    var GCAL_CONNECT_HINT = 'Para sincronizar, conecte sua conta no botão Google Calendar (no topo da agenda).';
+
     function notifyGoogleSync(result) {
         if (!result || result.synced || !result.message) return;
-        notify(result.message, 'warning');
+        var msg = result.message;
+        if (result.connected === false || /n[ãa]o (est[áa] )?conectad/i.test(msg)) {
+            msg = msg.replace(/[.\s]*$/, '') + '. ' + GCAL_CONNECT_HINT;
+        }
+        notify(msg, 'warning');
     }
 
     function notifyApptConflicts(conflicts) {
@@ -1065,21 +1029,206 @@
         }
     }
 
+    // ====================================================================
+    // Checklist interativo (PessoaDemo 16/06) — caixinhas marcáveis.
+    // O textarea oculto #appt_checklist é a FONTE DE VERDADE persistida
+    // (coluna TEXT). Serializamos "[x] tarefa" (feito) / "[ ] tarefa".
+    // Linhas legadas sem prefixo entram como não-marcadas. saveAppt e o
+    // backend continuam lendo a mesma string — sem migração.
+    // ====================================================================
+    var CHECK_RE = /^\s*(?:[-*]\s*)?\[([ xX])\]\s?(.*)$/;
+
+    function parseChecklist(str) {
+        return String(str || '').split('\n').map(function (line) {
+            var m = line.match(CHECK_RE);
+            if (m) return { text: m[2].trim(), done: m[1].toLowerCase() === 'x' };
+            var t = line.trim();
+            return t ? { text: t, done: false } : null;
+        }).filter(Boolean);
+    }
+
+    function serializeChecklist(items) {
+        return items.filter(function (it) { return it.text.trim(); })
+            .map(function (it) { return (it.done ? '[x] ' : '[ ] ') + it.text.trim(); })
+            .join('\n');
+    }
+
+    // Lê os itens do DOM (ordem + estado + texto) — usado a cada interação.
+    function readChecklistDom() {
+        var box = $('#appt_checklist_items');
+        if (!box) return [];
+        return Array.prototype.slice.call(box.querySelectorAll('[data-check-row]')).map(function (row) {
+            var cb = row.querySelector('[data-check-done]');
+            var inp = row.querySelector('[data-check-text]');
+            return { text: inp ? inp.value : '', done: !!(cb && cb.checked) };
+        });
+    }
+
+    // Sincroniza o textarea oculto a partir do DOM (após toggle/edição/remoção).
+    function syncChecklistTextarea() {
+        var ta = $('#appt_checklist');
+        if (ta) ta.value = serializeChecklist(readChecklistDom());
+    }
+
+    function checklistRowHtml(item) {
+        var text = escapeHtml(item.text || '');
+        return '<div class="ch-checklist__row" data-check-row'
+             + ' style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-1)">'
+             + '<input type="checkbox" data-check-done class="ch-checklist__box"' + (item.done ? ' checked' : '') + '>'
+             + '<input type="text" data-check-text class="ch-input ch-checklist__text" value="' + text + '"'
+             + ' style="flex:1' + (item.done ? ';text-decoration:line-through;opacity:.6' : '') + '">'
+             + '<button type="button" data-check-remove aria-label="Remover item" title="Remover item"'
+             + ' style="border:0;background:transparent;cursor:pointer;color:var(--text-muted,#888);padding:2px">'
+             + '<i data-lucide="x" aria-hidden="true"></i></button>'
+             + '</div>';
+    }
+
+    function renderChecklist(items) {
+        var box = $('#appt_checklist_items');
+        if (!box) return;
+        box.innerHTML = items.map(checklistRowHtml).join('');
+        if (typeof mountIcons === 'function') mountIcons();
+        syncChecklistTextarea();
+    }
+
+    function renderChecklistFromTextarea() {
+        var ta = $('#appt_checklist');
+        renderChecklist(parseChecklist(ta ? ta.value : ''));
+    }
+
+    function addChecklistItem(text, done) {
+        var box = $('#appt_checklist_items');
+        if (!box) return null;
+        box.insertAdjacentHTML('beforeend', checklistRowHtml({ text: text || '', done: !!done }));
+        if (typeof mountIcons === 'function') mountIcons();
+        syncChecklistTextarea();
+        return box.lastElementChild;
+    }
+
+    // Interações do checklist (delegadas ao container + ao input "novo item").
+    function initChecklistWidget() {
+        var box = $('#appt_checklist_items');
+        var addInput = $('#appt_checklist_new');
+        if (box) {
+            box.addEventListener('change', function (e) {
+                if (!e.target.closest('[data-check-done]')) return;
+                var row = e.target.closest('[data-check-row]');
+                var txt = row && row.querySelector('[data-check-text]');
+                if (txt) {
+                    var on = e.target.checked;
+                    txt.style.textDecoration = on ? 'line-through' : '';
+                    txt.style.opacity = on ? '.6' : '';
+                }
+                syncChecklistTextarea();
+            });
+            box.addEventListener('input', function (e) {
+                if (e.target.closest('[data-check-text]')) syncChecklistTextarea();
+            });
+            box.addEventListener('click', function (e) {
+                var rm = e.target.closest('[data-check-remove]');
+                if (!rm) return;
+                e.preventDefault();
+                var row = rm.closest('[data-check-row]');
+                if (row) row.remove();
+                syncChecklistTextarea();
+            });
+            // Enter dentro de um item cria um novo item logo abaixo (UX da PessoaDemo).
+            box.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                if (!e.target.closest('[data-check-text]')) return;
+                e.preventDefault();
+                var newRow = addChecklistItem('', false);
+                if (newRow) { var i = newRow.querySelector('[data-check-text]'); if (i) i.focus(); }
+            });
+        }
+        if (addInput) {
+            // "Escreva uma tarefa e tecle Enter" → vira um item marcável.
+            addInput.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                var v = addInput.value.trim();
+                if (!v) return;
+                addChecklistItem(v, false);
+                addInput.value = '';
+            });
+            // Flush: se o usuário digitou e saiu/salvou sem Enter, não perder o item.
+            addInput.addEventListener('blur', function () {
+                var v = addInput.value.trim();
+                if (!v) return;
+                addChecklistItem(v, false);
+                addInput.value = '';
+            });
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initChecklistWidget);
+    } else {
+        initChecklistWidget();
+    }
+
+    // Lista de anexos do compromisso aberto no editor — fonte de verdade pra
+    // re-render após remover um anexo (PessoaDemo 16/06: abrir em nova aba + remover).
+    var currentApptFiles = [];
+
     function renderApptFiles(files) {
         var box = $('#appt_existing_files');
         if (!box) return;
         var list = parseApptFiles(files);
+        currentApptFiles = list;
         if (!list.length) {
             box.hidden = true;
             box.innerHTML = '';
             return;
         }
         box.hidden = false;
+        box.style.display = 'flex';
+        box.style.flexWrap = 'wrap';
+        box.style.gap = 'var(--space-2)';
         box.innerHTML = list.map(function (file) {
             var url = escapeHtml(file.url || '#');
             var name = escapeHtml(file.name || 'Anexo');
-            return '<a class="ch-link" href="' + url + '" download="' + name + '">Baixar ' + name + '</a>';
-        }).join('<br>');
+            var icon = /^https?:/i.test(file.url || '') ? 'link' : 'paperclip';
+            // Abre em nova aba/popup (não força download). rel=noopener por segurança.
+            var link = '<a class="ch-link" href="' + url + '" target="_blank" rel="noopener"'
+                 + ' title="Abrir ' + name + '"'
+                 + ' style="display:inline-flex;align-items:center;gap:var(--space-2)">'
+                 + '<i data-lucide="' + icon + '" aria-hidden="true"></i><span>' + name + '</span></a>';
+            // Botão remover — só pra anexos persistidos (têm id). data-attr leva o id.
+            var del = (file.id != null)
+                ? '<button type="button" class="ch-attach-remove" data-remove-attachment="' + escapeHtml(String(file.id)) + '"'
+                  + ' aria-label="Remover ' + name + '" title="Remover anexo"'
+                  + ' style="display:inline-flex;align-items:center;border:0;background:transparent;cursor:pointer;color:var(--text-muted,#888);padding:2px">'
+                  + '<i data-lucide="x" aria-hidden="true"></i></button>'
+                : '';
+            return '<span class="ch-attach-chip" style="display:inline-flex;align-items:center;gap:var(--space-1)">'
+                 + link + del + '</span>';
+        }).join('');
+        if (typeof mountIcons === 'function') mountIcons();
+    }
+
+    // Remove um anexo já salvo (DELETE org-scoped) e re-renderiza a lista local.
+    function removeApptAttachment(attachmentId, btn) {
+        if (!editingApptId || attachmentId == null) return;
+        if (!confirm('Remover este anexo?')) return;
+        if (btn) btn.setAttribute('disabled', 'true');
+        fetch(PREFIX + '/calendar/appointments/' + editingApptId + '/attachments/' + attachmentId, {
+            method: 'DELETE'
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (res.ok && res.d && res.d.success) {
+                currentApptFiles = currentApptFiles.filter(function (f) {
+                    return String(f.id) !== String(attachmentId);
+                });
+                renderApptFiles(currentApptFiles);
+                notify('Anexo removido.', 'success');
+            } else {
+                if (btn) btn.removeAttribute('disabled');
+                notify((res.d && res.d.error) || 'Não foi possível remover o anexo.', 'error');
+            }
+        }).catch(function () {
+            if (btn) btn.removeAttribute('disabled');
+            notify('Não foi possível remover o anexo.', 'error');
+        });
     }
 
     function uploadApptFiles(apptId) {
@@ -1106,7 +1255,7 @@
 
     // Apos criar/editar/excluir, navega FRESCO pra semana do compromisso com
     // cache-bust (URL unica) — senao o item recem-salvo pode nao aparecer ate
-    // F5 manual (o browser servia HTML do cache no location.reload). Bug Example User 29/05.
+    // F5 manual (o browser servia HTML do cache no location.reload). Bug UsuarioDemo 29/05.
     function apptReloadTo(savedDate) {
         var url = new URL(window.location.href);
         if (savedDate) {
@@ -1121,15 +1270,18 @@
         window.location.href = url.toString();
     }
 
-    // "Sincronizar agora": pull incremental Google → CaseHub sob demanda.
-    // Após importar, recarrega a agenda (apptReloadTo) p/ que os compromissos
-    // do Google apareçam na lista + calendário + timeline. Best-effort no back.
+    // "Sincronizar agora": sincroniza Google <-> CaseHub sob demanda.
+    // A semana visível vai junto para o backend priorizar o que o usuário está
+    // olhando agora, sem tentar exportar todo o backlog em uma única requisição.
     let syncing = false;
     function syncGoogleNow(btn) {
         if (syncing) return;
         syncing = true;
         if (btn) btn.setAttribute('disabled', 'true');
-        fetch(PREFIX + '/calendar/sync-google', {
+        var url = new URL(PREFIX + '/calendar/sync-google', window.location.origin);
+        if (btn && btn.dataset.weekStart) url.searchParams.set('start_date', btn.dataset.weekStart);
+        if (btn && btn.dataset.weekEnd) url.searchParams.set('end_date', btn.dataset.weekEnd);
+        fetch(url.toString(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         })
@@ -1139,7 +1291,7 @@
                     notify(data.message || 'Agenda sincronizada com o Google.', 'success');
                     apptReloadTo(null);
                 } else {
-                    notify((data && data.message) || 'Google Calendar nao conectado.', 'info');
+                    notify(((data && data.message) || 'Google Calendar não conectado.').replace(/[.\s]*$/, '') + '. ' + GCAL_CONNECT_HINT, 'info');
                     syncing = false;
                     if (btn) btn.removeAttribute('disabled');
                 }
@@ -1227,6 +1379,13 @@
         const peopleToggle = e.target.closest('[data-people-select-toggle]');
         if (peopleToggle) { e.preventDefault(); togglePeopleSelect(); return; }
 
+        const removeAttach = e.target.closest('[data-remove-attachment]');
+        if (removeAttach) {
+            e.preventDefault();
+            removeApptAttachment(removeAttach.getAttribute('data-remove-attachment'), removeAttach);
+            return;
+        }
+
         const viewBtn = e.target.closest('[data-agenda-view]');
         if (viewBtn) {
             e.preventDefault();
@@ -1234,7 +1393,7 @@
             showView(v);
             // Persistir em localStorage: como salvar/excluir compromisso faz um
             // reload fresco (apptReloadTo), sem isso o usuário voltava sempre
-            // pro default. localStorage (não session) mantém a escolha do Example User
+            // pro default. localStorage (não session) mantém a escolha do UsuarioDemo
             // entre navegações E entre sessões/dispositivos do mesmo browser.
             try { localStorage.setItem(AGENDA_VIEW_KEY, v); } catch (err) {}
             return;
@@ -1318,7 +1477,7 @@
     });
 
     // Restaura a visualização salva (both/lista/calendario). DEFAULT = 'both'
-    // (Lista + Calendário) — Example User 03/06 elogiou ver a lista com o calendário
+    // (Lista + Calendário) — UsuarioDemo 03/06 elogiou ver a lista com o calendário
     // logo abaixo, mostrando os mesmos compromissos. Migra valores legados do
     // sessionStorage para localStorage uma vez.
     (function restoreView() {

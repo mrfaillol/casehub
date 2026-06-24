@@ -122,7 +122,7 @@ USCIS_FORMS = {
         "fee": 460,
         "premium_fee": None,
         "processing_time": "3-6 months",
-        "description": "Petition for transitional worker status in the Commonwealth of the Northern Mariana Islands",
+        "description": "Petition for transitional worker status in the Commonwealth of the Northern PessoaDemona Islands",
         "visa_types": ["CW-1"],
         "pages": 15,
         "edition": "N/A",

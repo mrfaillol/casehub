@@ -218,6 +218,12 @@ class WaMessage(Base):
     from_me = Column(Boolean, default=False)
     author_phone = Column(String(32))
 
+    # CaseHub operator who sent an outgoing message (audit/attribution). NULL
+    # for incoming/AI/legacy rows. The org owns the WhatsApp session, so ANY
+    # authorized org user can send — this records *which* user did, decoupled
+    # from the human who scanned the QR.
+    sent_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+
     # sent_at = WhatsApp-native timestamp — authority for message order.
     sent_at = Column(DateTime(timezone=True))
     edited_at = Column(DateTime(timezone=True))

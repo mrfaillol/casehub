@@ -25,6 +25,7 @@
       data-theme="{{ initial_theme or 'light' }}"
       data-theme-pref="{{ initial_theme or 'auto' }}"
       {% if initial_eco == 'on' %}data-eco="true"{% endif %}
+      {% if casehub_work_intelligence_client_events_enabled|default(false) %}data-work-intelligence-enabled="1"{% endif %}
       data-eco-pref="{{ initial_eco or 'auto' }}">
 <head>
   <meta charset="utf-8" />
@@ -39,7 +40,7 @@
   <link rel="apple-touch-icon" href="/static/brand-kit/favicon/casehub-favicon-degrade-4.svg" />
   <link rel="icon" type="image/svg+xml" href="/static/brand-kit/favicon/casehub-favicon-degrade-4.svg" />
   <title>{% block title %}{{ org_name }}{% endblock %}</title>
-  {# Aba "CaseHub - <nome da rota>" (29/05 Victor): pega o 1º segmento do título da
+  {# Aba "CaseHub - <nome da rota>" (29/05 Equipe CaseHub): pega o 1º segmento do título da
      página (antes de ·/—/-/|); se não houver nome de rota, cai no org. Roda no <head>
      antes do paint → sem flash. #}
   <script>(function(){try{var t=(document.title||'').trim();var p=t.split(/\s[·—\-|]\s/)[0].trim();var o={{ org_name|tojson }};document.title='CaseHub - '+((p&&p!==o)?p:o);}catch(e){}})();</script>
@@ -51,8 +52,10 @@
         var t = localStorage.getItem('casehub.theme');
         var e = localStorage.getItem('casehub.eco');
         var r = document.documentElement;
+        var orgDefaultDark = false;
         var resolved = (t === 'light' || t === 'dark') ? t :
-          (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          (orgDefaultDark ? 'dark' :
+            (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
         r.setAttribute('data-theme', resolved);
         r.setAttribute('data-theme-pref', t || 'auto');
         var ecoOn = e === 'on' || (e !== 'off' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -78,7 +81,7 @@
 
   </style>
 
-  {# Acessibilidade: aplica "letra grande" pre-paint a partir do localStorage (anti-FOUC). Example User 02/06. #}
+  {# Acessibilidade: aplica "letra grande" pre-paint a partir do localStorage (anti-FOUC). UsuarioDemo 02/06. #}
   <script>try{if(localStorage.getItem('casehub.a11y.large')==='on')document.documentElement.classList.add('ch-a11y-large');}catch(e){}</script>
 
   {# Fonts (woff2 only, font-display swap) #}
@@ -87,8 +90,10 @@
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Maven+Pro:wght@400;500;600;700&family=Instrument+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&family=Fraunces:ital,wght@1,500&display=swap" />
 
-  {# Canonical app CSS bundle #}
-  <link rel="stylesheet" href="{{ asset_url('css/app/index.css') }}" />
+  {# Canonical app CSS bundle — inlined (14 @import → 1 arquivo minificado).
+     Performance: 15 requests → 1. Ruling 2026-06-18-app-css-bundle-inlining.
+     Regenerar: node scripts/build-dashboard-assets.mjs #}
+  <link rel="stylesheet" href="{{ asset_url('css/app/index.bundle.css') }}" />
 
   {# JS modules — defer keeps non-blocking, all bound on DOMContentLoaded #}
   <script defer src="{{ asset_url('js/app/index.js') }}"></script>
@@ -106,6 +111,9 @@
   <script defer src="{{ asset_url('js/app/table-resize.js') }}"></script>
   <script defer src="{{ asset_url('js/app/palette.js') }}"></script>
   <script defer src="{{ asset_url('js/app/toast.js') }}"></script>
+  {% if casehub_work_intelligence_client_events_enabled|default(false) %}
+  <script defer src="{{ asset_url('js/work-intelligence.js') }}"></script>
+  {% endif %}
 
   {% block extra_head %}{% endblock %}
 </head>
@@ -124,7 +132,9 @@
           {% if org_slug %}
           <span class="ch-topbar__slug">
             {% if org_logo %}
-            <img src="{{ org_logo }}" alt="{{ org_name }}" style="width:14px; height:14px; border-radius:50%; object-fit:cover;">
+            <img src="{{ org_logo }}" alt="{{ org_name }}" style="width:16px; height:16px; border-radius:50%; object-fit:cover;"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='';">
+            <span class="dot" aria-hidden="true" style="display:none"></span>
             {% else %}
             <span class="dot" aria-hidden="true"></span>
             {% endif %}
@@ -144,7 +154,7 @@
           <div class="ch-topbar__actions">
             {% block topbar_actions %}{% endblock %}
 
-            {# FR-6 (29/05 Victor): lupa mobile abre a barra de busca presa na
+            {# FR-6 (29/05 Equipe CaseHub): lupa mobile abre a barra de busca presa na
                extremidade INFERIOR (não o palette centralizado). nav-tabs.js
                intercepta data-action="mobile-search-open"; fallback p/ palette
                se o JS não carregar (data-action-fallback). #}
@@ -209,7 +219,7 @@
                       data-menu-toggle="ch-user-menu"
                       aria-haspopup="true" aria-expanded="false"
                       aria-label="Menu do usuário">
-                {% if user and user.photo_url %}<img class="ch-topbar__avatar-img" src="{{ user.photo_url }}" alt="{{ user.name }}" />{% else %}{{ (user.name[0]|upper) if user and user.name else 'U' }}{% endif %}
+                {% if user and user.photo_url %}<img class="ch-topbar__avatar-img" src="{{ user.photo_url }}" alt="{{ user.name }}" onerror="this.remove();this.parentElement.classList.remove('ch-topbar__avatar--photo');this.parentElement.textContent='{{ (user.name[0]|upper) if user and user.name else 'U' }}';" />{% else %}{{ (user.name[0]|upper) if user and user.name else 'U' }}{% endif %}
               </button>
               <div id="ch-user-menu" class="ch-menu" role="menu">
                 <div class="ch-menu__header">
@@ -261,7 +271,7 @@
        ícone Lucide por página. Ordem das abas é a fonte do mapa rota→ícone. #}
     <nav class="ch-tabs-wrap" aria-label="Navegação principal (desktop)">
       <div class="ch-shell ch-tabs-shell">
-        {# Painel = bolha fixa à ESQUERDA (Victor 03/06): não-fechável, fora do rail,
+        {# Painel = bolha fixa à ESQUERDA (Equipe CaseHub 03/06): não-fechável, fora do rail,
            espelhando a bolha "Mais" à direita. nav-tabs.js só gerencia .ch-tab do
            rail, então o Painel aqui fica intocável (sem ×, sem drag, sempre visível). #}
         <div class="ch-tabs-home">
@@ -301,10 +311,10 @@
              role="tab" data-route-key="maestro">
             <i data-lucide="helping-hand"></i> <span class="ch-tab__label">Maestro</span>
           </a>
-          {# CaseHub.md saiu da nav primária (feedback Example User 02/06) — agora vive no
+          {# CaseHub.md saiu da nav primária (feedback UsuarioDemo 02/06) — agora vive no
              dropdown "Mais" (catalog.extra). Funcionalidade preservada; rota intacta. #}
-          {# Emails = tab primária gestor-only (Victor 03/06): promovida do dropdown
-             "Mais". Financeiro desceu pro "Mais" (é restrito ao Example User + Victor). #}
+          {# Emails = tab primária gestor-only (Equipe CaseHub 03/06): promovida do dropdown
+             "Mais". Financeiro desceu pro "Mais" (é restrito ao UsuarioDemo + Equipe CaseHub). #}
           {% if user and (user.user_type in ['admin', 'superadmin']) %}
           <a href="{{ PREFIX }}/emails" class="ch-tab {% if active_module == 'emails' %}is-active{% endif %}"
              role="tab" data-route-key="emails">
@@ -341,7 +351,7 @@
                 <i data-lucide="file-pen-line"></i> CaseHub.md
               </a>
               {# Financeiro — sócio-only (superadmin OU allowlist). Desceu de tab
-                 primária pro "Mais" (Victor 03/06): restrito ao Example User + Victor. #}
+                 primária pro "Mais" (Equipe CaseHub 03/06): restrito ao UsuarioDemo + Equipe CaseHub. #}
               {% if can_view_financeiro|default(true) %}
               <a href="{{ PREFIX }}/reports/financeiro" class="ch-menu__item {% if active_module == 'billing' %}is-active{% endif %}" role="menuitem">
                 <i data-lucide="wallet"></i> Financeiro
@@ -389,7 +399,7 @@
           {# Bolha "Painel" (dashboard) — PRIMEIRO filho da row, à ESQUERDA,
              espelhando a bolha "Mais" à direita (e a .ch-tabs-home do desktop).
              Pinned/não-fechável: vive FORA da pílula, só ícone + rótulo. O <a>
-             do dashboard saiu de dentro do scroller (onda2 Victor). #}
+             do dashboard saiu de dentro do scroller (onda2 Equipe CaseHub). #}
           <a href="{{ PREFIX }}/dashboard"
              class="ch-bottomnav-home {% if active_module == 'dashboard' %}is-active{% endif %}"
              data-route-key="dashboard" data-pinned="true"
@@ -422,7 +432,7 @@
               <a href="{{ PREFIX }}/assistente" class="ch-bottomnav__item {% if active_module == 'maestro' %}is-active{% endif %}" data-route-key="maestro">
                 <img src="/static/img/maestro.png" class="maestro-tab-icon" loading="lazy" width="18" height="18" alt="Maestro"> <span class="ch-bottomnav__label">Maestro</span>
               </a>
-              {# CaseHub.md saiu da nav primária (Example User 02/06) — segue no dropdown "Mais" abaixo. #}
+              {# CaseHub.md saiu da nav primária (UsuarioDemo 02/06) — segue no dropdown "Mais" abaixo. #}
               {% if user and (user.user_type in ['admin', 'superadmin']) %}
               <a href="{{ PREFIX }}/emails" class="ch-bottomnav__item {% if active_module == 'emails' %}is-active{% endif %}" data-route-key="emails">
                 <i data-lucide="mail"></i> <span class="ch-bottomnav__label">Emails</span>
@@ -535,7 +545,7 @@
     </nav>
 
     {# ─────────── Mobile search bar (docked to bottom edge) ───────────
-       FR-6 (29/05 Victor): no mobile, tocar a lupa do topbar abre esta barra
+       FR-6 (29/05 Equipe CaseHub): no mobile, tocar a lupa do topbar abre esta barra
        presa na EXTREMIDADE INFERIOR da tela (acima da bottom-nav). Encaminha a
        busca para o command palette (mesmo backend de pesquisa). Esconde no desktop. #}
     <div class="ch-mobile-search" data-mobile-search hidden aria-hidden="true">
@@ -605,7 +615,17 @@
         <button type="button" class="tc-panel__icon" data-tc-close aria-label="Fechar" title="Fechar">✕</button>
       </header>
       <div class="tc-settings" data-tc-settings-panel hidden role="dialog" aria-label="Configurações do chat">
-        <div class="tc-settings__title">Tamanho da fonte da conversa</div>
+        <div class="tc-settings__title">Notificações</div>
+        <label class="tc-settings__row">
+          <input type="checkbox" data-tc-sound-toggle />
+          <span>Som de novas mensagens</span>
+        </label>
+        <label class="tc-settings__row">
+          <input type="checkbox" data-tc-desktop-toggle />
+          <span>Notificação do navegador</span>
+        </label>
+        <button type="button" class="tc-settings__test" data-tc-sound-test>Testar som</button>
+        <div class="tc-settings__title tc-settings__title--spaced">Tamanho da fonte</div>
         <div class="tc-settings__stepper" data-tc-fontsize>
           <button type="button" data-step="-1" aria-label="Diminuir fonte" title="Diminuir">A−</button>
           <span class="tc-settings__val" data-tc-fontval>14px</span>
@@ -615,8 +635,30 @@
       <div class="tc-channels" data-tc-channels></div>
       <div class="tc-panel__list" data-tc-list aria-live="polite"></div>
       <div class="tc-members" data-tc-members-panel hidden></div>
+      <div class="tc-media" data-tc-media-panel hidden role="dialog" aria-label="GIFs e figurinhas">
+        <div class="tc-media__tabs">
+          <button type="button" class="is-active" data-tc-media-kind="gif">GIFs</button>
+          <button type="button" data-tc-media-kind="sticker">Figurinhas</button>
+        </div>
+        <form class="tc-media__search" data-tc-media-search>
+          <input type="search" data-tc-media-query placeholder="Buscar reação..." maxlength="80" autocomplete="off" />
+          <button type="submit" aria-label="Buscar">⌕</button>
+        </form>
+        <div class="tc-media__grid" data-tc-media-grid></div>
+        <div class="tc-media__empty" data-tc-media-empty>Busque um GIF ou figurinha.</div>
+        <div class="tc-media__source" data-tc-media-source>Powered by Tenor</div>
+      </div>
+      <div class="tc-reply" data-tc-reply hidden>
+        <span class="tc-reply__bar"></span>
+        <span class="tc-reply__text">
+          <strong data-tc-reply-author></strong>
+          <span data-tc-reply-body></span>
+        </span>
+        <button type="button" data-tc-reply-close aria-label="Cancelar resposta" title="Cancelar resposta">✕</button>
+      </div>
       <form class="tc-panel__form" data-tc-form>
         <button type="button" class="tc-panel__attach" data-tc-attach aria-label="Anexar" title="Anexar imagem, áudio ou arquivo">📎</button>
+        <button type="button" class="tc-panel__media" data-tc-media aria-label="GIFs e figurinhas" title="GIFs e figurinhas">✦</button>
         <input type="file" data-tc-file accept="image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip" hidden />
         <input class="tc-panel__input" data-tc-input maxlength="2000" placeholder="Mensagem para a equipe…" autocomplete="off" aria-label="Mensagem" />
         <button type="submit" class="tc-panel__send" aria-label="Enviar">➤</button>
@@ -625,7 +667,7 @@
   </div>
   <style>
   .tc-widget{position:fixed;right:16px;bottom:16px;z-index:1200}
-  /* Avatares do chat de equipe (Victor 03/06): foto do colega ou inicial colorida. */
+  /* Avatares do chat de equipe (Equipe CaseHub 03/06): foto do colega ou inicial colorida. */
   .tc-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;flex:0 0 26px;display:inline-grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
   .tc-member{display:flex;align-items:center;gap:8px;width:100%}
   .tc-member__name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -634,10 +676,15 @@
   .tc-fab{position:relative;width:52px;height:52px;border-radius:50%;border:0;cursor:pointer;background:var(--surface-card,#fff);box-shadow:var(--shadow-dark-sm,0 4px 14px rgba(0,0,0,.18)),var(--shadow-light-sm,0 1px 0 rgba(255,255,255,.6));font-size:22px;display:grid;place-items:center;transition:transform .15s ease}
   .tc-fab:hover{transform:translateY(-2px)}
   .tc-fab__badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--c-danger,#dc2626);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center}
-  .tc-panel{--tc-msg-font:14px;position:absolute;right:0;bottom:64px;width:340px;max-width:calc(100vw - 32px);height:460px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:var(--radius-lg,20px);box-shadow:var(--shadow-dark-md,0 12px 32px rgba(0,0,0,.22));overflow:hidden}
-  .tc-settings{position:absolute;top:52px;right:10px;z-index:6;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:12px;box-shadow:var(--shadow-dark-md,0 8px 24px rgba(0,0,0,.18));padding:10px 12px;min-width:180px}
+  .tc-panel{--tc-msg-font:14px;position:absolute;right:0;bottom:64px;width:360px;max-width:calc(100vw - 32px);height:500px;max-height:calc(100vh - 120px);display:flex;flex-direction:column;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:var(--radius-lg,20px);box-shadow:var(--shadow-dark-md,0 12px 32px rgba(0,0,0,.22));overflow:hidden}
+  .tc-settings{position:absolute;top:52px;right:10px;z-index:6;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);border-radius:12px;box-shadow:var(--shadow-dark-md,0 8px 24px rgba(0,0,0,.18));padding:10px 12px;min-width:240px}
   .tc-settings[hidden]{display:none}
   .tc-settings__title{font-size:11px;color:var(--fg-muted,#888);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+  .tc-settings__title--spaced{margin-top:12px}
+  .tc-settings__row{display:flex;align-items:center;gap:8px;margin:7px 0;color:var(--fg-default,#111);font-size:13px;line-height:1.25;cursor:pointer}
+  .tc-settings__row input{width:16px;height:16px;accent-color:var(--c-blue,#1E4890)}
+  .tc-settings__test{width:100%;height:30px;margin:5px 0 2px;border:1px solid var(--line,#e5e7eb);border-radius:8px;background:var(--surface-app,#f6f7f9);color:var(--fg-default,#111);font-size:12px;cursor:pointer}
+  .tc-settings__test:hover{border-color:var(--c-blue,#1E4890)}
   .tc-settings__stepper{display:flex;align-items:center;gap:8px}
   .tc-settings__stepper button{flex:0 0 auto;width:34px;height:30px;border:1px solid var(--line,#e5e7eb);background:var(--surface-app,#f6f7f9);border-radius:8px;cursor:pointer;color:var(--fg-default,#111);font-weight:700;line-height:1}
   .tc-settings__stepper button:hover{border-color:var(--c-blue,#1E4890)}
@@ -669,6 +716,22 @@
   .tc-member:hover{background:var(--surface-app,#f6f7f9)}
   .tc-member__dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%}
   .tc-empty{color:var(--fg-muted,#888);font-size:13px;padding:14px;text-align:center}
+  .tc-media{flex:1 1 0;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:8px;padding:9px;background:var(--surface-card,#fff);border-top:1px solid var(--line,#e5e7eb)}
+  .tc-media[hidden]{display:none}
+  .tc-media__tabs{display:flex;gap:6px;flex:0 0 auto}
+  .tc-media__tabs button{flex:1 1 0;border:1px solid var(--line,#e5e7eb);background:var(--surface-app,#f6f7f9);color:var(--fg-muted,#666);border-radius:8px;padding:7px 8px;font-size:12px;cursor:pointer}
+  .tc-media__tabs button.is-active{background:color-mix(in srgb,var(--c-blue,#1E4890) 18%,transparent);color:var(--fg-default,#111);border-color:transparent;font-weight:700}
+  .tc-media__search{display:flex;gap:6px;flex:0 0 auto}
+  .tc-media__search input{flex:1 1 auto;min-width:0;border:1px solid var(--line,#e5e7eb);border-radius:999px;background:var(--surface-app,#f6f7f9);color:var(--fg-default,#111);padding:8px 11px;font-size:13px}
+  .tc-media__search button{flex:0 0 34px;border:0;border-radius:50%;background:var(--c-blue,#1E4890);color:#fff;cursor:pointer;font-size:15px}
+  .tc-media__grid{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));align-content:start;gap:8px;padding:2px 4px 8px 0}
+  .tc-media__item{position:relative;aspect-ratio:1;min-height:96px;display:grid;place-items:center;border:1px solid var(--line,#e5e7eb);border-radius:10px;overflow:hidden;background:var(--surface-app,#f6f7f9);cursor:pointer;padding:0}
+  .tc-media__item:hover{border-color:var(--c-blue,#1E4890);transform:translateY(-1px)}
+  .tc-media__item img{width:100%;height:100%;object-fit:contain;display:block;padding:4px}
+  .tc-media__item[data-kind="sticker"] img{padding:6px}
+  .tc-media__empty{flex:0 0 auto;color:var(--fg-muted,#888);font-size:12px;text-align:center;padding:8px}
+  .tc-media__empty[hidden]{display:none}
+  .tc-media__source{flex:0 0 auto;color:var(--fg-muted,#888);font-size:10px;text-align:right}
   .tc-panel__list{flex:1 1 auto;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--surface-app,#f6f7f9)}
   .tc-msg{display:flex;flex-direction:column;align-items:flex-start;max-width:82%}
   .tc-msg.is-mine{align-self:flex-end;align-items:flex-end}
@@ -676,20 +739,42 @@
   .tc-msg__bubble{padding:7px 11px;border-radius:12px;background:var(--surface-card,#fff);border:1px solid var(--line,#e5e7eb);color:var(--fg-default,#111);font-size:var(--tc-msg-font,14px);line-height:1.35;word-break:break-word;white-space:pre-wrap}
   .tc-msg.is-mine .tc-msg__bubble{background:color-mix(in srgb,var(--c-blue,#1E4890) 18%,transparent);border-color:transparent}
   .tc-msg.is-maestro .tc-msg__bubble{background:color-mix(in srgb,var(--c-blue,#1E4890) 8%,var(--surface-card,#fff));border-color:color-mix(in srgb,var(--c-blue,#1E4890) 26%,var(--line,#e5e7eb))}
+  .tc-msg__quote{display:block;margin:-1px 0 6px;padding:5px 7px;border-left:3px solid var(--c-blue,#1E4890);border-radius:6px;background:color-mix(in srgb,var(--c-blue,#1E4890) 8%,transparent);font-size:11px;color:var(--fg-muted,#666);white-space:normal}
+  .tc-msg__quote strong{display:block;color:var(--fg-default,#111);font-size:11px}
+  .tc-msg__actions{display:flex;gap:6px;margin-top:2px}
+  .tc-msg__reply{border:0;background:none;color:var(--fg-muted,#888);font-size:12px;line-height:1;cursor:pointer;padding:2px 4px;border-radius:6px}
+  .tc-msg__reply:hover{background:var(--surface-card,#fff);color:var(--fg-default,#111)}
   .tc-msg__avatar--maestro{width:24px;height:30px;flex-basis:24px;border-radius:6px;background:transparent!important;overflow:visible;box-shadow:none}
   .tc-msg__avatar--maestro img{width:100%;height:100%;object-fit:contain;display:block}
   .tc-msg__time{font-size:10px;color:var(--fg-muted,#aaa);margin-top:2px}
+  .tc-reply{display:flex;align-items:center;gap:8px;padding:7px 10px;border-top:1px solid var(--line,#e5e7eb);background:var(--surface-card,#fff);flex:0 0 auto}
+  .tc-reply[hidden]{display:none}
+  .tc-reply__bar{width:3px;height:28px;border-radius:999px;background:var(--c-blue,#1E4890);flex:0 0 auto}
+  .tc-reply__text{min-width:0;flex:1 1 auto;display:flex;flex-direction:column;font-size:11px;color:var(--fg-muted,#666);line-height:1.2}
+  .tc-reply__text strong{color:var(--fg-default,#111)}
+  .tc-reply__text span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tc-reply button{border:0;background:none;color:var(--fg-muted,#888);cursor:pointer;font-size:14px}
   .tc-panel__form{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line,#e5e7eb);flex:0 0 auto}
   .tc-panel__input{flex:1 1 auto;min-width:0;padding:9px 12px;border:1px solid var(--line,#e5e7eb);border-radius:999px;background:var(--surface-app,#f6f7f9);color:var(--fg-default,#111);font-size:14px}
   .tc-panel__send{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;background:var(--c-blue,#1E4890);color:#fff;font-size:15px}
   .tc-panel__attach{flex:0 0 auto;width:34px;height:38px;border:0;background:none;cursor:pointer;font-size:18px;color:var(--fg-muted,#888)}
   .tc-panel__attach:hover{color:var(--fg-default,#111)}
   .tc-panel__attach:disabled{opacity:.5;cursor:default}
+  .tc-panel__media{flex:0 0 auto;width:34px;height:38px;border:0;background:none;cursor:pointer;font-size:17px;color:var(--fg-muted,#888)}
+  .tc-panel__media:hover{color:var(--fg-default,#111)}
   .tc-msg__img{max-width:200px;max-height:220px;border-radius:10px;display:block;cursor:pointer;border:1px solid var(--line,#e5e7eb)}
   .tc-msg__audio{max-width:230px;height:36px}
   .tc-msg__file{display:inline-flex;align-items:center;gap:6px;max-width:230px;padding:8px 11px;border:1px solid var(--line,#e5e7eb);border-radius:10px;background:var(--surface-card,#fff);color:var(--c-blue,#1E4890);text-decoration:none;font-size:13px;word-break:break-all}
   .tc-msg.is-mine .tc-msg__file{background:color-mix(in srgb,var(--c-blue,#1E4890) 14%,transparent)}
-  @media (max-width:879px){.tc-widget{bottom:calc(var(--bottomnav-h, 54px) + 46px);right:14px}}
+  @media (min-width:880px){
+    .tc-panel{min-width:340px;min-height:380px;resize:both}
+    .tc-panel::after{content:"";position:absolute;right:5px;bottom:5px;width:12px;height:12px;border-right:2px solid color-mix(in srgb,var(--fg-muted,#888) 70%,transparent);border-bottom:2px solid color-mix(in srgb,var(--fg-muted,#888) 70%,transparent);border-radius:1px;opacity:.8;pointer-events:none}
+  }
+  @media (max-width:879px){
+    .tc-widget{bottom:calc(var(--bottomnav-h, 54px) + 46px);right:14px}
+    .tc-panel{resize:none}
+    .tc-media__grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  }
   </style>
   <script defer src="{{ asset_url('js/app/team-chat.js') }}"></script>
 

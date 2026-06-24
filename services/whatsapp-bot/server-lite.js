@@ -57,6 +57,7 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 const { manager, DEFAULT_ORG_ID } = require("./whatsapp-client");
+const { parseOrgList, bootOptionsFor } = require("./autostart-options");
 const { forwardInbound, forwardAck, forwardContactsSync, forwardEvent } = require("./casehub-bridge");
 
 // media-handler e opcional — sem ele as rotas de midia degradam graciosamente.
@@ -78,6 +79,11 @@ const _mediaUpload = multer({
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const app = express();
 app.use(express.json({ limit: "1mb" }));
+
+function isNoisyHealthMonitorReason(reason) {
+  const r = String(reason == null ? "" : reason).trim();
+  return /^health-monitor:(UNKNOWN|UNREACHABLE|TIMEOUT|OPENING|CONNECTING)$/i.test(r);
+}
 
 // --- Inbound media serving (GET /media/<file>) ----------------------------
 // O FastAPI (routes/whatsapp_chat.py:/api/media/{filename}) e' a borda
@@ -308,9 +314,9 @@ app.get("/api/watchdog", async (req, res) => {
 //
 // Antes desta mudanca a response era apenas { qr, orgId } -> o else final
 // do loadQRCode renderizava "QR indisponivel" em TODOS os tres casos,
-// inclusive (a) e (b) — UX que aparecia para o cliente alpha (Vieira
-// Salles) como "WhatsApp travado" mesmo quando estava so iniciando ou
-// ja conectado em background.
+// inclusive (a) e (b) — UX que aparecia para tenants alpha como
+// "WhatsApp travado" mesmo quando estava so iniciando ou ja conectado
+// em background.
 //
 // Reusa statusPayload(client) — mesma forma que /api/status. Frontend ja
 // tem branches para data.connected; este patch faz esses branches realmente
@@ -357,6 +363,7 @@ app.get("/api/conversations", async (req, res) => {
     const conversations = await client.listConversations({
       limit: normalizeLimit(req.query.limit, 80, 200),
       includeGroups: req.query.includeGroups === "1",
+      includeProfilePics: req.query.profilePics === "1",
     });
     res.json(conversations);
   } catch (err) {
@@ -367,6 +374,44 @@ app.get("/api/conversations", async (req, res) => {
       res.status(httpStatus).json({ ok: false, error: err.message, status: status.status });
     } catch (_) {
       res.status(502).json({ ok: false, error: err.message });
+    }
+  }
+});
+
+app.get("/api/profile-pic/:phone", async (req, res) => {
+  try {
+    const client = await getClientFor(req);
+    const url = await client.getProfilePicUrl(req.params.phone);
+    res.json({ phone: req.params.phone, url, profilePic: url });
+  } catch (err) {
+    try {
+      const client = await getClientFor(req);
+      const status = client.getStatus();
+      const httpStatus = status.isReady ? 502 : 503;
+      res.status(httpStatus).json({ ok: false, phone: req.params.phone, url: null, error: err.message, status: status.status });
+    } catch (_) {
+      res.status(502).json({ ok: false, phone: req.params.phone, url: null, error: err.message });
+    }
+  }
+});
+
+app.post("/api/profile-pics", async (req, res) => {
+  try {
+    const client = await getClientFor(req);
+    const body = req.body || {};
+    const phones = Array.isArray(body.phones) ? body.phones : [];
+    const result = await client.getProfilePics(phones, {
+      limit: normalizeLimit(body.limit, 40, 80),
+    });
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    try {
+      const client = await getClientFor(req);
+      const status = client.getStatus();
+      const httpStatus = status.isReady ? 502 : 503;
+      res.status(httpStatus).json({ ok: false, profiles: [], byPhone: {}, error: err.message, status: status.status });
+    } catch (_) {
+      res.status(502).json({ ok: false, profiles: [], byPhone: {}, error: err.message });
     }
   }
 });
@@ -691,7 +736,8 @@ manager.on("qr", (_qr, meta) => console.log(`[QR][org-${meta && meta.orgId}] nov
 // READY: sessao viva. (1) snapshot recuperavel da sessao recem-pareada;
 // (2) sync de fotos/nomes de TODOS os contatos 1:1 para o backend. Best-effort
 // e fora do hot-path — uma falha aqui jamais derruba a sessao.
-manager.on("ready", async (_v, meta) => {
+manager.on("ready", async (...args) => {
+  const meta = args.find((arg) => arg && Number.isFinite(arg.orgId)) || null;
   const orgId = meta && meta.orgId;
   console.log(`[WA][org-${orgId}] cliente pronto`);
   if (!orgId) return;
@@ -699,7 +745,7 @@ manager.on("ready", async (_v, meta) => {
   if (client && typeof client.backupSession === "function") {
     try { client.backupSession(); } catch (_) { /* best-effort */ }
   }
-  // #5 (Example User 02/06) — fotos/nomes sumiam quando o sync rodava uma unica vez
+  // #5 (UsuarioDemo 02/06) — fotos/nomes sumiam quando o sync rodava uma unica vez
   // logo apos o `ready`: getChats/getProfilePicUrl ainda estavam frios. Agora
   // ate 3 tentativas com backoff exponencial; re-tenta se falhar OU se vier
   // vazio (sessao ainda hidratando). Best-effort: nunca derruba a sessao.
@@ -733,12 +779,17 @@ manager.on("authenticated", (_v, meta) => console.log(`[WA][org-${meta && meta.o
 // uma queda de sessao nunca mais passa despercebida. Fire-and-forget.
 manager.on("disconnected", async (r, meta) => {
   const orgId = meta && meta.orgId;
-  console.warn(`[WA][org-${orgId}] desconectado:`, r);
+  const reason = String(r == null ? "" : r);
+  console.warn(`[WA][org-${orgId}] desconectado:`, reason);
   if (!orgId) return;
-  try {
-    await forwardEvent({ event: "disconnected", reason: String(r == null ? "" : r) }, { orgId });
-  } catch (e) {
-    console.warn(`[WA][org-${orgId}] alerta de disconnect falhou:`, e && e.message ? e.message : e);
+  if (isNoisyHealthMonitorReason(reason)) {
+    console.warn(`[WA][org-${orgId}] alerta de disconnect suprimido: watchdog ambiguo (${reason})`);
+  } else {
+    try {
+      await forwardEvent({ event: "disconnected", reason }, { orgId });
+    } catch (e) {
+      console.warn(`[WA][org-${orgId}] alerta de disconnect falhou:`, e && e.message ? e.message : e);
+    }
   }
   // Self-heal (defesa em profundidade): se em 45s a sessao nao voltou a 'ready',
   // forca um soft reconnect. O client ja tenta sozinho (getStatusVerified +
@@ -766,10 +817,11 @@ process.on("unhandledRejection", (err) => {
 
 // Autostart: inicia sessoes ao subir. Default = so a org default (1).
 // CASEHUB_AUTOSTART_ORGS="1,4" pra alpha onde queremos ambos quentes.
-const autostart = (process.env.CASEHUB_AUTOSTART_ORGS || String(DEFAULT_ORG_ID))
-  .split(",")
-  .map((s) => parseInt(s.trim(), 10))
-  .filter((n) => Number.isFinite(n) && n > 0);
+const autostart = parseOrgList(process.env.CASEHUB_AUTOSTART_ORGS || String(DEFAULT_ORG_ID));
+// Opt-in re-warm (decision §6): orgs aqui sao re-aquecidas com {explicit:true},
+// limpando um intentional-down stale. Fora desta lista, um disconnect deliberado
+// de um admin do tenant continua valendo apos o restart.
+const autostartForce = parseOrgList(process.env.CASEHUB_AUTOSTART_FORCE);
 
 // Boot loop e o listen sao gated por NODE_ENV=test pra que tests podem
 // importar o app sem subir Puppeteer (cold start) nem ocupar a porta.
@@ -777,8 +829,13 @@ if (process.env.NODE_ENV !== "test") {
   (async () => {
     for (const orgId of autostart) {
       try {
+        const bootOpts = bootOptionsFor(orgId, { forceList: autostartForce });
+        const client = manager.getOrCreate(orgId);
+        if (!bootOpts.explicit && typeof client._isIntentionalDown === "function" && client._isIntentionalDown()) {
+          console.warn(`[boot] org-${orgId} PULADA pelo autostart: marcador .intentional-down-org-${orgId} presente (desconectada deliberadamente). Para re-aquecer: inclua ${orgId} em CASEHUB_AUTOSTART_FORCE, ou chame /api/sessions/${orgId}/init (explicito).`);
+        }
         console.log(`[boot] inicializando org-${orgId}...`);
-        await manager.ensureInitialized(orgId);
+        await manager.ensureInitialized(orgId, null, bootOpts);
       } catch (err) {
         console.error(`[boot] falha ao inicializar org-${orgId}:`, err.message);
       }
@@ -799,4 +856,6 @@ module.exports = {
   normalizePhone,
   _tenantBucket,
   manager,
+  bootOptionsFor,
+  parseOrgList,
 };

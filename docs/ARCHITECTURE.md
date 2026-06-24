@@ -28,7 +28,7 @@ The application follows a **server-side rendered** architecture: Jinja2 template
 ## 2. Directory Structure
 
 ```
-casehub-whitelabel/
+casehub/
 |-- app.py                      # Entry point -- delegates to app factory
 |-- config.py                   # Pydantic Settings (reads .env)
 |-- auth.py                     # JWT token creation/validation

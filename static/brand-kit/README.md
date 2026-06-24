@@ -14,11 +14,11 @@ Default Basic signature:
 
 Login Basic fallback:
 
-- `logo/casehub-logo-login-blue.svg` (Victor-provided blue vector)
+- `logo/casehub-logo-login-blue.svg` (Equipe CaseHub-provided blue vector)
 - `logo/casehub-logo-login-mark-blue.svg` (viewBox crop with the leaf/C visible,
   used as the mask when `org_logo` is absent)
 - `favicon/casehub-favicon-degrade-1.svg` through
-  `favicon/casehub-favicon-degrade-4.svg` (viewBox crops from Victor's
+  `favicon/casehub-favicon-degrade-4.svg` (viewBox crops from Equipe CaseHub's
   `Degradês` vectors, used by the Login Basic organic variants and as the
   browser chrome fallback when `org_favicon` is absent)
 
@@ -32,9 +32,9 @@ Contextual variants:
 - `logo/casehub-logo-mono-inv.svg`
 - `logo/casehub-wordmark.svg`
 
-Reference screenshots live in `reference/` as optimized JPGs. They are visual
-references only; failed captures from the source package are bug evidence and
-must not drive aesthetic decisions.
+Public screenshots must be synthetic or manually sanitized before they are
+tracked. The `reference/` directory is intentionally kept free of real product
+captures in the public snapshot.
 
 ## Tokens
 
@@ -65,9 +65,9 @@ Untracked design sources used for this import:
 
 Curated vector sources and their tracked outputs are listed in
 `manifest.json`. The default green+blue lockup, mark, and favicon are derived
-from `external/victor-brand-green-blue-vector.svg`
+from `external/casehub_team-brand-green-blue-vector.svg`
 with the green normalized to the canonical `#6FBE54` token.
-The Login Basic mark is derived from Victor's blue login vector and keeps the
+The Login Basic mark is derived from Equipe CaseHub's blue login vector and keeps the
 leaf/C visible; the screen fills that mark through a CSS mask using the same
 organic color family as the background. Do not substitute the old hollow-H crop
 on this screen.

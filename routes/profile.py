@@ -126,7 +126,7 @@ async def upload_avatar(
     # uploads/org_<id>/avatars/ INTERNAMENTE (_tenant_candidate). NÃO embutir
     # org_<id> na URL: a rota é /uploads/{kind}/{filename:path} → 'org_N' viraria
     # 'kind' (inválido → 404) e o filename conteria '/' (→ 400 Invalid filename).
-    # Era o bug do upload de foto do Victor (03/06): imagem sempre quebrada.
+    # Era o bug do upload de foto do Equipe CaseHub (03/06): imagem sempre quebrada.
     user.photo_url = f"/uploads/avatars/{filename}"
     db.commit()
 

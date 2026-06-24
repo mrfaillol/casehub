@@ -12,22 +12,43 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 import os
+from services.circuit_breaker import AsyncCircuitBreaker, CircuitOpenError
+
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "hermes3:8b")
+# Hard ceiling for Ollama inference so a slow/CPU model can't pin a worker
+# indefinitely (incident 2026-06-16 VS 504). Was hardcoded 180s/300s. Bounded +
+# env-tunable; must stay < nginx proxy_read_timeout. Structural fix = bulkhead
+# (limit concurrent LLM calls) + async/SSE (#852).
+LLM_TIMEOUT_S = float(os.getenv("EXTERNAL_LLM_TIMEOUT_S", "90"))
+
+# Shared breaker + bulkhead around the Ollama upstream (incident 2026-06-16):
+# a CPU-bound model serialises generation, so without a bound every uvicorn
+# worker piles up waiting on the same 300s call and the app saturates -> 504.
+# max_concurrency caps how many workers can ever be parked on Ollama at once;
+# the extra callers fail fast (CircuitOpenError) and return a degraded reply
+# instead of hanging. Tunable via env without a redeploy of this module.
+_OLLAMA_BREAKER = AsyncCircuitBreaker(
+    "ollama",
+    failure_threshold=int(os.getenv("OLLAMA_BREAKER_THRESHOLD", "3")),
+    reset_timeout=float(os.getenv("OLLAMA_BREAKER_RESET_SECONDS", "30")),
+    max_concurrency=int(os.getenv("OLLAMA_MAX_CONCURRENCY", "2")),
+)
 
 
 async def generate_text(prompt, *, temperature=0.4, max_tokens=400, num_ctx=8192, model=None):
     """Geração CRUA via Ollama local (/api/generate), SEM os short-circuits do
     MaestroLite.chat (jurisprudência/prazo/law-guard). Usada pelo bloco CRM do
-    WhatsApp p/ resumir a conversa e sugerir próximas mensagens (Victor 10/06):
+    WhatsApp p/ resumir a conversa e sugerir próximas mensagens (Equipe CaseHub 10/06):
     local-first, zero transferência externa. Retorna str ou None.
     """
     import logging
     import httpx
     _log = logging.getLogger(__name__)
     mdl = model or DEFAULT_MODEL
-    try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
+
+    async def _do_generate():
+        async with httpx.AsyncClient(timeout=httpx.Timeout(LLM_TIMEOUT_S, connect=10.0)) as client:
             resp = await client.post(
                 f"{OLLAMA_URL}/api/generate",
                 json={
@@ -45,8 +66,15 @@ async def generate_text(prompt, *, temperature=0.4, max_tokens=400, num_ctx=8192
                 },
             )
             resp.raise_for_status()
-            text = (resp.json().get("response") or "").strip()
-            return text or None
+            return (resp.json().get("response") or "").strip()
+
+    try:
+        text = await _OLLAMA_BREAKER.call(_do_generate)
+        return text or None
+    except CircuitOpenError as e:
+        # Upstream saturated/tripped — fail fast, do not park this worker.
+        _log.warning("maestro_lite.generate_text breaker rejected (%s): %s", mdl, e)
+        return None
     except Exception as e:  # noqa: BLE001
         _log.warning("maestro_lite.generate_text falhou (%s): %s", mdl, e)
         return None
@@ -110,7 +138,7 @@ PRODUCT_QUESTION_RE = re.compile(
     r")\b"
 )
 
-# F44 Fase 2 (FR-1 pré-Example User 30/05): regex detecta citação de artigo/lei na
+# F44 Fase 2 (FR-1 pré-UsuarioDemo 30/05): regex detecta citação de artigo/lei na
 # pergunta do usuário. Quando casa, prepend de bloco extra ANTI-ALUCINAÇÃO ao
 # system prompt — modelo llama3.2:3b alucinou Art. 212 CPC na reunião QA
 # (2026-05-27), retornando texto sobre jurisdição/competência. Pequenos modelos
@@ -151,8 +179,9 @@ JURISPRUDENCE_REFUSAL = (
     "https://jurisprudencia.stf.jus.br ou https://scon.stj.jus.br)."
 )
 
-SYSTEM_PROMPT = """Você é o Maestro, assistente jurídico inteligente do escritório {org_name}.
+SYSTEM_PROMPT = """Você é o Maestro, assistente operacional do escritório {org_name} integrado ao CaseHub.
 Você responde com base no contexto do CaseHub fornecido (clientes, processos, prazos, tarefas reais).
+Você NÃO é um assistente genérico de IA — você é um assistente especializado nos dados reais do escritório.
 
 REGRAS:
 
@@ -163,32 +192,46 @@ REGRAS:
 
 2. **Prazos "próximos N dias"**: o contexto tem blocos pré-computados ("Prazos vencendo em até 7/15/30 dias"). Use APENAS esses itens. Liste tipo + data + processo + cliente conforme aparece. Se o bloco N dias está vazio (ou diz "(nenhum)"), responda "Nenhum prazo vencendo nos próximos N dias."
 
-3. **Lei/jurisprudência** (CPC, CLT, CF, CDC, CTN, súmulas, artigos numerados): você NÃO é fonte primária. Modelo pequeno alucina citações. SEMPRE:
-   a) Comece com: "Não tenho certeza absoluta sobre o texto literal deste dispositivo."
-   b) Forneça DESCRIÇÃO TEMÁTICA breve (sobre o que trata genericamente), NUNCA texto literal entre aspas.
-   c) Termine com: "Confirme a redação atualizada em https://www.planalto.gov.br"
-   d) Se nem o tema souber: "Não tenho certeza sobre este dispositivo específico. Consulte https://www.planalto.gov.br"
+3. **Resumo geral / resumo do dia / "o que tem hoje" / "status geral"**: NÃO descreva a história, o perfil ou o porte do escritório. Responda APENAS com dados operacionais do contexto:
+   - Prazos vencendo nos próximos 7 dias (use o bloco "Prazos vencendo em até 7 dias")
+   - Tarefas pendentes mais próximas (use o bloco "Tarefas pendentes")
+   - Totais de clientes e processos por status
+   Formato: bullet points concisos. Se algum bloco estiver vazio, informe "(nenhum)".
 
-4. Quando não souber e não for cliente/processo/prazo/lei: "Não tenho essa informação."
+4. **Lei/jurisprudência** (CPC, CLT, CF, CDC, CTN, súmulas, artigos numerados): você NÃO é fonte primária. Responda apenas quando o backend fornecer o bloco "Conhecimento JURIDICO OFICIAL verificado". Sem esse bloco, recuse em vez de presumir norma, jurisprudência ou prazo legal.
 
-5. Sempre português brasileiro, profissional, direto. Sem floreios.
+5. Quando não souber e não for cliente/processo/prazo/lei: "Não tenho essa informação."
+
+6. Sempre português brasileiro, profissional, direto. Sem floreios. Use a data atual fornecida no contexto — nunca invente ou presuma o ano.
 
 Exemplos:
 - Pergunta: "Me fala do cliente Costa" + contexto tem "Costa Empreendimentos Imobiliários S/A" → Resposta: "Costa Empreendimentos Imobiliários S/A — está cadastrado no escritório. [+ detalhes do contexto: e-mail, telefone, processos vinculados]."
 - Pergunta: "Me fala do processo José da Silva" + José da Silva NÃO aparece → Resposta: "Não encontrei isso no CaseHub. Verifique se está cadastrado em /clients ou /controladoria."
 - Pergunta: "Quais prazos vencem nos próximos 15 dias?" + bloco tem 2 itens → Liste os 2 itens com tipo, data, processo.
 - Pergunta: "Quais prazos próximos 15 dias?" + bloco "(nenhum)" → Resposta: "Nenhum prazo vencendo nos próximos 15 dias."
-- Pergunta: "O que diz o art. 212 do CPC?" → "Não tenho certeza absoluta sobre o texto literal deste dispositivo. O Art. 212 do CPC trata da prática de atos processuais. Confirme a redação atualizada em https://www.planalto.gov.br"
+- Pergunta: "O que diz o art. 212 do CPC?" sem bloco jurídico oficial → recuse. Com bloco jurídico oficial → responda apenas com base nele e cite a URL oficial.
+- Pergunta: "Faça um resumo geral do escritório hoje" → Liste prazos 7 dias + tarefas pendentes + totais. NÃO descreva história do escritório.
 """
 
-# Bloco INJETADO antes da mensagem do usuário quando regex casa. Reforça regra 3
-# no contexto imediato — modelo pequeno tende a ignorar regra distante do prompt.
-LAW_CITATION_GUARD = """ATENÇÃO: A próxima pergunta menciona artigo, lei ou súmula. Aplique a Regra 3 ESTRITAMENTE:
-- NÃO cite texto literal entre aspas.
-- Comece com "Não tenho certeza absoluta sobre o texto literal deste dispositivo."
-- Forneça apenas descrição temática breve.
-- Termine sempre com "Confirme a redação atualizada em https://www.planalto.gov.br"
+# Bloco INJETADO quando o backend recuperou fontes jurídicas oficiais. Reforça
+# no contexto imediato que o modelo só pode responder com o material citável.
+LEGAL_RAG_GUARD = """ATENÇÃO: A próxima pergunta menciona norma, jurisprudência, prazo legal ou fonte jurídica brasileira.
+- Responda APENAS com base no bloco "Conhecimento JURIDICO OFICIAL verificado".
+- CITE a autoridade e a URL oficial usadas.
+- NÃO acrescente artigos, julgados, prazos, datas, teses ou requisitos que não apareçam nas fontes recuperadas.
+- Se as fontes recuperadas forem insuficientes para a pergunta, diga que não encontrou fonte oficial suficiente.
 """
+
+# Pergunta jurídica sem fonte oficial indexada deve recusar deterministicamente.
+# Não deixar o Llama "descrever genericamente" norma brasileira: isso já causou
+# alucinação de artigo na QA e é incompatível com o produto jurídico.
+LEGAL_SOURCE_REQUIRED_REFUSAL = (
+    "Ainda não encontrei uma fonte oficial indexada para responder essa questão "
+    "jurídica com segurança. Para evitar inventar norma, prazo, súmula ou "
+    "jurisprudência, não vou resumir nem citar esse ponto sem fonte verificável. "
+    "Consulte a fonte oficial aplicável, como o Planalto, CNJ ou o tribunal "
+    "competente, e me envie a referência para eu trabalhar em cima dela."
+)
 
 # Guard injetado quando há contexto do PRODUTO (repo-aware). Força grounding +
 # citação + recusa de inventar. O modelo pequeno tende a "preencher lacunas" —
@@ -217,7 +260,8 @@ class MaestroLite:
         self.model = model or DEFAULT_MODEL
         self.system_prompt = SYSTEM_PROMPT.format(org_name=org_name)
 
-    async def chat(self, message, context=None, history=None, repo_context=None):
+    async def chat(self, message, context=None, history=None, repo_context=None,
+                   legal_context=None):
         """Send message to Ollama with context.
 
         ``repo_context`` (optional) is the grounded PRODUCT-knowledge block
@@ -225,13 +269,33 @@ class MaestroLite:
         secret-redacted and citation-annotated. When present, the model is told
         to answer about the product ONLY from it and to cite the source file.
         """
-        # Jurisprudence short-circuit: no active case-law source, so refuse
-        # honestly and deterministically (never let the small model invent
-        # acórdãos/ementas). A bare law-article citation (Rule 3) is NOT caught
-        # here — only genuine jurisprudence/precedent asks.
-        if JURISPRUDENCE_RE.search(message or "") and not LAW_CITATION_RE.search(message or ""):
+        legal_context = (legal_context or "").strip()
+
+        # Legal short-circuit: no active official source, so refuse honestly and
+        # deterministically. This covers both jurisprudence and literal law
+        # citation asks. With a legal_context, the source-backed guard below
+        # takes over and the model may answer from retrieved sources only.
+        if (
+            JURISPRUDENCE_RE.search(message or "")
+            and not LAW_CITATION_RE.search(message or "")
+            and not legal_context
+        ):
             logger.info("maestro_lite: jurisprudence asked, no source — honest refusal")
-            return {"response": JURISPRUDENCE_REFUSAL, "model": self.model, "status": "ok"}
+            return {
+                "response": JURISPRUDENCE_REFUSAL,
+                "model": self.model,
+                "status": "ok",
+                "refusal_code": "no_official_jurisprudence_source",
+            }
+
+        if LAW_CITATION_RE.search(message or "") and not legal_context:
+            logger.info("maestro_lite: law citation asked, no official source — honest refusal")
+            return {
+                "response": LEGAL_SOURCE_REQUIRED_REFUSAL,
+                "model": self.model,
+                "status": "ok",
+                "refusal_code": "no_official_legal_source",
+            }
 
         # Calculadora determinística de prazos: se a mensagem identifica data + ato
         # processual, retorna resposta calculada sem chamar o LLM (rápido e exato).
@@ -254,12 +318,13 @@ class MaestroLite:
         if repo_context:
             messages.append({"role": "system", "content": repo_context})
 
-        # F44 Fase 2 (FR-1): se a pergunta cita artigo/lei/súmula, injeta guard
-        # adicional logo antes da mensagem. Modelo pequeno (3B params) ignora
-        # regra distante; reforço imediato força disclaimer.
-        if LAW_CITATION_RE.search(message or ""):
-            messages.append({"role": "system", "content": LAW_CITATION_GUARD})
-            logger.info("maestro_lite: law citation detected, injecting guard")
+        # Legal RAG grounding guard. This is separate from repo-aware product
+        # grounding: official law/CNJ/tribunal sources are not tenant uploads and
+        # must be cited by URL/hash.
+        if legal_context:
+            messages.append({"role": "system", "content": legal_context})
+            messages.append({"role": "system", "content": LEGAL_RAG_GUARD})
+            logger.info("maestro_lite: official legal context injected, grounding guard on")
 
         # Repo-aware grounding guards (injected right before the user turn so the
         # small model can't drift). Two cases: (1) we have product fonts → force
@@ -285,7 +350,7 @@ class MaestroLite:
         try:
             from services.ai_provider import get_ai_provider, NullProvider
             _provider = get_ai_provider()
-            if not isinstance(_provider, NullProvider):
+            if not isinstance(_provider, NullProvider) and getattr(self, "_external_budget_ok", True):
                 _tag = {"system": "INSTRUCOES", "assistant": "MAESTRO", "user": "USUARIO"}
                 _prompt = "\n\n".join(
                     f"[{_tag.get(m.get('role'), 'USUARIO')}]\n{m.get('content','')}"
@@ -293,57 +358,276 @@ class MaestroLite:
                 ) + "\n\n[MAESTRO]\n"
                 _ext = await _provider.generate(_prompt, temperature=0.2, max_tokens=800)
                 if _ext:
+                    try:
+                        from services.maestro_budget import note_success
+                        from services.maestro_redact import unredact
+                        note_success()
+                        _ext = unredact(_ext, getattr(self, "_egress_unmap", None))
+                    except Exception:  # noqa: BLE001
+                        pass
                     return {"response": _ext, "model": _provider.name, "status": "ok"}
+                try:
+                    from services.maestro_budget import note_failure
+                    note_failure("no_response")
+                except Exception:  # noqa: BLE001
+                    pass
                 logger.info("maestro_lite: provider %s sem resposta -> fallback Ollama", _provider.name)
         except Exception as _pe:
+            try:
+                from services.maestro_budget import note_failure
+                note_failure(str(_pe))
+            except Exception:  # noqa: BLE001
+                pass
             logger.warning("maestro_lite: provider externo falhou (%s) -> fallback Ollama", _pe)
 
         try:
-            # Timeout: llama3.2:3b on a CPU-only VPS (Mumbai alpha) needs ~37s of
+            # Timeout: llama3.2:3b on a CPU-only VPS (remote runtime alpha) needs ~37s of
             # prompt-eval alone for ~1.8K context tokens + ~1s per 12 generated
             # tokens (measured 2026-06-03). With firm context attached a real
             # answer lands at 50-90s; the old 120s ReadTimeout was being hit
             # silently and surfaced as "assistente offline" on EVERY grounded
-            # firm question — the exact symptom Example User reported (Maestro "não acha
+            # firm question — the exact symptom UsuarioDemo reported (Maestro "não acha
             # os prazos / não responde"). Raise to 300s so the grounded answer
             # actually completes. num_predict caps the answer so generation can't
             # run away. keep_alive holds the model warm between turns (cold reload
             # costs another ~6s). Pair this with the context trimming in
             # get_firm_context below — both are needed.
-            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
-                resp = await client.post(
-                    f"{self.ollama_url}/api/chat",
-                    # F44 Fase 1: temperature baixa reduz alucinação. Top_p estreito
-                    # mantém respostas determinísticas.
-                    # Fix 2026-06-09: num_ctx 4096 truncava o prompt (~4.7k tok com
-                    # clientes+processos+prazos) e os blocos de PRAZO caíam fora da
-                    # janela -> o modelo respondia "não encontrei" mesmo com prazos
-                    # no sistema. 8192 acomoda o firm_context inteiro com folga.
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "stream": False,
-                        "keep_alive": "30m",
-                        "options": {
-                            "temperature": 0.2,
-                            "top_p": 0.85,
-                            "num_ctx": 8192,
-                            "num_predict": 600,
-                            "repeat_penalty": 1.15,
-                        },
-                    }
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    return {"response": data["message"]["content"], "model": self.model, "status": "ok"}
-                else:
-                    return {"response": "Erro ao comunicar com o modelo de IA.", "status": "error"}
+            async def _do_chat():
+                async with httpx.AsyncClient(timeout=httpx.Timeout(LLM_TIMEOUT_S, connect=10.0)) as client:
+                    resp = await client.post(
+                        f"{self.ollama_url}/api/chat",
+                        # F44 Fase 1: temperature baixa reduz alucinação. Top_p estreito
+                        # mantém respostas determinísticas.
+                        # Fix 2026-06-09: num_ctx 4096 truncava o prompt (~4.7k tok com
+                        # clientes+processos+prazos). 8192 acomoda o firm_context inteiro.
+                        # 2026-06-17: reduzimos LIMIT de clientes/casos (30→10) e ficamos
+                        # com 5120 — janela 37% menor que 8192, KV cache mais leve em CPU.
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "stream": False,
+                            "keep_alive": "30m",
+                            "options": {
+                                "temperature": 0.2,
+                                "top_p": 0.85,
+                                "num_ctx": 5120,
+                                "num_predict": 300,
+                                "repeat_penalty": 1.15,
+                            },
+                        }
+                    )
+                    # raise_for_status so a non-2xx counts as a breaker failure
+                    # (a 5xx from Ollama is exactly the signal we want to trip on).
+                    resp.raise_for_status()
+                    return resp.json()
+
+            data = await _OLLAMA_BREAKER.call(_do_chat)
+            return {"response": data["message"]["content"], "model": self.model, "status": "ok"}
+        except CircuitOpenError as ce:
+            # Too many workers already parked on Ollama, or the breaker is
+            # tripped — return immediately so this worker stays free.
+            logger.warning("maestro_lite.chat: ollama breaker rejected: %s", ce)
+            return {
+                "response": "O assistente está com muitas solicitações no momento. "
+                            "Aguarde alguns segundos e tente novamente.",
+                "status": "busy",
+            }
         except Exception as e:
             logger.error("Ollama error: %s", e)
             return {
                 "response": "O assistente de IA não está disponível no momento. Verifique se o Ollama está rodando.",
                 "status": "offline",
                 "error": str(e)
+            }
+
+    def _build_messages(self, message, context=None, history=None,
+                        repo_context=None, legal_context=None):
+        """Assemble the messages list shared by chat() and chat_stream()."""
+        messages = [{"role": "system", "content": self.system_prompt}]
+        # Inject current date so the model never guesses the year from training data.
+        _today = datetime.now().strftime("%d/%m/%Y")
+        messages.append({"role": "system", "content": f"Data atual: {_today} (America/Sao_Paulo). Use esta data em todas as respostas."})
+        if context:
+            messages.append({"role": "system", "content": f"Contexto do escritório:\n{context}"})
+        if repo_context:
+            messages.append({"role": "system", "content": repo_context})
+        if legal_context:
+            messages.append({"role": "system", "content": legal_context})
+            messages.append({"role": "system", "content": LEGAL_RAG_GUARD})
+            logger.info("maestro_lite: official legal context injected, grounding guard on")
+        elif repo_context:
+            messages.append({"role": "system", "content": REPO_AWARE_GUARD})
+            logger.info("maestro_lite: repo context injected, grounding guard on")
+        elif PRODUCT_QUESTION_RE.search(message or ""):
+            messages.append({"role": "system", "content": REPO_AWARE_NO_CONTEXT_GUARD})
+            logger.info("maestro_lite: product-ish question, no repo context — anti-invent guard on")
+        clean_history = sanitize_chat_history(history)
+        if clean_history:
+            messages.extend(clean_history)
+        messages.append({"role": "user", "content": message})
+        return messages
+
+    async def chat_stream(self, message, context=None, history=None,
+                          repo_context=None, legal_context=None):
+        """Async generator that yields SSE-ready dicts for each token chunk.
+
+        Fast-path responses (short-circuits, external providers) yield a single
+        ``{"response": ..., "done": True}`` dict. Ollama streaming yields
+        ``{"chunk": str}`` dicts followed by one final ``{"done": True, ...}``.
+        The caller serialises each dict as ``data: <json>\\n\\n``.
+        """
+        legal_context = (legal_context or "").strip()
+
+        # ── Short-circuit: jurisprudência sem fonte ────────────────────────
+        if (
+            JURISPRUDENCE_RE.search(message or "")
+            and not LAW_CITATION_RE.search(message or "")
+            and not legal_context
+        ):
+            logger.info("maestro_lite: stream jurisprudence refusal")
+            yield {"response": JURISPRUDENCE_REFUSAL, "model": self.model,
+                   "status": "ok", "done": True, "refusal_code": "no_official_jurisprudence_source"}
+            return
+
+        # ── Short-circuit: citação de lei sem fonte ────────────────────────
+        if LAW_CITATION_RE.search(message or "") and not legal_context:
+            logger.info("maestro_lite: stream law citation refusal")
+            yield {"response": LEGAL_SOURCE_REQUIRED_REFUSAL, "model": self.model,
+                   "status": "ok", "done": True, "refusal_code": "no_official_legal_source"}
+            return
+
+        # ── Short-circuit: calculadora determinística de prazos ────────────
+        try:
+            from services.prazo_intent import prazo_intent
+            _prazo_resp = prazo_intent(message or "")
+            if _prazo_resp:
+                logger.info("maestro_lite: stream prazo_intent respondeu deterministicamente")
+                yield {"response": _prazo_resp, "model": "prazo_calculator", "status": "ok", "done": True}
+                return
+        except Exception as _pi_err:  # noqa: BLE001
+            logger.warning("maestro_lite: prazo_intent falhou (%s) -> LLM segue", _pi_err)
+
+        messages = self._build_messages(message, context, history, repo_context, legal_context)
+
+        # ── External provider (BYO-API) — primary streaming path ─────────────
+        # When CASEHUB_AI_PROVIDER is explicit (NVIDIA etc.), do not fall back to
+        # the legacy Ollama CPU stream after a provider timeout. That produced the
+        # UsuarioDemo N4 symptom: HTTP 200 stays open, but no visible token arrives.
+        try:
+            from services.ai_provider import get_ai_provider, NullProvider
+            _provider = get_ai_provider()
+            if not isinstance(_provider, NullProvider):
+                if not getattr(self, "_external_budget_ok", True):
+                    yield {
+                        "response": "O provedor de IA atingiu o limite temporário. Tente novamente em instantes.",
+                        "model": _provider.name,
+                        "status": "error",
+                        "done": True,
+                    }
+                    return
+                _tag = {"system": "INSTRUCOES", "assistant": "MAESTRO", "user": "USUARIO"}
+                _prompt = "\n\n".join(
+                    f"[{_tag.get(m.get('role'), 'USUARIO')}]\n{m.get('content','')}"
+                    for m in messages
+                ) + "\n\n[MAESTRO]\n"
+                _full_text = ""
+                async for _chunk in _provider.generate_stream(_prompt, temperature=0.2, max_tokens=800):
+                    if not _chunk:
+                        continue
+                    _full_text += _chunk
+                    try:
+                        from services.maestro_redact import unredact
+                        _safe_chunk = unredact(_chunk, getattr(self, "_egress_unmap", None))
+                    except Exception:  # noqa: BLE001
+                        _safe_chunk = _chunk
+                    yield {"chunk": _safe_chunk, "model": _provider.name}
+                if _full_text.strip():
+                    try:
+                        from services.maestro_budget import note_success
+                        from services.maestro_redact import unredact
+                        note_success()
+                        _full_text = unredact(_full_text.strip(), getattr(self, "_egress_unmap", None))
+                    except Exception:  # noqa: BLE001
+                        pass
+                    yield {"response": _full_text, "model": _provider.name, "status": "ok", "done": True}
+                    return
+                try:
+                    from services.maestro_budget import note_failure
+                    note_failure("no_response")
+                except Exception:  # noqa: BLE001
+                    pass
+                logger.warning("maestro_lite: stream provider %s sem resposta", _provider.name)
+                yield {
+                    "response": "O provedor de IA não respondeu. Tente novamente em instantes.",
+                    "model": _provider.name,
+                    "status": "error",
+                    "done": True,
+                }
+                return
+        except Exception as _pe:  # noqa: BLE001
+            try:
+                from services.maestro_budget import note_failure
+                note_failure(str(_pe))
+            except Exception:  # noqa: BLE001
+                pass
+            logger.warning("maestro_lite: stream provider externo falhou (%s)", _pe)
+            yield {
+                "response": "O provedor de IA falhou. Tente novamente em instantes.",
+                "status": "error",
+                "done": True,
+            }
+            return
+
+        # ── Ollama streaming ───────────────────────────────────────────────
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(LLM_TIMEOUT_S, connect=10.0)) as client:
+                async with client.stream(
+                    "POST",
+                    f"{self.ollama_url}/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": messages,
+                        "stream": True,
+                        "keep_alive": "30m",
+                        "options": {
+                            "temperature": 0.2,
+                            "top_p": 0.85,
+                            "num_ctx": 5120,
+                            "num_predict": 300,
+                            "repeat_penalty": 1.15,
+                        },
+                    },
+                ) as resp:
+                    if resp.status_code != 200:
+                        yield {"response": "Erro ao comunicar com o modelo de IA.",
+                               "status": "error", "done": True}
+                        return
+                    full_text = ""
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            data = json.loads(line)
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+                        chunk = (data.get("message") or {}).get("content", "")
+                        if chunk:
+                            full_text += chunk
+                            yield {"chunk": chunk}
+                        if data.get("done"):
+                            yield {"response": full_text, "model": self.model,
+                                   "status": "ok", "done": True}
+                            return
+                    # Exhausted without done flag
+                    if full_text:
+                        yield {"response": full_text, "model": self.model,
+                               "status": "ok", "done": True}
+        except Exception as e:  # noqa: BLE001
+            logger.error("Ollama stream error: %s", e)
+            yield {
+                "response": "O assistente de IA não está disponível no momento. Verifique se o Ollama está rodando.",
+                "status": "offline",
+                "done": True,
             }
 
     async def get_status(self):
@@ -389,11 +673,11 @@ class MaestroLite:
                 FROM clients
                 WHERE org_id = :oid
                 ORDER BY COALESCE(updated_at, created_at) DESC NULLS LAST
-                LIMIT 30
+                LIMIT 10
             """), {"oid": org_id})
             clientes = list(result)
             if clientes:
-                context_parts.append("Clientes cadastrados (mais recentes 30):")
+                context_parts.append("Clientes cadastrados (mais recentes 10):")
                 for c in clientes:
                     detalhes = []
                     if c[1]:
@@ -415,11 +699,11 @@ class MaestroLite:
                 LEFT JOIN clients cl ON cl.id = c.client_id AND cl.org_id = :oid
                 WHERE c.org_id = :oid
                 ORDER BY COALESCE(c.updated_at, c.created_at) DESC NULLS LAST
-                LIMIT 30
+                LIMIT 10
             """), {"oid": org_id})
             casos = list(result)
             if casos:
-                context_parts.append("Processos cadastrados (mais recentes 30):")
+                context_parts.append("Processos cadastrados (mais recentes 10):")
                 for ca in casos:
                     cliente = f" — cliente {ca[1]}" if ca[1].strip() else ""
                     numero = f" [{ca[3]}]" if ca[3] else ""
@@ -440,7 +724,10 @@ class MaestroLite:
                        p.data_vencimento,
                        p.status,
                        COALESCE(p.processo_override, c.case_number, 'sem processo') AS processo,
-                       COALESCE(cl.first_name || ' ' || cl.last_name, '') AS cliente
+                       COALESCE(cl.first_name || ' ' || cl.last_name, '') AS cliente,
+                       COALESCE(p.source_provider, 'manual') AS source_provider,
+                       COALESCE(p.source_status, 'manual') AS source_status,
+                       COALESCE(p.calculation_engine_version, '') AS calculation_engine_version
                 FROM prazos_processuais p
                 LEFT JOIN cases c ON c.id = p.case_id AND c.org_id = :oid
                 LEFT JOIN clients cl ON cl.id = c.client_id AND cl.org_id = :oid
@@ -460,7 +747,9 @@ class MaestroLite:
                     # rótulo genérico mantém a linha limpa e citável (2026-06-03).
                     tipo = (p[0] or "Prazo processual").strip() or "Prazo processual"
                     cliente = f", cliente {p[4]}" if (p[4] or "").strip() else ""
-                    context_parts.append(f"  - {tipo}: vence {p[1]} (processo {p[3]}{cliente}, status {p[2]})")
+                    fonte = f", fonte {p[5]}:{p[6]}" if p[5] or p[6] else ""
+                    motor = f", calculo {p[7]}" if p[7] else ""
+                    context_parts.append(f"  - {tipo}: vence {p[1]} (processo {p[3]}{cliente}, status {p[2]}{fonte}{motor})")
         except Exception:
             pass
 
@@ -481,7 +770,10 @@ class MaestroLite:
                     SELECT p.tipo,
                            p.data_vencimento,
                            COALESCE(p.processo_override, c.case_number, 'sem processo') AS processo,
-                           COALESCE(cl.first_name || ' ' || cl.last_name, '') AS cliente
+                           COALESCE(cl.first_name || ' ' || cl.last_name, '') AS cliente,
+                           COALESCE(p.source_provider, 'manual') AS source_provider,
+                           COALESCE(p.source_status, 'manual') AS source_status,
+                           COALESCE(p.calculation_engine_version, '') AS calculation_engine_version
                     FROM prazos_processuais p
                     LEFT JOIN cases c ON c.id = p.case_id AND c.org_id = :oid
                     LEFT JOIN clients cl ON cl.id = c.client_id AND cl.org_id = :oid
@@ -499,7 +791,9 @@ class MaestroLite:
                     for p in items:
                         tipo = (p[0] or "Prazo processual").strip() or "Prazo processual"
                         cliente = f" — cliente {p[3]}" if (p[3] or "").strip() else ""
-                        context_parts.append(f"  - {tipo}: vence {p[1]} (proc. {p[2]}{cliente})")
+                        fonte = f", fonte {p[4]}:{p[5]}" if p[4] or p[5] else ""
+                        motor = f", calculo {p[6]}" if p[6] else ""
+                        context_parts.append(f"  - {tipo}: vence {p[1]} (proc. {p[2]}{cliente}{fonte}{motor})")
                 else:
                     context_parts.append("  (nenhum)")
         except Exception:
@@ -520,7 +814,32 @@ class MaestroLite:
         except Exception:
             pass
 
-        return "\n".join(context_parts)
+        firm_context = "\n".join(context_parts)
+        self._egress_unmap = {}
+        self._external_budget_ok = True
+        # Egress redaction (ruling 2026-06-18-activate-nvidia-nim-maestro-egress):
+        # com provider externo ativo (NVIDIA etc.) o firm context NAO sai cru -
+        # pseudonimiza nomes/processos/PII. Ollama local (on-prem) recebe integro.
+        try:
+            from services.ai_provider import get_ai_provider, NullProvider
+            _external = not isinstance(get_ai_provider(), NullProvider)
+        except Exception:  # noqa: BLE001
+            _external = False
+        if _external:
+            try:
+                from services.maestro_redact import redact_firm_context
+                firm_context, self._egress_unmap = redact_firm_context(firm_context, db, org_id)
+                if not firm_context:
+                    firm_context = "[contexto do escritorio omitido - redacao vazia]"
+            except Exception:  # noqa: BLE001 - fail-closed: nunca vaza cru
+                firm_context = "[contexto do escritorio omitido - falha na redacao]"
+                self._egress_unmap = {}
+            try:
+                from services.maestro_budget import external_allowed
+                self._external_budget_ok = external_allowed(db, org_id)
+            except Exception:  # noqa: BLE001
+                self._external_budget_ok = True
+        return firm_context
 
 
 # ---------------------------------------------------------------------------

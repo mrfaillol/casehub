@@ -55,8 +55,8 @@ RUN npm install --omit=dev --no-audit --no-fund
 # Código do bot
 COPY . .
 
-# Sessão whatsapp-web.js persiste aqui (montar volume para sobreviver a restart).
-RUN mkdir -p /app/.wwebjs_auth
+# Sessão e mídia whatsapp-web.js persistem via volumes no alpha.
+RUN mkdir -p /app/.wwebjs_auth /app/media
 
 EXPOSE 3001
 

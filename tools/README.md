@@ -45,7 +45,7 @@ filepath = generator.create_document(
     recommender_name="Jane Smith",
     recommender_title="VP of Engineering",
     recommender_org="TechCorp Inc.",
-    recommender_email="jane@techcorp.com",
+    recommender_email="jane@example.com",
     relationship="supervisor",
     paragraphs=paragraphs,
 )
@@ -59,7 +59,7 @@ python lor_generator.py \
     --recommender "Jane Smith" \
     --title "VP of Engineering" \
     --org "TechCorp Inc." \
-    --email "jane@techcorp.com" \
+    --email "jane@example.com" \
     --relationship supervisor \
     --field cybersecurity
 ```

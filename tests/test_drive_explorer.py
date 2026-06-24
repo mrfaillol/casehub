@@ -24,7 +24,7 @@ import services.drive_explorer as explorer
 import routes.documents as document_routes
 import routes.drive_explorer as drive_routes
 import routes.integrations as integration_routes
-from models import Organization
+from models import Client, Organization
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -163,7 +163,7 @@ def test_list_folder_includes_trashed_only_when_asked(fake_drive):
 
 def test_drive_explorer_uses_requested_org_id(fake_drive):
     """The Drive explorer must load the token for the current tenant, not the
-    default org. This is what makes subdomains like sampletenant.casehub.legal
+    default org. This is what makes subdomains like tenanta.casehub.legal
     use credentials/org_4/drive_token.json after OAuth."""
     fake_drive._files.list_payload = {"files": [], "nextPageToken": None}
     fake_drive._files.get_payloads = {
@@ -181,10 +181,10 @@ def test_drive_explorer_uses_requested_org_id(fake_drive):
 def test_documents_drive_root_prefers_current_org(db, monkeypatch):
     org = Organization(
         id=4,
-        uuid="org-sampletenant-test",
-        name="Example Legal",
-        slug="sampletenant",
-        domain="sampletenant.casehub.legal",
+        uuid="org-tenanta-test",
+        name="Escritorio Demo",
+        slug="tenanta",
+        domain="tenanta.casehub.legal",
         google_drive_root_id="org-drive-root",
     )
     db.add(org)
@@ -194,6 +194,50 @@ def test_documents_drive_root_prefers_current_org(db, monkeypatch):
     assert document_routes._drive_root_id_for_org(db, 4) == "org-drive-root"
     assert integration_routes._google_drive_root_id(db, 4) == "org-drive-root"
     assert integration_routes._google_drive_root_source(db, 4) == "org"
+
+
+def test_documents_drive_root_prefers_client_override(db, monkeypatch):
+    org = Organization(
+        id=4,
+        uuid="org-tenanta-test",
+        name="Escritorio Demo",
+        slug="tenanta",
+        domain="tenanta.casehub.legal",
+        google_drive_root_id="org-drive-root",
+    )
+    client = Client(
+        org_id=4,
+        first_name="Cliente",
+        last_name="Com Pasta",
+        drive_folder_id="client-drive-root",
+    )
+    db.add(org)
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    monkeypatch.setattr(document_routes.settings, "GOOGLE_DRIVE_ROOT_ID", "global-root")
+
+    assert (
+        document_routes._drive_root_id_for_org(db, 4, client_id=client.id)
+        == "client-drive-root"
+    )
+
+
+def test_documents_drive_root_rejects_other_org_client(db):
+    client = Client(
+        org_id=999,
+        first_name="Outra",
+        last_name="Org",
+        drive_folder_id="other-org-root",
+    )
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+
+    with pytest.raises(Exception) as exc_info:
+        document_routes._drive_root_id_for_org(db, 4, client_id=client.id)
+
+    assert getattr(exc_info.value, "status_code", None) == 404
 
 
 def test_documents_drive_root_falls_back_to_global(db, monkeypatch):
@@ -214,12 +258,118 @@ def test_documents_drive_root_falls_back_to_my_drive(db, monkeypatch):
     assert integration_routes._google_drive_root_source(db, 4) == "root-fallback"
 
 
+def test_folder_shortcut_is_serialized_as_navigable_folder(fake_drive):
+    """A shortcut to a folder must be clickable as a folder in the Drive UI.
+
+    This is the practical workaround for Drive for desktop's "Computers"
+    surface: create a shortcut in My Drive, then browse the target folder ID.
+    """
+    fake_drive._files.list_payload = {
+        "files": [
+            {
+                "id": "shortcut-1",
+                "name": "Pasta sincronizada",
+                "mimeType": explorer.DRIVE_SHORTCUT_MIME,
+                "shortcutDetails": {
+                    "targetId": "folder-target-1",
+                    "targetMimeType": explorer.DRIVE_FOLDER_MIME,
+                },
+            },
+        ],
+        "nextPageToken": None,
+    }
+
+    result = explorer.list_folder("root")
+    item = result["items"][0]
+
+    assert item["id"] == "shortcut-1"
+    assert item["navigation_id"] == "folder-target-1"
+    assert item["is_shortcut"] is True
+    assert item["is_folder"] is True
+    assert item["shortcut_target_mime_type"] == explorer.DRIVE_FOLDER_MIME
+
+
+def test_documents_template_uses_shortcut_navigation_id():
+    template = (ROOT_DIR / "templates/app/documents/list.html").read_text(encoding="utf-8")
+
+    assert "navigationId" in template
+    assert "shortcutTargetMimeType" in template
+    assert "candidate.id === id || candidate.navigationId === id" in template
+
+
 def test_documents_template_preserves_preview_when_file_selected():
     """File selection must not clear the metadata panel immediately after render."""
     template = (ROOT_DIR / "templates/app/documents/list.html").read_text(encoding="utf-8")
 
     assert "clearAfter(depth, { resetPreview: false });" in template
     assert "renderPreview(item || { id: id, name: button.textContent.trim() });" in template
+
+
+def test_drive_alias_registered_without_duplicate_ui():
+    app_factory = (ROOT_DIR / "core/app_factory.py").read_text(encoding="utf-8")
+
+    assert '@app.get(f"{PREFIX}/drive"' in app_factory
+    assert '@app.get(f"{PREFIX}/drive/"' in app_factory
+    assert 'target = f"{PREFIX}/documents"' in app_factory
+    assert 'RedirectResponse(url=target' in app_factory
+
+
+def test_google_drive_root_folder_endpoint_persists_org_root(db, monkeypatch):
+    org = Organization(
+        id=4,
+        uuid="org-tenanta-test",
+        name="Escritorio Demo",
+        slug="tenanta",
+        domain="tenanta.casehub.legal",
+    )
+    db.add(org)
+    db.commit()
+
+    request = SimpleNamespace(state=SimpleNamespace(org_id=4))
+
+    async def _form():
+        return {
+            "drive_root_id": (
+                "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQ"
+            )
+        }
+
+    request.form = _form
+    monkeypatch.setattr(
+        integration_routes,
+        "get_current_user",
+        lambda req, session: SimpleNamespace(id=7, user_type="admin"),
+    )
+
+    response = asyncio.run(
+        integration_routes.google_drive_root_folder(request, db)
+    )
+
+    db.refresh(org)
+    assert org.google_drive_root_id == "1AbCdEfGhIjKlMnOpQ"
+    assert response.status_code == 302
+    assert "drive_root_saved=1" in response.headers["location"]
+
+
+def test_google_drive_root_folder_endpoint_requires_admin(db, monkeypatch):
+    request = SimpleNamespace(state=SimpleNamespace(org_id=4))
+
+    async def _form():
+        return {"drive_root_id": "1AbCdEfGhIjKlMnOpQ"}
+
+    request.form = _form
+    monkeypatch.setattr(
+        integration_routes,
+        "get_current_user",
+        lambda req, session: SimpleNamespace(id=8, user_type="case_worker"),
+    )
+
+    response = asyncio.run(
+        integration_routes.google_drive_root_folder(request, db)
+    )
+
+    assert response.status_code == 302
+    assert "drive_error=drive_root_admin_required" in response.headers["location"]
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +388,7 @@ def test_get_file_includes_owners_and_trashed(fake_drive):
         "createdTime": "2026-05-15T09:00:00Z",
         "size": None,  # Google-native docs have no byte size
         "owners": [
-            {"emailAddress": "victor@vingren.me", "displayName": "Victor Vingren"},
+            {"emailAddress": "admin@example.com", "displayName": "CaseHub Admin"},
         ],
         "trashed": False,
         "webViewLink": "https://docs.google.com/document/d/file42/edit",
@@ -250,7 +400,7 @@ def test_get_file_includes_owners_and_trashed(fake_drive):
     assert payload["trashed"] is False
     assert payload["size"] is None
     assert payload["owners"] == [
-        {"email": "victor@vingren.me", "display_name": "Victor Vingren"},
+        {"email": "admin@example.com", "display_name": "CaseHub Admin"},
     ]
 
 

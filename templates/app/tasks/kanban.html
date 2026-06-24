@@ -23,14 +23,14 @@
   </div>
 </section>
 
-{# ─── Faixa "Agenda da semana" (pedido Example User 03/06: unificar Kanban × Agenda de forma SUTIL) ───
+{# ─── Faixa "Agenda da semana" (pedido UsuarioDemo 03/06: unificar Kanban × Agenda de forma SUTIL) ───
    Widget DISCRETO e read-only: mostra os compromissos da SEMANA corrente dentro do Kanban,
    sem o usuário sair da tela. Dados via fetch client-side a GET /calendar/events
    (filter_type=appointments, org-scoped — routes/calendar.py). Best-effort: se a agenda
    falhar, fica oculto e o Kanban segue intacto. Lei de Miller: só a semana, nada de sobrecarga.
    Lei de Hick: um único atalho "ver agenda" pra aprofundar. Colapsável (estado em localStorage). #}
-<section class="ch-agenda-strip" id="chAgendaStrip" data-collapsed="0" hidden aria-label="Próximos compromissos da agenda">
-  <button type="button" class="ch-agenda-strip__toggle" id="chAgendaToggle" aria-expanded="true" aria-controls="chAgendaList">
+<section class="ch-agenda-strip" id="chAgendaStrip" data-collapsed="1" hidden aria-label="Próximos compromissos da agenda">
+  <button type="button" class="ch-agenda-strip__toggle" id="chAgendaToggle" aria-expanded="false" aria-controls="chAgendaList">
     <span class="ch-agenda-strip__lead">
       <span data-icon="calendar" data-icon-size="14" aria-hidden="true"></span>
       <span class="ch-agenda-strip__label">Agenda da semana</span>
@@ -69,7 +69,7 @@
   /* Neu polish 2026-06-09: cada compromisso = pílula com relevo soft (par xs) do
      MESMO material base (surface-app), flutuando sobre o poço da faixa. A cor do
      compromisso vira um ponto-accent delicado (color-mix 55%), nunca borda crua. */
-  /* Cor por pessoa (estilo Trello — Example User=roxo etc.): a pílula recebe a cor do
+  /* Cor por pessoa (estilo Trello — UsuarioDemo=roxo etc.): a pílula recebe a cor do
      responsável de forma SUTIL (fill 18% + hairline 30%) via --appt-color, setado
      no item pelo JS. Fallback p/ surface-app quando o user não tem cor. */
   .ch-agenda-item{display:inline-flex;align-items:center;gap:6px;
@@ -107,50 +107,85 @@
 {% endif %}
 
 <section class="ch-kanban-create" aria-label="Controles do quadro">
-  {# Escopo do quadro: dois eixos distintos agrupados sob rótulos claros.
-     "Listas" controla quais COLUNAS aparecem (view=all/shared/private).
-     "Responsável" filtra os CARTÕES pelo dono (user=''/me).
-     Antes eram dois <nav> de pílulas idênticas — "Equipe" vs "Toda equipe" lia
-     como redundância (pedido Example User 02/06). Agora cada eixo tem caption própria. #}
   {% set current_user_filter = request.query_params.get('user', '') %}
-  <div class="ch-kanban-scope" role="group" aria-label="Escopo do quadro"
-       style="display:inline-flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;">
-    <div style="display:inline-flex;flex-direction:column;gap:4px;">
-      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-faint);">Listas</span>
-      <nav class="ch-kanban-switch" aria-label="Quais listas exibir">
-        <a class="{% if kanban_view_mode == 'all' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=all{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="{% if can_view_team_private_kanban %}Listas compartilhadas + listas privadas da equipe{% else %}Listas compartilhadas + suas listas privadas{% endif %}">Todas</a>
-        <a class="{% if kanban_view_mode == 'shared' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=shared{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="Apenas listas compartilhadas do escritório">Do escritório</a>
-        <a class="{% if kanban_view_mode == 'private' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view=private{% if current_user_filter %}&user={{ current_user_filter }}{% endif %}" title="{% if can_view_team_private_kanban %}Listas privadas da equipe{% else %}Apenas suas listas privadas{% endif %}">{% if can_view_team_private_kanban %}Privadas{% else %}Minhas{% endif %}</a>
-      </nav>
+  {% set current_board_value = kanban_current_board.value if kanban_current_board else 'me' %}
+  {% set current_board_kind = kanban_current_board.kind if kanban_current_board else 'me' %}
+  <div class="ch-kanban-scope" role="group" aria-label="Escopo do quadro">
+    {% set _sel = kanban_selected_boards or [current_board_value] %}
+    <div style="display:inline-flex;flex-direction:column;gap:4px;min-width:0;">
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-faint);">Quadros <span style="color:var(--fg-faint);font-weight:600;text-transform:none;letter-spacing:0;">· selecione um ou vários (lado a lado)</span></span>
+      <div class="ch-board-pills" id="chBoardPills" role="group" aria-label="Selecionar quadros — vários ficam lado a lado">
+        {% macro pill_avatar(u) -%}
+          {%- if u.photo_url -%}
+            <img class="ch-board-pill__av" src="{{ u.photo_url }}" alt="" loading="lazy" decoding="async" />
+          {%- else -%}
+            {%- set _p = (u.name or '').split() -%}
+            {%- set _ini = ((_p[0][0] if _p else '?') ~ (_p[-1][0] if _p|length > 1 else ''))|upper -%}
+            <span class="ch-board-pill__av ch-board-pill__av--ini" style="--owner-color:{{ u.color or 'var(--c-navy)' }};">{{ _ini }}</span>
+          {%- endif -%}
+        {%- endmacro %}
+        <button type="button" class="ch-board-pill{% if 'me' in _sel %} is-active{% endif %}" data-board-value="me" aria-pressed="{{ 'true' if 'me' in _sel else 'false' }}">{{ pill_avatar(user) }}Meu quadro</button>
+        <button type="button" class="ch-board-pill{% if 'org' in _sel %} is-active{% endif %}" data-board-value="org" aria-pressed="{{ 'true' if 'org' in _sel else 'false' }}"><span class="ch-board-pill__av ch-board-pill__av--org" aria-hidden="true"><span data-icon="building"></span></span>Geral do escritório</button>
+        {% if kanban_board_users %}
+          {% for u in kanban_board_users %}
+          {% if u.id != user.id %}
+          <button type="button" class="ch-board-pill{% if u.id|string in _sel %} is-active{% endif %}" data-board-value="{{ u.id }}" aria-pressed="{{ 'true' if u.id|string in _sel else 'false' }}">{{ pill_avatar(u) }}{{ u.name }}</button>
+          {% endif %}
+          {% endfor %}
+        {% endif %}
+      </div>
     </div>
-    <div style="display:inline-flex;flex-direction:column;gap:4px;">
-      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-faint);">Responsável</span>
-      <nav class="ch-kanban-switch" aria-label="Filtrar cartões por responsável">
-        <a class="{% if not current_user_filter %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view={{ kanban_view_mode }}" title="Tarefas de toda a equipe">Todos</a>
-        <a class="{% if current_user_filter == 'me' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?view={{ kanban_view_mode }}&user=me" title="Apenas tarefas atribuídas a você">Só as minhas</a>
+    {% if 'org' in _sel %}
+    <details class="ch-kanban-filter-menu">
+      <summary>
+        <span data-icon="search" data-icon-size="13" aria-hidden="true"></span>
+        <span>Responsável</span>
+        {% if current_user_filter %}<span class="ch-kanban-filter-menu__state">{{ 'minhas' if current_user_filter == 'me' else 'filtrado' }}</span>{% endif %}
+      </summary>
+      <nav class="ch-kanban-switch" aria-label="Filtrar cartões do quadro geral por responsável">
+        {% set _sel_qs = (_sel|join(',')) %}
+        <a class="{% if not current_user_filter %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?boards={{ _sel_qs }}" title="Tarefas de toda a equipe">Todos</a>
+        <a class="{% if current_user_filter == 'me' %}is-active{% endif %}" href="{{ PREFIX }}/tasks/kanban?boards={{ _sel_qs }}&user=me" title="Apenas tarefas atribuídas a você">Só as minhas</a>
       </nav>
-    </div>
+    </details>
+    {% endif %}
   </div>
+  {% if can_manage_kanban_collab %}
+  <div class="ch-kanban-admin ch-kanban-admin--secondary" aria-label="Administração de colaboração">
+    <label class="ch-kanban-admin__lock" for="chKanbanLockToggle">
+      <input type="checkbox" id="chKanbanLockToggle" {% if kanban_collab_locked %}checked{% endif %} />
+      <span>Travar quadros</span>
+    </label>
+  </div>
+  {% endif %}
+  {% if kanban_board_access_denied %}
+  <div class="ch-kanban-alert" role="status">
+    Acesso restrito pelo bloqueio do Kanban. Exibindo seu quadro.
+  </div>
+  {% endif %}
+  {% if current_board_kind == 'me' or (current_board_kind == 'org' and can_manage_shared_kanban) %}
   <form id="chColumnForm" class="ch-kanban-create__form" autocomplete="off">
-    {# V4 (pedido Example User 02/06): impedir que o navegador / gerenciador de senhas
+    {# V4 (pedido UsuarioDemo 02/06): impedir que o navegador / gerenciador de senhas
        sugira nomes/e-mails (PII) no campo de nova lista. autocomplete=off +
        atributos de ignore (data-1p/lp/bw-ignore) cobrem 1Password/LastPass/Bitwarden. #}
     <input class="ch-input" name="list_name" id="chColumnNameInput" placeholder="Nova lista" required
            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
            data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" />
     <select class="ch-select" name="visibility" aria-label="Tipo de lista">
+      {% if current_board_kind == 'me' %}
       <option value="private">Privada</option>
+      {% endif %}
       {% if can_manage_shared_kanban %}
-      <option value="shared">Compartilhada</option>
+      <option value="shared" {% if current_board_kind == 'org' %}selected{% endif %}>Compartilhada</option>
       {% endif %}
     </select>
     <input class="ch-input ch-kanban-create__color" name="color" type="color" value="#1C2447" aria-label="Cor da lista" />
     <button class="ch-btn ch-btn--primary" type="submit"><span data-icon="plus"></span> Criar lista</button>
   </form>
+  {% endif %}
 </section>
 
-<div class="ch-board" id="chBoard">
-  {% for col in (kanban_columns or []) %}
+{% macro render_column(col) %}
   <section class="ch-column {% if col.is_private %}is-private{% endif %}" data-column-id="{{ col.id }}" data-column-status="{{ col.status }}" data-column-slug="{{ col.slug }}" data-column-private="{{ '1' if col.is_private else '0' }}" data-column-readonly="{{ '0' if col.can_add_cards else '1' }}">
     <header class="ch-column__header">
       <div>
@@ -160,19 +195,21 @@
         </h2>
         <div class="ch-column__meta">
           <span class="ch-column__scope">{{ col.visibility_label }}</span>
-          <span>{{ col.tasks|length }}{% if col.hours %} · {{ col.hours }}h{% endif %}</span>
+          <span class="ch-column__count" data-column-count data-column-hours="{{ col.hours or '' }}">{{ col.tasks|length }}{% if col.hours %} · {{ col.hours }}h{% endif %}</span>
         </div>
       </div>
       {% if col.can_manage %}
       <div class="ch-column__tools">
         <button class="ch-column__icon" type="button" data-column-rename="{{ col.id }}" title="Renomear lista" aria-label="Renomear lista"><span data-icon="edit"></span></button>
+        {# FB2 (alpha UsuarioDemo): arquivar TODOS os cartões da lista de uma vez (soft-archive, não apaga). #}
+        <button class="ch-column__icon" type="button" data-column-archive-cards="{{ col.id }}" title="Arquivar todos os cartões" aria-label="Arquivar todos os cartões"><span data-icon="archive"></span></button>
         <button class="ch-column__icon" type="button" data-column-delete="{{ col.id }}" title="Remover lista" aria-label="Remover lista"><span data-icon="trash"></span></button>
       </div>
       {% endif %}
     </header>
     <div class="ch-column__body" data-drop-zone="true">
       {% for t in col.tasks %}
-      {# ─── Card estilo Notion (Example User 03/06) ───────────────────────────────
+      {# ─── Card estilo Notion (UsuarioDemo 03/06) ───────────────────────────────
          Lei de Gestalt (proximidade) + Miller (chunking): agrupamos por CLASSE.
          Classes diferentes empilham VERTICALMENTE (cada uma na sua linha);
          itens da MESMA classe ficam lado a lado (HORIZONTAL). Cada classe só
@@ -180,7 +217,8 @@
          Avatar do responsável: foto que o usuário subiu (assignee.photo_url);
          se não houver, iniciais num círculo com a cor do usuário (assignee.color).
       ─────────────────────────────────────────────────────────────────── #}
-      {% set _ass = t.assignee %}
+      {% set _assignees = t.assignees_list|default([]) %}
+      {% set _ass = _assignees[0] if _assignees else t.assignee %}
       {% set _ass_color = (_ass.color if _ass and _ass.color else 'var(--c-navy)') %}
       {% set _is_private = (t.visibility == 'private') %}
       <a class="ch-task-card{% if _is_private %} is-private-task{% endif %}" href="{{ PREFIX }}/tasks/{{ t.id }}" draggable="{{ 'true' if col.can_add_cards else 'false' }}" data-task-id="{{ t.id }}"{% if _is_private %} data-task-private="1"{% endif %} style="--owner-color:{{ _ass_color }};">
@@ -240,25 +278,33 @@
                 title="Vencimento: {{ t.due_date.strftime('%d/%m/%Y') }}{{ (' às ' + t.due_time) if t.due_time else '' }}">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>{{ _due_label }}
           </span>
-          {# Avatar no footer direito (só se houver prazo — senão footer fica vazio e é omitido) #}
-          {% if _ass %}
-          {% if _ass.photo_url %}
-          <img class="ch-task-card__avatar" src="{{ _ass.photo_url }}" alt="{{ _ass.name or '' }}" loading="lazy" decoding="async" title="{{ _ass.name or 'Responsável' }}" />
-          {% else %}
-          <span class="ch-task-card__avatar ch-task-card__avatar--initials" title="{{ _ass.name or 'Responsável' }}" aria-label="{{ _ass.name or 'Responsável' }}">{{ _ass.name[0]|upper if _ass.name else '?' }}</span>
-          {% endif %}
+          {% if _assignees %}
+          <span class="ch-task-card__avatars" aria-label="Responsáveis">
+            {% for assignee in _assignees[:3] %}
+            {% if assignee.photo_url %}
+            <img class="ch-task-card__avatar" src="{{ assignee.photo_url }}" alt="{{ assignee.name or '' }}" loading="lazy" decoding="async" title="{{ assignee.name or 'Responsável' }}" />
+            {% else %}
+            <span class="ch-task-card__avatar ch-task-card__avatar--initials" title="{{ assignee.name or 'Responsável' }}" aria-label="{{ assignee.name or 'Responsável' }}" style="--owner-color:{{ assignee.color or 'var(--c-navy)' }};">{{ assignee.initials or '?' }}</span>
+            {% endif %}
+            {% endfor %}
+            {% if _assignees|length > 3 %}<span class="ch-task-card__avatar ch-task-card__avatar--more">+{{ _assignees|length - 3 }}</span>{% endif %}
+          </span>
           {% endif %}
         </div>{# /footer #}
         {% else %}
-        {# Sem prazo: avatar solto no rodapé se houver responsável #}
-        {% if _ass %}
+        {% if _assignees %}
         <div class="ch-task-card__footer">
           <span></span>
-          {% if _ass.photo_url %}
-          <img class="ch-task-card__avatar" src="{{ _ass.photo_url }}" alt="{{ _ass.name or '' }}" loading="lazy" decoding="async" title="{{ _ass.name or 'Responsável' }}" />
-          {% else %}
-          <span class="ch-task-card__avatar ch-task-card__avatar--initials" title="{{ _ass.name or 'Responsável' }}" aria-label="{{ _ass.name or 'Responsável' }}">{{ _ass.name[0]|upper if _ass.name else '?' }}</span>
-          {% endif %}
+          <span class="ch-task-card__avatars" aria-label="Responsáveis">
+            {% for assignee in _assignees[:3] %}
+            {% if assignee.photo_url %}
+            <img class="ch-task-card__avatar" src="{{ assignee.photo_url }}" alt="{{ assignee.name or '' }}" loading="lazy" decoding="async" title="{{ assignee.name or 'Responsável' }}" />
+            {% else %}
+            <span class="ch-task-card__avatar ch-task-card__avatar--initials" title="{{ assignee.name or 'Responsável' }}" aria-label="{{ assignee.name or 'Responsável' }}" style="--owner-color:{{ assignee.color or 'var(--c-navy)' }};">{{ assignee.initials or '?' }}</span>
+            {% endif %}
+            {% endfor %}
+            {% if _assignees|length > 3 %}<span class="ch-task-card__avatar ch-task-card__avatar--more">+{{ _assignees|length - 3 }}</span>{% endif %}
+          </span>
         </div>
         {% endif %}
         {% endif %}
@@ -283,7 +329,10 @@
     </form>
     {% endif %}
   </section>
-  {% else %}
+{% endmacro %}
+
+{# ── Empty state reutilizável ── #}
+{% set _kanban_empty_state %}
   <section class="ch-card" style="flex: 1;">
     <div class="ch-empty">
       <span class="ch-empty__icon" aria-hidden="true"><span data-icon="kanban"></span></span>
@@ -291,10 +340,31 @@
       <p>Crie suas primeiras colunas no módulo de tarefas.</p>
     </div>
   </section>
+{% endset %}
+
+{# ── Board: 1 quadro interativo OU N quadros lado a lado (overview read-only) ── #}
+{% if kanban_boards and kanban_boards|length > 1 %}
+<div class="ch-boards-row" id="chBoardsRow">
+  {% for board in kanban_boards %}
+  <div class="ch-board-group">
+    <header class="ch-board-group__head">
+      <span class="ch-board-group__dot" aria-hidden="true"></span>
+      <span class="ch-board-group__label">{{ board.current_board.label }}</span>
+      {% if not board.interactive %}<span class="ch-board-group__ro" title="Somente leitura neste modo">leitura</span>{% endif %}
+    </header>
+    <div class="ch-board ch-board--multi{% if not board.interactive %} ch-board--readonly{% endif %}"{% if board.interactive %} id="chBoard"{% endif %}>
+      {% for col in board.columns_data %}{{ render_column(col) }}{% else %}{{ _kanban_empty_state }}{% endfor %}
+    </div>
+  </div>
   {% endfor %}
 </div>
+{% else %}
+<div class="ch-board" id="chBoard">
+  {% for col in (kanban_columns or []) %}{{ render_column(col) }}{% else %}{{ _kanban_empty_state }}{% endfor %}
+</div>
+{% endif %}
 
-{# ─── Quick-edit modal (Trello-style, pedido Example User 25/05) ─── #}
+{# ─── Quick-edit modal (Trello-style, pedido UsuarioDemo 25/05) ─── #}
 <div class="ch-overlay" id="ch-task-modal" hidden aria-hidden="true">
   <div class="ch-modal ch-modal--lg" role="dialog" aria-modal="true" aria-labelledby="ch-task-modal-title">
     <header class="ch-modal__header">
@@ -345,13 +415,27 @@
 
         <div class="ch-grid ch-grid--2">
           <div class="ch-field">
-            <label class="ch-field__label" for="ch-task-modal-assignee">Responsável</label>
-            <select class="ch-select" id="ch-task-modal-assignee" name="assigned_to">
-              <option value="">Não atribuído</option>
+            <label class="ch-field__label" for="ch-task-modal-assignee-button">Responsáveis</label>
+            <div class="ch-assignee-picker" id="ch-task-modal-assignee">
+              <button type="button" class="ch-select ch-assignee-picker__button" id="ch-task-modal-assignee-button" aria-haspopup="listbox" aria-expanded="false">
+                <span data-assignee-label>Não atribuído</span>
+              </button>
+              <div class="ch-assignee-picker__menu" data-assignee-menu role="listbox" aria-labelledby="ch-task-modal-assignee-button" hidden>
               {% for u in org_users or [] %}
-              <option value="{{ u.id }}">{{ u.name }}</option>
+                <label class="ch-assignee-picker__row" role="option" aria-selected="false" data-assignee-row>
+                  <input type="checkbox" name="assigned_to_ids" value="{{ u.id }}" data-assignee-checkbox>
+                  <span class="ch-assignee-picker__avatar" style="--owner-color: {{ u.color or '#1C2447' }};">
+                    {% if u.photo_url %}
+                    <img src="{{ u.photo_url }}" alt="" loading="lazy" decoding="async">
+                    {% else %}
+                    {{ (u.name or '?')[:1]|upper }}
+                    {% endif %}
+                  </span>
+                  <span data-assignee-name>{{ u.name }}</span>
+                </label>
               {% endfor %}
-            </select>
+              </div>
+            </div>
           </div>
           <div class="ch-field">
             <label class="ch-field__label" for="ch-task-modal-tags">Tags</label>
@@ -362,7 +446,7 @@
           </div>
         </div>
 
-        {# Privacidade da tarefa (Victor 03/06): toggle claro. Privada = só criador + responsável veem. #}
+        {# Privacidade da tarefa (Equipe CaseHub 03/06): toggle claro. Privada = só criador + responsável veem. #}
         <div class="ch-field">
           <label class="ch-field__label" for="ch-task-modal-private">Privacidade</label>
           <label class="ch-task-modal__privacy" for="ch-task-modal-private">
@@ -408,6 +492,20 @@
             </button>
           </div>
         </div>
+
+        {# Anexos (documentos do cartão, estilo Trello — pedido alpha UsuarioDemo). #}
+        <div class="ch-field">
+          <label class="ch-field__label">Anexos <span id="ch-task-modal-attach-count" style="color: var(--fg-faint);"></span></label>
+          <ul id="ch-task-modal-attachments" style="list-style:none; margin:0 0 var(--space-2); padding:0; display:flex; flex-direction:column; gap:var(--space-1);"></ul>
+          <div style="display:flex; gap:var(--space-2); align-items:center;">
+            <input type="file" id="ch-task-modal-attach-input" style="display:none;"
+                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.tiff,.tif,.bmp,.xls,.xlsx,.txt,.rtf,.csv,.zip,.rar,.msg,.eml" />
+            <button class="ch-btn ch-btn--ghost" type="button" id="ch-task-modal-attach-add" aria-label="Anexar documento">
+              <span data-icon="file" data-icon-size="14"></span> Anexar documento
+            </button>
+            <span id="ch-task-modal-attach-status" style="font-size: var(--fs-sm); color: var(--fg-faint);"></span>
+          </div>
+        </div>
       </form>
 
       {# Comments section #}
@@ -419,15 +517,50 @@
         <form id="ch-task-modal-comment-form" style="display: flex; gap: var(--space-2);">
           <input class="ch-input" id="ch-task-modal-comment-input" type="text" placeholder="Adicionar comentário…" />
           <button class="ch-btn ch-btn--primary" type="submit">
-            <span data-icon="send" data-icon-size="14"></span> Enviar
+            <span data-icon="send" data-icon-size="14"></span> Comentar
           </button>
         </form>
+      </section>
+
+      <section class="ch-task-send-panel" id="ch-task-modal-send-panel" hidden aria-label="Enviar tarefa">
+        <div class="ch-grid ch-grid--2">
+          <div class="ch-field">
+            <label class="ch-field__label" for="ch-task-send-target">Destinatário</label>
+            <select class="ch-select" id="ch-task-send-target">
+              {% for u in org_users or [] %}
+              <option value="{{ u.id }}">{{ u.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="ch-field">
+            <span class="ch-field__label">Modo</span>
+            <div class="ch-task-send-panel__modes">
+              <label><input type="radio" name="ch-task-send-mode" value="move" checked /> Mover</label>
+              <label><input type="radio" name="ch-task-send-mode" value="copy" /> Copiar</label>
+            </div>
+          </div>
+        </div>
+        <div class="ch-task-send-panel__actions">
+          <button class="ch-btn ch-btn--primary" type="button" id="ch-task-send-submit">
+            <span data-icon="send" data-icon-size="14"></span> Enviar tarefa
+          </button>
+        </div>
       </section>
     </div>
     <footer class="ch-modal__footer">
       <a class="ch-btn ch-btn--ghost" id="ch-task-modal-full" href="#">
         <span data-icon="expand" data-icon-size="14"></span> Abrir página completa
       </a>
+      <button type="button" class="ch-btn ch-btn--ghost" id="ch-task-modal-send-toggle" style="min-height:40px;">
+        <span data-icon="send" data-icon-size="14"></span> Enviar tarefa
+      </button>
+      {# FB2 (alpha UsuarioDemo): arquivar tarefa — alternativa reversível ao Excluir.
+         Tira o cartão do board sem apagar (some via soft-archive). Vem ANTES do
+         Excluir destrutivo p/ ser o caminho de menor risco (Hick + Postel). #}
+      <button type="button" class="ch-btn ch-btn--ghost" id="ch-task-modal-archive"
+              style="min-height:40px;" title="Arquivar tarefa">
+        <span data-icon="archive" data-icon-size="14"></span> Arquivar
+      </button>
       {# Item 2: excluir tarefa. Fitts — alvo ≥40px de altura e separado dos botões positivos p/ evitar clique acidental. #}
       <button type="button" class="ch-btn ch-btn--ghost" id="ch-task-modal-delete"
               style="color:var(--c-danger);min-height:40px;" title="Excluir tarefa">
@@ -453,6 +586,75 @@
   if (!board) return;
   var prefix = window.CASEHUB_PREFIX || '{{ PREFIX }}';
 
+  // FB4 (UsuarioDemo alpha): drag DnD Trello-like.
+  //  (1) reordenar na MESMA lista (insertBefore ao vivo no dragover);
+  //  (2) auto-scroll horizontal do board ao levar o cartão à borda.
+  // Backend (PATCH /api/{id}/move) já persiste column_id+status+position;
+  // só faltava o client-side mover o card e recomputar a posição.
+
+  // Acha o card cujo CENTRO vertical fica logo ABAIXO do cursor — é o card
+  // antes do qual o card arrastado deve ser inserido (padrão Trello/Sortable).
+  // Ignora o próprio card em arrasto (.is-dragging).
+  function getDragAfterElement(container, y) {
+    var cards = Array.prototype.slice.call(
+      container.querySelectorAll('.ch-task-card:not(.is-dragging)')
+    );
+    var closest = null;
+    var closestOffset = Number.NEGATIVE_INFINITY;
+    for (var i = 0; i < cards.length; i++) {
+      var box = cards[i].getBoundingClientRect();
+      var offset = y - (box.top + box.height / 2);
+      // offset < 0 => cursor acima do centro deste card => candidato a "after".
+      // pega o card mais próximo (maior offset negativo).
+      if (offset < 0 && offset > closestOffset) {
+        closestOffset = offset;
+        closest = cards[i];
+      }
+    }
+    return closest;
+  }
+
+  // ── Auto-scroll horizontal do board (edge-pan estilo Trello) ──
+  // Enquanto o cursor fica a ~EDGE px da borda esq/dir durante o drag, um loop
+  // rAF rola .scrollLeft. Cancelado no dragend/drop.
+  var AUTOSCROLL_EDGE = 60;   // zona sensível em px a partir da borda
+  var AUTOSCROLL_MAX = 18;    // velocidade máx em px/frame
+  var _autoScrollRAF = null;
+  var _autoScrollDelta = 0;
+
+  function _autoScrollStep() {
+    if (_autoScrollDelta === 0) { _autoScrollRAF = null; return; }
+    board.scrollLeft += _autoScrollDelta;
+    _autoScrollRAF = window.requestAnimationFrame(_autoScrollStep);
+  }
+
+  function updateAutoScroll(clientX) {
+    var rect = board.getBoundingClientRect();
+    var delta = 0;
+    if (clientX < rect.left + AUTOSCROLL_EDGE) {
+      // quanto mais perto da borda, mais rápido (0 → AUTOSCROLL_MAX).
+      var distL = clientX - rect.left;
+      var intensityL = Math.min(1, Math.max(0, (AUTOSCROLL_EDGE - distL) / AUTOSCROLL_EDGE));
+      delta = -Math.ceil(intensityL * AUTOSCROLL_MAX);
+    } else if (clientX > rect.right - AUTOSCROLL_EDGE) {
+      var distR = rect.right - clientX;
+      var intensityR = Math.min(1, Math.max(0, (AUTOSCROLL_EDGE - distR) / AUTOSCROLL_EDGE));
+      delta = Math.ceil(intensityR * AUTOSCROLL_MAX);
+    }
+    _autoScrollDelta = delta;
+    if (delta !== 0 && _autoScrollRAF === null) {
+      _autoScrollRAF = window.requestAnimationFrame(_autoScrollStep);
+    }
+  }
+
+  function stopAutoScroll() {
+    _autoScrollDelta = 0;
+    if (_autoScrollRAF !== null) {
+      window.cancelAnimationFrame(_autoScrollRAF);
+      _autoScrollRAF = null;
+    }
+  }
+
   function postJson(url, method, payload) {
     return fetch(url, {
       method: method || 'POST',
@@ -476,6 +678,93 @@
     }
   }
 
+  function syncColumnState(col) {
+    if (!col) return;
+    var body = col.querySelector('.ch-column__body');
+    if (!body) return;
+    var cardCount = body.querySelectorAll('.ch-task-card').length;
+    var empty = body.querySelector('.ch-column__empty');
+    if (cardCount > 0) {
+      if (empty) empty.remove();
+    } else if (!empty) {
+      empty = document.createElement('div');
+      empty.className = 'ch-column__empty';
+      empty.textContent = 'Vazio';
+      body.appendChild(empty);
+    }
+    var countEl = col.querySelector('[data-column-count]');
+    if (countEl) {
+      var hours = countEl.getAttribute('data-column-hours');
+      countEl.textContent = String(cardCount) + (hours ? ' · ' + hours + 'h' : '');
+    }
+  }
+
+  function syncAllColumnStates() {
+    board.querySelectorAll('.ch-column').forEach(syncColumnState);
+  }
+
+  function kanbanBoardUrl(boardValue) {
+    var url = new URL(prefix + '/tasks/kanban', window.location.origin);
+    url.searchParams.set('board', boardValue || 'me');
+    var current = new URL(window.location.href);
+    var userFilter = current.searchParams.get('user');
+    if (userFilter) url.searchParams.set('user', userFilter);
+    return url.toString();
+  }
+
+  try {
+    var currentUrl = new URL(window.location.href);
+    if (!currentUrl.searchParams.has('board') && !currentUrl.searchParams.has('boards')) {
+      var savedBoards = window.localStorage && window.localStorage.getItem('casehub.kanban.boards');
+      if (savedBoards && savedBoards !== 'me') {
+        currentUrl.searchParams.set('boards', savedBoards);
+        window.location.replace(currentUrl.toString());
+        return;
+      }
+    }
+  } catch (_) {}
+
+  syncAllColumnStates();
+
+  // Pílulas multi-quadro: clicar adiciona/remove o quadro. Vários = lado a lado.
+  var boardPills = document.getElementById('chBoardPills');
+  if (boardPills) {
+    boardPills.addEventListener('click', function (e) {
+      var pill = e.target.closest('.ch-board-pill');
+      if (!pill) return;
+      var active = Array.prototype.slice
+        .call(boardPills.querySelectorAll('.ch-board-pill.is-active'))
+        .map(function (p) { return p.getAttribute('data-board-value'); });
+      var v = pill.getAttribute('data-board-value');
+      var idx = active.indexOf(v);
+      if (idx === -1) { active.push(v); } else { active.splice(idx, 1); }
+      if (active.length === 0) { active = ['me']; }  // nunca fica vazio
+      var url = new URL(prefix + '/tasks/kanban', window.location.origin);
+      url.searchParams.set('boards', active.join(','));
+      var userFilter = new URL(window.location.href).searchParams.get('user');
+      if (userFilter && active.indexOf('org') !== -1) url.searchParams.set('user', userFilter);
+      try { window.localStorage && window.localStorage.setItem('casehub.kanban.boards', active.join(',')); } catch (_) {}
+      window.location.href = url.toString();
+    });
+  }
+
+  var collabLockToggle = document.getElementById('chKanbanLockToggle');
+  if (collabLockToggle) {
+    collabLockToggle.addEventListener('change', function () {
+      collabLockToggle.disabled = true;
+      postJson(prefix + '/tasks/api/kanban/lock', 'POST', {
+        locked: collabLockToggle.checked
+      }).then(function () {
+        window.location.reload();
+      }).catch(function (err) {
+        collabLockToggle.checked = !collabLockToggle.checked;
+        notify(err.message || 'Erro ao atualizar trava', 'error');
+      }).then(function () {
+        collabLockToggle.disabled = false;
+      });
+    });
+  }
+
   var columnForm = document.getElementById('chColumnForm');
   if (columnForm) {
     columnForm.addEventListener('submit', function (e) {
@@ -486,8 +775,8 @@
         visibility: data.get('visibility'),
         color: data.get('color')
       }).then(function (result) {
-        var view = result.visibility === 'shared' ? 'shared' : 'private';
-        window.location.href = prefix + '/tasks/kanban?view=' + view;
+        var boardValue = result.visibility === 'shared' ? 'org' : 'me';
+        window.location.href = kanbanBoardUrl(boardValue);
       }).catch(function (err) { notify(err.message, 'error'); });
     });
   }
@@ -505,6 +794,20 @@
     var card = e.target.closest && e.target.closest('.ch-task-card');
     if (card) card.classList.remove('is-dragging');
     board.querySelectorAll('.ch-column.is-drop-target').forEach(function (c) { c.classList.remove('is-drop-target'); });
+    stopAutoScroll();
+    dragId = null;
+  });
+
+  // FB4: auto-scroll horizontal — escuta no board inteiro (captura o cursor
+  // mesmo sobre as colunas, já que dragover borbulha). preventDefault permite
+  // que o board seja alvo de drop e mantém o cursor "move".
+  board.addEventListener('dragover', function (e) {
+    if (!dragId) return;
+    updateAutoScroll(e.clientX);
+  });
+  // Se o ponteiro sair do board durante o arrasto, para de rolar.
+  board.addEventListener('dragleave', function (e) {
+    if (e.target === board) stopAutoScroll();
   });
 
   board.querySelectorAll('.ch-column').forEach(function (col) {
@@ -513,6 +816,27 @@
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       col.classList.add('is-drop-target');
+
+      // FB4: preview ao vivo (Trello-like). Move o card arrastado para a posição
+      // sob o cursor JÁ no dragover — tanto reordenando na MESMA lista quanto
+      // ao entrar numa lista nova. O drop só persiste o resultado.
+      if (!dragId) return;
+      var card = document.querySelector('.ch-task-card[data-task-id="' + dragId + '"]');
+      var body = col.querySelector('.ch-column__body');
+      if (!card || !body) return;
+      var afterEl = getDragAfterElement(body, e.clientY);
+      var sourceCol = card.closest('.ch-column');
+      if (afterEl == null) {
+        // sem card "depois" → vai pro fim da lista.
+        if (card.parentElement !== body || card.nextElementSibling !== null) {
+          body.appendChild(card);
+        }
+      } else if (afterEl !== card && afterEl !== card.nextElementSibling) {
+        body.insertBefore(card, afterEl);
+      }
+      // mantém contagem/empty-state coerentes durante o arrasto.
+      if (sourceCol && sourceCol !== col) syncColumnState(sourceCol);
+      syncColumnState(col);
     });
     col.addEventListener('dragleave', function (e) {
       if (e.target === col) col.classList.remove('is-drop-target');
@@ -521,13 +845,26 @@
       if (col.getAttribute('data-column-readonly') === '1') return;
       e.preventDefault();
       col.classList.remove('is-drop-target');
+      stopAutoScroll();
       var taskId = dragId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
       if (!taskId) return;
       var card = document.querySelector('.ch-task-card[data-task-id="' + taskId + '"]');
       var body = col.querySelector('.ch-column__body');
-      if (card && body && card.parentElement !== body) body.appendChild(card);
+      if (!card || !body) { dragId = null; return; }
+      var sourceCol = card.closest('.ch-column');
+      // O dragover já inseriu o card na posição certa (mesma lista ou nova).
+      // Garantia: se por algum motivo o card ainda não está nesta coluna
+      // (ex.: drop direto sem dragover prévio), coloca-o sob o cursor.
+      if (card.parentElement !== body) {
+        var afterEl = getDragAfterElement(body, e.clientY);
+        if (afterEl == null) body.appendChild(card);
+        else body.insertBefore(card, afterEl);
+      }
+      syncColumnState(sourceCol);
+      syncColumnState(col);
       var colId = col.getAttribute('data-column-id');
       var status = col.getAttribute('data-column-status');
+      // position = índice final do card DENTRO desta coluna (após inserção).
       var position = Array.prototype.indexOf.call(body.querySelectorAll('.ch-task-card'), card);
       postJson(prefix + '/tasks/api/' + taskId + '/move', 'PATCH', {
         column_id: colId,
@@ -551,12 +888,15 @@
       column_id: form.getAttribute('data-quick-add'),
       status: form.getAttribute('data-status'),
       visibility: (privEl && privEl.checked) ? 'private' : 'org'
-    }).then(function () { window.location.reload(); })
+    }).then(function () {
+      syncColumnState(form.closest('.ch-column'));
+      window.location.reload();
+    })
       .catch(function (err) { notify(err.message, 'error'); });
   });
 
   // B6 (26/05): swap prompt() por edição inline ao clicar no botão "edit".
-  // Example User reunião 25/05 [01:09:27] pediu UX ágil tipo Trello — modal/prompt
+  // UsuarioDemo reunião 25/05 [01:09:27] pediu UX ágil tipo Trello — modal/prompt
   // pesado é "burocrático demais". Foco salva via PATCH, Esc cancela.
   function startInlineRename(target, colId, currentText, onSave) {
     var input = document.createElement('input');
@@ -596,7 +936,7 @@
     input.addEventListener('blur', save);
   }
 
-  // ─── Quick-edit modal (Trello-style, pedido Example User 25/05) ───
+  // ─── Quick-edit modal (Trello-style, pedido UsuarioDemo 25/05) ───
   // Single click no card → abre modal inline. Double click no título → edit
   // inline rápido (legado B6 mantido para muscle-memory). Drag/drop continua.
   // Modal substitui navegação full-page que era fricção visível na demo.
@@ -605,7 +945,12 @@
   var modalCommentForm = document.getElementById('ch-task-modal-comment-form');
   var modalSaveBtn = document.getElementById('ch-task-modal-save');
   var modalDeleteBtn = document.getElementById('ch-task-modal-delete');
+  var modalArchiveBtn = document.getElementById('ch-task-modal-archive');
   var modalFullLink = document.getElementById('ch-task-modal-full');
+  var modalSendToggle = document.getElementById('ch-task-modal-send-toggle');
+  var modalSendPanel = document.getElementById('ch-task-modal-send-panel');
+  var modalSendTarget = document.getElementById('ch-task-send-target');
+  var modalSendSubmit = document.getElementById('ch-task-send-submit');
   var _modalCurrentTaskId = null;
   var _modalDirty = false;
 
@@ -614,6 +959,76 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
+
+  function assigneePicker() {
+    return document.getElementById('ch-task-modal-assignee');
+  }
+
+  function selectedAssigneeIds() {
+    var picker = assigneePicker();
+    if (!picker) return [];
+    return Array.prototype.slice.call(picker.querySelectorAll('[data-assignee-checkbox]:checked'))
+      .map(function (input) { return parseInt(input.value, 10); })
+      .filter(function (value) { return value > 0; });
+  }
+
+  function refreshAssigneeLabel() {
+    var picker = assigneePicker();
+    if (!picker) return;
+    var label = picker.querySelector('[data-assignee-label]');
+    var checked = Array.prototype.slice.call(picker.querySelectorAll('[data-assignee-checkbox]:checked'));
+    if (!label) return;
+    picker.querySelectorAll('[data-assignee-checkbox]').forEach(function (input) {
+      var row = input.closest('[data-assignee-row]');
+      if (row) row.setAttribute('aria-selected', input.checked ? 'true' : 'false');
+    });
+    if (!checked.length) {
+      label.textContent = 'Não atribuído';
+    } else if (checked.length === 1) {
+      var singleRow = checked[0].closest('[data-assignee-row]');
+      var name = singleRow && singleRow.querySelector('[data-assignee-name]');
+      label.textContent = name ? name.textContent.trim() : '1 responsável';
+    } else {
+      label.textContent = checked.length + ' responsáveis';
+    }
+  }
+
+  function setAssigneeSelection(ids) {
+    var wanted = (ids || []).map(function (id) { return String(id); });
+    var picker = assigneePicker();
+    if (!picker) return;
+    picker.querySelectorAll('[data-assignee-checkbox]').forEach(function (input) {
+      input.checked = wanted.indexOf(String(input.value)) !== -1;
+      var row = input.closest('[data-assignee-row]');
+      if (row) row.setAttribute('aria-selected', input.checked ? 'true' : 'false');
+    });
+    refreshAssigneeLabel();
+  }
+
+  (function wireAssigneePicker() {
+    var picker = assigneePicker();
+    if (!picker) return;
+    var button = picker.querySelector('.ch-assignee-picker__button');
+    var menu = picker.querySelector('[data-assignee-menu]');
+    if (button && menu) {
+      button.addEventListener('click', function () {
+        var open = menu.hidden;
+        menu.hidden = !open;
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
+    picker.addEventListener('change', function (event) {
+      if (event.target.matches('[data-assignee-checkbox]')) {
+        refreshAssigneeLabel();
+        _modalDirty = true;
+      }
+    });
+    document.addEventListener('click', function (event) {
+      if (!menu || menu.hidden || picker.contains(event.target)) return;
+      menu.hidden = true;
+      if (button) button.setAttribute('aria-expanded', 'false');
+    });
+  })();
 
   function openTaskModal(taskId) {
     if (!modal) return;
@@ -626,6 +1041,14 @@
     document.getElementById('ch-task-modal-comments').innerHTML =
       '<p style="color: var(--fg-faint); font-size: var(--fs-sm); margin: 0;">Carregando…</p>';
     document.getElementById('ch-task-modal-comment-count').textContent = '';
+    var attachUl = document.getElementById('ch-task-modal-attachments');
+    if (attachUl) attachUl.innerHTML = '';
+    var attachCountEl = document.getElementById('ch-task-modal-attach-count');
+    if (attachCountEl) attachCountEl.textContent = '';
+    var attachStatusEl = document.getElementById('ch-task-modal-attach-status');
+    if (attachStatusEl) attachStatusEl.textContent = '';
+    setAssigneeSelection([]);
+    if (modalSendPanel) modalSendPanel.hidden = true;
     var ctx = document.getElementById('ch-task-modal-context');
     if (ctx) ctx.hidden = true;
     modal.hidden = false;
@@ -646,7 +1069,8 @@
       document.getElementById('ch-task-modal-priority').value = data.priority || 'medium';
       document.getElementById('ch-task-modal-due').value = data.due_date ? data.due_date.slice(0, 10) : '';
       document.getElementById('ch-task-modal-due-time').value = data.due_time || '';
-      document.getElementById('ch-task-modal-assignee').value = data.assigned_to || '';
+      setAssigneeSelection(data.assigned_to_ids || (data.assigned_to ? [data.assigned_to] : []));
+      if (modalSendTarget && data.assigned_to) modalSendTarget.value = data.assigned_to;
       document.getElementById('ch-task-modal-tags').value = data.tags || '';
       var privModalEl = document.getElementById('ch-task-modal-private');
       if (privModalEl) privModalEl.checked = (data.visibility === 'private' || data.is_private === true);
@@ -655,6 +1079,7 @@
       document.getElementById('ch-task-modal-client').value = data.client_id || '';
       document.getElementById('ch-task-modal-case').value = data.case_id || '';
       renderSubtasks(data.subtasks || []);
+      loadAttachments(data.id);
 
       // Comments
       var commentsEl = document.getElementById('ch-task-modal-comments');
@@ -754,6 +1179,141 @@
     });
   })();
 
+  // ── Anexos (documentos do cartão, estilo Trello) ────────────
+  function _attachCount() {
+    var ul = document.getElementById('ch-task-modal-attachments');
+    var countEl = document.getElementById('ch-task-modal-attach-count');
+    if (!ul || !countEl) return;
+    var total = ul.querySelectorAll('li').length;
+    countEl.textContent = total ? '(' + total + ')' : '';
+  }
+
+  function _fmtBytes(n) {
+    if (!n && n !== 0) return '';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function renderAttachmentRow(d) {
+    var li = document.createElement('li');
+    li.style.cssText = 'display:flex; align-items:center; gap:var(--space-2); font-size:var(--fs-sm);';
+    li.setAttribute('data-attachment-id', d.id);
+    var icon = document.createElement('span');
+    icon.setAttribute('data-icon', 'file');
+    icon.setAttribute('data-icon-size', '14');
+    var a = document.createElement('a');
+    a.href = d.download_url;
+    a.textContent = d.name;
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener');
+    a.style.cssText = 'color: var(--accent); text-decoration: none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+    var size = document.createElement('span');
+    size.style.cssText = 'color: var(--fg-faint); font-family: var(--mono); flex:none;';
+    size.textContent = _fmtBytes(d.file_size);
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'ch-btn ch-btn--ghost ch-btn--sm';
+    remove.setAttribute('data-attachment-remove', String(d.id));
+    remove.setAttribute('aria-label', 'Remover anexo ' + (d.name || ''));
+    remove.title = 'Remover anexo';
+    remove.style.cssText = 'margin-left:auto; min-height:28px; padding:2px 8px; color:var(--c-danger); flex:none;';
+    remove.innerHTML = '<span data-icon="trash" data-icon-size="13"></span>';
+    li.appendChild(icon);
+    li.appendChild(a);
+    li.appendChild(size);
+    li.appendChild(remove);
+    return li;
+  }
+
+  function _hydrateIcons() {
+    if (window.CHIcon && typeof window.CHIcon.mount === 'function') {
+      try { window.CHIcon.mount(); } catch (e) {}
+    }
+  }
+
+  function renderAttachments(docs) {
+    var ul = document.getElementById('ch-task-modal-attachments');
+    if (!ul) return;
+    ul.innerHTML = '';
+    (docs || []).forEach(function (d) { ul.appendChild(renderAttachmentRow(d)); });
+    _hydrateIcons();
+    _attachCount();
+  }
+
+  function loadAttachments(taskId) {
+    fetch(prefix + '/tasks/api/' + taskId + '/documents', {
+      credentials: 'same-origin', headers: { 'Accept': 'application/json' }
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) { if (data && data.documents) renderAttachments(data.documents); })
+      .catch(function () { /* lista de anexos é best-effort; não bloqueia o modal */ });
+  }
+
+  function uploadAttachment(fileInput) {
+    if (!_modalCurrentTaskId || !fileInput || !fileInput.files || !fileInput.files.length) return;
+    var file = fileInput.files[0];
+    var statusEl = document.getElementById('ch-task-modal-attach-status');
+    var fd = new FormData();
+    fd.append('file', file);
+    if (statusEl) statusEl.textContent = 'Enviando…';
+    fetch(prefix + '/tasks/api/' + _modalCurrentTaskId + '/document', {
+      method: 'POST', credentials: 'same-origin', body: fd
+    }).then(function (r) {
+      return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+    }).then(function (res) {
+      if (res.ok && res.body && res.body.document) {
+        document.getElementById('ch-task-modal-attachments').appendChild(renderAttachmentRow(res.body.document));
+        _hydrateIcons();
+        _attachCount();
+        if (statusEl) statusEl.textContent = '';
+      } else {
+        if (statusEl) statusEl.textContent = '';
+        notify((res.body && res.body.error) || 'Erro ao anexar documento', 'error');
+      }
+    }).catch(function () {
+      if (statusEl) statusEl.textContent = '';
+      notify('Erro ao anexar documento', 'error');
+    }).then(function () { fileInput.value = ''; });
+  }
+
+  function removeAttachment(docId, btn) {
+    if (!_modalCurrentTaskId || !docId) return;
+    if (!confirm('Remover este anexo? O cartão será preservado.')) return;
+    if (btn) btn.disabled = true;
+    fetch(prefix + '/tasks/api/' + _modalCurrentTaskId + '/document/' + docId, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' }
+    }).then(function (r) {
+      return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+    }).then(function (res) {
+      if (!res.ok || !res.body || !res.body.success) {
+        throw new Error((res.body && res.body.error) || 'Falha ao remover anexo');
+      }
+      var row = document.querySelector('#ch-task-modal-attachments [data-attachment-id="' + docId + '"]');
+      if (row && row.parentElement) row.parentElement.removeChild(row);
+      _attachCount();
+      notify('Anexo removido', 'success');
+    }).catch(function (err) {
+      if (btn) btn.disabled = false;
+      notify(err.message || 'Erro ao remover anexo', 'error');
+    });
+  }
+
+  (function wireAttachAdd() {
+    var btn = document.getElementById('ch-task-modal-attach-add');
+    var input = document.getElementById('ch-task-modal-attach-input');
+    if (btn && input) btn.addEventListener('click', function () { input.click(); });
+    if (input) input.addEventListener('change', function () { uploadAttachment(input); });
+    document.addEventListener('click', function (event) {
+      var remove = event.target.closest && event.target.closest('[data-attachment-remove]');
+      if (!remove) return;
+      event.preventDefault();
+      event.stopPropagation();
+      removeAttachment(remove.getAttribute('data-attachment-remove'), remove);
+    });
+  })();
+
   function closeTaskModal() {
     if (!modal) return;
     if (_modalDirty) {
@@ -776,7 +1336,7 @@
       priority: document.getElementById('ch-task-modal-priority').value,
       due_date: document.getElementById('ch-task-modal-due').value || null,
       due_time: document.getElementById('ch-task-modal-due-time').value || null,
-      assigned_to: document.getElementById('ch-task-modal-assignee').value || null,
+      assigned_to_ids: selectedAssigneeIds(),
       tags: document.getElementById('ch-task-modal-tags').value,
       client_id: document.getElementById('ch-task-modal-client').value || null,
       case_id: document.getElementById('ch-task-modal-case').value || null,
@@ -844,6 +1404,47 @@
   if (modalSaveBtn) {
     modalSaveBtn.addEventListener('click', function () { saveTaskModal(true); });
   }
+  if (modalSendToggle && modalSendPanel) {
+    modalSendToggle.addEventListener('click', function () {
+      modalSendPanel.hidden = !modalSendPanel.hidden;
+    });
+  }
+  if (modalSendSubmit && modalSendTarget) {
+    modalSendSubmit.addEventListener('click', function () {
+      if (!_modalCurrentTaskId) return;
+      if (_modalDirty) {
+        notify('Salve a tarefa antes de enviar', 'warning');
+        return;
+      }
+      var modeEl = document.querySelector('input[name="ch-task-send-mode"]:checked');
+      var payload = {
+        target_user_id: modalSendTarget.value,
+        mode: modeEl ? modeEl.value : 'move'
+      };
+      modalSendSubmit.disabled = true;
+      postJson(prefix + '/tasks/api/' + _modalCurrentTaskId + '/send', 'POST', payload)
+        .then(function () {
+          notify('Tarefa enviada', 'success');
+          window.location.reload();
+        })
+        .catch(function (err) { notify(err.message || 'Erro ao enviar tarefa', 'error'); })
+        .then(function () { modalSendSubmit.disabled = false; });
+    });
+  }
+  // Fecha o modal e tira o card do DOM após remoção/arquivamento (sem reload).
+  function removeCardAndCloseModal(taskId) {
+    var card = document.querySelector('.ch-task-card[data-task-id="' + taskId + '"]');
+    var col = card && card.closest && card.closest('.ch-column');
+    if (card && card.parentElement) card.parentElement.removeChild(card);
+    if (col) syncColumnState(col);
+    // Fecha sem auto-save (evita recriar campos da tarefa removida).
+    _modalDirty = false;
+    modal.hidden = true;
+    modal.removeAttribute('data-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    _modalCurrentTaskId = null;
+  }
   // Item 2: excluir tarefa com confirmação (Doherty: feedback imediato; remove o card sem reload da página).
   if (modalDeleteBtn) {
     modalDeleteBtn.addEventListener('click', function () {
@@ -854,18 +1455,26 @@
       postJson(prefix + '/tasks/api/' + taskId + '/delete', 'DELETE', {})
         .then(function () {
           notify('Tarefa excluída', 'success');
-          var card = document.querySelector('.ch-task-card[data-task-id="' + taskId + '"]');
-          if (card && card.parentElement) card.parentElement.removeChild(card);
-          // Fecha sem auto-save (evita recriar campos da tarefa apagada).
-          _modalDirty = false;
-          modal.hidden = true;
-          modal.removeAttribute('data-open');
-          modal.setAttribute('aria-hidden', 'true');
-          document.body.style.overflow = '';
-          _modalCurrentTaskId = null;
+          removeCardAndCloseModal(taskId);
         })
         .catch(function (err) { notify(err.message || 'Erro ao excluir', 'error'); })
         .then(function () { modalDeleteBtn.disabled = false; });
+    });
+  }
+  // FB2 (alpha UsuarioDemo): arquivar tarefa — soft-archive reversível. Tira o card do
+  // board (não apaga); não pede confirmação destrutiva porque é reversível.
+  if (modalArchiveBtn) {
+    modalArchiveBtn.addEventListener('click', function () {
+      if (!_modalCurrentTaskId) return;
+      var taskId = _modalCurrentTaskId;
+      modalArchiveBtn.disabled = true;
+      postJson(prefix + '/tasks/api/' + taskId + '/archive', 'POST', {})
+        .then(function () {
+          notify('Tarefa arquivada', 'success');
+          removeCardAndCloseModal(taskId);
+        })
+        .catch(function (err) { notify(err.message || 'Erro ao arquivar', 'error'); })
+        .then(function () { modalArchiveBtn.disabled = false; });
     });
   }
   if (modalForm) {
@@ -965,6 +1574,29 @@
   board.addEventListener('click', function (e) {
     var rename = e.target.closest && e.target.closest('[data-column-rename]');
     var remove = e.target.closest && e.target.closest('[data-column-delete]');
+    var archiveCards = e.target.closest && e.target.closest('[data-column-archive-cards]');
+    // FB2 (alpha UsuarioDemo): arquivar TODOS os cartões da lista. Tira os cards do board
+    // (soft-archive, reversível) sem apagar nem remover a coluna.
+    if (archiveCards) {
+      var archColId = archiveCards.getAttribute('data-column-archive-cards');
+      if (!confirm('Arquivar todos os cartões desta lista?')) return;
+      archiveCards.disabled = true;
+      postJson(prefix + '/tasks/api/columns/' + archColId + '/archive-cards', 'POST', {})
+        .then(function (res) {
+          var col = archiveCards.closest('.ch-column');
+          var body = col && col.querySelector('.ch-column__body');
+          if (body) {
+            body.querySelectorAll('.ch-task-card').forEach(function (card) {
+              if (card.parentElement) card.parentElement.removeChild(card);
+            });
+          }
+          if (col) syncColumnState(col);
+          notify((res && res.archived ? res.archived : 0) + ' cartão(ões) arquivado(s)', 'success');
+        })
+        .catch(function (err) { notify(err.message || 'Erro ao arquivar', 'error'); })
+        .then(function () { archiveCards.disabled = false; });
+      return;
+    }
     if (rename) {
       var col = rename.closest('.ch-column');
       var nameEl = col && col.querySelector('.ch-column__name');
@@ -985,7 +1617,7 @@
 </script>
 
 <script>
-/* ─── Faixa "Agenda da semana" no Kanban (Example User 03/06) ───
+/* ─── Faixa "Agenda da semana" no Kanban (UsuarioDemo 03/06) ───
    Isolado e best-effort: fetch read-only a /calendar/events (org-scoped, server-side).
    Qualquer falha => strip fica oculto; o Kanban acima já funciona independente disto.
    Não cria/edita compromissos nem duplica dados — só lista a semana corrente. */

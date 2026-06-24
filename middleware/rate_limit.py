@@ -89,6 +89,9 @@ class RateLimiter:
 _page_limiter = RateLimiter(max_requests=300, window_seconds=60)
 _api_limiter = RateLimiter(max_requests=60, window_seconds=60)
 _upload_limiter = RateLimiter(max_requests=10, window_seconds=60)
+# Polling endpoints (WhatsApp QR + status) — 20 req/min ≈ 3s minimum interval.
+# Prevents worker starvation: each poll can take up to 15-35s downstream.
+_polling_limiter = RateLimiter(max_requests=20, window_seconds=60)
 
 
 def _get_client_ip(request: Request) -> str:
@@ -104,13 +107,20 @@ def _classify_path(path: str, method: str = "GET") -> Optional[str]:
     Classify a request path into a rate-limit category.
     Returns None for paths that should not be rate-limited.
     """
-    # Static files and health checks are exempt
+    # Static files and health checks are exempt (never 429 a liveness probe)
     if path.startswith("/static") or path in ("/health", "/api/health", "/favicon.ico"):
+        return None
+    if "/healthz" in path or path.endswith("/health"):
         return None
 
     # Login endpoints are handled by the existing LoginRateLimiter
     if path.endswith("/login"):
         return None
+
+    # WhatsApp polling endpoints — tighter limit to prevent worker starvation.
+    # Each poll can trigger upstream calls taking 10-35s; 20/min ≈ 3s minimum interval.
+    if method == "GET" and ("/whatsapp/api/qr" in path or "/whatsapp/api/status" in path):
+        return "polling"
 
     # ALL page navigation is exempt from strict API limits
     # Only POST/API endpoints get rate-limited
@@ -155,6 +165,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Choose the right limiter
         if category == "upload":
             limiter = _upload_limiter
+        elif category == "polling":
+            limiter = _polling_limiter
         elif category == "api":
             limiter = _api_limiter
         else:

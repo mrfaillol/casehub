@@ -31,12 +31,18 @@ class Task(Base):
     # Assignment
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
 
-    # Privacy (Victor 03/06: "listas privadas bem claras"). Tarefa privada só é
+    # Privacy (Equipe CaseHub 03/06: "listas privadas bem claras"). Tarefa privada só é
     # visível ao CRIADOR e ao RESPONSÁVEL (assignee), sempre org-scoped. Default
     # 'org' preserva o comportamento atual (toda a org vê) p/ não quebrar tarefas
     # existentes. visibility: 'org' | 'private'.
     visibility = Column(String(20), default="org", server_default="org")
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Arquivamento (FB2 alpha UsuarioDemo): soft-archive de cartão. Antes só existia
+    # "Excluir" (hard delete). Tarefa arquivada some do board mas não é apagada;
+    # espelha o is_archived de kanban_columns. Default FALSE preserva o legado.
+    is_archived = Column(Boolean, default=False, server_default="0")
+    archived_at = Column(DateTime(timezone=True), nullable=True)
 
     # Tags (comma-separated labels) and estimated hours
     tags = Column(String, nullable=True)  # e.g. "urgente,documentos,prazo"

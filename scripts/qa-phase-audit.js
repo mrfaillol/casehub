@@ -5,7 +5,7 @@
  *   node scripts/qa-phase-audit.js \
  *     --url http://localhost:5000 \
  *     --phase 1 \
- *     --credentials admin@casehub.com:password \
+ *     --credentials admin@casehub.legal:password \
  *     --output-dir ./qa-output
  *
  * Requires: npx playwright install chromium

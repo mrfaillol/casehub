@@ -11,10 +11,10 @@ import re
 import secrets
 import time
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Query, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -44,8 +44,8 @@ ACCOUNT_LABELS = {
 OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60
 
 LEGACY_CALENDAR_REPLACEMENTS = (
-    (re.compile(r"Immigrant Law Center", re.IGNORECASE), "Escritorio"),
-    (re.compile(r"Immigrant Law", re.IGNORECASE), "Escritorio"),
+    (re.compile(r"Legacy Firm Name", re.IGNORECASE), "Escritorio"),
+    (re.compile(r"Legacy Firm", re.IGNORECASE), "Escritorio"),
     (re.compile(r"immigrant\.law", re.IGNORECASE), "agenda do escritorio"),
     (re.compile(r"\binfo@[^\s,;<>\"']+", re.IGNORECASE), "agenda-principal@escritorio"),
     (re.compile(r"\bcenter@[^\s,;<>\"']+", re.IGNORECASE), "agenda-auxiliar@escritorio"),
@@ -145,7 +145,7 @@ def _configured_origin() -> str:
 _REDIRECT_ALLOWED_ROOTS: frozenset[str] = frozenset({
     "localhost", "127.0.0.1",
     "casehub.io", "casehub.legal",
-    "casehub.sampletenantadvogados.com.br", "vingren.me",
+    "demo.casehub.example", "casehub.example",
 })
 
 
@@ -161,7 +161,7 @@ def _return_host_allowed(host: str) -> bool:
 def _oauth_return_to(request: Request) -> str:
     # Always use the request's own origin — return_to is server-generated, not
     # user-supplied, so _return_host_allowed isn't a useful guard here and was
-    # causing multi-tenant subdomains (sampletenant.casehub.legal) to fall back
+    # causing multi-tenant subdomains (tenanta.casehub.legal) to fall back
     # to BASE_URL (app.casehub.io), redirecting users to the wrong domain.
     return f"{_request_origin(request)}{PREFIX}/google-calendar/settings"
 
@@ -368,9 +368,20 @@ def _settings_payload(request: Request, db: Session, service: GoogleCalendarServ
         kwargs["error"] = service.setup_error
     user = get_current_user(request, db)
     org_id = getattr(request.state, "org_id", None)
+    accounts = []
+    for account in service.get_connected_accounts(verify_live=True):
+        context = _calendar_account_context(account)
+        if context.get("connected"):
+            try:
+                context["calendars"] = service.get_calendar_selection(context["slug"])
+            except Exception:  # noqa: BLE001 - settings must render even if Google is transiently down
+                context["calendars"] = []
+        else:
+            context["calendars"] = []
+        accounts.append(context)
     return {
         **get_context(request, db),
-        "accounts": [_calendar_account_context(account) for account in service.get_connected_accounts(verify_live=True)],
+        "accounts": accounts,
         "my_account": _my_account_context(request, db, user, org_id),
         "redirect_uri": redirect_uri,
         "authorized_redirect_uris": service.get_client_redirect_uris(),
@@ -388,7 +399,7 @@ def _calendar_redirect_uri(request: Request) -> str:
     """Derive OAuth redirect_uri from the current request, never from BASE_URL.
 
     Using `settings.BASE_URL` blindly breaks multi-subdomain tenancy:
-    `sampletenant.casehub.legal` would callback into the apex host and lose
+    `tenanta.casehub.legal` would callback into the apex host and lose
     the tenant subdomain (TenantMiddleware uses subdomain to resolve org_id).
 
     We always honor the request's effective scheme/host/port (with proxy
@@ -662,7 +673,7 @@ async def get_google_events(
 
     B2 (26/05): retorna lista vazia (200) quando Google não está conectado
     OU quando qualquer fetch falha — assim FullCalendar não joga HTTP 500
-    no usuário só por causa de uma integração opcional. Example User reportou
+    no usuário só por causa de uma integração opcional. UsuarioDemo reportou
     HTTP 500 ao usar a agenda sem Google ([00:51:20] reunião 25/05).
     """
     user = get_current_user(request, db)
@@ -708,9 +719,10 @@ async def get_google_events(
             color = '#34a853'  # Google green
         else:
             color = '#9e9e9e'
+        calendar_id = str(event.get("calendar_id") or "primary")
 
         formatted_events.append({
-            "id": f"gcal_{event['source']}_{event['id']}",
+            "id": f"gcal_{event['source']}_{calendar_id}_{event['id']}",
             "title": f"[{source_label}] {_sanitize_calendar_text(event['title'])}",
             "start": event['start'],
             "end": event['end'],
@@ -720,6 +732,7 @@ async def get_google_events(
             "extendedProps": {
                 "type": "google",
                 "source": event['source'],
+                "calendarId": calendar_id,
                 "sourceLabel": source_label,
                 "description": _sanitize_calendar_text(event['description']),
                 "location": _sanitize_calendar_text(event['location'])
@@ -749,6 +762,39 @@ async def get_calendars(
 
     calendars = service.get_calendars(safe_account)
     return JSONResponse(calendars)
+
+
+@router.post("/calendars/{account_name}/selection")
+async def save_calendar_selection(
+    request: Request,
+    account_name: str,
+    calendar_ids: Optional[List[str]] = Form(default=None),
+    write_calendar_id: str = Form(default=""),
+    db: Session = Depends(get_db),
+):
+    """Persist enabled Google calendars and the per-account write target."""
+    user = get_current_user(request, db)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    service = GoogleCalendarService(db, org_id=getattr(request.state, "org_id", None))
+    safe_account = _require_account_id(account_name)
+    if not service.has_credentials(safe_account):
+        return RedirectResponse(
+            url=f"{PREFIX}/google-calendar/settings?error=account_not_connected",
+            status_code=303,
+        )
+
+    saved = service.save_calendar_selection(
+        safe_account,
+        calendar_ids or [],
+        write_calendar_id=write_calendar_id,
+    )
+    query = "success=calendar_selection_saved" if saved else "error=calendar_selection_failed"
+    return RedirectResponse(
+        url=f"{PREFIX}/google-calendar/settings?{query}",
+        status_code=303,
+    )
 
 
 @router.get("/status")

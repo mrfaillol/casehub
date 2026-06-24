@@ -43,9 +43,29 @@ test("ready sync enumerates chats and returns names plus profile_pic_url", () =>
   assert.match(sync, /this\.client\.getChats\(\)/);
   assert.match(sync, /chat\.getContact\(\)/);
   assert.match(sync, /contact\.pushname\s*\|\|\s*contact\.name/);
-  assert.match(sync, /contact\.getProfilePicUrl\(\)/);
+  assert.match(sync, /this\._profilePicUrlFromContact\(contact/);
   assert.match(sync, /display_name:\s*displayName/);
   assert.match(sync, /profile_pic_url:\s*profilePicUrl/);
+});
+
+test("conversation avatar helpers resolve and batch profile pictures", () => {
+  assert.match(source, /async\s+getProfilePicUrl\(phone\)/);
+  assert.match(source, /profilePicTimeoutMs/);
+  assert.match(source, /async\s+_profilePicWithTimeout\(promise,\s*label\)/);
+  assert.match(source, /async\s+_profilePicThumbDataUrlFromJid\(jid\)/);
+  assert.match(source, /WWebJS\.getProfilePicThumbToBase64/);
+  assert.match(source, /this\._profilePicWithTimeout\(\s*this\.client\.getProfilePicUrl\(candidate\)/);
+  assert.match(source, /async\s+getProfilePics\(phones,\s*options\s*=\s*\{\}\)/);
+  assert.match(source, /profiles\.push\(\{\s*phone,\s*url,\s*profilePic:\s*url\s*\}\)/);
+
+  const start = source.indexOf("async listConversations");
+  const end = source.indexOf("async getMessages", start);
+  const listConversations = source.slice(start, end);
+
+  assert.match(listConversations, /includeProfilePics/);
+  assert.match(listConversations, /profilePic:\s*null/);
+  assert.match(listConversations, /this\._profilePicUrlForChat\(chatRows\[i\]\)/);
+  assert.match(listConversations, /await\s+this\.getProfilePicUrl\(conversation\.jid\s*\|\|\s*conversation\.phone\)/);
 });
 
 test("chat history fetched from WhatsApp Web is normalized oldest-first", () => {

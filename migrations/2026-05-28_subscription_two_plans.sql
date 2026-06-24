@@ -1,7 +1,7 @@
 -- ============================================================================
 -- CaseHub Subscription — Two-Plan Pricing Reset
 -- Date: 2026-05-28
--- Spec (Victor): exactly two plans + usuários ILIMITADOS por enquanto.
+-- Spec (Equipe CaseHub): exactly two plans + usuários ILIMITADOS por enquanto.
 --   1. office     R$ 129/mês  — "Pequenos escritórios e Sociedade Unipessoal
 --                                de Advocacia"
 --   2. enterprise Sob consulta — grandes escritórios, sem preço fixo

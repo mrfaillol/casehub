@@ -165,7 +165,7 @@ async def create_user(
 
     # Welcome e-mail with login + password to the new user. Org-scoped login
     # URL is derived from the request host (the tenant subdomain), never
-    # hardcoded — so a user created on sampletenant.casehub.legal receives that
+    # hardcoded — so a user created on tenanta.casehub.legal receives that
     # exact login URL. Sending failures must NOT break user creation; the user
     # already exists in the DB, the e-mail is a best-effort courtesy channel.
     try:

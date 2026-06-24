@@ -118,6 +118,44 @@ test("server-lite /api/status uses verified WhatsApp state when available", () =
   assert.match(statusRoute, /await\s+statusPayload\(client\)/);
 });
 
+test("server-lite exposes profile picture endpoints for chat avatars", () => {
+  const one = routeCall("get", "/api/profile-pic/:phone");
+  const batch = routeCall("post", "/api/profile-pics");
+  const conversations = routeCall("get", "/api/conversations");
+
+  assert.match(one, /await\s+client\.getProfilePicUrl\(req\.params\.phone\)/);
+  assert.match(batch, /await\s+client\.getProfilePics\(phones/);
+  assert.match(batch, /profiles:\s*\[\]/);
+  assert.match(conversations, /includeProfilePics:\s*req\.query\.profilePics\s*===\s*"1"/);
+});
+
+test("server-lite ready handler accepts manager metadata as the only event arg", () => {
+  const readyStart = source.indexOf('manager.on("ready"');
+  const readyEnd = source.indexOf('manager.on("disconnected"', readyStart);
+  const readyHandler = source.slice(readyStart, readyEnd);
+
+  assert.match(readyHandler, /async\s*\(\.\.\.args\)/);
+  assert.match(readyHandler, /args\.find\(\(arg\)\s*=>\s*arg\s*&&\s*Number\.isFinite\(arg\.orgId\)\)/);
+  assert.match(readyHandler, /forwardContactsSync\(contacts,\s*\{\s*orgId\s*\}\)/);
+});
+
+test("server-lite suppresses noisy health-monitor disconnect alerts", () => {
+  const helperStart = source.indexOf("function isNoisyHealthMonitorReason");
+  const helperEnd = source.indexOf("// --- Inbound media serving", helperStart);
+  const handlerStart = source.indexOf('manager.on("disconnected"');
+  const handlerEnd = source.indexOf('manager.on("auth_failure"', handlerStart);
+  assert.notStrictEqual(helperStart, -1, "missing health-monitor noise helper");
+  assert.ok(helperEnd > helperStart, "helper boundary not found");
+  assert.ok(handlerEnd > handlerStart, "disconnect handler boundary not found");
+
+  const helper = source.slice(helperStart, helperEnd);
+  const handler = source.slice(handlerStart, handlerEnd);
+  assert.match(helper, /health-monitor:\(UNKNOWN\|UNREACHABLE\|TIMEOUT\|OPENING\|CONNECTING\)/);
+  assert.match(handler, /isNoisyHealthMonitorReason\(reason\)/);
+  assert.match(handler, /alerta de disconnect suprimido/);
+  assert.match(handler, /forwardEvent\(\{\s*event:\s*"disconnected",\s*reason\s*\}/);
+});
+
 test("server-lite /health reports process and WhatsApp readiness without failing on pairing", () => {
   const health = routeCall("get", "/health");
 

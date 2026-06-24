@@ -23,9 +23,9 @@ from core.release_notice import get_casehub_release_notice
 logger = logging.getLogger(__name__)
 
 PREFIX = settings.PREFIX
-APP_VERSION = "2.0.0"
+APP_VERSION = "0.9.12-alpha"
 CANONICAL_SUPPORT_EMAIL = "casehub@legalopsco.work"
-RETIRED_SUPPORT_DOMAINS = {"sampletenantadvogados.com.br"}
+RETIRED_SUPPORT_DOMAINS: set[str] = set()
 
 
 def public_contact_email(value: str | None = None) -> str:
@@ -70,6 +70,8 @@ templates.env.globals["org_favicon"] = ""
 templates.env.globals["org_phone"] = ""
 templates.env.globals["casehub_release_notice"] = get_casehub_release_notice()
 templates.env.globals["casehub_maestro_fab_enabled"] = settings.CASEHUB_MAESTRO_FAB_ENABLED
+templates.env.globals["casehub_work_intelligence_enabled"] = False
+templates.env.globals["casehub_work_intelligence_client_events_enabled"] = False
 
 # Gmail compose availability — global flag based on env + token presence.
 # Per-request per-org check happens at the route level; this drives template visibility.
@@ -159,6 +161,16 @@ def inject_org_context(request: Request, user=None) -> dict:
         except Exception:
             _can_fin = False
 
+    _wi_enabled = (
+        bool(getattr(settings, "CASEHUB_WORK_INTELLIGENCE_ENABLED", False))
+        and str(org_settings.get("work_intelligence_enabled", "")).strip().lower() in {"1", "true", "yes", "on"}
+    )
+    _wi_client_enabled = (
+        _wi_enabled
+        and bool(getattr(settings, "CASEHUB_WORK_INTELLIGENCE_CLIENT_EVENTS_ENABLED", False))
+        and str(org_settings.get("work_intelligence_client_events_enabled", "")).strip().lower() in {"1", "true", "yes", "on"}
+    )
+
     # org is a dict (set by TenantMiddleware)
     if isinstance(org, dict):
         return {
@@ -167,7 +179,7 @@ def inject_org_context(request: Request, user=None) -> dict:
             "org_email": public_contact_email(org.get("email")),
             "org_domain": org.get("website") or org.get("domain") or settings.ORG_DOMAIN,
             "org_phone": org.get("phone") or "",
-            "org_logo": org.get("logo_url") or "",
+            "org_logo": org.get("logo_url") or org_settings.get("logo_file_path") or "",
             "org_favicon": org.get("favicon_url") or "",
             "org_theme_primary": org.get("primary_color") or "#ffffff",
             "org_theme_secondary": org.get("secondary_color") or "#1a1a1a",
@@ -182,6 +194,8 @@ def inject_org_context(request: Request, user=None) -> dict:
             "version": APP_VERSION,
             "can_view_financeiro": _can_fin,
             "ui_theme": ui_theme,
+            "casehub_work_intelligence_enabled": _wi_enabled,
+            "casehub_work_intelligence_client_events_enabled": _wi_client_enabled,
         }
 
     # org is an ORM object (Organization model)
@@ -191,7 +205,7 @@ def inject_org_context(request: Request, user=None) -> dict:
         "org_email": public_contact_email(getattr(org, "email", None)),
         "org_domain": getattr(org, "website", None) or getattr(org, "domain", settings.ORG_DOMAIN),
         "org_phone": getattr(org, "phone", ""),
-        "org_logo": getattr(org, "logo_url", "") or "",
+        "org_logo": getattr(org, "logo_url", "") or org_settings.get("logo_file_path") or "",
         "org_favicon": getattr(org, "favicon_url", "") or "",
         "org_theme_primary": getattr(org, "primary_color", "#ffffff") or "#ffffff",
         "org_theme_secondary": getattr(org, "secondary_color", "#1a1a1a") or "#1a1a1a",
@@ -206,6 +220,8 @@ def inject_org_context(request: Request, user=None) -> dict:
         "version": APP_VERSION,
         "can_view_financeiro": _can_fin,
         "ui_theme": ui_theme,
+        "casehub_work_intelligence_enabled": _wi_enabled,
+        "casehub_work_intelligence_client_events_enabled": _wi_client_enabled,
     }
 
 
@@ -225,7 +241,7 @@ class _PreviewMock:
 
 
 # Preview-only plan mock (archive viewer / offline template render).
-# Mirrors the canonical 2-plan spec (Victor, 28/05/2026). max_users = -1 => unlimited.
+# Mirrors the canonical 2-plan spec (Equipe CaseHub, 28/05/2026). max_users = -1 => unlimited.
 _PREVIEW_PLANS = {
     "office": {
         "name": "Pequenos escritórios e Sociedade Unipessoal de Advocacia",

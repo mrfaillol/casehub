@@ -8,11 +8,12 @@ def _request(org_id=1):
 
 
 def test_dashboard_stats_current_contract(db):
-    from models import Case, Client, Document, Task
+    from models import Case, Client, Document, Task, User
     from routes.api import get_dashboard_stats
 
+    user = User(email="admin-dashboard@test.com", name="Admin Dashboard", password_hash="x", org_id=1, user_type="admin")
     client = Client(first_name="Ana", last_name="Silva", org_id=1)
-    db.add(client)
+    db.add_all([user, client])
     db.commit()
 
     case = Case(client_id=client.id, org_id=1, case_name="Caso Trabalhista", status="intake", visa_type="labor")
@@ -24,7 +25,7 @@ def test_dashboard_stats_current_contract(db):
     db.add(document)
     db.commit()
 
-    response = asyncio.run(get_dashboard_stats(_request(1), db))
+    response = asyncio.run(get_dashboard_stats(_request(1), db, user=user))
 
     assert set(response) == {"stats", "charts"}
     assert response["stats"]["total_clients"] == 1
@@ -35,6 +36,49 @@ def test_dashboard_stats_current_contract(db):
     assert response["stats"]["overdue_tasks"] == 1
     assert response["charts"]["cases_by_status"] == {"intake": 1}
     assert response["charts"]["cases_by_visa_type"] == {"labor": 1}
+
+
+def test_dashboard_stats_scopes_task_counts_for_non_admin(db):
+    from models import Task, User
+    import routes.api as api_route
+
+    ana = User(
+        email="ana-api-scope@test.com",
+        name="Ana API",
+        password_hash="x",
+        org_id=1,
+        user_type="attorney",
+    )
+    bruno = User(
+        email="bruno-api-scope@test.com",
+        name="Bruno API",
+        password_hash="x",
+        org_id=1,
+        user_type="attorney",
+    )
+    db.add_all([ana, bruno])
+    db.flush()
+    db.add_all([
+        Task(
+            title="Minha tarefa",
+            org_id=1,
+            status="pending",
+            assigned_to=ana.id,
+            due_date=date.today() - timedelta(days=1),
+        ),
+        Task(
+            title="Tarefa de outra pessoa",
+            org_id=1,
+            status="pending",
+            assigned_to=bruno.id,
+            due_date=date.today() - timedelta(days=1),
+        ),
+    ])
+    db.commit()
+    response = asyncio.run(api_route.get_dashboard_stats(_request(1), db, ana))
+
+    assert response["stats"]["pending_tasks"] == 1
+    assert response["stats"]["overdue_tasks"] == 1
 
 
 def test_cases_list_current_contract_is_tenant_scoped(db):

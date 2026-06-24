@@ -46,8 +46,8 @@ def _get_base_subject(subject: str) -> str:
 
 # Configuration
 AUTO_LINK_DELAY_MINUTES = 10
-GOOGLE_CHAT_WEBHOOK_JULIANA = os.getenv("GOOGLE_CHAT_WEBHOOK_JULIANA", "")
-GOOGLE_CHAT_WEBHOOK_ANA = os.getenv("GOOGLE_CHAT_WEBHOOK_ANA", "")
+GOOGLE_CHAT_WEBHOOK_MEMBER_A = os.getenv("GOOGLE_CHAT_WEBHOOK_MEMBER_A", "")
+GOOGLE_CHAT_WEBHOOK_MEMBER_B = os.getenv("GOOGLE_CHAT_WEBHOOK_MEMBER_B", "")
 
 
 class EmailWorker:
@@ -224,7 +224,7 @@ class EmailWorker:
 
     async def _notify_google_chat(self, paralegal_key: str, email: Dict, client_name: Optional[str], notion_task_id: Optional[str]):
         """Send notification to Google Chat"""
-        webhook_url = GOOGLE_CHAT_WEBHOOK_JULIANA if paralegal_key == "juliana" else GOOGLE_CHAT_WEBHOOK_ANA
+        webhook_url = GOOGLE_CHAT_WEBHOOK_MEMBER_A if paralegal_key == "member_a" else GOOGLE_CHAT_WEBHOOK_MEMBER_B
 
         if not webhook_url:
             logger.warning(f"No Google Chat webhook configured for {paralegal_key}")

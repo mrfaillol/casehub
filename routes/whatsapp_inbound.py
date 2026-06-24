@@ -307,7 +307,7 @@ async def receive_contacts_sync(request: Request, db: Session = Depends(get_db))
 # 1d. Bot → CaseHub lifecycle events (HMAC-protected)
 # ============================================================
 # Plain-language reasons keyed by the whatsapp-web.js disconnect code so the
-# in-app alert reads to a layperson (Example User/Ricardo), not an engineer.
+# in-app alert reads to a layperson (UsuarioDemo/PessoaDemo), not an engineer.
 _WA_DISCONNECT_REASONS = {
     "logout": "a sessão foi encerrada (logout no celular, em Aparelhos conectados)",
     "navigation": "a janela do WhatsApp foi recarregada no servidor",
@@ -318,6 +318,14 @@ _WA_DISCONNECT_REASONS = {
 }
 
 
+def _is_noisy_health_monitor_reason(reason: str) -> bool:
+    normalized = (reason or "").strip().lower()
+    if not normalized.startswith("health-monitor:"):
+        return False
+    state = normalized.split(":", 1)[1].strip()
+    return state in {"unknown", "unreachable", "timeout", "opening", "connecting"}
+
+
 def _notify_org_disconnect(db: Session, org_id: int, reason: str) -> int:
     """Raise ONE urgent in-app notification per staff user that the WhatsApp
     session dropped. Deduped: skips if an unread disconnect alert for this org
@@ -326,6 +334,9 @@ def _notify_org_disconnect(db: Session, org_id: int, reason: str) -> int:
     from datetime import timedelta
     from models.notification import Notification
     from models.user import User
+
+    if _is_noisy_health_monitor_reason(reason):
+        return 0
 
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
     existing = (
@@ -414,6 +425,9 @@ async def receive_wa_event(request: Request, db: Session = Depends(get_db)):
         return JSONResponse({"ok": True, "ignored": event or "empty"})
     if not org_id:
         return JSONResponse({"ok": True, "ignored": "no-org"})
+    if _is_noisy_health_monitor_reason(reason):
+        logger.info("wa event=disconnected org=%s reason=%r ignored=ambiguous_health_monitor", org_id, reason)
+        return JSONResponse({"ok": True, "event": event, "ignored": "ambiguous_health_monitor"})
 
     notified = _notify_org_disconnect(db, org_id, reason)
     logger.info("wa event=disconnected org=%s reason=%r notified=%s", org_id, reason, notified)

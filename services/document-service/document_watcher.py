@@ -22,7 +22,7 @@ from document_classifier import classify_document, ClassificationResult, EmailCo
 WATCH_DIRS = [
     os.getenv("APP_BASE_PATH", "/opt/casehub") + "/casehub/uploads/email_attachments",
     os.getenv("APP_BASE_PATH", "/opt/casehub") + "/documents/clients/_incoming",
-    os.getenv("APP_BASE_PATH", "/opt/casehub") + "/client-intake/uploads",
+    os.getenv("CLIENT_INTAKE_UPLOADS_DIR", os.getenv("APP_BASE_PATH", "/opt/casehub") + "/casehub/uploads/client_intake"),
 ]
 DOCUMENTS_BASE = Path(os.getenv("APP_BASE_PATH", "/opt/casehub") + "/documents/clients")
 LOG_FILE = "/var/log/document-service/watcher.log"

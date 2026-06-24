@@ -41,23 +41,18 @@ class ParalegalAssignmentService:
     def _map_paralegal_to_database_key(self, paralegal: Optional[str]) -> Optional[str]:
         """
         Map paralegal/caseworker name to database key.
-        - "Daniel" -> "daniel"
-        - "Danielle" -> "danielle"
-        - Legacy: "Juliana" -> "daniel", "Ana Clara"/"Sofia" -> "danielle"
+        - "Member A"/"Membro A" -> "member_a"
+        - "Member B"/"Membro B" -> "member_b"
         """
         if not paralegal:
             return None
 
         paralegal_lower = paralegal.lower().strip()
 
-        if paralegal_lower == "daniel":
-            return "daniel"
-        elif paralegal_lower == "danielle":
-            return "danielle"
-        elif "juliana" in paralegal_lower:
-            return "daniel"
-        elif "ana" in paralegal_lower or "sofia" in paralegal_lower:
-            return "danielle"
+        if paralegal_lower in {"member a", "member_a", "membro a"}:
+            return "member_a"
+        elif paralegal_lower in {"member b", "member_b", "membro b"}:
+            return "member_b"
 
         return None
 
@@ -70,7 +65,7 @@ class ParalegalAssignmentService:
 
         Returns:
             Tuple of (database_key, client_info) where:
-            - database_key: "juliana", "ana", or None
+            - database_key: "member_a", "member_b", or None
             - client_info: dict with client details or None
         """
         if not sender_email:

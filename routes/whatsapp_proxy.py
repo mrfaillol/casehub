@@ -51,6 +51,12 @@ _HOP_BY_HOP = {
 # Paths that are Server-Sent Event streams — must be streamed, not buffered.
 _SSE_HINTS = ("/events/", "/stream")
 
+# Hard read-timeout for NON-stream proxied bot calls (qr/status/profile-photo).
+# Was 60s — long enough to pin a uvicorn worker under qr/status polling
+# (incident 2026-06-16 VS 504). Bounded + env-tunable; SSE streams keep their
+# own long timeout in _stream_response (legit long-lived, with reconnect).
+_EXTERNAL_HTTP_TIMEOUT_S = float(os.getenv("EXTERNAL_HTTP_TIMEOUT_S", "12"))
+
 
 def _filter_headers(headers) -> dict:
     return {k: v for k, v in headers.items() if k.lower() not in _HOP_BY_HOP}
@@ -66,7 +72,7 @@ def _resolve_request_org_id(request: Request) -> int | None:
     Multi-session per-tenant (F29, 2026-05-27): every proxy call to the
     WhatsApp bot must carry X-Org-Id so the bot dispatches to the right
     tenant's session. The browser does NOT set this header — TenantMiddleware
-    resolved the tenant from the Host header (sampletenant.casehub.legal),
+    resolved the tenant from the Host header (tenanta.casehub.legal),
     set `request.state.org_id`, and we surface that to the bot here.
 
     Falls back to None when the request has no tenant context (the bot then
@@ -109,7 +115,7 @@ async def _forward(request: Request, path: str) -> Response:
             if streaming:
                 return await _stream_response(request, base, suffix, body, fwd_headers)
 
-            timeout = httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=10.0)
+            timeout = httpx.Timeout(connect=10.0, read=_EXTERNAL_HTTP_TIMEOUT_S, write=30.0, pool=10.0)
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.request(
                     request.method,

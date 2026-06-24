@@ -1,4 +1,6 @@
 """CaseHub Basic integrations status page."""
+from __future__ import annotations
+
 import base64
 import hashlib
 import hmac
@@ -13,7 +15,7 @@ from urllib.parse import urljoin
 from urllib.request import Request as UrlRequest, urlopen
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
@@ -29,7 +31,7 @@ logger = logging.getLogger(__name__)
 # conectado e o usuário conecta o Drive (ou vice-versa), o Google devolve o token com
 # a UNIÃO dos escopos (drive + calendar.*). Sem isto, oauthlib levanta "Scope has
 # changed" como erro e o callback caía em ?drive_error=oauth_callback_failed
-# (Example User, alpha 29/05). Process-wide → cobre Drive e Calendar.
+# (UsuarioDemo, alpha 29/05). Process-wide → cobre Drive e Calendar.
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -286,8 +288,9 @@ def _status(
     diagnostic: str = "",
     disconnect_url: str = "",
     lgpd_notice: str = "",
+    extra: dict | None = None,
 ) -> dict:
-    return {
+    payload = {
         "name": name,
         "state": state,
         "summary": summary,
@@ -307,6 +310,9 @@ def _status(
             "down": "Nao conectado",
         }.get(state, "Revisar"),
     }
+    if extra:
+        payload.update(extra)
+    return payload
 
 
 def _pdpj_status(org_id=None) -> dict:
@@ -639,12 +645,16 @@ def _integration_cards(org_id: int | None = None, db: Session | None = None) -> 
             ),
             disconnect_url=(f"{PREFIX}/integrations/google-drive/disconnect" if drive_token else ""),
             lgpd_notice="Ao conectar, voce autoriza o CaseHub a acessar arquivos do Drive do escritorio. Voce pode revogar a qualquer momento clicando em Desconectar. Dados ficam isolados no escritorio (multi-tenant) e nada e compartilhado entre orgs. LGPD: ver Termos.",
+            extra={
+                "drive_root_id": drive_root_id,
+                "drive_root_source": drive_root_source,
+            },
         ),
         _status(
             "E-mail (SMTP/IMAP)",
             "ok" if settings.SMTP_USER and smtp_secret and smtp_reachable else ("warn" if settings.SMTP_USER and smtp_secret else "down"),
             "SMTP pronto para teste." if settings.SMTP_USER and smtp_secret and smtp_reachable else "Conecte sua conta de e-mail em 3 passos.",
-            "Suporta Gmail, Outlook, iCloud, Hosting Provider, IMAP/SMTP genericos. Use senha de app quando 2FA estiver ativo.",
+            "Suporta Gmail, Outlook, iCloud, Hostinger, IMAP/SMTP genericos. Use senha de app quando 2FA estiver ativo.",
             "Configurar SMTP",
             f"{PREFIX}/integrations/email/smtp-setup",
             "envelope",
@@ -720,7 +730,7 @@ def _integration_cards(org_id: int | None = None, db: Session | None = None) -> 
 # readable banner instead of exposing OAuth jargon to the end user.
 OAUTH_FRIENDLY_ERRORS = {
     "redirect_uri_mismatch": (
-        "URL de retorno nao autorizada. Suporte: contato@vingren.me"
+        "URL de retorno nao autorizada. Suporte: support@example.com"
     ),
     "invalid_grant": "Token expirado. Tente reconectar.",
     "access_denied": (
@@ -731,7 +741,7 @@ OAUTH_FRIENDLY_ERRORS = {
     ),
     "credentials_missing": (
         "Credenciais OAuth do Google ainda nao configuradas neste servidor. "
-        "Suporte: contato@vingren.me"
+        "Suporte: support@example.com"
     ),
     "oauth_start_failed": (
         "Nao foi possivel iniciar o login Google. Tente novamente em alguns segundos."
@@ -744,13 +754,22 @@ OAUTH_FRIENDLY_ERRORS = {
     ),
     "oauth_callback_failed": (
         "Algo deu errado ao receber a resposta do Google. Tente novamente; se persistir, "
-        "contato@vingren.me."
+        "support@example.com."
     ),
     "disconnect_noop": (
         "Nada para desconectar — Drive ja estava desligado deste escritorio."
     ),
     "disconnect_failed": (
         "Nao foi possivel desconectar agora. Tente em alguns segundos."
+    ),
+    "invalid_drive_root_id": (
+        "Cole um ID de pasta do Google Drive ou um link valido de pasta."
+    ),
+    "drive_root_admin_required": (
+        "Apenas administradores podem alterar a raiz do Drive do escritorio."
+    ),
+    "drive_root_save_failed": (
+        "Nao foi possivel salvar a raiz do Drive agora. Tente novamente."
     ),
     # Gmail OAuth — same surface as Drive/Calendar, plus a couple of extras.
     "org_mismatch": (
@@ -767,7 +786,7 @@ def _friendly_error(code: str | None) -> str:
         return ""
     return OAUTH_FRIENDLY_ERRORS.get(
         code,
-        f"Erro do Google: {code}. Suporte: contato@vingren.me",
+        f"Erro do Google: {code}. Suporte: support@example.com",
     )
 
 
@@ -791,12 +810,85 @@ async def integrations_index(request: Request, db: Session = Depends(get_db)):
             "integrations": _integration_cards(getattr(request.state, "org_id", None), db),
             "drive_error_friendly": drive_error_friendly,
             "drive_disconnected": bool(request.query_params.get("drive_disconnected")),
+            "drive_root_saved": bool(request.query_params.get("drive_root_saved")),
+            "drive_root_cleared": bool(request.query_params.get("drive_root_cleared")),
             "gmail_error_friendly": gmail_error_friendly,
             "gmail_connected": bool(request.query_params.get("gmail_connected")),
             "gmail_disconnected": bool(request.query_params.get("gmail_disconnected")),
             **inject_org_context(request, user),
         },
     )
+
+
+@router.post("/google-drive/root-folder")
+async def google_drive_root_folder(request: Request, db: Session = Depends(get_db)):
+    """Persist the tenant default Drive folder id without touching OAuth."""
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+    if getattr(user, "user_type", "") not in ("admin", "superadmin"):
+        return RedirectResponse(
+            url=f"{PREFIX}/integrations?drive_error=drive_root_admin_required",
+            status_code=302,
+        )
+
+    org_id = getattr(request.state, "org_id", None)
+    if not org_id:
+        return RedirectResponse(
+            url=f"{PREFIX}/integrations?drive_error=no_tenant_context",
+            status_code=302,
+        )
+
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if org is None:
+        return RedirectResponse(
+            url=f"{PREFIX}/integrations?drive_error=no_tenant_context",
+            status_code=302,
+        )
+
+    try:
+        form = await request.form()
+        raw_id = (form.get("drive_root_id") or "").strip()
+        if raw_id == "":
+            org.google_drive_root_id = None
+            db.commit()
+            logger.info(
+                "Drive root cleared org_id=%s user_id=%s",
+                org_id,
+                getattr(user, "id", None),
+            )
+            return RedirectResponse(
+                url=f"{PREFIX}/integrations?drive_root_cleared=1",
+                status_code=302,
+            )
+
+        from routes.clients import _parse_drive_folder_id
+
+        folder_id = _parse_drive_folder_id(raw_id)
+        if not folder_id:
+            return RedirectResponse(
+                url=f"{PREFIX}/integrations?drive_error=invalid_drive_root_id",
+                status_code=302,
+            )
+
+        org.google_drive_root_id = folder_id
+        db.commit()
+        logger.info(
+            "Drive root saved org_id=%s user_id=%s",
+            org_id,
+            getattr(user, "id", None),
+        )
+        return RedirectResponse(
+            url=f"{PREFIX}/integrations?drive_root_saved=1",
+            status_code=302,
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to save Drive root for org %s", org_id)
+        return RedirectResponse(
+            url=f"{PREFIX}/integrations?drive_error=drive_root_save_failed",
+            status_code=302,
+        )
 
 
 @router.post("/email/smtp-test")

@@ -10,7 +10,7 @@
  * proxy "manager" + um shim "default" que mapeia chamadas legadas para
  * manager.getOrCreate(DEFAULT_ORG_ID).
  *
- * Por que multi-session: tenant alpha (sampletenant.casehub.legal) compartilhava
+ * Por que multi-session: tenant alpha (tenanta.casehub.legal) compartilhava
  * a sessao WhatsApp da org "default" — qualquer um logado em qualquer tenant
  * via as mesmas conversas. Cada org agora tem QR/numero proprio, isolado.
  *
@@ -27,11 +27,6 @@ const crypto = require("crypto");
 // ID da org que assume o comportamento legado single-tenant quando nada
 // (header X-Org-Id, dispatch) for passado. ENV opcional: CASEHUB_DEFAULT_ORG_ID.
 const DEFAULT_ORG_ID = parseInt(process.env.CASEHUB_DEFAULT_ORG_ID || "1", 10);
-
-// QR Cooldown por sessao (Map orgId -> last timestamp). Evita loop de
-// regeneracao quando um QR e re-emitido em rapida sucessao por uma instancia.
-const QR_COOLDOWN = 5000; // 5 segundos entre QR codes
-const _lastQrTimes = new Map();
 
 // Mapa do ack numerico do whatsapp-web.js -> status textual usado no clone.
 // Espelha os ticks do WhatsApp Web: enviado (1 tick), entregue (2 ticks),
@@ -64,6 +59,11 @@ class WhatsAppClient extends EventEmitter {
     this.qrTimestamp = null;
     this.status = "disconnected";
     this.lidCache = new Map();
+    this.profilePicCache = new Map();
+    this.profilePicTimeoutMs = Math.max(
+      500,
+      Math.min(Number(options.profilePicTimeoutMs || process.env.CASEHUB_WA_PROFILE_PIC_TIMEOUT_MS || 1200), 5000)
+    );
     // Cache REVERSO telefone(digitos) -> JID original "<lid>@lid". Preenchido no
     // inbound (client.on "message") sempre que uma conversa chega keyed por LID e
     // resolvemos o telefone real. O ENVIO consulta este mapa: na era de
@@ -230,6 +230,14 @@ class WhatsAppClient extends EventEmitter {
     if (s === "auth_failed") {
       return this._authFailureCount > this._AUTH_FAILURE_MAX ? "manual_review" : "soft_reconnect";
     }
+    // Host-binding lockout: a soft reconnect just re-blocks. The operator must
+    // re-bind this host (CASEHUB_WA_REBIND=1) or restore the env secret.
+    if (s === "blocked_host") return "rebind_host";
+    // Deliberate teardown survives restart and suppresses autostart; coming back
+    // needs an EXPLICIT reconnect/init, not the implicit soft path.
+    if (s === "intentional_down" || (typeof this._isIntentionalDown === "function" && this._isIntentionalDown())) {
+      return "reconnect_explicit";
+    }
     if (this._sessionLooksPresent()) return "soft_reconnect";
     return "scan_qr";
   }
@@ -248,9 +256,35 @@ class WhatsAppClient extends EventEmitter {
         return "Use Reconectar; a sessao salva sera preservada.";
       case "manual_review":
         return "Auth recusada repetidamente. Repareamento manual pode ser necessario.";
+      case "rebind_host":
+        return "Sessao bloqueada por host-binding. Restaure CASEHUB_WA_SESSION_BINDING neste host, ou rode o rebind explicito (CASEHUB_WA_REBIND=1).";
+      case "reconnect_explicit":
+        return "Sessao desconectada deliberadamente. Use Reconectar (init explicito) para religar.";
       default:
         return "Atualize o status da conexao.";
     }
+  }
+
+  // Vocabulario UNICO fatal-vs-transiente, partilhado por disconnected/change_state.
+  // FATAL = sessao morta (precisa re-pareamento/QR): logout pelo celular, conflito
+  // de sessao, ou a navegacao que varios forks do whatsapp-web.js emitem no logout.
+  // Qualquer outro reason (TIMEOUT/OPENING/...) e' transiente — blip que o watchdog
+  // cura. Centralizar mata a divergencia historica de LOGOUT/NAVIGATION entre os dois.
+  _classifyReason(reason) {
+    return /UNPAIRED|CONFLICT|LOGOUT|NAVIGATION/i.test(String(reason || "")) ? "fatal" : "transient";
+  }
+
+  _isAmbiguousHealthState(state) {
+    return /^(UNKNOWN|UNREACHABLE|TIMEOUT|OPENING|CONNECTING)$/i.test(String(state || "").trim());
+  }
+
+  _isTransientBrowserAuthFailure(error) {
+    const text = String(
+      (error && (error.stack || error.message || error.toString && error.toString())) ||
+      error ||
+      ""
+    );
+    return /Target closed|Session closed|Connection closed|browser has disconnected|Protocol error .*Target/i.test(text);
   }
 
   async initialize(phoneNumber = null, options = {}) {
@@ -279,7 +313,7 @@ class WhatsAppClient extends EventEmitter {
     // nunca aparece. Remover os locks (preservando a sessao) cura o launch.
     this._clearChromiumLocks();
 
-    // Gate anti-hijack (Victor 10/06): recusa subir a sessao se os arquivos de
+    // Gate anti-hijack (Equipe CaseHub 10/06): recusa subir a sessao se os arquivos de
     // auth nao pertencem a este host. Fail-safe e aditivo (sem env => sem trava).
     if (!this._enforceHostBinding()) {
       this._error("[HOST-BIND] inicializacao abortada — sessao nao pertence a este host");
@@ -311,9 +345,6 @@ class WhatsAppClient extends EventEmitter {
         // falha no container (PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true).
         // Fora do container (dev local) a env fica vazia → Puppeteer usa o bundled.
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        // userDataDir explicito por org pra duas instancias Chromium nao
-        // brigarem pelo mesmo profile. LocalAuth ja faz isso via clientId,
-        // mas formalizar evita surpresa quando o profile e re-aproveitado.
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",
@@ -348,25 +379,19 @@ class WhatsAppClient extends EventEmitter {
 
     this.client = new Client(clientOptions);
 
-    // QR code event com cooldown para evitar loop de regeneração (por org).
+    // QR code event. SEMPRE atualiza o QR servido — o QR do WhatsApp expira em
+    // ~20-60s e, com a latencia de remote runtime, o front precisa SEMPRE da versao mais
+    // nova ou da "nao foi possivel conectar o dispositivo". O cooldown cosmetico
+    // (RC3) foi removido: cada `qr` reemitido atualiza this.qrCode/qrTimestamp,
+    // emite o evento e renderiza no terminal, sem throttle.
     this.client.on("qr", async (qr) => {
-      // SEMPRE atualiza o QR servido — o QR do WhatsApp expira em ~20-60s; suprimir
-      // a regeneracao (cooldown antigo dava `return`) deixava o front com um QR
-      // velho/expirado -> "nao foi possivel conectar o dispositivo". O cooldown
-      // agora so throttla o render no terminal (cosmetico), nunca o QR servido.
       this.qrCode = await QRCode.toDataURL(qr);
       this.qrTimestamp = Date.now();
       this.status = "awaiting_scan";
       this._markEvent("qr");
       this.emit("qr", this.qrCode);
-
-      const now = Date.now();
-      const last = _lastQrTimes.get(this.orgId) || 0;
-      if (now - last >= QR_COOLDOWN) {
-        _lastQrTimes.set(this.orgId, now);
-        this._log("[QR] Escaneie com o WhatsApp:");
-        qrcode.generate(qr, { small: true });
-      }
+      this._log("[QR] Escaneie com o WhatsApp:");
+      qrcode.generate(qr, { small: true });
     });
 
     // Pairing code event - triggered when using pairWithPhoneNumber
@@ -407,6 +432,7 @@ class WhatsAppClient extends EventEmitter {
       this.qrTimestamp = null;
       this.status = "ready";
       this._authFailureCount = 0; // sessao saudavel — zera o circuito de auth_failure
+      this._restoredFromLastGood = false; // sessao saudavel: o __lastgood (novo ou restaurado) e' bom
       this._reconnectAttempts = 0; // sessao saudavel — zera o backoff de reconnect
       this._lastReconnectMs = 0;
       this._markEvent("ready");
@@ -543,6 +569,57 @@ class WhatsAppClient extends EventEmitter {
       });
     });
 
+    // message_create — N2: mensagens ENVIADAS pelo proprio celular (outbound
+    // manual). whatsapp-web.js emite message_create para toda mensagem criada,
+    // inclusive as que o operador manda pelo aparelho. O handler 'message' acima
+    // ignora fromMe (so inbound), entao sem isto o outbound manual nunca chega ao
+    // CaseHub. Re-emitimos com a MESMA forma do 'message' (from = destinatario,
+    // fromMe: true) pra reaproveitar buildPayload/forwardInbound (mesmo HMAC).
+    this.client.on("message_create", (message) => {
+      try {
+        if (!message || !message.fromMe) return;
+        const toRaw = (message.to || "").toString();
+        if (!toRaw || toRaw.includes("@g.us") || toRaw === "status@broadcast") return;
+        // N2/LID: destinos endereçados por LID (@lid) ainda NAO tem o telefone
+        // real resolvido no caminho outbound (so o handler inbound 'message'
+        // acima resolve, via lidCache/getContact/getChat). Re-emitir com
+        // from = "<lid>@lid" criaria um wa_contact chaveado nos DIGITOS do LID =
+        // thread DIFERENTE da thread real-phone usada pelo inbound (fragmentacao,
+        // o mesmo bug de 'meia thread' que o N2 tenta consertar). Ate a resolucao
+        // LID no outbound existir (follow-up Codex: espelhar lidCache/getContact/
+        // getChat), PULAR-E-LOGAR — mesmo padrao dos guards de @g.us /
+        // status@broadcast acima.
+        if (toRaw.includes("@lid")) {
+          this._warn("[wa-bot] message_create skip @lid (N2 LID resolution deferida):", toRaw);
+          return;
+        }
+        const hasMedia = !!message.hasMedia;
+        this.emit("message_create", {
+          orgId: this.orgId,
+          // from = a OUTRA ponta da conversa (destinatario) pra cair no mesmo
+          // thread do contato no CaseHub. buildPayload usa data.from como telefone.
+          from: toRaw,
+          body: message.body || "",
+          timestamp: message.timestamp,
+          type: message.type,
+          message: message,
+          originalId: toRaw,
+          messageId: message.id && message.id._serialized ? message.id._serialized : null,
+          fromMe: true,
+          hasMedia,
+          mediaType: hasMedia ? (message.type || null) : null,
+          mimetype: (hasMedia && message._data && message._data.mimetype) || null,
+          filename:
+            (hasMedia &&
+              (message._data && (message._data.filename || message._data.caption))) ||
+            null,
+          caption: hasMedia ? (message.body || null) : null
+        });
+      } catch (e) {
+        this._log("[OUTBOUND] erro ao processar message_create:", e.message);
+      }
+    });
+
     // message_ack — evolução do status de entrega/leitura de mensagens
     // enviadas. whatsapp-web.js emite ack: -1 ERROR, 0 PENDING, 1 SERVER (enviado),
     // 2 DEVICE (entregue), 3 READ (lido), 4 PLAYED (áudio ouvido).
@@ -580,8 +657,12 @@ class WhatsAppClient extends EventEmitter {
       // — inclui NAVIGATION/LOGOUT que varios forks emitem no logout pelo celular
       // — rebaixa e oferece QR. O watchdog re-promove em <=60s se for so um blip.
       const r = String(reason || "");
-      const transient = /TIMEOUT|OPENING|PAIRING|CONNECTING/i.test(r);
-      if (this._isLive() && transient) {
+      const fatal = this._classifyReason(r) === "fatal";
+      // Blip: ignora SO um conjunto fechado de reasons sabidamente transitorios com
+      // socket vivo. Um reason FATAL nunca e' ignorado; um reason desconhecido
+      // rebaixa (fail-loud), preservando a deny-list conservadora original.
+      const knownBlip = /TIMEOUT|OPENING|PAIRING|CONNECTING/i.test(r);
+      if (!fatal && knownBlip && this._isLive()) {
         this._warn("[DISCONNECT] ignorado (blip transitorio, socket vivo):", r);
         return;
       }
@@ -604,11 +685,11 @@ class WhatsAppClient extends EventEmitter {
         this._reconnectAttempts = 0;
         this._lastReconnectMs = 0;
         this._markEvent("state_connected");
-      } else if (/UNPAIRED|CONFLICT|LOGOUT/i.test(String(state)) || !this._isLive()) {
-        // Rebaixa SEMPRE em estado morto (UNPAIRED/CONFLICT/LOGOUT); nos demais,
-        // so quando NAO ha atividade recente (um TIMEOUT/OPENING com socket vivo
-        // e' blip e nao rebaixa). O watchdog decide reconectar de fato.
-        if (/UNPAIRED|CONFLICT|LOGOUT/i.test(String(state))) this._lastInboundMs = 0;
+      } else if (this._classifyReason(state) === "fatal" || !this._isLive()) {
+        // Rebaixa SEMPRE num estado fatal (UNPAIRED/CONFLICT/LOGOUT/NAVIGATION);
+        // nos demais, so quando NAO ha atividade recente (um TIMEOUT/OPENING com
+        // socket vivo e' blip e nao rebaixa). O watchdog decide reconectar de fato.
+        if (this._classifyReason(state) === "fatal") this._lastInboundMs = 0;
         this.isReady = false;
         this.status = "disconnected";
       }
@@ -627,6 +708,18 @@ class WhatsAppClient extends EventEmitter {
     // manual (evita apagar/recriar em tempestade). O contador zera num `ready`.
     this.client.on("auth_failure", async (error) => {
       this._error("[AUTH-FAIL]", error);
+      const transientBrowserFailure = this._isTransientBrowserAuthFailure(error);
+      const hadAuthenticatedSession = this.status === "authenticated" || this._lastEvent === "authenticated";
+      if (transientBrowserFailure && hadAuthenticatedSession && this._sessionLooksPresent()) {
+        this.status = this._reconnecting ? "reconnecting" : "disconnected";
+        this._markEvent("auth_failure_browser_transient", { error });
+        this.emit("auth_failure", error);
+        this._warn("[AUTH-FAIL] falha transitoria do Chromium/CDP apos authenticated — preservando LocalAuth e tentando soft reconnect");
+        if (this._reconnecting) return;
+        this._authFailureCount = 0;
+        await this.softReconnect("auth_failure:browser-target-closed");
+        return;
+      }
       this.status = "auth_failed";
       this._markEvent("auth_failure", { error });
       this.emit("auth_failure", error);
@@ -644,7 +737,12 @@ class WhatsAppClient extends EventEmitter {
         // Sem phoneNumber => volta pro fluxo de QR. MANTEM _reconnecting=true por
         // TODA a recuperacao (resetado no finally): zera-lo antes do await abria a
         // janela do self-heal de 45s disparar um 2o initialize => duplo Chromium.
-        await this.clearAndReinitialize();
+        // preserveLastGood: uma rejeicao de auth TRANSIENTE (sessao nao-restaurada)
+        // preserva o __lastgood para auto-cura no proximo boot. MAS se a sessao que
+        // falhou veio do restore do __lastgood neste boot, o backup esta morto
+        // (logout real) — descarta, para o proximo boot ir direto ao QR em vez de
+        // re-restaurar credenciais mortas a cada restart de container.
+        await this.clearAndReinitialize(null, { preserveLastGood: !this._restoredFromLastGood });
       } catch (e) {
         this._error("[AUTH-FAIL] recuperacao falhou:", e && e.message ? e.message : e);
       } finally {
@@ -652,7 +750,7 @@ class WhatsAppClient extends EventEmitter {
       }
     });
 
-    // Watchdog armado ANTES do await: no Mumbai CPU-only o client.initialize()
+    // Watchdog armado ANTES do await: no remote runtime CPU-only o client.initialize()
     // pode levar minutos (protocolTimeout=5min) ou travar num hang puro de
     // qr/ready — re-armar so no finally deixava o watchdog MORTO toda a janela
     // (o "active:false" que dizemos curar). Armado aqui, ele monitora ja no boot.
@@ -710,11 +808,7 @@ class WhatsAppClient extends EventEmitter {
   // So um host com o MESMO segredo carrega a sessao. O segredo nunca vai pro
   // volume (so o hash, irreversivel). Sem env => sem restricao (dev nao quebra).
   _enforceHostBinding() {
-    const sessionDir = path.join(
-      process.cwd(),
-      this.dataBase.replace(/^\.\//, ""),
-      `session-org-${this.orgId}`
-    );
+    const sessionDir = this._sessionDir();
     const markerPath = path.join(sessionDir, ".host-bind");
     const expected = this._hostBindingHash();
     const marker = this._readHostBindMarker(sessionDir);
@@ -731,13 +825,14 @@ class WhatsAppClient extends EventEmitter {
     }
 
     if (!marker) {
-      // Primeira amarracao neste host (sessao nova OU pre-existente do Mumbai).
+      // Primeira amarracao neste host (sessao nova OU pre-existente do remote runtime).
       try {
         if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
         fs.writeFileSync(markerPath, expected, { mode: 0o600 });
         this._log("[HOST-BIND] sessao amarrada a este host");
       } catch (e) {
         this._warn("[HOST-BIND] falha ao gravar marcador:", e && e.message ? e.message : e);
+        this._markEvent("host_bind_marker_write_failed", { error: e && e.message ? e.message : e });
       }
       return true;
     }
@@ -758,11 +853,7 @@ class WhatsAppClient extends EventEmitter {
   // nao do volume inteiro. Senao um Client subindo zera locks de outras orgs
   // que estao online e quebra elas sem motivo.
   _clearChromiumLocks() {
-    const sessionDir = path.join(
-      process.cwd(),
-      this.dataBase.replace(/^\.\//, ""),
-      `session-org-${this.orgId}`
-    );
+    const sessionDir = this._sessionDir();
     if (!fs.existsSync(sessionDir)) return;
     const LOCKS = new Set(["SingletonLock", "SingletonSocket", "SingletonCookie"]);
     const walk = (dir) => {
@@ -814,22 +905,25 @@ class WhatsAppClient extends EventEmitter {
       .slice(0, limit);
     const out = [];
     for (const chat of chats) {
-      const phone = this.phoneFromChatId(this.normalizeChatId(chat.id));
-      if (!phone || phone.endsWith("@lid")) continue; // sem telefone real => pula
+      const chatId = this.normalizeChatId(chat.id);
+      let phone = this.phoneFromChatId(chatId);
       let displayName = chat.name || null;
       let profilePicUrl = null;
       let isBusiness = false;
+      let contact = null;
       try {
-        const contact = await chat.getContact();
+        contact = await chat.getContact();
         if (contact) {
           displayName = contact.pushname || contact.name || displayName;
           isBusiness = Boolean(contact.isBusiness);
+          const contactNumber = String(contact.number || "").replace(/\D/g, "");
+          if (contactNumber) phone = contactNumber;
           // #5 — a foto e o dado mais flaky (chamada extra ao servidor WA).
           // 1 retry rapido por contato cobre falha transitoria sem virar
           // varredura cara: contato realmente sem foto cai no catch e segue.
           for (let picTry = 0; picTry < 2; picTry++) {
             try {
-              profilePicUrl = (await contact.getProfilePicUrl()) || null;
+              profilePicUrl = (await this._profilePicUrlFromContact(contact, [chatId, phone])) || null;
               break;
             } catch (_) {
               if (picTry === 0) { await new Promise((r) => setTimeout(r, 400)); continue; }
@@ -838,6 +932,11 @@ class WhatsAppClient extends EventEmitter {
           }
         }
       } catch (_) { /* segue so com chat.name */ }
+      if (phone && phone.endsWith("@lid")) {
+        const resolved = await this._resolvePhoneFromLid(chatId);
+        if (resolved) phone = resolved;
+      }
+      if (!phone || phone.endsWith("@lid")) continue; // sem telefone real => nao grava no backend
       out.push({
         phone,
         display_name: displayName,
@@ -846,6 +945,227 @@ class WhatsAppClient extends EventEmitter {
       });
     }
     return out;
+  }
+
+  _profilePicCacheKey(phone) {
+    const raw = String(phone || "").trim();
+    return raw.replace(/@.*$/, "").replace(/\D/g, "") || raw;
+  }
+
+  _cacheProfilePicUrl(keys, url) {
+    if (!url) return url;
+    for (const key of keys || []) {
+      const cacheKey = this._profilePicCacheKey(key);
+      if (cacheKey) this.profilePicCache.set(cacheKey, url);
+    }
+    return url;
+  }
+
+  async _profilePicWithTimeout(promise, label) {
+    let timer = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`${label || "profile picture"} timeout`)),
+            this.profilePicTimeoutMs
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async _profilePicThumbDataUrlFromJid(jid) {
+    const rawJid = String(jid || "").trim();
+    if (!rawJid || !this.client || !this.client.pupPage) return null;
+    try {
+      return await this._profilePicWithTimeout(
+        this.client.pupPage.evaluate(async (contactId) => {
+          const store = window.Store || {};
+          const widFactory = store.WidFactory;
+          if (!widFactory || typeof widFactory.createWid !== "function") return null;
+          const chatWid = widFactory.createWid(contactId);
+          if (window.WWebJS && typeof window.WWebJS.getProfilePicThumbToBase64 === "function") {
+            const base64 = await window.WWebJS.getProfilePicThumbToBase64(chatWid);
+            return base64 ? `data:image/jpeg;base64,${base64}` : null;
+          }
+          return null;
+        }, rawJid),
+        "profile thumbnail"
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async _profilePicUrlFromContact(contact, fallbackJids = []) {
+    const candidates = [];
+    if (contact) {
+      const contactId = this.normalizeChatId(contact.id);
+      if (contactId) candidates.push(contactId);
+      const number = String(contact.number || "").replace(/\D/g, "");
+      if (number) candidates.push(`${number}@c.us`, number);
+    }
+    candidates.push(...(fallbackJids || []));
+
+    for (const candidate of [...new Set(candidates.filter(Boolean))]) {
+      const jid = String(candidate).includes("@")
+        ? String(candidate)
+        : `${String(candidate).replace(/\D/g, "")}@c.us`;
+      const thumb = await this._profilePicThumbDataUrlFromJid(jid);
+      if (thumb) return this._cacheProfilePicUrl([candidate, ...fallbackJids], thumb);
+    }
+
+    if (contact && typeof contact.getProfilePicUrl === "function") {
+      try {
+        const url = (await this._profilePicWithTimeout(
+          contact.getProfilePicUrl(),
+          "contact profile picture"
+        )) || null;
+        if (url) return this._cacheProfilePicUrl(fallbackJids, url);
+      } catch (_) { /* contato sem foto, privado ou ainda nao hidratado */ }
+    }
+
+    for (const candidate of [...new Set(candidates.filter(Boolean))]) {
+      try {
+        const jid = String(candidate).includes("@")
+          ? String(candidate)
+          : `${String(candidate).replace(/\D/g, "")}@c.us`;
+        const url = (await this._profilePicWithTimeout(
+          this.client.getProfilePicUrl(jid),
+          "profile picture URL"
+        )) || null;
+        if (url) return this._cacheProfilePicUrl([candidate, ...fallbackJids], url);
+      } catch (_) { /* best-effort */ }
+    }
+    return null;
+  }
+
+  async _profilePicUrlForChat(chat) {
+    if (!chat) return null;
+    const chatId = this.normalizeChatId(chat.id);
+    let contact = null;
+    try {
+      contact = await chat.getContact();
+    } catch (_) { /* segue com o JID do chat */ }
+
+    const url = await this._profilePicUrlFromContact(contact, [chatId]);
+    if (url) return url;
+    return this.getProfilePicUrl(chatId);
+  }
+
+  _phoneDigitsMatch(a, b) {
+    const left = String(a || "").replace(/\D/g, "");
+    const right = String(b || "").replace(/\D/g, "");
+    if (!left || !right) return false;
+    if (left === right) return true;
+    if (left.length >= 10 && right.length >= 10) {
+      return left.slice(-10) === right.slice(-10);
+    }
+    return false;
+  }
+
+  async _profilePicUrlFromChatsByPhone(phone) {
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (!digits) return null;
+    let chats = [];
+    try {
+      chats = await this.client.getChats();
+    } catch (_) {
+      return null;
+    }
+    for (const chat of chats || []) {
+      if (!chat || chat.isGroup) continue;
+      let contact = null;
+      try {
+        contact = await chat.getContact();
+      } catch (_) { /* next source */ }
+      const contactNumber = contact && contact.number;
+      const chatPhone = this.phoneFromChatId(this.normalizeChatId(chat.id));
+      if (!this._phoneDigitsMatch(contactNumber, digits) && !this._phoneDigitsMatch(chatPhone, digits)) {
+        continue;
+      }
+      const url = await this._profilePicUrlFromContact(contact, [
+        this.normalizeChatId(chat.id),
+        `${digits}@c.us`,
+        digits,
+      ]);
+      if (url) return url;
+    }
+    return null;
+  }
+
+  async getProfilePicUrl(phone) {
+    this.assertReady();
+    const raw = String(phone || "").trim();
+    if (!raw) return null;
+
+    const cacheKey = this._profilePicCacheKey(raw);
+    if (cacheKey && this.profilePicCache.has(cacheKey)) {
+      return this.profilePicCache.get(cacheKey);
+    }
+
+    const candidates = [];
+    if (raw.includes("@lid")) {
+      candidates.push(raw);
+      const resolved = await this._resolvePhoneFromLid(raw);
+      if (resolved) candidates.push(`${resolved}@c.us`);
+    } else if (raw.includes("@")) {
+      candidates.push(raw);
+      const digits = raw.replace(/\D/g, "");
+      if (digits) candidates.push(`${digits}@c.us`);
+    } else {
+      const digits = raw.replace(/\D/g, "");
+      if (digits) candidates.push(`${digits}@c.us`);
+    }
+
+    for (const candidate of [...new Set(candidates.filter(Boolean))]) {
+      const thumb = await this._profilePicThumbDataUrlFromJid(candidate);
+      if (thumb) return this._cacheProfilePicUrl([raw, candidate], thumb);
+    }
+
+    for (const candidate of [...new Set(candidates.filter(Boolean))]) {
+      try {
+        const url = (await this._profilePicWithTimeout(
+          this.client.getProfilePicUrl(candidate),
+          "profile picture URL"
+        )) || null;
+        if (url) {
+          if (cacheKey) this.profilePicCache.set(cacheKey, url);
+          const digitsKey = this._profilePicCacheKey(candidate);
+          if (digitsKey) this.profilePicCache.set(digitsKey, url);
+          return url;
+        }
+      } catch (_) { /* contato sem foto, privado ou ainda nao hidratado */ }
+    }
+
+    const digits = raw.replace(/\D/g, "");
+    const fromChat = await this._profilePicUrlFromChatsByPhone(digits);
+    if (fromChat) return this._cacheProfilePicUrl([raw, digits, `${digits}@c.us`], fromChat);
+
+    return null;
+  }
+
+  async getProfilePics(phones, options = {}) {
+    this.assertReady();
+    const limit = Math.max(1, Math.min(Number(options.limit || 40), 80));
+    const unique = [...new Set((Array.isArray(phones) ? phones : [])
+      .map((phone) => String(phone || "").trim())
+      .filter(Boolean))]
+      .slice(0, limit);
+    const profiles = [];
+    const byPhone = {};
+
+    for (const phone of unique) {
+      const url = await this.getProfilePicUrl(phone);
+      profiles.push({ phone, url, profilePic: url });
+      byPhone[phone] = url;
+    }
+
+    return { profiles, byPhone };
   }
 
   // Snapshot atomico-ish da sessao recem-pareada num diretorio irmao que o
@@ -873,7 +1193,7 @@ class WhatsAppClient extends EventEmitter {
     try {
       const src = this._sessionDir();
       if (!fs.existsSync(src)) return false;
-      const dst = path.join(this.dataBase, `_bak-session-org-${this.orgId}${suffix}`);
+      const dst = this._backupDir(suffix);
       const tmp = `${dst}.tmp`;
       fs.rmSync(tmp, { recursive: true, force: true });
       fs.cpSync(src, tmp, { recursive: true, force: true });
@@ -909,6 +1229,7 @@ class WhatsAppClient extends EventEmitter {
       fs.cpSync(bak, dst, { recursive: true, force: true });
       this._warn("[RESTORE] sessao ausente no boot — restaurada do backup __lastgood (auto-cura, sem QR)");
       this._markEvent("session_restored_from_backup");
+      this._restoredFromLastGood = true;   // se ESTA sessao auth-falhar, o __lastgood esta morto
       return true;
     } catch (e) {
       this._warn("[RESTORE] auto-cura falhou (segue p/ QR):", e && e.message ? e.message : e);
@@ -1089,11 +1410,12 @@ class WhatsAppClient extends EventEmitter {
     this.assertReady();
     const limit = Math.max(1, Math.min(Number(options.limit || 80), 200));
     const includeGroups = Boolean(options.includeGroups);
-    const chats = await this.client.getChats();
-    return chats
+    const includeProfilePics = Boolean(options.includeProfilePics);
+    const chatRows = (await this.client.getChats())
       .filter((chat) => includeGroups || !chat.isGroup)
       .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
-      .slice(0, limit)
+      .slice(0, limit);
+    const conversations = chatRows
       .map((chat) => {
         const chatId = this.normalizeChatId(chat.id);
         const phone = this.phoneFromChatId(chatId);
@@ -1112,9 +1434,22 @@ class WhatsAppClient extends EventEmitter {
           human_takeover: false,
           never_contact: false,
           messageCount: Number(chat.unreadCount || 0),
+          profilePic: null,
           source: "whatsapp-web",
         };
       });
+
+    if (includeProfilePics) {
+      for (let i = 0; i < conversations.length; i += 1) {
+        const conversation = conversations[i];
+        if (!conversation.phone || String(conversation.jid || "").includes("@g.us")) continue;
+        conversation.profilePic =
+          await this._profilePicUrlForChat(chatRows[i]) ||
+          await this.getProfilePicUrl(conversation.jid || conversation.phone);
+      }
+    }
+
+    return conversations;
   }
 
   async getMessages(phone, options = {}) {
@@ -1213,7 +1548,7 @@ class WhatsAppClient extends EventEmitter {
   _touchActivity() { this._lastInboundMs = Date.now(); }
 
   // Houve inbound dentro da janela de liveness? Mais confiavel que getState()
-  // (lento/instavel no Mumbai CPU-only, 15s de timeout).
+  // (lento/instavel no remote runtime CPU-only, 15s de timeout).
   _isLive() {
     return this._lastInboundMs > 0 &&
       (Date.now() - this._lastInboundMs) < this._LIVENESS_WINDOW_MS;
@@ -1298,7 +1633,7 @@ class WhatsAppClient extends EventEmitter {
     try {
       const state = await Promise.race([
         this.client.getState(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("getState timeout")), 15000))
+        new Promise((_, rej) => setTimeout(() => rej(new Error("getState timeout")), 25000))
       ]);
       return state || "UNKNOWN";
     } catch (e) {
@@ -1322,7 +1657,7 @@ class WhatsAppClient extends EventEmitter {
       return { ...base, isReady: true, status: "ready", connected: true, realState: "CONNECTED" };
     }
     // isReady (evento 'ready' disparou e o watchdog o mantem) e' verdade: NAO
-    // deixar um unico getState() lento/UNREACHABLE do Mumbai derrubar uma sessao
+    // deixar um unico getState() lento/UNREACHABLE do remote runtime derrubar uma sessao
     // saudavel porem quieta (>120s sem inbound). So o watchdog (3 strikes)
     // rebaixa isReady; aqui apenas reportamos. Mata o fantasma no caminho quieto.
     if (this.isReady) {
@@ -1402,7 +1737,7 @@ class WhatsAppClient extends EventEmitter {
   _ensureHealthMonitor() {
     // Idempotente: garante o watchdog vivo. Chamado nos finally de initialize()
     // e softReconnect() pra que o monitor NUNCA morra permanentemente (era a
-    // causa do active:false eterno quando client.initialize() travava no Mumbai).
+    // causa do active:false eterno quando client.initialize() travava no remote runtime).
     if (!this._healthTimer) this._startHealthMonitor();
   }
 
@@ -1458,13 +1793,28 @@ class WhatsAppClient extends EventEmitter {
         }
         return;
       }
+      // Latencia remote runtime (India): um getState() lento/UNREACHABLE NAO prova sessao
+      // morta. Estados DEFINITIVAMENTE mortos derrubam rapido (e os eventos
+      // change_state/disconnected ja pegam esses na hora); estados AMBIGUOS
+      // (UNREACHABLE/UNKNOWN/timeout do getState num link de alta latencia)
+      // toleram MUITO mais antes do teardown — senao o watchdog destruia uma
+      // sessao saudavel-porem-quieta a cada ~3min ("cai sozinho a cada 4min").
+      // Um unico CONNECTED ou inbound zera os strikes. (fix 11/06: ping-da-India)
+      const _dead = /UNPAIRED|CONFLICT|DEPRECATED|UNLAUNCHED|DESTROYED|NO_CLIENT/i.test(String(state));
+      const _limit = _dead ? 3 : 10;
       bad += 1;
       this._watchdogFailures = bad;
       this._lastHealthState = state;
-      this._log(`[HEALTH] estado=${state} sem atividade (falha ${bad}/3)`);
-      if (bad >= 3) {
+      this._log(`[HEALTH] estado=${state} sem atividade (falha ${bad}/${_limit})`);
+      if (bad >= _limit) {
         bad = 0;
         this._watchdogFailures = 0;
+        if (this._isAmbiguousHealthState(state)) {
+          this._markEvent("watchdog_reconnect_ambiguous", { reason: state });
+          this._warn(`[HEALTH] estado ambíguo persistente (${state}) — soft reconnect silencioso, sem alerta de QR`);
+          this.softReconnect("health-monitor:" + state);
+          return;
+        }
         this.isReady = false;
         this.status = "disconnected";
         this._markEvent("watchdog_reconnect", { reason: state });
@@ -1522,7 +1872,7 @@ class WhatsAppClient extends EventEmitter {
     });
   }
 
-  async clearAndReinitialize(phoneNumber = null) {
+  async clearAndReinitialize(phoneNumber = null, options = {}) {
     this._log("[PAIRING] Clearing auth and reinitializing...");
     this._markEvent(phoneNumber ? "pairing_reinitialize" : "session_wipe_reinitialize");
     try {
@@ -1542,17 +1892,21 @@ class WhatsAppClient extends EventEmitter {
     this.status = "disconnected";
 
     // Apenas a sessao DA org corrente — outras orgs continuam vivas.
-    const sessionPath = path.join(
-      process.cwd(),
-      this.dataBase.replace(/^\.\//, ""),
-      `session-org-${this.orgId}`
-    );
+    const sessionPath = this._sessionDir();
     // PROFILAXIA: snapshot de seguranca ANTES de apagar — qualquer wipe (timeout,
     // /api/disconnect ou re-pair) fica recuperavel via _bak-...__prewipe.
     this._snapshotSession("__prewipe");
     // Wipe/re-pair explicito nao pode ser desfeito pelo restore automatico do
     // ultimo backup saudavel; manter so o __prewipe para recuperacao manual.
-    this._discardLastGoodBackup(phoneNumber ? "pairing reinitialize" : "wipe reinitialize");
+    // EXCECAO (Frente 3): a recuperacao automatica de auth_failure pede
+    // preserveLastGood — se a rejeicao for transiente, o auto-cura do proximo
+    // boot restaura __lastgood em vez de forcar QR. __prewipe (acima) e' sempre tirado.
+    const preserveLastGood = Boolean(options && options.preserveLastGood);
+    if (!preserveLastGood) {
+      this._discardLastGoodBackup(phoneNumber ? "pairing reinitialize" : "wipe reinitialize");
+    } else {
+      this._log("[AUTO-CURA] __lastgood preservado (recuperacao de auth_failure)");
+    }
     try {
       if (fs.existsSync(sessionPath)) {
         fs.rmSync(sessionPath, { recursive: true, force: true });

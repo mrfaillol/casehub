@@ -176,9 +176,19 @@
   padding: 0;
   border: none;
   border-radius: 0;
-  background: var(--surface-card, var(--surface-base));
-  box-shadow: var(--elevation-3);
-  z-index: var(--z-modal);
+  /* Janela translúcida (Equipe CaseHub): painel a 80% deixa o fundo escurecido
+     transparecer mais (mais translúcido que os 92% anteriores), SEM blur
+     (perf — backdrop-filter custaria GPU numa área grande). z-index concreto:
+     na página deployada o token --z-modal resolve para 90 (abaixo da chrome do
+     app), então fixamos em 1200. */
+  background: color-mix(in srgb, var(--surface-card, #131c2d) 80%, transparent);
+  /* Fundo escurecido full-viewport via box-shadow spread (100vmax): pinta a cor
+     escura ao redor do painel — dimando sidebar + header — atrás do elemento mas
+     acima da página, sem cobrir o conteúdo do painel e sem blur (custo zero).
+     Cor escura fixa (não --surface-inverse, que na dark theme resolve p/ claro e
+     CLAREAVA a página). Validado ao vivo no alpha. */
+  box-shadow: 0 0 0 100vmax rgba(8, 12, 22, 0.6), var(--elevation-3, 0 12px 32px rgba(0, 0, 0, 0.4));
+  z-index: 1200;
   overflow: hidden;
 }
 #wacPipelineHost:not([hidden]) { display: flex; }

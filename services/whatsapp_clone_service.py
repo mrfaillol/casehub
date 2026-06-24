@@ -644,6 +644,8 @@ def record_message(
     display_name: Optional[str] = None,
     profile_pic_url: Optional[str] = None,
     auto_link_client_id: Optional[int] = None,
+    sent_by_user_id: Optional[int] = None,
+    increment_unread: bool = True,
     commit: bool = True,
 ) -> WaMessage:
     """Insert a message into wa_messages, dedup by (org_id, wa_message_id).
@@ -713,6 +715,7 @@ def record_message(
         sent_at=when,
         ai_generated=bool(ai_generated),
         reply_to_message_id=reply_to_message_id,
+        sent_by_user_id=sent_by_user_id,
         reactions=[],
     )
     db.add(msg)
@@ -724,7 +727,7 @@ def record_message(
     if prev_at is None or _as_aware(when) >= prev_at:
         conv.last_message_id = msg.id
         conv.last_message_at = when
-    if not from_me:
+    if not from_me and increment_unread:
         conv.unread_count = (conv.unread_count or 0) + 1
     conv.updated_at = _now()
 
@@ -960,6 +963,46 @@ def list_messages(
     )
     # Reverse to oldest-first (chat.js renders top->bottom, scrolls to bottom).
     return [m.to_frontend_dict() for m in reversed(rows)]
+
+
+def count_messages(
+    db: Session,
+    *,
+    org_id: int,
+    phone: str,
+) -> int:
+    """Count persisted messages for one tenant-scoped WhatsApp conversation."""
+    if not org_id:
+        return 0
+    e164 = normalize_phone(phone)
+    if not e164:
+        return 0
+
+    contact = (
+        db.query(WaContact)
+        .filter(WaContact.org_id == org_id, WaContact.phone == e164)
+        .first()
+    )
+    if contact is None:
+        return 0
+    conv = (
+        db.query(WaConversation)
+        .filter(
+            WaConversation.org_id == org_id,
+            WaConversation.contact_id == contact.id,
+        )
+        .first()
+    )
+    if conv is None:
+        return 0
+    return (
+        db.query(WaMessage)
+        .filter(
+            WaMessage.org_id == org_id,
+            WaMessage.conversation_id == conv.id,
+        )
+        .count()
+    )
 
 
 def mark_conversation_read(

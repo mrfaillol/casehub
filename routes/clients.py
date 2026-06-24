@@ -8,7 +8,7 @@ from sqlalchemy import inspect, or_, text
 from typing import Optional
 import logging
 
-from models import get_db, Client, Case, User, Document
+from models import get_db, Client, Case, User, Document, Organization
 
 logger = logging.getLogger(__name__)
 from auth import get_current_user
@@ -166,6 +166,85 @@ async def new_client(request: Request, db: Session = Depends(get_db)):
         "custom_fields": custom_fields
     })
 
+# Per-org opt-in toggle (default OFF). Lives in Organization.features so it
+# needs no schema migration and never surprises an existing org in prod: a
+# missing key reads as False via Organization.has_feature.
+AUTO_DRIVE_FOLDER_FEATURE = "auto_create_drive_folder"
+
+
+def _maybe_auto_create_drive_folder(request: Request, db: Session, client: Client) -> None:
+    """Best-effort provision a Google Drive folder for a freshly created client.
+
+    CONSERVATIVE by design (touches an external API + prod):
+
+    1. Gated behind the per-org ``auto_create_drive_folder`` feature flag
+       (``Organization.features``), **default OFF**. No flag => no-op.
+    2. Org-scoped end to end: the flag is read from the caller's own org
+       and the Drive handler is instantiated with that ``org_id``.
+    3. Non-fatal: ANY failure (no token, API error, no folder id) is
+       logged and swallowed — the client cadastro must never break because
+       Drive is down or misconfigured.
+    4. On success, persists ``drive_folder_id`` + ``drive_folder_name`` on
+       the client (reusing the same columns the manual link endpoint uses).
+
+    NOTE: this only provisions the client's root folder via
+    ``get_client_folder`` (idempotent get-or-create). The opinionated
+    visa-category subfolder structure is intentionally NOT created here.
+    """
+    org_id = getattr(getattr(request, "state", None), "org_id", None)
+    if org_id is None:
+        return
+    try:
+        org = db.query(Organization).filter(Organization.id == org_id).first()
+        if org is None or not org.has_feature(AUTO_DRIVE_FOLDER_FEATURE):
+            return
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning("[AUTO-DRIVE] feature check failed for org %s: %s", org_id, e)
+        db.rollback()
+        return
+
+    try:
+        from services.google_drive_handler import GoogleDriveHandler
+
+        handler = GoogleDriveHandler(db, org_id=org_id)
+        if not getattr(handler, "service", None):
+            logger.info(
+                "[AUTO-DRIVE] org %s has toggle ON but no Drive token; skipping client %s",
+                org_id, client.id,
+            )
+            return
+
+        client_name = (client.full_name or "").strip()
+        if not client_name:
+            return
+
+        folder_id = handler.get_client_folder(client_name)
+        if not folder_id:
+            logger.info(
+                "[AUTO-DRIVE] no folder id returned for org %s client %s; skipping",
+                org_id, client.id,
+            )
+            return
+
+        client.drive_folder_id = folder_id
+        client.drive_folder_name = client_name
+        db.commit()
+        logger.info(
+            "[AUTO-DRIVE] org %s client %s linked to drive_folder_id=%s",
+            org_id, client.id, folder_id,
+        )
+    except Exception as e:
+        # Drive failure must NOT break the cadastro.
+        logger.warning(
+            "[AUTO-DRIVE] auto-create failed for org %s client %s: %s",
+            org_id, getattr(client, "id", "?"), e,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 @router.post("/new")
 async def create_client(
     request: Request,
@@ -228,7 +307,12 @@ async def create_client(
     # Save custom fields
     form_data = await request.form()
     save_custom_fields_from_form(db, "client", client.id, dict(form_data))
-    
+
+    # CRM (N7): opt-in auto-create the client's Google Drive folder. Gated
+    # behind a per-org toggle (default OFF) and fully non-fatal — a Drive
+    # failure never blocks the cadastro.
+    _maybe_auto_create_drive_folder(request, db, client)
+
     return RedirectResponse(url=f"{PREFIX}/clients/{client.id}", status_code=302)
 
 @router.get("/{client_id}", response_class=HTMLResponse)

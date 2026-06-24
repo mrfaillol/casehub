@@ -1,5 +1,5 @@
 /* CaseHub App · Bottom-nav controller — abas dinâmicas no mobile
- * (29/05 Victor):
+ * (29/05 Equipe CaseHub):
  *  - As abas abertas PREENCHEM a largura da nav (flex). 1 aba ocupa tudo; N dividem igual.
  *  - LIMITE por tela: maxTabs = largura / largura-mínima. Tentar abrir além → avisa pra fechar.
  *  - FECHAR: arraste a aba pra CIMA ou pra BAIXO (estilo balãozinho do Messenger). Sem × visível.
@@ -56,7 +56,7 @@
   // serve só pra decidir o ponto a partir do qual a pílula passa a rolar
   // (overflow-x). Descontamos as bolhas externas (Painel à esquerda + Mais à
   // direita) e seus gaps — elas vivem fora da pílula e não disputam o espaço
-  // das abas. (onda2 Victor: nunca bloquear, deixar rolar.)
+  // das abas. (onda2 Equipe CaseHub: nunca bloquear, deixar rolar.)
   function maxTabs(nav) {
     var sc = nav.querySelector('.ch-bottomnav__scroller') || nav;
     var w = sc.clientWidth;
@@ -69,7 +69,7 @@
   }
 
   // ─── sem × visível — fechar é SÓ por gesto (arrastar a aba pra cima/baixo).
-  //     (Victor 29/05: "descartar o X evidente e deixar só o gesto pra fechar".) ───
+  //     (Equipe CaseHub 29/05: "descartar o X evidente e deixar só o gesto pra fechar".) ───
   function stripRemoveBtn(el) {
     var x = el.querySelector('.ch-nav-remove'); if (x) x.remove();
   }
@@ -138,7 +138,7 @@
       if (!key) return; // link utilitário → navega normal
       var pinned = loadPinned() || defaultPinned(catalog(nav));
       if (pinned.indexOf(key) >= 0) return; // já é aba → navega normal
-      // onda2 (Victor): NÃO bloqueamos mais com aviso. A pílula sustenta quantas
+      // onda2 (Equipe CaseHub): NÃO bloqueamos mais com aviso. A pílula sustenta quantas
       // abas o usuário quiser — o que passar da largura confortável (maxTabs)
       // entra no overflow-x scroll. Só sinalizamos (sem barrar) quando a barra
       // já vai precisar rolar, pra dar feedback honesto.
@@ -162,7 +162,7 @@
     }
     var pinned = loadPinned() || defaultPinned(items);
     var act = activeKey(nav);
-    // onda3 (Victor 09/06): abrir um módulo o FIXA como aba (modelo "abas de
+    // onda3 (Equipe CaseHub 09/06): abrir um módulo o FIXA como aba (modelo "abas de
     // navegador") — a rota ativa que ainda não é aba entra na lista persistida,
     // então acumula em vez de sumir ao trocar de página. Fechar = arrastar.
     if (act && pinned.indexOf(act) < 0) {

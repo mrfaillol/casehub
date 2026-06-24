@@ -24,25 +24,25 @@ DEFAULT_NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
 
 # Task Manager Database IDs
 TASK_DATABASES = {
-    "juliana": {
-        "database_id": "2eecd9459a03809a9547f45fb025dd8f",
-        "name": "Task Manager (Juliana)",
+    "member_a": {
+        "database_id": os.getenv("NOTION_TASK_DB_MEMBER_A", ""),
+        "name": "Task Manager (Member A)",
         "color": "#dc3545"  # red
     },
-    "ana": {
-        "id": "28bd872b-594c-81b4-8de3-000206afa5fb",
-        "database_id": "2eecd9459a03801194c2d9cc613677f5",
-        "name": "Task Manager (Ana)",
+    "member_b": {
+        "id": os.getenv("NOTION_USER_ID_MEMBER_B", ""),
+        "database_id": os.getenv("NOTION_TASK_DB_MEMBER_B", ""),
+        "name": "Task Manager (Member B)",
         "color": "#ffc107"  # yellow
     },
-    "danielle": {
-        "database_id": "30acd9459a038075b8d7c8e4e6b00e08",
-        "name": "Task Manager (Danielle)",
+    "member_c": {
+        "database_id": os.getenv("NOTION_TASK_DB_MEMBER_C", ""),
+        "name": "Task Manager (Member C)",
         "color": "#8b5cf6"  # purple
     },
-    "daniel": {
-        "database_id": "30acd9459a03804692b1fb2252cc2062",
-        "name": "Task Manager (Daniel)",
+    "member_d": {
+        "database_id": os.getenv("NOTION_TASK_DB_MEMBER_D", ""),
+        "name": "Task Manager (Member D)",
         "color": "#3b82f6"  # blue
     }
 }
@@ -50,12 +50,11 @@ TASK_DATABASES = {
 # User IDs for @mentions and notifications
 # Emails loaded from TEAM_EMAILS config; Notion IDs are Notion-specific
 _NOTION_USER_IDS_BASE = {
-    "juliana": {"id": "4a8a5088-b926-4e76-bc7a-2de211f3ee45", "name": "Juliana Moreschi"},
-    "ana": {"id": "28bd872b-594c-81b4-8de3-000206afa5fb", "name": "Ana Clara Leal da Costa Bueno"},
-    "victor": {"id": "10ed872b-594c-810c-aa8d-0002c3926bc7", "name": "Victor Vingren"},
-    "laura": {"id": "2eed872b-594c-81a0-840f-0002bdfd469f", "name": "Laura Baticioto"},
-    "danielle": {"id": "", "name": "Danielle Fujii"},
-    "daniel": {"id": "", "name": "Daniel Clasen"},
+    "member_a": {"id": os.getenv("NOTION_USER_ID_MEMBER_A", ""), "name": "Member A"},
+    "member_b": {"id": os.getenv("NOTION_USER_ID_MEMBER_B", ""), "name": "Member B"},
+    "admin": {"id": os.getenv("NOTION_USER_ID_ADMIN", ""), "name": "CaseHub Admin"},
+    "member_c": {"id": os.getenv("NOTION_USER_ID_MEMBER_C", ""), "name": "Member C"},
+    "member_d": {"id": os.getenv("NOTION_USER_ID_MEMBER_D", ""), "name": "Member D"},
 }
 
 def _build_notion_user_ids():
@@ -321,8 +320,7 @@ class NotionTasksService:
 
     def get_tasks_from_database(self, database_key: str, use_cache: bool = True) -> List[Dict]:
         """
-        Get all tasks from a specific database
-        database_key: 'juliana' or 'ana'
+        Get all tasks from a specific database.
         """
         if database_key not in TASK_DATABASES:
             return []

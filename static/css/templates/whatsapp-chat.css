@@ -3,6 +3,19 @@
    Consome APENAS tokens semânticos de themes/_tokens.css.
    ============================================================ */
 
+/* ── Token bridge (2026-06-17) ───────────────────────────────
+   app/_tokens.css define --radius-xs..xl + --radius-pill, mas NUNCA
+   --radius-full. Todo `border-radius: var(--radius-full)` deste arquivo
+   computava 0px → avatares e botões quadrados no alpha vivo (medido por
+   harness fiel: .wa-avatar/.wa-header-action-btn/.wa-bot-toggle = 0px).
+   Definir o token "fully round" no escopo WhatsApp (este CSS só carrega
+   aqui) restaura o arredondamento que o arquivo inteiro já assume.
+   Lei de Fitts: alvos circulares têm borda ativa uniforme. */
+.wa-app,
+.wa-standalone-header {
+  --radius-full: 9999px;
+}
+
 /* ── Layout overrides ────────────────────────────────────── */
 
 .main-content:has(.wa-app) {
@@ -197,7 +210,14 @@
 
 .wa-conversations {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  /* No mobile o layout é empilhado (lista acima, conversa abaixo) e a PÁGINA
+     também rola — então o gesto de rolar a lista vazava para a página e parecia
+     que "a lista não scrolla". overscroll-behavior:contain prende o scroll na
+     lista; touch-action:pan-y trava o eixo vertical do gesto. */
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 /* Conversation row — Fitts: full 82px hit area; active row reads as a
@@ -260,6 +280,11 @@
   justify-content: center;
   background: linear-gradient(145deg, var(--accent), var(--accent-active));
   color: var(--text-on-accent);
+}
+
+.wa-avatar [hidden],
+.wa-shell-module .wa-avatar [hidden] {
+  display: none !important;
 }
 
 .wa-conv-info {
@@ -467,13 +492,16 @@
   transition:
     background-color var(--motion-base) var(--motion-curve-organic),
     color var(--motion-base) var(--motion-curve-organic),
-    border-color var(--motion-base) var(--motion-curve-organic);
+    border-color var(--motion-base) var(--motion-curve-organic),
+    transform var(--motion-fast, 120ms) var(--motion-curve-organic);
 }
 
 .wa-filter-chip:hover {
   background: var(--surface-overlay);
   color: var(--text-primary);
 }
+
+.wa-filter-chip:active { transform: scale(0.96); }
 
 .wa-filter-chip.active {
   background: var(--text-primary);
@@ -556,7 +584,7 @@
   padding: var(--space-3);
   margin-bottom: var(--space-2);
   display: none;
-  z-index: var(--z-popover);
+  z-index: var(--z-popover, 1500);
   box-shadow: var(--elevation-2);
 }
 
@@ -644,8 +672,8 @@
 /* ── Header action buttons ───────────────────────────────── */
 
 .wa-header-action-btn {
-  width: 36px;
-  height: 36px;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -656,7 +684,14 @@
   justify-content: center;
   transition:
     background-color var(--motion-base) var(--motion-curve-organic),
-    color var(--motion-base) var(--motion-curve-organic);
+    color var(--motion-base) var(--motion-curve-organic),
+    transform var(--motion-fast, 120ms) var(--motion-curve-organic);
+}
+
+/* Glyph uniforme: independe do peso/box de cada ícone FA. */
+.wa-header-action-btn i {
+  font-size: var(--font-size-md, 1rem);
+  line-height: 1;
 }
 
 .wa-header-action-btn:hover {
@@ -664,9 +699,58 @@
   color: var(--text-primary);
 }
 
+/* Pressed: feedback tátil só por transform (GPU-friendly, pipeline-polish). */
+.wa-header-action-btn:active {
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  transform: scale(0.92);
+}
+
+.wa-header-action-btn:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+/* ── Divisor de cluster (Lei de Miller) ───────────────────────
+   Separa as 7 view-actions (busca/histórico/urgente/info/CRM/funil/
+   arquivar) do cluster de automação (Bot/Bloquear Bot/Follow-up). */
+.wa-header-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 22px;
+  margin: 0 var(--space-1);
+  background: var(--border-default);
+  align-self: center;
+}
+
+.wa-header-action-btn.is-loading i {
+  animation: wa-spin 0.9s linear infinite;
+}
+
 .wa-header-action-btn.active { color: var(--status-success); }
 
 .wa-header-action-btn.urgent { color: var(--status-danger); }
+
+.wa-history-status {
+  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+  box-shadow: inset var(--shadow-dark-xs), inset var(--shadow-light-xs);
+}
+
+.wa-history-status.success {
+  background: var(--status-success-bg);
+  color: var(--status-success);
+}
+
+.wa-history-status.error {
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
 
 /* ── Client info panel ───────────────────────────────────── */
 
@@ -680,7 +764,7 @@
   border-radius: var(--radius-md);
   padding: var(--space-4);
   display: none;
-  z-index: var(--z-popover);
+  z-index: var(--z-popover, 1500);
   box-shadow: var(--elevation-3);
 }
 
@@ -790,7 +874,7 @@
   border-radius: var(--radius-md);
   padding: var(--space-1) 0;
   min-width: 160px;
-  z-index: var(--z-popover);
+  z-index: var(--z-popover, 1500);
   display: none;
   box-shadow: var(--elevation-2);
 }
@@ -854,7 +938,8 @@
   justify-content: center;
   transition:
     background-color var(--motion-base) var(--motion-curve-organic),
-    color var(--motion-base) var(--motion-curve-organic);
+    color var(--motion-base) var(--motion-curve-organic),
+    transform var(--motion-fast, 120ms) var(--motion-curve-organic);
   flex-shrink: 0;
   position: relative;
 }
@@ -862,6 +947,13 @@
 .wa-toolbar-btn:hover {
   background: var(--surface-sunken);
   color: var(--text-primary);
+}
+
+/* Pressed coerente com .wa-header-action-btn (mesma família icon-ghost). */
+.wa-toolbar-btn:active {
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  transform: scale(0.92);
 }
 
 .wa-toolbar-btn.active { color: var(--status-success); }
@@ -1008,8 +1100,17 @@
   }
 
   .wa-app {
-    height: 100vh;
+    /* A .wa-app renderiza DENTRO do app shell (.ch-main top:120 + .ch-shell),
+       empurrada ~128px do topo, e o bottomnav (50) ocupa o rodapé. 100vh
+       ignorava isso e fazia a app vazar, dando scroll de página que roubava
+       o gesto de rolar da lista de conversas. Aqui ela cabe no espaço REAL:
+       viewport menos o offset do topo (128) menos o bottomnav (50). 100dvh =
+       dynamic (respeita barras mobile). min-height:0 p/ o flex child encolher. */
+    height: calc(100dvh - 128px - var(--bottomnav-h, 50px));
+    min-height: 0;
+    max-height: calc(100dvh - 128px);
     border-radius: 0;
+    overflow: hidden;
   }
 
   .wa-header {
@@ -1303,7 +1404,9 @@
   color: var(--text-secondary);
   transition:
     background-color var(--motion-base) var(--motion-curve-organic),
-    color var(--motion-base) var(--motion-curve-organic);
+    color var(--motion-base) var(--motion-curve-organic),
+    filter var(--motion-base) var(--motion-curve-organic),
+    transform var(--motion-fast, 120ms) var(--motion-curve-organic);
 }
 
 .wa-bot-toggle.bot-active {
@@ -1315,6 +1418,10 @@
   background: var(--status-info-bg);
   color: var(--status-info);
 }
+
+/* Hover vivo independente do estado (filter não briga com bg do .active). */
+.wa-bot-toggle:hover { filter: brightness(0.96); }
+.wa-bot-toggle:active { transform: scale(0.96); }
 
 /* ── Never-contact button ────────────────────────────────── */
 
@@ -1333,13 +1440,16 @@
   transition:
     background-color var(--motion-base) var(--motion-curve-organic),
     color var(--motion-base) var(--motion-curve-organic),
-    border-color var(--motion-base) var(--motion-curve-organic);
+    border-color var(--motion-base) var(--motion-curve-organic),
+    transform var(--motion-fast, 120ms) var(--motion-curve-organic);
 }
 
 .wa-never-contact:hover {
   background: var(--status-danger-bg);
   color: var(--status-danger);
 }
+
+.wa-never-contact:active { transform: scale(0.96); }
 
 .wa-never-contact.active {
   background: var(--status-danger-bg);
@@ -1370,6 +1480,7 @@
 }
 
 .wa-followup-btn:hover { background: var(--surface-overlay); }
+.wa-followup-btn:active { transform: scale(0.96); }
 
 .wa-followup-btn.marked {
   background: var(--status-warning);
@@ -1516,6 +1627,13 @@
 .wa-message.incoming:not(.tail) { border-top-left-radius: var(--radius-lg); }
 .wa-message.outgoing:not(.tail) { border-top-right-radius: var(--radius-lg); }
 
+/* Favorited/starred messages — affordance visível de estado (Fitts: feedback).
+   Keep the indicator inline with metadata so it cannot overlap message content. */
+.wa-message.starred .wa-message-time::before {
+  content: "★ ";
+  color: var(--c-pollen);
+}
+
 .wa-message-time {
   font-family: var(--font-family-mono);
   font-size: 11px;
@@ -1581,6 +1699,157 @@
 
 .wa-message-reactions.has-reactions { display: inline-flex; }
 
+/* Reply / react as individual circular buttons ("bolinhas") floating BESIDE
+   the bubble — WhatsApp-Web style. Previously these were UNSTYLED native
+   <button>s (loud gray pills under every bubble). Now each is its own raised
+   circle on the bubble's inner side (toward the centre, away from the tail),
+   vertically centred, invisible until hover/focus on desktop and quiet on
+   touch. Inner side = never clipped by the messages' overflow-x: clip. */
+.wa-message-actions {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-base) var(--motion-curve-organic),
+              transform var(--motion-base) var(--motion-curve-organic);
+  z-index: 2;
+}
+
+/* The offset to the bubble is PADDING, not margin — so the gap between the
+   bubble and the buttons stays inside .wa-message-actions (a child of the
+   bubble) and the pointer never crosses a dead zone that drops :hover. This
+   is what made the bolinhas "not work": you couldn't reach them to click. */
+.wa-message.incoming .wa-message-actions {
+  left: 100%;
+  padding-left: var(--space-2);
+  transform: translateY(-50%) translateX(-4px);
+}
+
+.wa-message.outgoing .wa-message-actions {
+  right: 100%;
+  padding-right: var(--space-2);
+  flex-direction: row-reverse;
+  transform: translateY(-50%) translateX(4px);
+}
+
+.wa-message:hover .wa-message-actions,
+.wa-message:focus-within .wa-message-actions,
+.wa-message-actions:hover {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) translateX(0);
+}
+
+.wa-msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--elevation-1);
+  transition: background-color var(--motion-base) var(--motion-curve-organic),
+              color var(--motion-base) var(--motion-curve-organic),
+              transform var(--motion-base) var(--motion-curve-organic);
+}
+
+.wa-msg-action-btn:hover {
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  transform: scale(1.08);
+}
+
+/* Touch devices can't hover — keep the bolinhas present but quiet so they
+   never dominate the bubble like the old native pills did. */
+/* Touch: hide the floating reply/react bolinhas entirely — they have no
+   hover to gate them, so they sat beside EVERY bubble and overlapped the
+   conversation on narrow screens. On touch the long-press menu (Responder /
+   Reagir) is the affordance, matching WhatsApp mobile. */
+@media (hover: none) {
+  .wa-message-actions { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wa-message.incoming .wa-message-actions,
+  .wa-message.outgoing .wa-message-actions { transform: translateY(-50%); }
+}
+
+/* ── Reply bar (quoted-reply preview above the composer) ───────────────────
+   Markup só existia em templates/whatsapp/chat.html; o template do app
+   (servido em /casehub/whatsapp-chat) não tinha #replyBar nem estilo, então
+   startReplyTo() estourava ao setar .textContent de null. Toggle via .show. */
+.wa-reply-bar {
+  display: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-raised, #131c2d);
+  border-left: 3px solid var(--accent, #25d366);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--elevation-1, 0 1px 3px rgba(0, 0, 0, 0.3));
+}
+.wa-reply-bar.show { display: flex; }
+.wa-reply-bar-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wa-reply-bar-author { font-size: 12px; font-weight: 600; color: var(--accent, #25d366); }
+.wa-reply-bar-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wa-reply-bar-close {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--motion-base, 180ms) var(--motion-curve-organic, ease);
+}
+.wa-reply-bar-close:hover { background: var(--surface-overlay); color: var(--text-primary); }
+
+/* ── Reaction picker (floating emoji row) ──────────────────────────────────
+   openReactionPicker() posiciona via clientX/clientY → precisa position:fixed.
+   z-index concreto (token --z-* não resolve nessa página). Toggle via .show. */
+.wa-reaction-picker {
+  display: none;
+  position: fixed;
+  z-index: 1200;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-raised, #131c2d);
+  border-radius: var(--radius-full, 999px);
+  box-shadow: var(--elevation-2, 0 8px 24px rgba(0, 0, 0, 0.35));
+}
+.wa-reaction-picker.show { display: flex; }
+.wa-reaction-opt {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--motion-base, 180ms) var(--motion-curve-organic, ease);
+}
+.wa-reaction-opt:hover { transform: scale(1.25); background: var(--surface-overlay); }
+
 /* Deleted message placeholder. */
 .wa-message.deleted .wa-message-content {
   font-style: italic;
@@ -1590,6 +1859,19 @@
 .wa-message-content {
   white-space: pre-wrap;
   word-wrap: break-word;
+  /* Glyph-render hardening — match WhatsApp Web: message body text is pinned
+     to a SYSTEM font stack instead of inheriting the app's custom display
+     font (Maven Pro). A custom/subset web font that mis-maps a glyph is a
+     prime suspect for letters rendering wrong (e.g. "O" → ")"); system fonts
+     plus an explicit emoji/symbol fallback (generic last, so it is actually
+     reachable) give the broadest, most reliable coverage. Ligatures off so
+     sequences like "f)" or "<3" stay literal. */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji", "Noto Sans Symbols2", sans-serif;
+  font-variant-ligatures: none;
+  -webkit-font-feature-settings: "liga" 0, "clig" 0;
+  font-feature-settings: "liga" 0, "clig" 0;
 }
 
 .wa-message-content a {
@@ -1638,6 +1920,59 @@
 
 .wa-message-media img:hover { opacity: 0.9; }
 
+/* Inline image: hover-reveal download button (WhatsApp-Web parity) so an
+   operator can save the photo without opening the lightbox first. */
+.wa-message-media--image { position: relative; }
+
+.wa-media-download {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, #0a0e18 55%, transparent);
+  color: var(--text-on-accent);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-base) var(--motion-curve-organic),
+              background-color var(--motion-base) var(--motion-curve-organic);
+}
+
+.wa-message-media--image:hover .wa-media-download,
+.wa-media-download:focus-visible { opacity: 1; }
+
+.wa-media-download:hover {
+  background: color-mix(in srgb, #0a0e18 75%, transparent);
+}
+
+@media (hover: none) {
+  .wa-media-download { opacity: 0.9; }
+}
+
+/* Graceful fallback when an image URL fails (expired proxy / missing media)
+   — replaces the broken-image icon with an actionable card instead of a
+   silent blank, which is what made images look "impossible to see". */
+.wa-media-broken {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.wa-media-broken i { font-size: var(--font-size-lg); }
+
+.wa-media-broken a { color: var(--text-link); text-decoration: underline; }
+
 .wa-message-media audio {
   width: 100%;
   min-width: 240px;
@@ -1662,6 +1997,35 @@
 }
 
 .wa-message-media-doc:hover { background: var(--surface-overlay); }
+
+/* Previewable docs (PDF/image) get a pointer + focus ring; the row opens the
+   viewer, the download button is a separate target. */
+.wa-message-media-doc.is-previewable { cursor: pointer; }
+.wa-message-media-doc.is-previewable:focus-visible {
+  outline: 2px solid var(--status-info);
+  outline-offset: 2px;
+}
+
+.wa-doc-download-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--motion-base) var(--motion-curve-organic),
+              color var(--motion-base) var(--motion-curve-organic);
+}
+
+.wa-doc-download-btn:hover {
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
 
 .wa-message-media-doc i {
   font-size: var(--font-size-2xl);
@@ -1705,8 +2069,12 @@
 .wa-lightbox {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--surface-inverse) 90%, transparent);
-  z-index: var(--z-tooltip);
+  /* Slightly darker backdrop so the opened image pops (Equipe CaseHub). */
+  background: color-mix(in srgb, #0a0e18 96%, transparent);
+  /* Concrete fallback: on this page --z-tooltip resolves to nothing, leaving
+     z-index:auto, so the OS tab bar painted over the lightbox. 2147483000 is
+     just under the int max — always above app chrome. */
+  z-index: var(--z-tooltip, 2147483000);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1725,6 +2093,47 @@
   max-height: 90vh;
   object-fit: contain;
   border-radius: var(--radius-sm);
+  cursor: zoom-in;
+  transition: transform var(--motion-base) var(--motion-curve-organic);
+}
+
+.wa-lightbox img.zoomed {
+  transform: scale(2);
+  cursor: zoom-out;
+}
+
+/* Prev / next gallery navigation + counter (WhatsApp-Web parity). */
+.wa-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, #0a0e18 45%, transparent);
+  color: var(--text-on-accent);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background-color var(--motion-base) var(--motion-curve-organic);
+}
+
+.wa-lightbox-nav:hover { background: color-mix(in srgb, #0a0e18 70%, transparent); }
+.wa-lightbox-prev { left: var(--space-4); }
+.wa-lightbox-next { right: var(--space-4); }
+
+.wa-lightbox-counter {
+  position: absolute;
+  top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-on-accent);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 
 .wa-lightbox-close {
@@ -1741,6 +2150,141 @@
 }
 
 .wa-lightbox-close:hover { opacity: 0.7; }
+
+/* Lightbox download — sits next to the close button so a full-screen image
+   can be saved directly (WhatsApp-Web parity). */
+.wa-lightbox-download {
+  position: absolute;
+  top: var(--space-4);
+  right: calc(var(--space-5) + 44px);
+  background: none;
+  border: none;
+  color: var(--text-on-accent);
+  font-size: 22px;
+  cursor: pointer;
+  padding: var(--space-2);
+  line-height: 1;
+  text-decoration: none;
+}
+
+.wa-lightbox-download:hover { opacity: 0.7; }
+
+/* ── Document preview (in-app PDF viewer) ────────────────────── */
+
+/* Backdrop escurecido que centraliza a janela do PDF (popup contido, não
+   fullscreen — Equipe CaseHub). Clique fora fecha (handler no template). */
+.wa-doc-preview {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-tooltip, 2147483000);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(8, 12, 22, 0.7);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-slow) var(--motion-curve-organic);
+}
+
+.wa-doc-preview.show { opacity: 1; pointer-events: all; }
+
+/* Janela contida e centralizada (card com cantos arredondados + sombra). */
+.wa-doc-preview-window {
+  display: flex;
+  flex-direction: column;
+  width: min(900px, 100%);
+  height: min(88vh, 1100px);
+  background: var(--surface-base, #0d1420);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.wa-doc-preview-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-raised, #131c2d);
+  border-bottom: 1px solid var(--border-default, #22304a);
+  color: var(--text-primary);
+}
+
+.wa-doc-preview-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wa-doc-preview-action {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--motion-base) var(--motion-curve-organic);
+}
+
+.wa-doc-preview-action:hover { background: var(--surface-overlay, #1e2a44); color: var(--text-primary); }
+.wa-doc-preview-close { font-size: 26px; }
+
+.wa-doc-preview-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: var(--surface-base);
+}
+
+@media (max-width: 640px) {
+  .wa-doc-preview { padding: var(--space-2); }
+  .wa-doc-preview-window { width: 100%; height: 92vh; }
+}
+
+/* ── Drag-and-drop attach overlay ────────────────────────── */
+
+.wa-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-tooltip, 2147483000);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: color-mix(in srgb, #0a0e18 55%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-base) var(--motion-curve-organic);
+}
+
+.wa-drop-overlay.show { opacity: 1; }
+
+.wa-drop-overlay-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-8);
+  border: 2px dashed var(--text-on-accent);
+  border-radius: var(--radius-lg);
+  color: var(--text-on-accent);
+  font-size: var(--font-size-lg);
+}
+
+.wa-drop-overlay-inner i { font-size: 40px; }
 
 /* ── Input area ──────────────────────────────────────────── */
 
@@ -1847,7 +2391,7 @@
   max-height: 300px;
   overflow-y: auto;
   display: none;
-  z-index: var(--z-popover);
+  z-index: var(--z-popover, 1500);
   box-shadow: var(--elevation-2);
 }
 
@@ -1909,10 +2453,15 @@
 
 .wa-qr-container {
   flex: 1;
+  min-height: 0;            /* flex item must shrink below content so overflow scrolls */
   display: none;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  /* flex-start (not center): with `justify-content: center` a connect form taller
+     than the pane has its top clipped and UNREACHABLE (the .wa-chat overflow is
+     hidden). Top-align + scroll keeps the whole form reachable on short viewports. */
+  justify-content: flex-start;
+  overflow-y: auto;
   padding: var(--space-10);
   text-align: center;
 }
@@ -2189,7 +2738,7 @@
   to { transform: rotate(360deg); }
 }
 
-/* #5 (Example User 02/06) — aviso de primeira conexao na lista de conversas.
+/* #5 (UsuarioDemo 02/06) — aviso de primeira conexao na lista de conversas.
    Empilha spinner + linhas de texto verticalmente (a regra base e row),
    centralizado, com a dica secundaria atenuada. */
 .wa-loading:has(.wa-loading-hint) {
@@ -2356,7 +2905,7 @@
 .wa-template-modal {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--surface-inverse) 70%, transparent);
+  background: color-mix(in srgb, #0a0e18 70%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2580,6 +3129,16 @@
 }
 
 .wa-conversation-context.show { display: block; }
+
+/* Mobile: the summary sits in-flow above the messages, so a long summary
+   eats the conversation. Cap its body and let it scroll inside itself —
+   the chat stays visible (Equipe CaseHub: "resumo cobrindo a conversa"). */
+@media (max-width: 768px) {
+  .wa-conversation-context:not(.collapsed) .wa-context-body {
+    max-height: 26vh;
+    overflow-y: auto;
+  }
+}
 
 .wa-context-header {
   font-size: var(--font-size-xs);
@@ -2866,7 +3425,8 @@
   border-radius: var(--radius-sm);
   transition:
     background-color var(--motion-base) var(--motion-curve-organic),
-    color var(--motion-base) var(--motion-curve-organic);
+    color var(--motion-base) var(--motion-curve-organic),
+    transform var(--motion-fast, 120ms) var(--motion-curve-organic);
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -2876,6 +3436,8 @@
   background: var(--surface-sunken);
   color: var(--text-primary);
 }
+
+.wa-tab:active { transform: scale(0.96); }
 
 .wa-tab.active {
   background: var(--status-success-bg);
@@ -3004,6 +3566,7 @@
 }
 
 .wa-btn {
+  min-height: var(--tap-target-min, 44px);
   padding: var(--space-3) var(--space-5);
   border-radius: var(--radius-sm);
   border: none;
@@ -3019,11 +3582,16 @@
 }
 
 .wa-btn-primary {
-  background: var(--status-success);
-  color: var(--text-on-accent);
+  background: var(--cta-neon-bg, var(--status-success));
+  color: var(--cta-neon-fg, var(--text-on-accent));
+  box-shadow: var(--cta-neon-shadow, none);
 }
 
-.wa-btn-primary:hover { background: var(--accent-hover); }
+.wa-btn-primary:hover {
+  background: var(--cta-neon-bg-hover, var(--accent-hover));
+  color: var(--cta-neon-fg, var(--text-on-accent));
+  box-shadow: var(--cta-neon-shadow-hover, none);
+}
 
 .wa-btn-danger {
   background: var(--status-danger);
@@ -3181,7 +3749,7 @@
   display: none;
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--surface-inverse) 70%, transparent);
+  background: color-mix(in srgb, #0a0e18 70%, transparent);
   z-index: var(--z-modal);
   align-items: center;
   justify-content: center;
@@ -3342,6 +3910,12 @@
    inside the CaseHub workspace. */
 
 .wa-shell-module {
+  --wa-mobile-chrome-offset: calc(
+    var(--topbar-sticky-h, 120px) +
+    104px +
+    var(--space-2, 8px) +
+    env(safe-area-inset-bottom, 0px)
+  );
   --wa-green: #25D366;
   --wa-green-d: #008C4D;
   --wa-outgoing: #D9FDD3;
@@ -3389,6 +3963,7 @@
   --motion-curve-organic: var(--ease-out);
   min-width: 0;
   max-width: 100%;
+  min-height: 0;
 }
 
 .wa-shell-module .wa-standalone-header,
@@ -3475,10 +4050,12 @@
 
 /* Tabs (Chat / Configurações / Modelos): tab inativa é plana (sem borda);
    ativa = poço afundado (pressed inset) no mesmo material + acento verde
-   delicado. Lei de Jakob: mesmo padrão neu dos filtros e do pill de modo. */
+   delicado. Lei de Jakob: mesmo padrão neu dos filtros e do pill de modo.
+   Fitts: hit-area 44px (var --tap-target-min) — antes 38px, abaixo do mínimo
+   WCAG 2.5.5 / Apple HIG para alvo de toque. */
 .wa-shell-module .wa-tab {
-  min-height: 38px;
-  padding: 0 var(--space-3);
+  min-height: var(--tap-target-min, 44px);
+  padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-pill);
   color: var(--fg-muted);
@@ -3539,9 +4116,12 @@
 
 /* Filtros: chip neumórfico levemente elevado (raised) sobre o painel; sem
    borda crua. Ativo = afundado (pressed inset) no MESMO material + acento
-   verde delicado — a affordance de seleção é o relevo, não a borda. */
+   verde delicado — a affordance de seleção é o relevo, não a borda.
+   Fitts: 44px — filtro (urgente/não-lidas/needs-response) é toque frequente
+   no mobile durante triagem; antes 34px, abaixo do mínimo. A filter-bar
+   compensa com gap apertado e overflow-x no mobile (já existe). */
 .wa-shell-module .wa-filter-chip {
-  min-height: 34px;
+  min-height: var(--tap-target-min, 44px);
   padding: 0 var(--space-3);
   border-radius: var(--radius-pill);
   background: var(--surface-card);
@@ -3621,7 +4201,7 @@
 }
 
 /* Avatar variants for the internal-team conversation tabs (#equipe, @Maestro,
-   @Example User...). The conversation list shows a foto (photo_url) for people, a
+   @UsuarioDemo...). The conversation list shows a foto (photo_url) for people, a
    group glyph for #equipe, and the Maestro mark for o Maestro — never a bare
    "@"/"#". These hooks let the avatar carry an <img> or um ícone centrado
    dentro do mesmo disco neumórfico redondo e sutil. */
@@ -3702,11 +4282,16 @@
   padding: 0 var(--space-4);
 }
 
+/* Botões de ação (header/composer): discos neumórficos de 44px — o mínimo
+   WCAG 2.5.5 / Apple HIG / lei de Fitts para toque confiável. Antes este
+   bloco forçava 40px, anulando o --tap-target-min (44px) da regra base
+   (.wa-header-action-btn:675). Header actions e composer são os controles
+   MAIS usados do chat — não podem ficar abaixo do mínimo. */
 .wa-shell-module .wa-header-action-btn,
 .wa-shell-module .wa-toolbar-btn,
 .wa-shell-module .wa-send-btn {
-  width: 40px;
-  height: 40px;
+  width: var(--tap-target-min, 44px);
+  height: var(--tap-target-min, 44px);
   border-radius: var(--radius-pill);
 }
 
@@ -3722,10 +4307,13 @@
   color: var(--fg-default);
 }
 
+/* Toggles de automação (Bot / Bloquear / Follow-up): pill de 44px de altura.
+   Antes 36px — abaixo do mínimo de toque; são controles de estado críticos
+   (ligar/desligar bot, marcar follow-up) e merecem hit-area confiável. */
 .wa-shell-module .wa-bot-toggle,
 .wa-shell-module .wa-never-contact,
 .wa-shell-module .wa-followup-btn {
-  min-height: 36px;
+  min-height: var(--tap-target-min, 44px);
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--surface-card);
@@ -3823,10 +4411,12 @@
   }
 
   .wa-shell-module .wa-app {
-    height: auto;
-    min-height: calc(100dvh - 214px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - var(--wa-mobile-chrome-offset));
+    min-height: 0;
+    max-height: calc(100dvh - var(--wa-mobile-chrome-offset));
     border-radius: var(--radius-md);
     overflow: hidden;
+    overscroll-behavior: contain;
   }
 
   .wa-shell-module .wa-header {
@@ -3865,32 +4455,42 @@
 
   .wa-shell-module .wa-tab {
     justify-content: center;
-    min-height: 40px;
+    min-height: var(--tap-target-min, 44px);
     padding: 0 var(--space-2);
   }
 
   .wa-shell-module .wa-main {
     flex-direction: column;
-    min-height: 560px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .wa-shell-module .wa-sidebar {
     width: 100%;
     min-width: 0;
-    max-height: none;
+    /* Hick + Fitts: no mobile a tarefa pripessoa_demo e escolher a conversa. A lista
+       precisa dominar a tela e rolar internamente, deixando o estado vazio
+       abaixo como pista compacta, nao como painel concorrente. */
+    flex: 0 0 clamp(320px, 68%, 480px);
+    max-height: 68%;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
 
   .wa-shell-module .wa-search {
-    padding: var(--space-3);
+    padding: 10px var(--space-3);
   }
 
   .wa-shell-module .wa-filters-bar {
     display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
-    padding: 0 var(--space-3) var(--space-3);
+    padding: 0 var(--space-3) 8px;
   }
 
   .wa-shell-module .wa-filter-chip {
@@ -3898,11 +4498,54 @@
   }
 
   .wa-shell-module .wa-conversations {
-    max-height: 540px;
+    /* A lista é o alvo de rolagem. O pai tem altura fechada; estes flags evitam
+       scroll chaining para o documento quando o dedo começa sobre a conversa. */
+    max-height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
   }
 
   .wa-shell-module .wa-chat {
-    min-height: 300px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .wa-shell-module .wa-chat-empty,
+  .wa-shell-module .wa-qr-container {
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .wa-shell-module .wa-qr-container {
+    justify-content: flex-start;
+    padding-block: var(--space-5);
+  }
+
+  .wa-shell-module .wa-chat-empty {
+    justify-content: flex-start;
+    padding: var(--space-4);
+  }
+
+  .wa-shell-module .wa-chat-empty-icon {
+    width: 72px;
+    height: 72px;
+    font-size: 38px;
+  }
+
+  .wa-shell-module .wa-chat-empty h3 {
+    margin: 10px 0 0;
+    font-size: 18px;
+  }
+
+  .wa-shell-module .wa-chat-empty p {
+    display: none;
   }
 
   .wa-shell-module .wa-chat-header {
@@ -3929,10 +4572,10 @@
   .wa-shell-module .wa-bot-toggle,
   .wa-shell-module .wa-never-contact,
   .wa-shell-module .wa-followup-btn {
-    width: 36px;
-    min-width: 36px;
-    height: 36px;
-    min-height: 36px;
+    width: var(--tap-target-min, 44px);
+    min-width: var(--tap-target-min, 44px);
+    height: var(--tap-target-min, 44px);
+    min-height: var(--tap-target-min, 44px);
     padding: 0;
     justify-content: center;
     border-radius: 999px;
@@ -3954,6 +4597,7 @@
 
   .wa-shell-module .wa-messages {
     padding: var(--space-3);
+    min-height: 0;
   }
 
   .wa-shell-module .wa-message {
@@ -3963,6 +4607,7 @@
   .wa-shell-module .wa-input-area {
     gap: var(--space-2);
     padding: var(--space-3);
+    flex: 0 0 auto;
   }
 
   .wa-shell-module .wa-input-toolbar {
@@ -3972,11 +4617,18 @@
 
 @media (max-width: 480px) {
   .wa-shell-module .wa-app {
-    min-height: calc(100dvh - 204px - env(safe-area-inset-bottom, 0px));
+    height: calc(100dvh - var(--wa-mobile-chrome-offset));
+    min-height: 0;
+    max-height: calc(100dvh - var(--wa-mobile-chrome-offset));
   }
 
   .wa-shell-module .wa-main {
-    min-height: 520px;
+    min-height: 0;
+  }
+
+  .wa-shell-module .wa-sidebar {
+    flex-basis: clamp(340px, 74%, 520px);
+    max-height: 74%;
   }
 
   .wa-shell-module .wa-tab {
@@ -3992,7 +4644,7 @@
   }
 
   .wa-shell-module .wa-conversation {
-    min-height: 70px;
+    min-height: 64px;
     padding: var(--space-3);
   }
 }

@@ -200,7 +200,7 @@ def _configured_origin() -> str:
 
 
 # Allowlist of domain roots trusted for OAuth redirect targets.
-# Subdomain tenants (e.g. sampletenant.casehub.legal) match via the suffix
+# Subdomain tenants (e.g. tenanta.casehub.legal) match via the suffix
 # check.  Anchored suffix — "evil.casehub.legal.evil.com".endswith(".casehub.legal")
 # is False, so hostname injection cannot escalate past known roots.
 _REDIRECT_ALLOWED_ROOTS: frozenset[str] = frozenset({
@@ -208,8 +208,8 @@ _REDIRECT_ALLOWED_ROOTS: frozenset[str] = frozenset({
     "127.0.0.1",
     "casehub.io",
     "casehub.legal",
-    "casehub.sampletenantadvogados.com.br",
-    "vingren.me",
+    "demo.casehub.example",
+    "casehub.example",
 })
 
 
@@ -277,14 +277,14 @@ def _settings_return_url(request: Request) -> str:
 
 OAUTH_FRIENDLY_ERRORS = {
     "redirect_uri_mismatch": (
-        "URL de retorno nao autorizada no Google Cloud Console. Suporte: contato@vingren.me"
+        "URL de retorno nao autorizada no Google Cloud Console. Suporte: support@example.com"
     ),
     "invalid_grant": "Token expirado. Tente reconectar.",
     "access_denied": "Voce cancelou a permissao. Pode tentar de novo quando quiser.",
     "no_tenant_context": "Sessao sem contexto de escritorio. Faca login novamente.",
     "credentials_missing": (
         "Credenciais OAuth do Google ainda nao configuradas neste servidor. "
-        "Suporte: contato@vingren.me"
+        "Suporte: support@example.com"
     ),
     "oauth_start_failed": "Nao foi possivel iniciar o login Google. Tente em alguns segundos.",
     "missing_code": "Resposta do Google chegou incompleta. Tente conectar de novo.",

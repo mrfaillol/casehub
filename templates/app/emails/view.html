@@ -2,50 +2,50 @@
 
 {% block title %}{{ email.subject }} - {{ org_name|default('CaseHub') }}{% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="/static/css/templates/emails-view.css">
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/templates/emails-view.css?v=20260615-mono-icons">
 {% endblock %}
 
 {% block content %}
 <main class="emails-view" aria-labelledby="emails-view-title">
     <header class="emails-view__topbar">
         <a href="{{ PREFIX }}/emails" class="emails-view__back" aria-label="{% if product == 'lite' %}Voltar aos E-mails{% else %}Back to Emails{% endif %}">
-            <i class="fas fa-arrow-left" aria-hidden="true"></i>
+            <span data-icon="arrow_left" data-icon-size="16" aria-hidden="true"></span>
             <span>{% if product == "lite" %}Voltar{% else %}Back{% endif %}</span>
         </a>
         <div class="emails-view__actions" role="toolbar" aria-label="{% if product == 'lite' %}Ações do e-mail{% else %}Email actions{% endif %}">
             <a href="{{ PREFIX }}/emails/compose-v2?to_email={{ email.sender|urlencode }}&subject={{ ('Re: ' ~ email.subject)|urlencode }}&reply_to={{ email.id }}" class="emails-view__action emails-view__action--primary">
-                <i class="fas fa-reply" aria-hidden="true"></i>
+                <span data-icon="reply" data-icon-size="16" aria-hidden="true"></span>
                 <span>{% if product == "lite" %}Responder{% else %}Reply{% endif %}</span>
             </a>
             <a href="{{ PREFIX }}/emails/compose-v2?to_email={{ email.sender|urlencode }}&subject={{ ('Re: ' ~ email.subject)|urlencode }}&reply_to={{ email.id }}&reply_all=1" class="emails-view__action">
-                <i class="fas fa-reply-all" aria-hidden="true"></i>
+                <span data-icon="reply_all" data-icon-size="16" aria-hidden="true"></span>
                 <span>{% if product == "lite" %}Responder a Todos{% else %}Reply All{% endif %}</span>
             </a>
             <a href="{{ PREFIX }}/emails/compose-v2?subject={{ ('Fwd: ' ~ email.subject)|urlencode }}&forward_from={{ email.id }}" class="emails-view__action">
-                <i class="fas fa-share" aria-hidden="true"></i>
+                <span data-icon="forward" data-icon-size="16" aria-hidden="true"></span>
                 <span>{% if product == "lite" %}Encaminhar{% else %}Forward{% endif %}</span>
             </a>
             <button type="button" class="emails-view__action emails-view__action--warning" data-action="archive" data-email-id="{{ email.id }}">
-                <i class="fas fa-archive" aria-hidden="true"></i>
+                <span data-icon="archive" data-icon-size="16" aria-hidden="true"></span>
                 <span>{% if product == "lite" %}Arquivar{% else %}Archive{% endif %}</span>
             </button>
             <button type="button" class="emails-view__action emails-view__action--danger" data-action="delete" data-email-id="{{ email.id }}">
-                <i class="fas fa-trash" aria-hidden="true"></i>
+                <span data-icon="trash" data-icon-size="16" aria-hidden="true"></span>
                 <span>{% if product == "lite" %}Excluir{% else %}Delete{% endif %}</span>
             </button>
             <span class="emails-view__divider" aria-hidden="true"></span>
             <a href="{{ PREFIX }}/tasks/new?title=Follow up: {{ email.subject|urlencode }}&client_id={{ email.client_id or '' }}" class="emails-view__action emails-view__action--warning">
-                <i class="fas fa-tasks" aria-hidden="true"></i>
+                <span data-icon="tasks" data-icon-size="16" aria-hidden="true"></span>
                 <span>{% if product == "lite" %}Tarefa{% else %}Task{% endif %}</span>
             </a>
             <a href="{{ PREFIX }}/notes/new?client_id={{ email.client_id or '' }}&content={{ email.body_text[:200]|urlencode if email.body_text else '' }}" class="emails-view__action emails-view__action--info">
-                <i class="fas fa-sticky-note" aria-hidden="true"></i>
+                <span data-icon="sticky_note" data-icon-size="16" aria-hidden="true"></span>
                 <span>{% if product == "lite" %}Nota{% else %}Note{% endif %}</span>
             </a>
             {% if not email.client_id %}
             <button type="button" class="emails-view__action emails-view__action--success" data-action="create-client" data-sender="{{ email.sender|e }}">
-                <i class="fas fa-user-plus" aria-hidden="true"></i>
+                <span data-icon="user_plus" data-icon-size="16" aria-hidden="true"></span>
                 <span>{% if product == "lite" %}Novo Cliente{% else %}New Client{% endif %}</span>
             </button>
             {% endif %}
@@ -56,7 +56,7 @@
         <section class="emails-view__main" aria-label="{% if product == 'lite' %}Conteúdo do e-mail{% else %}Email content{% endif %}">
             <article class="emails-view__header">
                 <h1 id="emails-view-title" class="emails-view__title">
-                    <i class="fas fa-envelope-open-text emails-view__title-icon" aria-hidden="true"></i>
+                    <span class="emails-view__title-icon" data-icon="mail" data-icon-size="20" aria-hidden="true"></span>
                     <span>{{ email.subject or '(Sem Assunto)' }}</span>
                 </h1>
 
@@ -87,31 +87,6 @@
                             </dd>
                         </div>
                     </dl>
-
-                    <form method="post" action="{{ PREFIX }}/emails/{{ email.id }}/link" class="emails-view__link-form" aria-label="{% if product == 'lite' %}Vincular a cliente ou caso{% else %}Link to client or case{% endif %}">
-                        <label class="visually-hidden" for="emails-view-link-client">{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</label>
-                        <select id="emails-view-link-client" class="emails-view__select" name="client_id" aria-label="{% if product == 'lite' %}Vincular a Cliente{% else %}Link to Client{% endif %}">
-                            <option value="">{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</option>
-                            {% for client in clients %}
-                            <option value="{{ client.id }}" {% if email.client_id == client.id %}selected{% endif %}>
-                                {{ client.first_name }} {{ client.last_name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <label class="visually-hidden" for="emails-view-link-case">{% if product == "lite" %}Vincular a Caso{% else %}Link to Case{% endif %}</label>
-                        <select id="emails-view-link-case" class="emails-view__select" name="case_id" aria-label="{% if product == 'lite' %}Vincular a Caso{% else %}Link to Case{% endif %}">
-                            <option value="">{% if product == "lite" %}Vincular a Caso{% else %}Link to Case{% endif %}</option>
-                            {% for case in cases %}
-                            <option value="{{ case.id }}" {% if email.case_id == case.id %}selected{% endif %}>
-                                {{ case.case_name or case.case_number or ('Caso #' ~ case.id) }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="emails-view__link-submit">
-                            <i class="fas fa-link" aria-hidden="true"></i>
-                            <span>{% if product == "lite" %}Vincular{% else %}Link{% endif %}</span>
-                        </button>
-                    </form>
                 </div>
 
                 {% if email.client_id or email.case_id %}
@@ -139,7 +114,7 @@
                     title="{% if product == 'lite' %}Conteúdo do e-mail{% else %}Email content{% endif %}"
                     sandbox="allow-popups allow-popups-to-escape-sandbox"
                     referrerpolicy="no-referrer"
-                    srcdoc="{{ email.body_html | e }}"
+                    srcdoc="&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;&lt;style&gt;html,body{margin:0;padding:16px 20px;background:#fff;color:#1a1a1a;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.6;word-wrap:break-word;overflow-wrap:break-word}img{max-width:100%!important;height:auto!important}table{max-width:100%!important}td,th{word-break:break-word}*{max-width:100%!important}&lt;/style&gt;{{ email.body_html | e }}"
                     loading="lazy"></iframe>
                 {% elif email.body_text %}
                 <pre class="emails-view__body-pre">{{ email.body_text }}</pre>
@@ -147,6 +122,30 @@
                 <p class="emails-view__body-empty">{% if product == "lite" %}(Sem conteúdo){% else %}(No content){% endif %}</p>
                 {% endif %}
             </article>
+
+            <form method="post" action="{{ PREFIX }}/emails/{{ email.id }}/link" class="emails-view__link-form" aria-label="{% if product == 'lite' %}Vincular a cliente ou caso{% else %}Link to client or case{% endif %}">
+                <span class="emails-view__link-title"><span data-icon="link" data-icon-size="15" aria-hidden="true"></span> {% if product == "lite" %}Vincular este e-mail{% else %}Link this email{% endif %}</span>
+                <div class="emails-view__link-controls">
+                    <label class="visually-hidden" for="emails-view-link-client">{% if product == "lite" %}Vincular a Cliente{% else %}Link to Client{% endif %}</label>
+                    <select id="emails-view-link-client" class="emails-view__select" name="client_id" aria-label="{% if product == 'lite' %}Vincular a Cliente{% else %}Link to Client{% endif %}">
+                        <option value="">{% if product == "lite" %}Cliente…{% else %}Client…{% endif %}</option>
+                        {% for client in clients %}
+                        <option value="{{ client.id }}" {% if email.client_id == client.id %}selected{% endif %}>{{ client.first_name }} {{ client.last_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <label class="visually-hidden" for="emails-view-link-case">{% if product == "lite" %}Vincular a Caso{% else %}Link to Case{% endif %}</label>
+                    <select id="emails-view-link-case" class="emails-view__select" name="case_id" aria-label="{% if product == 'lite' %}Vincular a Caso{% else %}Link to Case{% endif %}">
+                        <option value="">{% if product == "lite" %}Caso…{% else %}Case…{% endif %}</option>
+                        {% for case in cases %}
+                        <option value="{{ case.id }}" {% if email.case_id == case.id %}selected{% endif %}>{{ case.case_name or case.case_number or ('Caso #' ~ case.id) }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="emails-view__link-submit">
+                        <span data-icon="link" data-icon-size="16" aria-hidden="true"></span>
+                        <span>{% if product == "lite" %}Vincular{% else %}Link{% endif %}</span>
+                    </button>
+                </div>
+            </form>
 
             {% if attachments %}
             <section class="emails-view__attachments" aria-label="{% if product == 'lite' %}Anexos{% else %}Attachments{% endif %}">

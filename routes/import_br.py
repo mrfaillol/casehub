@@ -687,15 +687,15 @@ async def download_template(entity_type: str):
 def _generate_template_csv(entity_type: str) -> str:
     """Generate a template CSV string for the entity type."""
     if entity_type == "clientes":
-        return "nome,email,telefone,cpf,cnpj,endereco,cidade,estado\nMaria Silva,maria@email.com,(31) 99999-1234,123.456.789-00,,Rua das Flores 100,Juiz de Fora,MG\nEmpresa ABC Ltda,contato@abc.com.br,(11) 3333-4444,,12.345.678/0001-90,Av Paulista 1000,Sao Paulo,SP\n"
+        return "nome,email,telefone,cpf,cnpj,endereco,cidade,estado\nPessoa Demo,pessoa_demo@example.com,(11) 90000-0000,000.000.000-00,,Rua Exemplo 100,Cidade Demo,UF\nEmpresa Demo Ltda,contato@example.com,(11) 90000-0001,,00.000.000/0000-00,Av Exemplo 1000,Cidade Demo,UF\n"
     elif entity_type == "processos":
-        return "numero_processo,cliente,parte_contraria,tribunal,vara,comarca,tipo_acao,status\n0001234-56.2024.8.13.0145,Maria Silva,Banco XYZ S/A,TJMG,1a Vara Civel,Juiz de Fora,Indenizatoria,ativo\n0009876-54.2024.5.03.0036,Joao Santos,Empresa ABC Ltda,TRT3,2a Vara do Trabalho,Belo Horizonte,Trabalhista,ativo\n"
+        return "numero_processo,cliente,parte_contraria,tribunal,vara,comarca,tipo_acao,status\n0001234-56.2024.8.13.0145,PessoaDemo Silva,Banco XYZ S/A,TJMG,1a Vara Civel,Juiz de Fora,Indenizatoria,ativo\n0009876-54.2024.5.03.0036,Joao Santos,Empresa ABC Ltda,TRT3,2a Vara do Trabalho,Belo Horizonte,Trabalhista,ativo\n"
     elif entity_type == "prazos":
         return (
             "processo,tipo_prazo,data_intimacao,dias,responsavel,cliente,parte_contraria,data_vencimento,status,uf\n"
-            "0001234-56.2024.8.13.0145,contestacao,15/03/2026,15,Dr. Carlos,Maria Silva,Banco XYZ S/A,07/04/2026,NO PRAZO,MG\n"
+            "0001234-56.2024.8.13.0145,contestacao,15/03/2026,15,Dr. Carlos,PessoaDemo Silva,Banco XYZ S/A,07/04/2026,NO PRAZO,MG\n"
             "0009876-54.2024.5.03.0036,recurso_ordinario,20/03/2026,8,Dra. Ana,Joao Santos,Empresa ABC Ltda,,Fora do Prazo,MG\n"
         )
     elif entity_type == "contatos":
-        return "nome,telefone,email,cargo,escritorio\nDr. Pedro Almeida,(32) 99888-7777,pedro@escritorio.com,Advogado,Almeida & Associados\nDra. Lucia Ferreira,(31) 98765-4321,lucia@tj.jus.br,Juiza,TJMG\n"
+        return "nome,telefone,email,cargo,escritorio\nDr. Pedro Almeida,(11) 99999-0001,pedro@example.com,Advogado,Almeida & Associados\nDra. Lucia Ferreira,(11) 99999-0002,lucia@example.com,Juiza,TJMG\n"
     return ""

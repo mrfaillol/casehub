@@ -5,13 +5,24 @@ Alimenta o botão "versões anteriores" da titlebar (window-manager.js).
 """
 import json
 import os
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from sqlalchemy.orm import Session
+from models import get_db, User
+from auth import get_current_user
 from core.template_config import templates, PREFIX, mock_preview_context
 
 router = APIRouter(prefix="/templates/_archive", tags=["template-archive"])
 
 ARCHIVE_ROOT = os.path.join("templates", "_archive")
+
+
+def require_superadmin(request: Request, db: Session) -> User:
+    """Require superadmin user (issue #805 / T9). Returns user or None."""
+    user = get_current_user(request, db)
+    if not user or user.user_type != "superadmin":
+        return None
+    return user
 
 
 def _safe_path(path: str) -> str:
@@ -23,8 +34,10 @@ def _safe_path(path: str) -> str:
 
 
 @router.get("/_index/{template_path:path}", response_class=JSONResponse)
-async def list_versions(template_path: str):
+async def list_versions(template_path: str, request: Request, db: Session = Depends(get_db)):
     """Lista versões disponíveis de um template. Ex: GET /templates/_archive/_index/login.html"""
+    if not require_superadmin(request, db):
+        raise HTTPException(status_code=403, detail="forbidden")
     folder = _safe_path(template_path)
     manifest = os.path.join(folder, "_versions.json")
     if not os.path.isfile(manifest):
@@ -38,8 +51,10 @@ async def list_versions(template_path: str):
 
 
 @router.get("/{template_path:path}", response_class=HTMLResponse)
-async def serve_version(request: Request, template_path: str, v: str = ""):
+async def serve_version(request: Request, template_path: str, v: str = "", db: Session = Depends(get_db)):
     """Renderiza versão arquivada. Ex: GET /templates/_archive/login.html?v=2024-sprint1"""
+    if not require_superadmin(request, db):
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
     if not v:
         raise HTTPException(status_code=400, detail="query param 'v' required")
     # CWE-22: `v` é concatenado no path do arquivo — bloqueia traversal

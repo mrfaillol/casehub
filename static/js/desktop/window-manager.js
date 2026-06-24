@@ -430,7 +430,7 @@ class DesktopWindowManager {
     }
 
     addResizeHandles(winEl, id) {
-        // 8 edges/corners — Victor quer resize por qualquer canto
+        // 8 edges/corners — Equipe CaseHub quer resize por qualquer canto
         const HANDLE_STYLES = {
             n:  { top: '-5px',  left: '0',     width: '100%', height: '10px',  cursor: 'n-resize'  },
             s:  { bottom: '-5px', left: '0',   width: '100%', height: '10px',  cursor: 's-resize'  },

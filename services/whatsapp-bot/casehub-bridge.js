@@ -20,14 +20,21 @@
 "use strict";
 
 const crypto = require("crypto");
+const fs = require("fs");
 const https = require("https");
 const http = require("http");
+const path = require("path");
 const { URL } = require("url");
 
 const CASEHUB_API_URL = process.env.CASEHUB_API_URL || "http://localhost:8001";
 const HMAC_SECRET = process.env.CASEHUB_INBOUND_HMAC_SECRET || "";
 const BRIDGE_ENABLED = process.env.CASEHUB_BRIDGE_ENABLED !== "false"; // default ON when secret is set
-const BRIDGE_TIMEOUT_MS = parseInt(process.env.CASEHUB_BRIDGE_TIMEOUT_MS || "5000", 10);
+const BRIDGE_TIMEOUT_MS = positiveInt(process.env.CASEHUB_BRIDGE_TIMEOUT_MS, 15000);
+const BRIDGE_RETRY_MAX_ATTEMPTS = positiveInt(process.env.CASEHUB_BRIDGE_RETRY_MAX_ATTEMPTS, 5);
+const BRIDGE_RETRY_BASE_MS = positiveInt(process.env.CASEHUB_BRIDGE_RETRY_BASE_MS, 2000);
+const BRIDGE_RETRY_MAX_MS = positiveInt(process.env.CASEHUB_BRIDGE_RETRY_MAX_MS, 60000);
+const BRIDGE_OUTBOX_FILE = process.env.CASEHUB_BRIDGE_OUTBOX_FILE
+  || path.join(process.cwd(), "media", ".casehub-bridge-outbox.json");
 const CASEHUB_APP_PREFIX = normalizePrefix(
   firstDefined(
     process.env.CASEHUB_APP_PREFIX,
@@ -36,6 +43,16 @@ const CASEHUB_APP_PREFIX = normalizePrefix(
     defaultAppPrefix(CASEHUB_API_URL)
   )
 );
+
+const _outbox = new Map();
+let _outboxLoaded = false;
+let _outboxTimer = null;
+let _outboxDraining = false;
+
+function positiveInt(value, fallback) {
+  const parsed = parseInt(value || "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 function firstDefined(...values) {
   for (const value of values) {
@@ -63,6 +80,142 @@ function defaultAppPrefix(apiUrl) {
 function bridgePath(suffix) {
   const cleanSuffix = `/${String(suffix || "").replace(/^\/+/g, "")}`;
   return `${CASEHUB_APP_PREFIX}${cleanSuffix}`;
+}
+
+function retryEnabled() {
+  return BRIDGE_RETRY_MAX_ATTEMPTS > 1;
+}
+
+function retryDelayMs(attemptsMade) {
+  const exponent = Math.max(0, (attemptsMade || 1) - 1);
+  return Math.min(BRIDGE_RETRY_MAX_MS, BRIDGE_RETRY_BASE_MS * (2 ** exponent));
+}
+
+function safeRetryOptions(options) {
+  const orgId = options && Number.isFinite(options.orgId) && options.orgId > 0
+    ? options.orgId
+    : null;
+  return orgId ? { orgId } : null;
+}
+
+function retryKey(pathName, payload, options) {
+  const orgId = options && Number.isFinite(options.orgId) && options.orgId > 0
+    ? options.orgId
+    : "";
+  const raw = payload && payload.raw_payload;
+  const messageId = payload && (
+    payload.wa_message_id
+    || (raw && (raw.wa_message_id || raw.message_id || raw.id))
+  );
+  if (!messageId) return null;
+  return `${pathName}|${orgId}|${messageId}`;
+}
+
+function shouldRetryBridgeResult(result) {
+  if (!result || result.ok) return false;
+  if (result.error) return true;
+  const status = Number(result.status || 0);
+  return status === 429 || status === 408 || status >= 500;
+}
+
+function ensureOutboxLoaded() {
+  if (_outboxLoaded || !retryEnabled()) return;
+  _outboxLoaded = true;
+  try {
+    if (!fs.existsSync(BRIDGE_OUTBOX_FILE)) return;
+    const parsed = JSON.parse(fs.readFileSync(BRIDGE_OUTBOX_FILE, "utf8"));
+    const items = Array.isArray(parsed) ? parsed : [];
+    for (const item of items) {
+      if (!item || !item.key || !item.pathName || !item.payload) continue;
+      _outbox.set(item.key, {
+        key: item.key,
+        pathName: item.pathName,
+        payload: item.payload,
+        options: safeRetryOptions(item.options),
+        attemptsMade: Math.max(1, parseInt(item.attemptsMade || "1", 10)),
+        nextAttemptAt: Number(item.nextAttemptAt || Date.now()),
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
+        lastError: item.lastError || null,
+      });
+    }
+  } catch (err) {
+    console.warn("[casehub-bridge] could not load retry outbox:", err.message);
+  } finally {
+    scheduleOutboxDrain();
+  }
+}
+
+function persistOutbox() {
+  if (!retryEnabled()) return;
+  try {
+    if (_outbox.size === 0) {
+      if (fs.existsSync(BRIDGE_OUTBOX_FILE)) fs.unlinkSync(BRIDGE_OUTBOX_FILE);
+      return;
+    }
+    fs.mkdirSync(path.dirname(BRIDGE_OUTBOX_FILE), { recursive: true });
+    const items = Array.from(_outbox.values()).sort((a, b) => {
+      return Number(a.nextAttemptAt || 0) - Number(b.nextAttemptAt || 0);
+    });
+    const tmp = `${BRIDGE_OUTBOX_FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(items, null, 2), { mode: 0o600 });
+    fs.renameSync(tmp, BRIDGE_OUTBOX_FILE);
+  } catch (err) {
+    console.warn("[casehub-bridge] could not persist retry outbox:", err.message);
+  }
+}
+
+function nextOutboxAttemptAt(now) {
+  let next = null;
+  for (const item of _outbox.values()) {
+    const value = Number(item.nextAttemptAt || now);
+    if (next === null || value < next) next = value;
+  }
+  return next === null ? now : next;
+}
+
+function scheduleOutboxDrain() {
+  if (!retryEnabled() || _outbox.size === 0) return;
+  if (_outboxTimer) {
+    clearTimeout(_outboxTimer);
+    _outboxTimer = null;
+  }
+  const now = Date.now();
+  const next = nextOutboxAttemptAt(now);
+  const delay = Math.max(50, next - now);
+  _outboxTimer = setTimeout(() => {
+    drainBridgeOutbox().catch((err) => {
+      console.warn("[casehub-bridge] retry outbox drain failed:", err.message);
+      scheduleOutboxDrain();
+    });
+  }, delay);
+  if (typeof _outboxTimer.unref === "function") _outboxTimer.unref();
+}
+
+function enqueueBridgeRetry(pathName, payload, options, result) {
+  if (!retryEnabled()) return false;
+  ensureOutboxLoaded();
+  const key = retryKey(pathName, payload, options);
+  if (!key) return false;
+  const existing = _outbox.get(key);
+  const attemptsMade = existing ? Math.max(1, existing.attemptsMade || 1) : 1;
+  if (attemptsMade >= BRIDGE_RETRY_MAX_ATTEMPTS) return false;
+  const now = Date.now();
+  const item = {
+    key,
+    pathName,
+    payload,
+    options: safeRetryOptions(options),
+    attemptsMade,
+    nextAttemptAt: now + retryDelayMs(attemptsMade),
+    createdAt: existing ? existing.createdAt : new Date(now).toISOString(),
+    updatedAt: new Date(now).toISOString(),
+    lastError: result && (result.error || result.status || "unknown"),
+  };
+  _outbox.set(key, item);
+  persistOutbox();
+  scheduleOutboxDrain();
+  return true;
 }
 
 /**
@@ -189,7 +342,7 @@ function postJson(url, bodyString, headers) {
  * header is OUTSIDE the signed body — replaying it across orgs would still
  * need a valid HMAC of the body, so no auth weakening.
  */
-async function postSigned(pathName, payload, options) {
+async function sendSignedOnce(pathName, payload, options) {
   const bodyString = JSON.stringify(payload);
   const { ts, signature } = signPayload(bodyString, HMAC_SECRET);
   const headers = {
@@ -218,6 +371,77 @@ async function postSigned(pathName, payload, options) {
     console.error("[casehub-bridge] forward failed:", err.message);
     return { ok: false, error: err.message };
   }
+}
+
+async function postSigned(pathName, payload, options) {
+  const result = await sendSignedOnce(pathName, payload, options);
+  if (shouldRetryBridgeResult(result)) {
+    const queued = enqueueBridgeRetry(pathName, payload, options, result);
+    if (queued) {
+      return { ...result, queued: true };
+    }
+  }
+  return result;
+}
+
+async function drainBridgeOutbox(opts = {}) {
+  ensureOutboxLoaded();
+  if (_outboxDraining) {
+    return { draining: true, pending: _outbox.size };
+  }
+  _outboxDraining = true;
+  let changed = false;
+  const stats = { sent: 0, ok: 0, dropped: 0, pending: _outbox.size };
+  try {
+    const now = Date.now();
+    const due = Array.from(_outbox.values())
+      .filter((item) => opts.force || Number(item.nextAttemptAt || 0) <= now)
+      .sort((a, b) => Number(a.nextAttemptAt || 0) - Number(b.nextAttemptAt || 0));
+
+    for (const item of due) {
+      item.attemptsMade = Math.max(1, item.attemptsMade || 1) + 1;
+      item.updatedAt = new Date().toISOString();
+      const result = await sendSignedOnce(item.pathName, item.payload, item.options);
+      stats.sent += 1;
+
+      if (result.ok) {
+        _outbox.delete(item.key);
+        changed = true;
+        stats.ok += 1;
+        continue;
+      }
+
+      if (!shouldRetryBridgeResult(result)) {
+        _outbox.delete(item.key);
+        changed = true;
+        stats.dropped += 1;
+        continue;
+      }
+
+      if (item.attemptsMade >= BRIDGE_RETRY_MAX_ATTEMPTS) {
+        console.error(
+          "[casehub-bridge] dropping retry after max attempts",
+          item.key,
+          result.error || result.status || "unknown"
+        );
+        _outbox.delete(item.key);
+        changed = true;
+        stats.dropped += 1;
+        continue;
+      }
+
+      item.lastError = result.error || result.status || "unknown";
+      item.nextAttemptAt = Date.now() + retryDelayMs(item.attemptsMade);
+      _outbox.set(item.key, item);
+      changed = true;
+    }
+  } finally {
+    _outboxDraining = false;
+    stats.pending = _outbox.size;
+    if (changed) persistOutbox();
+    scheduleOutboxDrain();
+  }
+  return stats;
 }
 
 /**
@@ -335,5 +559,25 @@ module.exports = {
     normalizePrefix,
     defaultAppPrefix,
     bridgePath,
+    drainBridgeOutbox,
+    outboxSize: () => {
+      ensureOutboxLoaded();
+      return _outbox.size;
+    },
+    resetOutboxForTests: () => {
+      if (_outboxTimer) {
+        clearTimeout(_outboxTimer);
+        _outboxTimer = null;
+      }
+      _outbox.clear();
+      _outboxLoaded = true;
+      try {
+        if (fs.existsSync(BRIDGE_OUTBOX_FILE)) fs.unlinkSync(BRIDGE_OUTBOX_FILE);
+      } catch (err) {
+        // Test helper only.
+      }
+    },
   },
 };
+
+ensureOutboxLoaded();

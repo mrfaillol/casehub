@@ -20,7 +20,10 @@
     <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/integrations">
       <i data-lucide="plug"></i> Integrações
     </a>
-    <a class="ch-btn ch-btn--primary" href="{{ PREFIX }}/documents/upload">
+    <button type="button" class="ch-btn ch-btn--primary" data-drive-new-doc>
+      <i data-lucide="file-plus"></i> Novo documento
+    </button>
+    <a class="ch-btn ch-btn--ghost" href="{{ PREFIX }}/documents/upload">
       <i data-lucide="upload"></i> Enviar
     </a>
   </div>
@@ -72,8 +75,12 @@
     item = item || {};
     return {
       id: item.id,
+      navigationId: item.navigationId || item.navigation_id || item.shortcutTargetId || item.shortcut_target_id || item.id,
       name: item.name,
       mimeType: item.mimeType || item.mime_type || '',
+      isShortcut: Boolean(item.isShortcut || item.is_shortcut),
+      shortcutTargetId: item.shortcutTargetId || item.shortcut_target_id || '',
+      shortcutTargetMimeType: item.shortcutTargetMimeType || item.shortcut_target_mime_type || '',
       modifiedTime: item.modifiedTime || item.modified_time || '',
       createdTime: item.createdTime || item.created_time || '',
       size: item.size,
@@ -81,7 +88,13 @@
       iconLink: item.iconLink || item.icon_link || '',
       thumbnailLink: item.thumbnailLink || item.thumbnail_link || '',
       parents: item.parents || [],
-      isFolder: Boolean(item.isFolder || item.is_folder || item.mimeType === 'application/vnd.google-apps.folder' || item.mime_type === 'application/vnd.google-apps.folder')
+      isFolder: Boolean(
+        item.isFolder || item.is_folder ||
+        item.mimeType === 'application/vnd.google-apps.folder' ||
+        item.mime_type === 'application/vnd.google-apps.folder' ||
+        item.shortcutTargetMimeType === 'application/vnd.google-apps.folder' ||
+        item.shortcut_target_mime_type === 'application/vnd.google-apps.folder'
+      )
     };
   }
 
@@ -92,7 +105,9 @@
   }
 
   function fileIcon(item) {
+    if (item.isShortcut && item.isFolder) return 'folder-open';
     if (item.mimeType === 'application/vnd.google-apps.folder') return 'folder';
+    if (item.mimeType === 'application/vnd.google-apps.shortcut') return 'external-link';
     if ((item.mimeType || '').indexOf('spreadsheet') >= 0) return 'table';
     if ((item.mimeType || '').indexOf('presentation') >= 0) return 'presentation';
     if ((item.mimeType || '').indexOf('image') >= 0) return 'image';
@@ -125,18 +140,40 @@
     return (err && err.message) || 'Falha ao carregar o Drive.';
   }
 
+  function getOrCreateColumn(depth) {
+    var col = root.querySelector('[data-drive-column="' + depth + '"]');
+    if (col) return col;
+    col = document.createElement('section');
+    col.className = 'ch-drive__column';
+    col.setAttribute('data-drive-column', String(depth));
+    col.setAttribute('aria-label', 'Pasta nível ' + (depth + 1));
+    var columnsEl = root.querySelector('.ch-drive__columns');
+    var preview = root.querySelector('[data-drive-preview]');
+    columnsEl.insertBefore(col, preview);
+    requestAnimationFrame(function () {
+      columnsEl.scrollLeft = columnsEl.scrollWidth;
+    });
+    return col;
+  }
+
   function clearAfter(depth, options) {
     options = options || {};
     var resetPreview = options.resetPreview !== false;
     root.querySelectorAll('[data-drive-column]').forEach(function (col) {
-      if (Number(col.getAttribute('data-drive-column')) > depth) col.innerHTML = '';
+      var colDepth = Number(col.getAttribute('data-drive-column'));
+      if (colDepth > depth) {
+        if (colDepth <= 2) {
+          col.innerHTML = '';
+        } else {
+          col.remove();
+        }
+      }
     });
-    if (resetPreview && depth < 2) renderPreview(null);
+    if (resetPreview) renderPreview(null);
   }
 
   function renderColumn(depth, items, folderId) {
-    var col = root.querySelector('[data-drive-column="' + depth + '"]');
-    if (!col) return;
+    var col = getOrCreateColumn(depth);
     col.dataset.folderId = folderId || '';
     items = (items || []).map(normalizeDriveItem);
     itemsByDepth[depth] = items;
@@ -146,7 +183,8 @@
     }
     col.innerHTML = items.map(function (item) {
       var folder = item.isFolder || item.mimeType === 'application/vnd.google-apps.folder';
-      return '<button type="button" class="ch-drive__item" data-drive-id="' + escapeHtml(item.id) + '" data-drive-depth="' + depth + '" data-drive-folder="' + (folder ? 'true' : 'false') + '">' +
+      var navigationId = item.navigationId || item.id;
+      return '<button type="button" class="ch-drive__item" data-drive-id="' + escapeHtml(navigationId) + '" data-drive-depth="' + depth + '" data-drive-folder="' + (folder ? 'true' : 'false') + '">' +
         '<i data-lucide="' + fileIcon(item) + '"></i>' +
         '<span class="ch-drive__item-name">' + escapeHtml(item.name || 'Sem nome') + '</span>' +
         (folder ? '<i data-lucide="chevron-right" class="ch-drive__item-arrow"></i>' : '') +
@@ -155,10 +193,10 @@
     if (window.CHLucide) window.CHLucide.mount();
   }
 
-  function loadFolder(folderId, depth) {
-    setStatus('Carregando pasta...', 'loading');
-    clearAfter(depth - 1);
-    fetch(PREFIX + '/api/drive/list?folder_id=' + encodeURIComponent(folderId || rootId), { credentials: 'same-origin' })
+  function fetchDriveList(folderId, pageToken) {
+    var url = PREFIX + '/api/drive/list?folder_id=' + encodeURIComponent(folderId || rootId) + '&page_size=1000';
+    if (pageToken) url += '&page_token=' + encodeURIComponent(pageToken);
+    return fetch(url, { credentials: 'same-origin' })
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (payload) {
           if (!r.ok) {
@@ -169,11 +207,44 @@
           }
           return payload;
         });
-      })
+      });
+  }
+
+  function loadMoreItems(depth, folderId, pageToken) {
+    fetchDriveList(folderId, pageToken)
+      .then(function (data) {
+        var col = root.querySelector('[data-drive-column="' + depth + '"]');
+        if (!col) return;
+        var newItems = (data.items || []).map(normalizeDriveItem);
+        if (!newItems.length) return;
+        itemsByDepth[depth] = (itemsByDepth[depth] || []).concat(newItems);
+        newItems.forEach(function (item) {
+          var folder = item.isFolder;
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'ch-drive__item';
+          btn.setAttribute('data-drive-id', item.id);
+          btn.setAttribute('data-drive-depth', String(depth));
+          btn.setAttribute('data-drive-folder', folder ? 'true' : 'false');
+          btn.innerHTML = '<i data-lucide="' + fileIcon(item) + '"></i>' +
+            '<span class="ch-drive__item-name">' + escapeHtml(item.name || 'Sem nome') + '</span>' +
+            (folder ? '<i data-lucide="chevron-right" class="ch-drive__item-arrow"></i>' : '');
+          col.appendChild(btn);
+        });
+        if (window.CHLucide) window.CHLucide.mount();
+        if (data.next_page_token) loadMoreItems(depth, folderId, data.next_page_token);
+      });
+  }
+
+  function loadFolder(folderId, depth) {
+    setStatus('Carregando pasta...', 'loading');
+    clearAfter(depth - 1);
+    fetchDriveList(folderId, null)
       .then(function (data) {
         renderColumn(depth, data.items || [], folderId || rootId);
         if (breadcrumbEl) breadcrumbEl.textContent = data.folder_name || 'Drive';
         setStatus('Drive carregado', 'ok');
+        if (data.next_page_token) loadMoreItems(depth, folderId, data.next_page_token);
       })
       .catch(function (err) {
         var col = root.querySelector('[data-drive-column="' + depth + '"]');
@@ -201,6 +272,7 @@
       '<h2>' + escapeHtml(item.name || 'Sem nome') + '</h2>' +
       '<dl class="ch-drive-preview__meta">' +
       '<div><dt>Tipo</dt><dd>' + escapeHtml(item.mimeType || '—') + '</dd></div>' +
+      (item.isShortcut ? '<div><dt>Atalho</dt><dd>' + escapeHtml(item.shortcutTargetMimeType || 'Destino do Drive') + '</dd></div>' : '') +
       '<div><dt>Tamanho</dt><dd>' + fmtBytes(item.size) + '</dd></div>' +
       '<div><dt>Atualizado</dt><dd>' + escapeHtml(item.modifiedTime || '—') + '</dd></div>' +
       '</dl>' +
@@ -216,9 +288,11 @@
     var isFolder = button.getAttribute('data-drive-folder') === 'true';
     root.querySelectorAll('[data-drive-depth="' + depth + '"]').forEach(function (el) { el.classList.remove('is-active'); });
     button.classList.add('is-active');
-    var item = (itemsByDepth[depth] || []).find(function (candidate) { return candidate.id === id; });
+    var item = (itemsByDepth[depth] || []).find(function (candidate) {
+      return candidate.id === id || candidate.navigationId === id;
+    });
     if (isFolder) {
-      loadFolder(id, Math.min(depth + 1, 2));
+      loadFolder(id, depth + 1);
     } else {
       clearAfter(depth, { resetPreview: false });
       renderPreview(item || { id: id, name: button.textContent.trim() });
@@ -231,6 +305,64 @@
       root.querySelectorAll('.ch-drive__item').forEach(function (item) {
         item.hidden = q && item.textContent.toLowerCase().indexOf(q) === -1;
       });
+    });
+  }
+
+  // --- "Novo documento" — create a blank Google Doc in the folder the user
+  //     is currently browsing (deepest column with a resolved folderId),
+  //     falling back to the Drive root. ----------------------------------
+  function currentTargetFolder() {
+    var cols = Array.from(root.querySelectorAll('[data-drive-column]'));
+    cols.sort(function (a, b) {
+      return Number(b.getAttribute('data-drive-column')) - Number(a.getAttribute('data-drive-column'));
+    });
+    for (var i = 0; i < cols.length; i++) {
+      if (cols[i].dataset.folderId) {
+        return { id: cols[i].dataset.folderId, depth: Number(cols[i].getAttribute('data-drive-column')) };
+      }
+    }
+    return { id: rootId, depth: 0 };
+  }
+
+  // The button lives in the page-head actions, outside [data-drive-root].
+  var newDocBtn = document.querySelector('[data-drive-new-doc]');
+  if (newDocBtn) {
+    newDocBtn.addEventListener('click', function () {
+      if (newDocBtn.disabled) return;
+      var target = currentTargetFolder();
+      newDocBtn.disabled = true;  // anti double-click
+      setStatus('Criando documento...', 'loading');
+      fetch(PREFIX + '/documents/api/drive/create-doc', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_id: target.id, name: 'Documento sem título' })
+      })
+        .then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (payload) {
+            if (!r.ok) {
+              var err = new Error(payload.detail || payload.error || ('HTTP ' + r.status));
+              err.status = r.status;
+              err.payload = payload;
+              throw err;
+            }
+            return payload;
+          });
+        })
+        .then(function (data) {
+          if (data && data.webViewLink) {
+            window.open(data.webViewLink, '_blank', 'noopener');
+          }
+          setStatus('Documento criado', 'ok');
+          // Refresh the column the doc landed in so it shows up immediately.
+          loadFolder(target.id, target.depth);
+        })
+        .catch(function (err) {
+          setStatus(driveErrorMessage(err), 'error');
+        })
+        .then(function () {
+          newDocBtn.disabled = false;
+        });
     });
   }
 

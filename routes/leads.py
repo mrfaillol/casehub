@@ -514,13 +514,14 @@ async def create_notion_task(request: Request, lead_id: str, db: Session = Depen
 
     # Map assignee to database key
     assignee_map = {
-        "Ana Clara": "ana",
-        "ana clara": "ana",
-        "ana": "ana",
-        "Juliana": "juliana",
-        "juliana": "juliana",
+        "membro a": "member_a",
+        "member a": "member_a",
+        "member_a": "member_a",
+        "membro b": "member_b",
+        "member b": "member_b",
+        "member_b": "member_b",
     }
-    db_key = assignee_map.get(assignee, "ana")
+    db_key = assignee_map.get(str(assignee).strip().lower(), "member_b")
 
     # Load lead data for context
     data = leads_manager.load_leads()

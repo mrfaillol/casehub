@@ -17,6 +17,11 @@ from models import get_db, Client, Case, Document, User, Organization
 from auth import get_current_user
 from models.tenant import tenant_query
 from config import settings
+from services.drive_explorer import DriveNotAvailable, create_blank_doc
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 PREFIX = settings.PREFIX
 UPLOAD_DIR = os.path.join(settings.BASE_DIR, "data", "uploads")
@@ -60,8 +65,23 @@ def _document_type_options(product: str):
     return [{"value": value, "label": labels[value]} for value in immigration_labels]
 
 
-def _drive_root_id_for_org(db: Session, org_id: Optional[int]) -> str:
+def _drive_root_id_for_org(
+    db: Session,
+    org_id: Optional[int],
+    client_id: Optional[int] = None,
+) -> str:
     """Resolve the Drive folder the document explorer should open for a tenant."""
+    if org_id is not None and client_id is not None:
+        client = (
+            tenant_query(db, Client, org_id)
+            .filter(Client.id == client_id)
+            .first()
+        )
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        if client.drive_folder_id:
+            return client.drive_folder_id
+
     root_id = ""
     if org_id is not None:
         try:
@@ -80,6 +100,7 @@ async def list_documents(
     status: Optional[str] = None,
     page: int = 1,
     per_page: int = 50,
+    client_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     user = get_current_user(request, db)
@@ -132,7 +153,12 @@ async def list_documents(
         "search": search or "",
         "doc_type": doc_type or "",
         "status": status or "",
-        "drive_root_id": _drive_root_id_for_org(db, getattr(request.state, "org_id", None)),
+        "drive_root_id": _drive_root_id_for_org(
+            db,
+            getattr(request.state, "org_id", None),
+            client_id=client_id,
+        ),
+        "selected_client_id": client_id,
         # NEW: Pass to template
         "all_clients": all_clients,
         "unlinked_count": unlinked_count
@@ -167,6 +193,57 @@ async def get_documents_by_client(
         }
         for d in docs
     ])
+# =============================================================================
+
+
+# ========== NEW: Create a blank Google Doc in the explorer's current folder ===
+from pydantic import BaseModel as _BaseModel
+
+class CreateDocRequest(_BaseModel):
+    parent_id: Optional[str] = None
+    name: Optional[str] = None
+
+
+@router.post("/api/drive/create-doc")
+async def create_drive_doc(
+    request: Request,
+    data: CreateDocRequest,
+    db: Session = Depends(get_db),
+):
+    """Create an empty native Google Doc in the folder the user is browsing.
+
+    Lives here (router prefix ``/documents``) so ``routes/drive_explorer.py``
+    stays 100% read-only. Tenant-scoped via ``request.state.org_id`` and the
+    org's already-connected OAuth token — no fresh auth prompt. Error contract
+    mirrors the read endpoints: 401 unauthenticated, 503 drive_unavailable,
+    502 on any Drive upstream error (never 500).
+    """
+    user = get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    org_id = getattr(request.state, "org_id", None)
+
+    try:
+        created = create_blank_doc(data.parent_id, data.name, org_id=org_id)
+    except DriveNotAvailable as exc:
+        logger.warning("[DRIVE CREATE-DOC] service unavailable: %s", exc)
+        return JSONResponse(
+            {"error": "drive_unavailable", "detail": str(exc)},
+            status_code=503,
+        )
+    except Exception as exc:  # noqa: BLE001 — mapped to 502, never 500
+        logger.warning("[DRIVE CREATE-DOC] upstream error: %s", exc)
+        return JSONResponse(
+            {"error": "drive_upstream_error", "action": "create-doc"},
+            status_code=502,
+        )
+
+    return JSONResponse({
+        "id": created.get("id"),
+        "name": created.get("name"),
+        "webViewLink": created.get("web_view_link"),
+    })
 # =============================================================================
 
 

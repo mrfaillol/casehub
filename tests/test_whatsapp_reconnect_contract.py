@@ -69,16 +69,54 @@ def test_local_auth_session_backup_restore_and_prewipe_contract():
     snapshot_idx = clear_body.index("this._snapshotSession(\"__prewipe\")")
     rm_idx = clear_body.index("fs.rmSync(sessionPath")
     assert snapshot_idx < rm_idx
-    assert "`session-org-${this.orgId}`" in clear_body
+    # clearAndReinitialize must resolve the wipe path via the centralized
+    # _sessionDir() helper, not inline the per-org literal (which now lives in
+    # _sessionDir() itself). Checking the relationship instead of a moved literal
+    # keeps this contract honest without masking a regression.
+    assert "this._sessionDir()" in clear_body, (
+        "clearAndReinitialize() must resolve the wipe path via this._sessionDir()"
+    )
+    session_dir_start = client_source.index("_sessionDir() {")
+    session_dir_end = client_source.index("_sessionLooksPresent", session_dir_start)
+    session_dir_body = client_source[session_dir_start:session_dir_end]
+    assert "`session-org-${this.orgId}`" in session_dir_body, (
+        "_sessionDir() must build the per-org 'session-org-<id>' path"
+    )
 
 
-def test_alpha_compose_persists_whatsapp_auth_volume():
+def test_alpha_compose_persists_whatsapp_auth_and_media_volumes():
     source = read_repo_file("docker-compose.alpha.yml")
 
     assert "whatsapp_session:/app/.wwebjs_auth" in source
     assert "whatsapp_session:" in source
+    assert "whatsapp_media:/app/media" in source
+    assert "name: casehub_whatsapp_media" in source
     assert "CASEHUB_DEFAULT_ORG_ID" in source
     assert "CASEHUB_AUTOSTART_ORGS" in source
+
+
+def test_alpha_deploy_seeds_whatsapp_media_volume_before_recreate():
+    source = read_repo_file(".github/workflows/deploy-alpha.yml")
+
+    build_idx = source.index("compose build casehub whatsapp-bot")
+    seed_idx = source.index("seed_whatsapp_media_volume", build_idx)
+    recreate_idx = source.index("compose up -d --force-recreate", seed_idx)
+
+    assert build_idx < seed_idx < recreate_idx
+    assert "docker cp casehub-whatsapp-bot:/app/media/." in source
+    assert "docker volume create casehub_whatsapp_media" in source
+    assert "-v casehub_whatsapp_media:/app/media" in source
+    assert "cp -an /media-seed/. /app/media/" in source
+
+
+def test_alpha_deploy_rollback_does_not_run_when_hotfix_guard_blocks():
+    source = read_repo_file(".github/workflows/deploy-alpha.yml")
+
+    rollback_idx = source.index("- name: Roll back to previous healthy SHA")
+    rollback_body = source[rollback_idx:source.index("      - name:", rollback_idx + 1)]
+
+    assert "steps.hotfix_guard.outcome == 'success'" in rollback_body
+    assert "guard that fail-closed to protect a live" in rollback_body
 
 
 def test_reconnect_button_calls_backend_endpoint():
@@ -108,6 +146,21 @@ def test_fastapi_messages_endpoint_prefers_persisted_history_before_bot_fallback
     db_idx = body.index("whatsapp_clone_service.list_messages")
     bot_idx = body.index("get_bot_messages")
     assert db_idx < bot_idx
+
+
+def test_history_backfill_is_explicit_and_preserves_read_state():
+    route_source = read_repo_file("routes/whatsapp_chat.py")
+    service_source = read_repo_file("services/whatsapp_clone_service.py")
+    js_source = read_repo_file("static/js/chat.js")
+    html_source = read_repo_file("templates/app/whatsapp/chat.html")
+
+    assert '@router.post("/api/history/backfill/{phone}")' in route_source
+    assert "get_bot_messages(phone, limit, request=request)" in route_source
+    assert "increment_unread=False" in route_source
+    assert "increment_unread: bool = True" in service_source
+    assert "if not from_me and increment_unread:" in service_source
+    assert "backfillHistory()" in html_source
+    assert "fetchAPI(`/api/history/backfill/${encodeURIComponent(phone)}`" in js_source
 
 
 def test_frontend_click_loads_and_renders_messages_chronologically():

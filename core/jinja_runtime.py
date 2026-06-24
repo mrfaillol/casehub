@@ -17,7 +17,9 @@ funcionalidade legacy continua intacta.
 """
 import os
 import logging
+from datetime import timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from jinja2 import FileSystemBytecodeCache, ChoiceLoader, FileSystemLoader, TemplateNotFound
 
@@ -26,6 +28,7 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 PRODUCTION_ENVS = {"production", "prod"}
+BR_TIMEZONE = ZoneInfo("America/Sao_Paulo")
 
 
 def is_production_env() -> bool:
@@ -55,6 +58,24 @@ class AppPreferLoader(FileSystemLoader):
         except TemplateNotFound:
             # Fall through to legacy template
             return super().get_source(environment, template)
+
+
+def format_datetime_brt(value, fmt: str = "%d/%m/%Y às %H:%M", fallback: str = "-") -> str:
+    """Format DB timestamps for Brazil-facing templates in Brasilia time.
+
+    SQLAlchemy returns timezone-aware UTC datetimes for server defaults. Some
+    older rows may be naive; treat those as UTC to avoid displaying UTC as if it
+    were local time.
+    """
+    if not value:
+        return fallback
+    try:
+        dt = value
+        if dt.tzinfo is None or dt.utcoffset() is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(BR_TIMEZONE).strftime(fmt)
+    except Exception:
+        return fallback
 
 
 def configure_jinja_templates(
@@ -94,6 +115,7 @@ def configure_jinja_templates(
     if not search_paths:
         search_paths = ['templates']
     templates.env.loader = AppPreferLoader(search_paths)
+    templates.env.filters["br_datetime"] = format_datetime_brt
     logger.info(
         "[ui-remake] AppPreferLoader installed; app/X/Y.html preferred over X/Y.html"
     )

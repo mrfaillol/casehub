@@ -6,7 +6,7 @@ Usage:
     from services.notifications import create_notification, send_email
     from services.notifications import notify_client_approval, notify_client_rejection
     from services.notifications import send_task_notification_email
-    from services.notifications import notify_victor_urgent
+    from services.notifications import notify_casehub_team_urgent
 """
 
 # In-app notifications (DB-backed Notification model)
@@ -38,11 +38,11 @@ from services.notifications.staff import (
 
 # Urgent multi-channel notifications (email, WhatsApp, Google Chat)
 from services.notifications.urgent import (
-    notify_victor_urgent,
-    notify_victor_email,
+    notify_casehub_team_urgent,
+    notify_casehub_team_email,
     notify_paralegal_email,
-    notify_victor_whatsapp,
-    notify_victor_google_chat,
+    notify_casehub_team_whatsapp,
+    notify_casehub_team_google_chat,
 )
 
 __all__ = [
@@ -65,9 +65,9 @@ __all__ = [
     "send_task_notification_email",
     "PARALEGAL_EMAILS",
     # urgent
-    "notify_victor_urgent",
-    "notify_victor_email",
+    "notify_casehub_team_urgent",
+    "notify_casehub_team_email",
     "notify_paralegal_email",
-    "notify_victor_whatsapp",
-    "notify_victor_google_chat",
+    "notify_casehub_team_whatsapp",
+    "notify_casehub_team_google_chat",
 ]

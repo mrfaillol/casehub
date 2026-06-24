@@ -28,6 +28,14 @@ class _ScalarResult:
         return self.value if isinstance(self.value, list) else []
 
 
+class _FetchOneResult:
+    def __init__(self, value):
+        self.value = value
+
+    def fetchone(self):
+        return self.value
+
+
 class _CaptureDB:
     def __init__(self, value):
         self.value = value
@@ -38,6 +46,43 @@ class _CaptureDB:
         self.query = str(query)
         self.params = params
         return _ScalarResult(self.value)
+
+    def get_bind(self):
+        # Mirror the SQLAlchemy Session interface; None -> SQLite ORDER BY path.
+        return None
+
+
+class _ImportDB:
+    def __init__(self):
+        self.inserts = []
+        self.commits = 0
+        self.rollbacks = 0
+
+    def execute(self, query, params):
+        query_text = str(query)
+        if "SELECT COUNT(*) FROM prazos_processuais" in query_text:
+            return _ScalarResult(0)
+        if "SELECT id FROM cases" in query_text:
+            return _FetchOneResult(None)
+        if "INSERT INTO prazos_processuais" in query_text:
+            self.inserts.append((query_text, params))
+            return _ScalarResult(None)
+        raise AssertionError(query_text)
+
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
+
+
+class _ImportRequest:
+    def __init__(self, intimacoes):
+        self.state = SimpleNamespace(org_id=1)
+        self._intimacoes = intimacoes
+
+    async def json(self):
+        return {"intimacoes": self._intimacoes}
 
 
 def test_safe_api_error_redacts_oauth_like_values():
@@ -121,6 +166,182 @@ def test_prazos_limit_sorts_null_deadlines_last(monkeypatch):
     assert "CASE WHEN p.data_vencimento IS NULL THEN 1 ELSE 0 END ASC" in db.query
     assert "LIMIT :limit" in db.query
     assert db.params["limit"] == 10
+
+
+def test_publication_fallback_items_are_not_auto_importable():
+    item = controladoria._normalize_publication_item(
+        {
+            "id": "pub-1",
+            "texto": "Prazo de 5 dias para manifestar.",
+            "data": "2026-06-03",
+            "numero_processo": "0001",
+        },
+        "Escavador",
+    )
+
+    assert item["importable"] is False
+
+
+def test_deadline_source_metadata_requires_official_pdpj_source():
+    official = controladoria._deadline_source_metadata({
+        "source": "ComunicaAPI PJE/CNJ",
+        "importable": True,
+        "id": "com-1",
+    })
+    fallback = controladoria._deadline_source_metadata({
+        "source": "DataJud (CNJ)",
+        "importable": True,
+        "id": "datajud-1",
+    })
+
+    assert official["official_source"] is True
+    assert official["source_status"] == "official"
+    assert fallback["official_source"] is False
+    assert fallback["source_status"] == "manual_review_required"
+
+
+def test_deadline_source_signature_is_required_for_official_import():
+    item = {
+        "source": "ComunicaAPI PJE/CNJ",
+        "importable": True,
+        "id": "com-1",
+    }
+
+    assert controladoria._valid_deadline_source_signature(item, org_id=1) is False
+    item["source_signature"] = controladoria._deadline_source_signature(1, item)
+    assert controladoria._valid_deadline_source_signature(item, org_id=1) is True
+    assert controladoria._valid_deadline_source_signature(item, org_id=2) is False
+
+
+def test_comunicaapi_normalizes_camelcase_payload():
+    from services.comunicaapi import ComunicaAPIClient
+
+    item = ComunicaAPIClient()._normalize_item({
+        "numeroComunicacao": "123",
+        "numeroProcessoComMascara": "0001234-56.2026.8.13.0001",
+        "siglaTribunal": "TJMG",
+        "nomeOrgao": "1a Vara",
+        "tipoComunicacao": "Intimacao",
+        "textoComunicacao": "Prazo de 5 dias para manifestar.",
+        "dataDisponibilizacao": "2026-06-03",
+    })
+
+    assert item["id"] == "123"
+    assert item["numero_processo"] == "0001234-56.2026.8.13.0001"
+    assert item["data_disponibilizacao"] == "2026-06-03"
+    assert item["texto"] == "Prazo de 5 dias para manifestar."
+
+
+@pytest.mark.asyncio
+async def test_importar_intimacoes_blocks_non_official_sources(monkeypatch):
+    monkeypatch.setattr(controladoria, "get_current_user", lambda request, db: SimpleNamespace(user_type="admin"))
+    monkeypatch.setattr(controladoria, "has_permission", lambda *args: True)
+    db = _ImportDB()
+
+    response = await controladoria.importar_intimacoes(
+        _ImportRequest([
+            {
+                "numero_processo": "0001234-56.2026.8.13.0001",
+                "texto": "Prazo de 5 dias para manifestar.",
+                "data_disponibilizacao": "2026-06-03",
+                "source": "DataJud (CNJ)",
+                "importable": False,
+            }
+        ]),
+        db=db,
+    )
+    body = json.loads(response.body.decode("utf-8"))
+
+    assert response.status_code == 200
+    assert body["imported"] == 0
+    assert body["blocked"] == 1
+    assert db.inserts == []
+    assert db.commits == 1
+
+
+@pytest.mark.asyncio
+async def test_importar_intimacoes_blocks_official_item_without_extracted_days(monkeypatch):
+    monkeypatch.setattr(controladoria, "get_current_user", lambda request, db: SimpleNamespace(user_type="admin"))
+    monkeypatch.setattr(controladoria, "has_permission", lambda *args: True)
+    db = _ImportDB()
+    item = {
+        "numero_processo": "0001234-56.2026.8.13.0001",
+        "texto": "Intimação sem prazo numérico expresso.",
+        "data_disponibilizacao": "2026-06-03",
+        "source": "ComunicaAPI PJE/CNJ",
+        "importable": True,
+    }
+    item["source_signature"] = controladoria._deadline_source_signature(1, item)
+
+    response = await controladoria.importar_intimacoes(
+        _ImportRequest([item]),
+        db=db,
+    )
+    body = json.loads(response.body.decode("utf-8"))
+
+    assert body["imported"] == 0
+    assert body["blocked"] == 1
+    assert db.inserts == []
+
+
+@pytest.mark.asyncio
+async def test_importar_intimacoes_records_official_source_metadata(monkeypatch):
+    monkeypatch.setattr(controladoria, "get_current_user", lambda request, db: SimpleNamespace(user_type="admin"))
+    monkeypatch.setattr(controladoria, "has_permission", lambda *args: True)
+    db = _ImportDB()
+    item = {
+        "id": "comunicacao-123",
+        "numero_processo": "0001234-56.2026.8.13.0001",
+        "texto": "Prazo de 5 dias para manifestar.",
+        "data_disponibilizacao": "2026-06-03",
+        "source": "ComunicaAPI PJE/CNJ",
+        "importable": True,
+    }
+    item["source_signature"] = controladoria._deadline_source_signature(1, item)
+
+    response = await controladoria.importar_intimacoes(
+        _ImportRequest([item]),
+        db=db,
+    )
+    body = json.loads(response.body.decode("utf-8"))
+    _, params = db.inserts[0]
+
+    assert response.status_code == 200
+    assert body["imported"] == 1
+    assert body["blocked"] == 0
+    assert params["source_provider"] == "ComunicaAPI PJE/CNJ"
+    assert params["source_status"] == "official"
+    assert params["source_reference"] == "comunicacao-123"
+    assert len(params["source_payload_hash"]) == 64
+    assert params["official_source"] is True
+    assert params["calculation_engine_version"] == controladoria.PRAZOS_CALCULATION_ENGINE_VERSION
+    assert params["data_inicio"] > params["data_intimacao"]
+
+
+@pytest.mark.asyncio
+async def test_importar_intimacoes_blocks_spoofed_official_source_without_signature(monkeypatch):
+    monkeypatch.setattr(controladoria, "get_current_user", lambda request, db: SimpleNamespace(user_type="admin"))
+    monkeypatch.setattr(controladoria, "has_permission", lambda *args: True)
+    db = _ImportDB()
+
+    response = await controladoria.importar_intimacoes(
+        _ImportRequest([
+            {
+                "id": "forged-1",
+                "numero_processo": "0001234-56.2026.8.13.0001",
+                "texto": "Prazo de 5 dias para manifestar.",
+                "data_disponibilizacao": "2026-06-03",
+                "source": "ComunicaAPI PJE/CNJ",
+                "importable": True,
+            }
+        ]),
+        db=db,
+    )
+    body = json.loads(response.body.decode("utf-8"))
+
+    assert body["imported"] == 0
+    assert body["blocked"] == 1
+    assert db.inserts == []
 
 
 @pytest.mark.asyncio

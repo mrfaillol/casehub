@@ -126,6 +126,6 @@ module.exports = {
   },
 
   notifications: {
-    googleChatWebhookVictor: process.env.GOOGLE_CHAT_WEBHOOK_VICTOR || ''
+    googleChatWebhookAdmin: process.env.GOOGLE_CHAT_WEBHOOK_ADMIN || ''
   }
 };

@@ -130,9 +130,9 @@ const NON_LEAD_PATTERNS = {
             /\b(meu caso|my case|numero do caso|case number|status do processo|case status|ja sou cliente|already a client|cliente atual|current client)\b/i
         ],
         response: {
-            pt: `Olá. Para informações sobre o status do seu caso, por gentileza entre em contato diretamente com nossa equipe jurídica pelo e-mail ${process.env.CONTACT_EMAIL || "contact@casehub.app"} ou acesse sua conta no e-immigration: https://www.eimmigration.com/immigrantlaw.Client/ . Se precisar agendar uma reunião de acompanhamento, nossa equipe pode ajudá-lo a organizar isso. Atenciosamente, ${process.env.ORG_NAME || "CaseHub"}`,
-            en: `Hello. For information about your case status, please contact our legal team directly at ${process.env.CONTACT_EMAIL || "contact@casehub.app"} or access your e-immigration account: https://www.eimmigration.com/immigrantlaw.Client/ . If you need to schedule a follow-up meeting, our team can help arrange that. Warm regards, ${process.env.ORG_NAME || "CaseHub"}`,
-            es: `Hola. Para información sobre el estado de su caso, por favor contacte a nuestro equipo legal directamente en ${process.env.CONTACT_EMAIL || "contact@casehub.app"} o acceda a su cuenta e-immigration: https://www.eimmigration.com/immigrantlaw.Client/ . Saludos cordiales, ${process.env.ORG_NAME || "CaseHub"}`
+            pt: `Olá. Para informações sobre o status do seu caso, por gentileza entre em contato diretamente com nossa equipe jurídica pelo e-mail ${process.env.CONTACT_EMAIL || "contact@casehub.app"} ou acesse sua conta no portal do cliente: ${process.env.EIMMIGRATION_URL || "https://example.com/client-portal"}. Se precisar agendar uma reunião de acompanhamento, nossa equipe pode ajudá-lo a organizar isso. Atenciosamente, ${process.env.ORG_NAME || "CaseHub"}`,
+            en: `Hello. For information about your case status, please contact our legal team directly at ${process.env.CONTACT_EMAIL || "contact@casehub.app"} or access your client portal account: ${process.env.EIMMIGRATION_URL || "https://example.com/client-portal"}. If you need to schedule a follow-up meeting, our team can help arrange that. Warm regards, ${process.env.ORG_NAME || "CaseHub"}`,
+            es: `Hola. Para información sobre el estado de su caso, por favor contacte a nuestro equipo legal directamente en ${process.env.CONTACT_EMAIL || "contact@casehub.app"} o acceda a su portal del cliente: ${process.env.EIMMIGRATION_URL || "https://example.com/client-portal"}. Saludos cordiales, ${process.env.ORG_NAME || "CaseHub"}`
         }
     }
 };
@@ -374,7 +374,7 @@ QUANDO CLIENTE PERGUNTAR SOBRE VISTOS OU PROCESSOS:
 SEU OBJETIVO PRINCIPAL:
 Converter o lead para agendar uma reuniao. SEMPRE apresente AS DUAS opcoes abaixo, NESTA ORDEM EXATA:
 
-**HIERARQUIA DE LINKS (MUITO IMPORTANTE - DANIEL PEDIU 10+ VEZES):**
+**HIERARQUIA DE LINKS (MUITO IMPORTANTE):**
 
 PARA NOVOS LEADS (primeira conversa, perguntas gerais, leads que NUNCA agendaram):
 >>> SEMPRE oferecer o link GRATUITO PRIMEIRO <<<
@@ -548,22 +548,16 @@ ${process.env.ORG_NAME || "CaseHub"}"
         // Remove any emojis that might have slipped through
         cleanResponse = cleanResponse.replace(/[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]/gu, '');
 
-        // Sanitize attorney name - catch wrong/hallucinated names
-        // Gemini sometimes invents "Daniel Leal" which doesn't exist
-        cleanResponse = cleanResponse.replace(/Daniel\s+Leal[\s,]*(Esq\.?)?/gi, 'nosso advogado');
-        cleanResponse = cleanResponse.replace(/Daniel\s+\w+,?\s*Esq\.?/gi, 'nosso advogado');
-        cleanResponse = cleanResponse.replace(/Dr\.\s*Daniel/gi, 'nosso advogado');
-        // Language-aware: "com Daniel" / "with Daniel" / "con Daniel"
-        cleanResponse = cleanResponse.replace(/\bcom o?\s+Daniel\b/gi, 'com nosso advogado');
-        cleanResponse = cleanResponse.replace(/\bwith\s+Daniel\b/gi, 'with our attorney');
-        cleanResponse = cleanResponse.replace(/\bcon\s+Daniel\b/gi, 'con nuestro abogado');
-        // "Advogado Daniel" / "Attorney Daniel" / "Abogado Daniel"
-        cleanResponse = cleanResponse.replace(/Advogado\s+Daniel/gi, 'nosso advogado');
-        cleanResponse = cleanResponse.replace(/Attorney\s+Daniel/gi, 'our attorney');
-        cleanResponse = cleanResponse.replace(/Abogado\s+Daniel/gi, 'nuestro abogado');
+        // Sanitize configured attorney names so the bot does not invent or expose a person.
+        const configuredAttorneyName = (process.env.PRIMARY_ATTORNEY_NAME || '').trim();
+        if (configuredAttorneyName) {
+            const escapedName = configuredAttorneyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const attorneyNamePattern = new RegExp(`\\b(?:Dr\\.?\\s*)?${escapedName}(?:\\s+\\w+)?(?:,?\\s*Esq\\.?)?\\b`, 'gi');
+            cleanResponse = cleanResponse.replace(attorneyNamePattern, 'nosso advogado');
+        }
 
         // CRITICAL: Block legal advice - unauthorized practice of law
-        // This is a PRIORITY #1 fix to prevent Daniel from losing his license
+        // Priority guard: prevent unauthorized legal advice from automated replies.
         let legalAdviceDetected = false;
         let blockedPattern = '';
         for (const pattern of LEGAL_ADVICE_PATTERNS) {
@@ -578,10 +572,11 @@ ${process.env.ORG_NAME || "CaseHub"}"
 
         if (legalAdviceDetected) {
             // REPLACE response with safe redirection to consultation
+            const orgName = process.env.ORG_NAME || "CaseHub";
             const safeResponses = {
-                pt: "Para avaliar sua situação específica e fornecer orientações adequadas, recomendamos agendar uma consulta com nossa equipe. Oferecemos:\n\n1. Reunião GRATUITA de 15 minutos: " + CALENDLY_FREE + "\n   (Para conhecer o escritório e tirar dúvidas gerais)\n\n2. Consulta detalhada com nosso advogado ($99): " + CALENDLY_PAID + "\n   (Para análise jurídica personalizada do seu caso)\n\nQual opção prefere?\n\nAtenciosamente,\n${process.env.ORG_NAME || "CaseHub"}",
-                en: "To properly evaluate your specific situation and provide appropriate guidance, we recommend scheduling a consultation with our team. We offer:\n\n1. FREE 15-minute meeting: " + CALENDLY_FREE + "\n   (To learn about our firm and ask general questions)\n\n2. Detailed consultation with our attorney ($99): " + CALENDLY_PAID + "\n   (For personalized legal analysis of your case)\n\nWhich option would you prefer?\n\nWarm regards,\n${process.env.ORG_NAME || "CaseHub"}",
-                es: "Para evaluar adecuadamente su situación específica y brindar orientación apropiada, recomendamos agendar una consulta con nuestro equipo. Ofrecemos:\n\n1. Reunión GRATUITA de 15 minutos: " + CALENDLY_FREE + "\n   (Para conocer el despacho y hacer preguntas generales)\n\n2. Consulta detallada con nuestro abogado ($99): " + CALENDLY_PAID + "\n   (Para análisis legal personalizado de su caso)\n\n¿Cuál opción prefiere?\n\nSaludos cordiales,\n${process.env.ORG_NAME || "CaseHub"}"
+                pt: "Para avaliar sua situação específica e fornecer orientações adequadas, recomendamos agendar uma consulta com nossa equipe. Oferecemos:\n\n1. Reunião GRATUITA de 15 minutos: " + CALENDLY_FREE + "\n   (Para conhecer o escritório e tirar dúvidas gerais)\n\n2. Consulta detalhada com nosso advogado ($99): " + CALENDLY_PAID + "\n   (Para análise jurídica personalizada do seu caso)\n\nQual opção prefere?\n\nAtenciosamente,\n" + orgName,
+                en: "To properly evaluate your specific situation and provide appropriate guidance, we recommend scheduling a consultation with our team. We offer:\n\n1. FREE 15-minute meeting: " + CALENDLY_FREE + "\n   (To learn about our firm and ask general questions)\n\n2. Detailed consultation with our attorney ($99): " + CALENDLY_PAID + "\n   (For personalized legal analysis of your case)\n\nWhich option would you prefer?\n\nWarm regards,\n" + orgName,
+                es: "Para evaluar adecuadamente su situación específica y brindar orientación apropiada, recomendamos agendar una consulta con nuestro equipo. Ofrecemos:\n\n1. Reunión GRATUITA de 15 minutos: " + CALENDLY_FREE + "\n   (Para conocer el despacho y hacer preguntas generales)\n\n2. Consulta detallada con nuestro abogado ($99): " + CALENDLY_PAID + "\n   (Para análisis legal personalizado de su caso)\n\n¿Cuál opción prefiere?\n\nSaludos cordiales,\n" + orgName
             };
 
             cleanResponse = safeResponses[language] || safeResponses.en;

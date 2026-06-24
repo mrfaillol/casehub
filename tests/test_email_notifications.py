@@ -52,9 +52,9 @@ class TestEmailNotifications:
         """Mock client object"""
         client = Mock()
         client.id = 10
-        client.first_name = "Maria"
+        client.first_name = "PessoaDemo"
         client.last_name = "Silva"
-        client.email = "maria@example.com"
+        client.email = "pessoa_demo@example.com"
         return client
 
     @pytest.fixture
@@ -180,7 +180,7 @@ class TestEmailNotifications:
             with patch('services.notifications.email.send_email') as mock_send:
                 # Capture the rendered HTML
                 def capture_html(to_email, subject, html_body, cc=None):
-                    assert "Maria Silva" in html_body
+                    assert "PessoaDemo Silva" in html_body
                     assert "Brazilian Passport.pdf" in html_body
                     return True
 

@@ -174,6 +174,54 @@
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
+    function _renderEmbedMarkdown(text) {
+        return escapeHtml(text)
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+    }
+
+    function _addStreamingMessage() {
+        if (welcomeCard) welcomeCard.style.display = 'none';
+        var div = document.createElement('div');
+        div.className = 'assistente-chat-embed-message';
+        div.setAttribute('data-role', 'assistant');
+        var avatar = document.createElement('div');
+        avatar.className = 'assistente-chat-embed-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        avatar.innerHTML = renderMaestroMark();
+        var bubbleWrap = document.createElement('div');
+        bubbleWrap.className = 'assistente-chat-embed-bubble-wrap';
+        var bubble = document.createElement('div');
+        bubble.className = 'assistente-chat-embed-bubble';
+        bubbleWrap.appendChild(bubble);
+        div.appendChild(avatar);
+        div.appendChild(bubbleWrap);
+        chatMessages.appendChild(div);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        return { bubble, bubbleWrap };
+    }
+
+    function _updateStreamingText(bubble, text) {
+        bubble.innerHTML = _renderEmbedMarkdown(text);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function _finalizeEmbedMessage(bubbleWrap) {
+        var tags = document.createElement('div');
+        tags.className = 'assistente-chat-embed-tags';
+        ['Me conte mais', 'Próximos passos?'].forEach(function(text) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'assistente-chat-embed-tag';
+            btn.textContent = text;
+            btn.onclick = function() { this.disabled = true; sendQuickAction(text); };
+            tags.appendChild(btn);
+        });
+        bubbleWrap.appendChild(tags);
+    }
+
     function sendQuickAction(text) {
         chatInput.value = text;
         sendMessage();
@@ -195,26 +243,68 @@
         thinkingIndicator.setAttribute('aria-hidden', 'false');
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
+        var msgRef = null;
+        var fullText = '';
+        var firstContentSeen = false;
+        var hideThinkingOnce = function () {
+            if (firstContentSeen) return;
+            firstContentSeen = true;
+            thinkingIndicator.setAttribute('data-active', 'false');
+            thinkingIndicator.setAttribute('aria-hidden', 'true');
+        };
+
         try {
-            var resp = await fetch(PREFIX + '/assistente/api/chat', {
+            var resp = await fetch(PREFIX + '/assistente/api/chat/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ message: message, history: chatHistory })
             });
-            var data = await resp.json();
-            thinkingIndicator.setAttribute('data-active', 'false');
-            thinkingIndicator.setAttribute('aria-hidden', 'true');
+            if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
 
-            if (data.status === 'offline') {
-                addMessage('assistant', 'O assistente não está disponível no momento.');
-            } else {
-                addMessage('assistant', data.response);
-                chatHistory.push({ role: 'assistant', content: data.response });
+            var reader = resp.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+            while (true) {
+                var chunk = await reader.read();
+                if (chunk.done) break;
+                buffer += decoder.decode(chunk.value, { stream: true });
+                var lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                for (var i = 0; i < lines.length; i++) {
+                    var trimmed = lines[i].trim();
+                    if (!trimmed.startsWith('data: ')) continue;
+                    var evt;
+                    try { evt = JSON.parse(trimmed.slice(6)); } catch (e) { continue; }
+                    if (evt.chunk) {
+                        hideThinkingOnce();
+                        if (!msgRef) msgRef = _addStreamingMessage();
+                        fullText += evt.chunk;
+                        _updateStreamingText(msgRef.bubble, fullText);
+                    } else if (evt.done) {
+                        hideThinkingOnce();
+                        var responseText = evt.response || fullText;
+                        if (evt.status === 'offline') {
+                            var offlineMsg = 'O assistente não está disponível no momento.';
+                            if (msgRef) _updateStreamingText(msgRef.bubble, offlineMsg);
+                            else addMessage('assistant', offlineMsg);
+                        } else {
+                            fullText = responseText;
+                            if (!msgRef) {
+                                addMessage('assistant', fullText);
+                            } else {
+                                _updateStreamingText(msgRef.bubble, fullText);
+                                _finalizeEmbedMessage(msgRef.bubbleWrap);
+                            }
+                            chatHistory.push({ role: 'assistant', content: fullText });
+                        }
+                    }
+                }
             }
+            if (!firstContentSeen) hideThinkingOnce();
         } catch (err) {
-            thinkingIndicator.setAttribute('data-active', 'false');
-            thinkingIndicator.setAttribute('aria-hidden', 'true');
-            addMessage('assistant', 'Erro ao se comunicar com o servidor.');
+            hideThinkingOnce();
+            if (!msgRef) addMessage('assistant', 'Erro ao se comunicar com o servidor.');
+            console.error('Chat stream error:', err);
         }
 
         isProcessing = false;

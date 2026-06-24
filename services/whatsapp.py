@@ -74,7 +74,7 @@ class WhatsAppService:
             if response.status_code == 200:
                 result = response.json()
                 self._log_message(formatted_phone, message, template, True)
-                return {"success": True, "message_id": result.get("id")}
+                return {"success": True, "message_id": result.get("messageId") or result.get("id")}
             else:
                 self._log_message(formatted_phone, message, template, False, response.text)
                 return {"success": False, "error": f"Bot returned {response.status_code}"}
@@ -158,14 +158,14 @@ class WhatsAppService:
         try:
             self.db.execute(text("""
                 INSERT INTO whatsapp_messages 
-                (phone, message, template, success, error, sent_at)
-                VALUES (:phone, :message, :template, :success, :error, NOW())
+                (org_id, phone, direction, message, template_name, status, created_at)
+                VALUES (:org_id, :phone, 'outgoing', :message, :template, :status, NOW())
             """), {
+                "org_id": self.org_id,
                 "phone": phone,
                 "message": message[:1000],
                 "template": template,
-                "success": success,
-                "error": error
+                "status": "sent" if success else "failed",
             })
             self.db.commit()
         except:
@@ -179,9 +179,10 @@ class WhatsAppService:
         try:
             self.db.execute(text("""
                 INSERT INTO whatsapp_queue 
-                (phone, message, template, status, created_at)
-                VALUES (:phone, :message, :template, 'pending', NOW())
+                (org_id, phone, message, template, status, created_at)
+                VALUES (:org_id, :phone, :message, :template, 'pending', NOW())
             """), {
+                "org_id": self.org_id,
                 "phone": phone,
                 "message": message[:1000],
                 "template": template

@@ -75,7 +75,7 @@ img, svg { display: block; max-width: 100%; }
   inset-block-start: 0;
   z-index: calc(var(--z-topbar) + 10);
   padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) 0 var(--space-2);
-  /* Victor 03/06: o wrapper NÃO deve ter fundo — só a pílula do header e o rail
+  /* Equipe CaseHub 03/06: o wrapper NÃO deve ter fundo — só a pílula do header e o rail
      de tabs flutuam (com fundo próprio); atrás deles o template renderizado
      aparece (efeito flutuante). Reverte o F45 (fundo sólido) que tapava o conteúdo. */
   background: transparent;
@@ -229,7 +229,7 @@ img, svg { display: block; max-width: 100%; }
 [data-theme="dark"] .ch-topbar__avatar { background: var(--c-pollen); color: var(--fg-on-pollen); }
 @media (hover: hover) { .ch-topbar__avatar:hover { transform: scale(1.05); } }
 .ch-topbar__avatar:focus-visible { box-shadow: var(--focus-ring); }
-/* Foto do usuário (Victor 03/06: avatar reaproveitado). Quando há photo_url o
+/* Foto do usuário (Equipe CaseHub 03/06: avatar reaproveitado). Quando há photo_url o
    botão vira a moldura da foto — sem fundo navy, imagem cobre o círculo. */
 .ch-topbar__avatar--photo { background: transparent; padding: 0; overflow: hidden; }
 [data-theme="dark"] .ch-topbar__avatar--photo { background: transparent; }
@@ -398,7 +398,7 @@ img, svg { display: block; max-width: 100%; }
   inset-block-start: var(--topbar-sticky-h);
   z-index: var(--z-topbar);
   padding: 0 0 var(--space-2);
-  /* Victor 03/06: sem fundo no wrapper — só o rail .ch-tabs (pílula) flutua. */
+  /* Equipe CaseHub 03/06: sem fundo no wrapper — só o rail .ch-tabs (pílula) flutua. */
   background: transparent;
   display: none;
 }
@@ -431,6 +431,25 @@ img, svg { display: block; max-width: 100%; }
   /* neu-raised-sm também aplicado via classe no HTML; mantido aqui p/ no-JS */
 }
 .ch-tabs::-webkit-scrollbar { display: none; }
+
+/* Overflow indicator (priority-plus): nav-tabs.js diverts tabs que não cabem
+   pro topo do dropdown "Mais" e seta data-overflow-start/-end no rail conforme
+   o scrollLeft. Aqui um fade nas bordas (mask) deixa claro que o rail rola e que
+   há mais rotas em "Mais" — espelha as edge-fades do bottom-nav mobile.
+   Usa mask-image (não pseudo-elemento) pra não interferir no scroll container.
+   ~28px casado com o fade do .ch-bottomnav. */
+.ch-tabs[data-overflow-end="true"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+          mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+}
+.ch-tabs[data-overflow-start="true"] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px);
+          mask-image: linear-gradient(to right, transparent 0, #000 28px);
+}
+.ch-tabs[data-overflow-start="true"][data-overflow-end="true"] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
 .ch-tab {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 14px;
@@ -447,7 +466,7 @@ img, svg { display: block; max-width: 100%; }
               box-shadow var(--motion-fast) var(--ease-out),
               transform var(--motion-fast) var(--ease-out),
               opacity var(--motion-fast) var(--ease-out);
-  /* Victor 03/06: tabs abertas preenchem o espaço do rail (como o bottom-nav
+  /* Equipe CaseHub 03/06: tabs abertas preenchem o espaço do rail (como o bottom-nav
      mobile). grow:1 distribui o vazio quando há poucas; shrink:0 + basis auto
      mantém largura natural e ativa o scroll quando há muitas. */
   flex: 1 0 auto;
@@ -521,7 +540,7 @@ img, svg { display: block; max-width: 100%; }
 .ch-tabs.is-reordering .ch-tab { transition: none; }
 
 /* ── "Painel" bubble — fixo à ESQUERDA do rail (espelha o "Mais" à direita).
-   Victor 03/06: Painel é pinned/não-fechável → vive fora do rail, como bolha. ── */
+   Equipe CaseHub 03/06: Painel é pinned/não-fechável → vive fora do rail, como bolha. ── */
 .ch-tabs-home { position: relative; flex: 0 0 auto; }
 .ch-tabs-home__bubble {
   display: inline-flex; align-items: center; gap: 8px;
@@ -621,7 +640,7 @@ img, svg { display: block; max-width: 100%; }
    bolha some e o scroller único carrega tudo. */
 .ch-bottomnav-row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: var(--space-2);
   pointer-events: none; /* filhos reativam */
 }
@@ -638,27 +657,49 @@ img, svg { display: block; max-width: 100%; }
 .ch-bottomnav-more {
   display: none; /* mobile media query liga */
   flex: 0 0 auto;
+  align-self: center;    /* círculo perfeito: não estica com o row */
   align-items: center;
   justify-content: center;
   flex-direction: column;
   gap: 3px;
   width: var(--bottomnav-h);
+  height: var(--bottomnav-h);  /* força círculo perfeito = width */
   min-width: var(--bottomnav-h);
-  border: none;
+  min-height: var(--bottomnav-h);
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
   border-radius: 50%;
-  background: var(--surface-app);
+  /* Glass igual à pílula: translúcido com blur */
+  background: color-mix(in srgb, var(--surface-app) 70%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
   background-clip: padding-box;
+  --ch-bubble-highlight: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 14px 34px rgba(0, 31, 62, 0.12), 0 2px 8px var(--ch-bubble-highlight) inset;
   color: var(--fg-muted);
   font-size: clamp(10px, 2.55vw, 12px);
   font-weight: 600;
   line-height: 1.05;
-  box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
   cursor: pointer;
   pointer-events: auto;
   text-decoration: none;
   transition: transform var(--motion-fast) var(--ease-out),
               box-shadow var(--motion-fast) var(--ease-out),
               color var(--motion-fast) var(--ease-out);
+}
+/* Dark mode: highlight branco bem sutil (mesma regra da pílula) */
+[data-theme="dark"] .ch-bottomnav-home,
+[data-theme="dark"] .ch-bottomnav-more {
+  --ch-bubble-highlight: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45), 0 1px 1px var(--ch-bubble-highlight) inset;
+}
+body.performance-mode .ch-bottomnav-home,
+body.performance-mode .ch-bottomnav-more,
+[data-eco="true"] .ch-bottomnav-home,
+[data-eco="true"] .ch-bottomnav-more {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: var(--surface-app);
 }
 .ch-bottomnav-home svg,
 .ch-bottomnav-more svg { width: 19px; height: 19px; flex: 0 0 19px; }
@@ -685,7 +726,7 @@ img, svg { display: block; max-width: 100%; }
   padding: 5px 10px;
   border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
   border-radius: calc((var(--bottomnav-h) + 18px) / 2);
-  /* Neu-glass (09/06 Victor): pílula translúcida com blur (liquid glass) misturado
+  /* Neu-glass (09/06 Equipe CaseHub): pílula translúcida com blur (liquid glass) misturado
      ao relevo neumórfico. surface-app a 70% deixa o conteúdo vazar suavemente; o
      blur + saturate dá o efeito de vidro. Mantém a sombra/realce neu abaixo. */
   background: color-mix(in srgb, var(--surface-app) 70%, transparent);
@@ -693,7 +734,7 @@ img, svg { display: block; max-width: 100%; }
   backdrop-filter: blur(18px) saturate(1.5);
   background-clip: padding-box;
   /* Realce neumórfico no topo da pílula. No dark o branco 58% virava uma "inner-shadow
-     branca estranha" (feedback Victor) → token theme-aware bem mais sutil no escuro. */
+     branca estranha" (feedback Equipe CaseHub) → token theme-aware bem mais sutil no escuro. */
   --ch-pill-highlight: rgba(255, 255, 255, 0.58);
   box-shadow: 0 14px 34px rgba(0, 31, 62, 0.12), 0 2px 8px var(--ch-pill-highlight) inset;
   isolation: isolate;
@@ -757,7 +798,7 @@ body.performance-mode .ch-bottomnav,
 }
 .ch-bottomnav__item { position: relative; }
 
-/* Mobile: abas dinâmicas (29/05 Victor) — preenchem a largura, × claro pra fechar,
+/* Mobile: abas dinâmicas (29/05 Equipe CaseHub) — preenchem a largura, × claro pra fechar,
    arrastar pra baixo/fora pra fechar (estilo chat-head do Messenger). Painel é fixo. */
 .ch-nav-remove {
   position: absolute;
@@ -791,7 +832,7 @@ body.performance-mode .ch-bottomnav,
 @media (max-width: 879px) {
   /* abas abertas dividem a largura igualmente (1 aba ocupa tudo; N dividem);
      rótulo encolhe com reticências.
-     touch-action: pan-x (09/06 Victor) — o navegador cuida do SCROLL HORIZONTAL
+     touch-action: pan-x (09/06 Equipe CaseHub) — o navegador cuida do SCROLL HORIZONTAL
      da barra quando há abas demais; só os gestos VERTICAIS chegam ao JS para
      fechar a aba (arrastar pra cima/baixo). 'none' bloqueava as duas coisas e
      travava o scroll depois da 4ª aba. */
@@ -833,7 +874,7 @@ body.performance-mode .ch-bottomnav,
   .ch-bottomnav__scroller {
     display: grid;
     /* Colunas = nº REAL de abas abertas (não fixo em 4). Cada aba vira uma coluna
-       1fr → 1 aba ocupa tudo, N dividem igual e PREENCHEM a nav. (29/05 Victor:
+       1fr → 1 aba ocupa tudo, N dividem igual e PREENCHEM a nav. (29/05 Equipe CaseHub:
        "uma aba só aberta preenchendo a nav bar"). Antes: repeat(4,1fr) deixava
        1 aba ocupando só 1/4. Itens display:none não criam coluna. */
     grid-auto-flow: column;
@@ -844,7 +885,7 @@ body.performance-mode .ch-bottomnav,
     scroll-snap-type: none;
   }
 
-  /* onda2 (Victor): quando há MAIS abas do que cabem confortavelmente, a barra
+  /* onda2 (Equipe CaseHub): quando há MAIS abas do que cabem confortavelmente, a barra
      ROLA na horizontal em vez de espremer tudo num grão ilegível. bottomnav.js
      marca .ch-bottomnav--overflow no .ch-bottomnav. Cada coluna ganha uma
      largura mínima (58px, casado com MIN_TAB_W do JS) e o scroller rola. */
@@ -877,7 +918,7 @@ body.performance-mode .ch-bottomnav,
   }
 
   /* Labels: por padrão podem quebrar (Controladoria usa <wbr>). "WhatsApp" não pode
-     quebrar em 2 linhas (feedback Victor) → nowrap + ellipsis. */
+     quebrar em 2 linhas (feedback Equipe CaseHub) → nowrap + ellipsis. */
   .ch-bottomnav__label {
     display: block;
     max-width: 100%;
@@ -893,7 +934,7 @@ body.performance-mode .ch-bottomnav,
      no-JS: enquanto o JS não marcou <html class="ch-app-ready">, mostramos os
      ≤4 primários pra a barra não vir vazia. Com JS ligado o filtro relaxa e o
      controller decide quantas abas aparecem (e ativa overflow-x scroll quando
-     passam do confortável). onda2 (Victor): a nav sustenta MAIS abas. */
+     passam do confortável). onda2 (Equipe CaseHub): a nav sustenta MAIS abas. */
   html:not(.ch-app-ready) .ch-bottomnav__item:not(.ch-bottomnav__item--mobile-primary):not(.is-active),
   html:not(.ch-app-ready) .ch-bottomnav.ch-bottomnav--has-active-extra .ch-bottomnav__item--mobile-swap:not(.is-active) {
     display: none;
@@ -952,7 +993,8 @@ body.performance-mode .ch-bottomnav,
 }
 .ch-page-head h1 em {
   font-family: var(--serif); font-style: italic; font-weight: 500;
-  color: var(--c-green-d);
+  /* pipeline-polish 2026-05-27: italic accent on display headings needs AA */
+  color: var(--accent-fg);
 }
 .ch-page-head .ch-eyebrow { display: block; margin-bottom: var(--space-2); }
 .ch-page-head__sub {
@@ -964,7 +1006,7 @@ body.performance-mode .ch-bottomnav,
 /* ─────────── Buttons ─────────── */
 .ch-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-  min-height: 40px;
+  min-height: var(--tap-target-min, 44px);
   padding: 0 var(--space-5);
   border: none; border-radius: var(--radius-pill);
   background: var(--surface-app); color: var(--fg-default);
@@ -972,15 +1014,29 @@ body.performance-mode .ch-bottomnav,
   cursor: pointer;
   box-shadow: var(--shadow-dark-sm), var(--shadow-light-sm);
   transition: transform var(--motion-fast) var(--ease-out),
-              box-shadow var(--motion-fast) var(--ease-out);
+              box-shadow var(--motion-fast) var(--ease-out),
+              background var(--motion-fast) var(--ease-out),
+              color var(--motion-fast) var(--ease-out);
   text-decoration: none;
 }
 @media (hover: hover) { .ch-btn:hover { transform: translateY(-1px); } }
 .ch-btn:active { transform: none; box-shadow: inset var(--shadow-dark-sm), inset var(--shadow-light-sm); }
 .ch-btn svg { width: 16px; height: 16px; }
-.ch-btn--primary { background: var(--c-navy); color: var(--c-paper); }
-.ch-btn--primary:active { background: var(--c-ink); }
-[data-theme="dark"] .ch-btn--primary { background: var(--c-pollen); color: var(--fg-on-pollen); }
+.ch-btn--primary {
+  background: var(--cta-neon-bg);
+  color: var(--cta-neon-fg);
+  box-shadow: var(--cta-neon-shadow);
+}
+@media (hover: hover) {
+  .ch-btn--primary:hover {
+    background: var(--cta-neon-bg-hover);
+    box-shadow: var(--cta-neon-shadow-hover);
+  }
+}
+.ch-btn--primary:active {
+  background: var(--cta-neon-bg-active);
+  box-shadow: var(--cta-neon-shadow-active);
+}
 .ch-btn--ghost {
   background: transparent; box-shadow: inset 0 0 0 1px var(--line);
   color: var(--fg-default);
@@ -1031,7 +1087,7 @@ body.performance-mode .ch-bottomnav,
 /* ─────────── Responsive ─────────── */
 @media (min-width: 720px) {
   .ch-topbar__search { display: inline-flex; }
-  /* FR-5 pré-Example User 30/05: lupa mobile some no desktop (pill já mostra) */
+  /* FR-5 pré-UsuarioDemo 30/05: lupa mobile some no desktop (pill já mostra) */
   .ch-icon-btn--search-mobile { display: none; }
 }
 /* Mobile (<720px): pill some, lupa fica como acesso ao palette */
@@ -1046,7 +1102,7 @@ body.performance-mode .ch-bottomnav,
     --content-pad-x: var(--space-4);
     --topbar-h: 56px;
   }
-  /* Mobile: header flutua transparente igual à nav bar inferior (29/05 Victor).
+  /* Mobile: header flutua transparente igual à nav bar inferior (29/05 Equipe CaseHub).
      Só a pílula .ch-topbar carrega bg + sombra; o wrap não pinta faixa sólida.
      (No desktop o wrap continua var(--surface-app) — fix F45 do gap topbar↔tabs.) */
   .ch-topbar-wrap { background: transparent; }
@@ -1063,7 +1119,7 @@ body.performance-mode .ch-bottomnav,
   }
   /* Mobile (≥401px): ícone + wordmark "CaseHub" compacto ao lado. Em ≤400px
      (bloco no fim do arquivo) volta a só-ícone, pra a lupa não encostar no
-     texto. (29/05 Victor — "mostrar CaseHub quando couber"). */
+     texto. (29/05 Equipe CaseHub — "mostrar CaseHub quando couber"). */
   .ch-topbar__brand-full {
     width: 108px;
     height: 38px;
@@ -1109,9 +1165,9 @@ body.performance-mode .ch-bottomnav,
   .ch-topbar { gap: 4px; padding: 6px 8px; }
   .ch-topbar__slug { display: none; }
   /* 361–480px: o wordmark "CaseHub" CONTINUA (a regra ≤720 com width:108px manda);
-     aqui só apertamos as ações. Só-ícone fica pra ≤360px. (29/05 Victor: mostrar
+     aqui só apertamos as ações. Só-ícone fica pra ≤360px. (29/05 Equipe CaseHub: mostrar
      CaseHub nos celulares; antes este bloco forçava só-ícone e escondia o wordmark.) */
-  /* FR (29/05 Victor): @320px as ações (lupa/dark/leaf/sino/avatar) saíam pela
+  /* FR (29/05 Equipe CaseHub): @320px as ações (lupa/dark/leaf/sino/avatar) saíam pela
      direita. Aperta ícones + gap pra TODOS caberem sem cortar/sobrepor.
      5×36 + 4×4 (gaps) + brand 34 + paddings ≈ cabe em 320px. */
   .ch-topbar__actions { gap: 4px; }
@@ -1141,7 +1197,7 @@ body.performance-mode .ch-bottomnav,
 }
 
 /* ─────────── Mobile route-tab "drag out of nav bar" to close ───────────
- * FR-5 (29/05 Victor): no mobile a bottom-nav É o sistema de abas por rota.
+ * FR-5 (29/05 Equipe CaseHub): no mobile a bottom-nav É o sistema de abas por rota.
  * Fechar uma route-tab = arrastar o item ativo (não-fixo) pra fora da barra.
  * nav-tabs.js seta data-dragging-out + --drag-dy via pointer events; aqui só
  * o feedback visual (sobe/esmaece) e a "boca" de descarte. GPU-only (transform/
@@ -1183,7 +1239,7 @@ body.performance-mode .ch-bottomnav,
 [data-eco="true"] .ch-bottomnav-wrap[data-close-hint="true"]::after { animation: none; }
 
 /* ─────────── Mobile search bar (docked to bottom edge) ───────────
- * FR-6 (29/05 Victor): lupa do topbar (mobile) abre esta barra presa embaixo.
+ * FR-6 (29/05 Equipe CaseHub): lupa do topbar (mobile) abre esta barra presa embaixo.
  * Sobe acima da bottom-nav; o input encaminha pro command palette. */
 .ch-mobile-search {
   position: fixed;
@@ -1244,4 +1300,3 @@ body.performance-mode .ch-bottomnav,
 [data-eco="true"] .ch-mobile-search.is-entering .ch-mobile-search__bar {
   transform: none; opacity: 1;
 }
-

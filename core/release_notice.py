@@ -46,8 +46,8 @@ def get_casehub_release_notice() -> dict:
             "Busca de prazos por OAB agora evita falso resultado: se a conexao oficial nao estiver pronta, o usuario ve o motivo.",
             "Base Basic preparada para ciclos rapidos de beta test ao longo desta semana.",
         ],
-        "victor_title": "Mensagem do Victor",
-        "victor_message": (
+        "team_title": "Mensagem da equipe CaseHub",
+        "team_message": (
             "Pessoal, esta versao ja permite trabalhar com dashboard, agenda, clientes, CRM, tarefas, "
             "Kanban e acompanhamento interno de prazos. A parte que ainda depende de autorizacao externa "
             "e a puxada automatica PDPJ/CNJ por OAB. Ao longo desta semana esta versao sera fortemente "

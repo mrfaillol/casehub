@@ -97,7 +97,7 @@
     });
   }
 
-  // ─── Som + alerta de notificação NOVA (Victor 29/05: "as notificações devem fazer som no PC") ───
+  // ─── Som + alerta de notificação NOVA (Equipe CaseHub 29/05: "as notificações devem fazer som no PC") ───
   // Antes o sininho era 100% silencioso (só carregava ao clicar). Agora faz polling leve,
   // toca um chime (Web Audio, sem asset) e dispara uma notificação de desktop (com som do SO)
   // quando chega algo novo não-lido — ex.: patch notes de hotfix.

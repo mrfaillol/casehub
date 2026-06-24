@@ -30,7 +30,7 @@ def test_report_markdown_contains_required_operational_fields():
     report = {
         "schema_version": SCHEMA_VERSION,
         "sha": "abc123",
-        "environment": {"base_url": "https://dev.vingren.me"},
+        "environment": {"base_url": "https://dev.example.invalid"},
         "tenant": {"slug": "perf-bench-dev"},
         "profile": {"name": "readme-min-current"},
         "verdict": {"status": "fail", "failures": []},
@@ -92,3 +92,10 @@ def test_static_check_blocks_deploy_halt_path():
 
     assert failures
     assert "blocked path" in failures[0]
+
+
+def test_static_check_allows_public_env_examples_only():
+    from scripts.perf_guardian_static_check import check_paths
+
+    assert check_paths([".env.example", "services/whatsapp-bot/.env.example"]) == []
+    assert check_paths([".env", ".env.production"])

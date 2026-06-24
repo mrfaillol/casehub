@@ -467,8 +467,8 @@
 
         td.innerHTML = `
           <select onchange="saveClientParalegal('${email}', this.value)" onblur="setTimeout(() => cancelClientEdit('${email}'), 200)">
-            <option value="Ana Clara" ${client.paralegal === 'Ana Clara' ? 'selected' : ''}>Ana Clara</option>
-            <option value="Juliana" ${client.paralegal === 'Juliana' ? 'selected' : ''}>Juliana</option>
+            <option value="Membro B" ${client.paralegal === 'Membro B' ? 'selected' : ''}>Membro B</option>
+            <option value="Membro A" ${client.paralegal === 'Membro A' ? 'selected' : ''}>Membro A</option>
           </select>
         `;
         td.querySelector('select').focus();
@@ -513,8 +513,10 @@
       // Update stats
       function updateClientsStats() {
         document.getElementById('total-clients').textContent = clientsData.length;
-        document.getElementById('ana-clara-count').textContent = clientsData.filter(c => c.paralegal === 'Ana Clara').length;
-        document.getElementById('juliana-count').textContent = clientsData.filter(c => c.paralegal === 'Juliana').length;
+        const memberBCount = document.getElementById('member-b-count');
+        const memberACount = document.getElementById('member-a-count');
+        if (memberBCount) memberBCount.textContent = clientsData.filter(c => c.paralegal === 'Membro B').length;
+        if (memberACount) memberACount.textContent = clientsData.filter(c => c.paralegal === 'Membro A').length;
       }
 
       // Filter clients table
@@ -3968,7 +3970,7 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ title, assignee: 'admin@immigrantlaw.app' })
+                    body: JSON.stringify({ title, assignee: 'admin@casehub.legal' })
                 });
 
                 if (response.ok) {

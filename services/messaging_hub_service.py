@@ -245,7 +245,7 @@ class MessagingHubService:
         # ``unified_messages`` / ``email_messages`` / ``thread_summary`` (CTE)
         # are not declared as SQLAlchemy models. They get created via
         # ALTER TABLE migrations that have not all run on a fresh deploy
-        # (alpha Mumbai, in-memory test DBs). When the table is absent
+        # (alpha remote runtime, in-memory test DBs). When the table is absent
         # Postgres raises ``UndefinedTable`` -> ``ProgrammingError`` and
         # SQLite raises ``OperationalError``. Both poison the session.
         # Same defect class as portal_access (PR #572): the route layer

@@ -1,18 +1,21 @@
 """
 CaseHub — Artist Board (J.7)
-Dashboard público que Victor acompanha produção cron (gen-lab + mutator + artist).
+Dashboard público que Equipe CaseHub acompanha produção cron (gen-lab + mutator + artist).
 
 Fontes:
 - Oracle /generative-lab/_digest.json (via proxy HTTP)
-- dev.vingren.me templates/_archive/*/lab-gen-*.html (local filesystem)
+- dev.example.invalid templates/_archive/*/lab-gen-*.html (local filesystem)
 - memory/design-library/audits/ + fixes/ (tracked no workspace repo)
 """
 import json
 import os
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from sqlalchemy.orm import Session
+from models import get_db, User
+from auth import get_current_user
 from core.template_config import templates, PREFIX
 
 try:
@@ -22,7 +25,15 @@ except ImportError:
 
 router = APIRouter(prefix="/artist-board", tags=["artist-board"])
 
-GEN_LAB_DIGEST_URL = "https://cmd.vingren.me/lab/_digest.json"
+
+def require_superadmin(request: Request, db: Session) -> User:
+    """Require superadmin user (issue #805 / T9). Returns user or None."""
+    user = get_current_user(request, db)
+    if not user or user.user_type != "superadmin":
+        return None
+    return user
+
+GEN_LAB_DIGEST_URL = "https://model-router.example/lab/_digest.json"
 ARCHIVE_ROOT = os.path.join("templates", "_archive")
 
 
@@ -73,8 +84,10 @@ def _list_lab_gen_candidates(limit: int = 50) -> list:
 
 
 @router.get("/api/feed", response_class=JSONResponse)
-async def api_feed(request: Request):
+async def api_feed(request: Request, db: Session = Depends(get_db)):
     """JSON feed consumido pela UI e por RSS futuro."""
+    if not require_superadmin(request, db):
+        raise HTTPException(status_code=403, detail="forbidden")
     digest = await _fetch_gen_lab_digest()
     candidates = _list_lab_gen_candidates(50)
     return {
@@ -86,8 +99,10 @@ async def api_feed(request: Request):
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, db: Session = Depends(get_db)):
     """Dashboard Artist Board."""
+    if not require_superadmin(request, db):
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
     digest = await _fetch_gen_lab_digest()
     candidates = _list_lab_gen_candidates(30)
     return templates.TemplateResponse("artist_board/index.html", {

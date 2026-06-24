@@ -4,7 +4,8 @@ Chatbot local via Ollama com contexto do escritório.
 
 Routes:
     GET  /assistente                        — Chat UI
-    POST /assistente/api/chat               — Enviar mensagem (JSON)
+    POST /assistente/api/chat               — Enviar mensagem (JSON, legacy)
+    POST /assistente/api/chat/stream        — Enviar mensagem (SSE streaming, recomendado)
     GET  /assistente/config                 — Página de configuração (admin)
     POST /assistente/config/contexto        — Salvar contexto customizado
     GET  /assistente/api/status             — Status do Ollama (JSON)
@@ -19,9 +20,11 @@ Routes:
     GET  /assistente/config/analytics       — Chat analytics (JSON)
 """
 from fastapi import APIRouter, Depends, Request, HTTPException, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+import asyncio
+import contextlib
 import logging
 import hashlib
 import json
@@ -34,7 +37,15 @@ logger = logging.getLogger(__name__)
 from core.template_config import templates, PREFIX, inject_org_context
 from auth import get_current_user
 from models import get_db
-from services.maestro_lite import MaestroLite, get_client_context
+from services.maestro_context import (
+    MAX_ENTRIES_FOR_CHAT_CTX,
+    MAX_ENTRY_BYTES_FOR_CHAT_CTX,
+    build_maestro_context,
+    get_custom_context as _context_get_custom_context,
+    get_user_learning_context as _context_get_user_learning_context,
+    maestro_learning_enabled as _context_maestro_learning_enabled,
+)
+from services.maestro_lite import MaestroLite
 from services.maestro_policy import resolve_maestro_policy
 
 # Soft import — MaestroLearningEntry ships in PR #575. If that PR hasn't
@@ -55,6 +66,7 @@ MAX_SOURCE_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_MANUAL_SOURCE_BYTES = 256 * 1024
 ALLOWED_SOURCE_EXTENSIONS = {"txt", "pdf", "docx"}
 MAESTRO_UI_ICON_ASSET = "brand-kit/maestro/maestro.png"
+MAESTRO_STREAM_HEARTBEAT_SECONDS = 15.0
 
 
 def _maestro_ui_profile(provider: str = "", model: str = "") -> dict:
@@ -63,7 +75,10 @@ def _maestro_ui_profile(provider: str = "", model: str = "") -> dict:
     model_norm = (model or "").strip().lower()
     probe = f"{provider_norm} {model_norm}"
 
-    if any(token in probe for token in ("openai", "chatgpt", "gpt-", "gpt4", "gpt_4", "o3", "o4")):
+    if any(token in probe for token in ("nvidia", "nim", "nemotron")):
+        profile = "maestro"
+        label = "NVIDIA"
+    elif any(token in probe for token in ("openai", "chatgpt", "gpt-", "gpt4", "gpt_4", "o3", "o4")):
         profile = "chatgpt"
         label = "ChatGPT"
     elif any(token in probe for token in ("google", "gemini", "bard")):
@@ -94,6 +109,17 @@ def _maestro_status_payload(status: dict, maestro: MaestroLite) -> dict:
     models = payload.get("models") if isinstance(payload.get("models"), list) else []
     active_model = (getattr(maestro, "model", "") or (models[0] if models else "")).strip()
     provider = getattr(maestro, "provider", "ollama")
+    # Provider externo (NVIDIA etc.) ativo: o painel reflete ELE, nao o Ollama local.
+    try:
+        from services.ai_provider import get_ai_provider, NullProvider
+        _ext = get_ai_provider()
+        if not isinstance(_ext, NullProvider):
+            import os as _os
+            provider = getattr(_ext, "name", provider) or provider
+            active_model = (_os.getenv("CASEHUB_AI_MODEL", "") or active_model).strip()
+            payload["status"] = "online"
+    except Exception:  # noqa: BLE001
+        pass
     payload["models"] = models
     payload["active_model"] = active_model
     payload["provider"] = provider
@@ -161,12 +187,12 @@ def _get_maestro(request: Request, db: Session = None, org_id=None) -> MaestroLi
 # routes/maestro_learn.py (16 KiB on write) but is more conservative at
 # 4 KiB on read — large entries are summarised by truncation; the user
 # still sees the full content in the learning surface.
-_MAX_ENTRY_BYTES_FOR_CHAT_CTX = 4 * 1024
+_MAX_ENTRY_BYTES_FOR_CHAT_CTX = MAX_ENTRY_BYTES_FOR_CHAT_CTX
 # Cap total entries pulled into one chat call. Even with 200 entries per
 # user (the write cap), pulling them all on every chat request would burn
 # the token budget. The chat surface gets the most-recently-touched 20 —
 # good enough for working memory; the rest sit in the corpus surface.
-_MAX_ENTRIES_FOR_CHAT_CTX = 20
+_MAX_ENTRIES_FOR_CHAT_CTX = MAX_ENTRIES_FOR_CHAT_CTX
 
 
 def _maestro_learning_enabled() -> bool:
@@ -177,14 +203,7 @@ def _maestro_learning_enabled() -> bool:
     reason, and keeps the chat flow's flag check inlined here for the
     next reader of this file.
     """
-    raw = os.getenv("CASEHUB_MAESTRO_LEARNING_ENABLED")
-    if raw is None:
-        try:
-            from config import settings as _settings
-            raw = getattr(_settings, "CASEHUB_MAESTRO_LEARNING_ENABLED", "")
-        except Exception:  # noqa: BLE001 — keep the chat alive even if config broken
-            raw = ""
-    return (raw or "").lower() in {"1", "true", "yes", "on"}
+    return _context_maestro_learning_enabled()
 
 
 def _get_user_learning_context(db: Session, org_id, user) -> str:
@@ -201,71 +220,32 @@ def _get_user_learning_context(db: Session, org_id, user) -> str:
     firm-canonical knowledge — matters when entries contradict the
     firm context.
     """
-    if not _maestro_learning_enabled():
-        return ""
-    if MaestroLearningEntry is None:
-        return ""
-    user_id = getattr(user, "id", None)
-    if not user_id:
-        return ""
+    return _context_get_user_learning_context(
+        db,
+        org_id,
+        user,
+        model_class=MaestroLearningEntry,
+    )
 
+
+def _get_work_intelligence_context(db: Session, org_id, user) -> str:
+    """Add aggregate workflow insight to Maestro without exposing raw logs."""
     try:
-        entries = (
-            db.query(MaestroLearningEntry)
-            .filter(
-                MaestroLearningEntry.user_id == user_id,
-                MaestroLearningEntry.org_id == org_id,
-                MaestroLearningEntry.enabled.is_(True),
-            )
-            .order_by(MaestroLearningEntry.updated_at.desc())
-            .limit(_MAX_ENTRIES_FOR_CHAT_CTX)
-            .all()
-        )
-    except Exception as exc:  # noqa: BLE001 — degrade silently
-        logger.warning(
-            "[MAESTRO LEARN CTX] failed to load entries for user_id=%s: %s",
-            user_id, exc,
-        )
+        from services.work_intelligence import build_maestro_context
+
+        return build_maestro_context(db, org_id=org_id, user=user)
+    except Exception as exc:  # noqa: BLE001 - Maestro must keep working
+        logger.warning("Work Intelligence context skipped: %s", exc)
         try:
             db.rollback()
         except Exception:
             pass
         return ""
 
-    if not entries:
-        return ""
-
-    formatted_blocks = []
-    for entry in entries:
-        title = (entry.title or "Sem título").strip()
-        content = (entry.content or "")[:_MAX_ENTRY_BYTES_FOR_CHAT_CTX]
-        tags = ", ".join(entry.tags or []) if entry.tags else ""
-        header = f"### {title}"
-        if tags:
-            header += f"  _(tags: {tags})_"
-        formatted_blocks.append(f"{header}\n{content}")
-
-    body = "\n\n".join(formatted_blocks)
-    return (
-        "\n\nAnotações do usuário (Maestro learning — fonte autoral, "
-        "use como preferência mas valide contra o contexto do "
-        "escritório quando houver conflito):\n" + body
-    )
-
 
 def _get_custom_context(db: Session, org_id) -> str:
     """Get custom context text from org settings."""
-    try:
-        result = db.execute(
-            text("SELECT value FROM org_settings WHERE org_id = :oid AND key = 'maestro_context'"),
-            {"oid": org_id}
-        )
-        row = result.fetchone()
-        if row:
-            return row[0]
-    except Exception:
-        pass
-    return ""
+    return _context_get_custom_context(db, org_id)
 
 
 def _is_maestro_enabled(db: Session, org_id) -> bool:
@@ -508,65 +488,46 @@ async def chat_api(request: Request, db: Session = Depends(get_db)):
     personality = _effective_personality(db, org_id, getattr(user, "id", None))
     personality_context = _personality_style_block(personality)
 
-    # Build context from knowledge sources
-    sources_context = ""
+    context_bundle = build_maestro_context(
+        db,
+        org_id,
+        user,
+        message,
+        maestro=maestro,
+        personality_context=personality_context,
+    )
+
+    # Official Brazilian legal grounding (#777). This is global/source-backed,
+    # not a tenant upload and not user memory. If no official source is found,
+    # the Maestro model refuses legal claims deterministically. Every OTHER
+    # prompt block (firm data, custom context, style, knowledge sources, user
+    # learning, work-intelligence, client focus, MCP) is now assembled by
+    # build_maestro_context() above and exposed via context_bundle.
+    legal_retrieval = None
+    legal_context = None
     try:
-        result = db.execute(
-            text(
-                "SELECT content FROM ai_knowledge_sources "
-                "WHERE org_id = :oid AND content IS NOT NULL "
-                "ORDER BY id DESC LIMIT 5"
-            ),
-            {"oid": org_id}
-        )
-        source_texts = [row[0] for row in result if row[0]]
-        if source_texts:
-            # Bound both per-source length and the total budget so a few large
-            # sources can't blow past num_ctx. ~8000 chars total across <=5 sources.
-            _SOURCES_CHAR_BUDGET = 8000
-            truncated = []
-            remaining = _SOURCES_CHAR_BUDGET
-            for s in source_texts:
-                if remaining <= 0:
-                    break
-                chunk = s[:min(2000, remaining)]
-                truncated.append(chunk)
-                remaining -= len(chunk)
-            sources_context = "\n\nFontes de conhecimento:\n" + "\n---\n".join(truncated)
-    except Exception as e:
-        logger.warning("Error loading knowledge sources: %s", e)
+        from services.maestro_legal_rag import retrieve_legal_context
+        legal_retrieval = retrieve_legal_context(db, message)
+        legal_context = legal_retrieval.context
+    except Exception as e:  # noqa: BLE001 — retrieval is best-effort, never fatal
+        logger.warning("official legal retrieval failed (non-fatal): %s", e)
 
-    # Build context (org-scoped firm data — get_firm_context filters by org_id)
-    firm_context = maestro.get_firm_context(db, org_id)
-    custom_context = _get_custom_context(db, org_id)
-    user_learning_context = _get_user_learning_context(db, org_id, user)
-    full_context = firm_context
-    if custom_context:
-        full_context += f"\n\nInformações adicionais do escritório:\n{custom_context}"
-    if personality_context:
-        full_context += personality_context
-    if sources_context:
-        full_context += sources_context
-    if user_learning_context:
-        full_context += user_learning_context
-    full_context += get_client_context(db, org_id, message)  # Contexto-360: bloco "CLIENTE EM FOCO" (org-scoped; '' se nenhum cliente citado)
+    result = await maestro.chat(
+        message,
+        context=context_bundle.prompt_context,
+        history=history,
+        repo_context=context_bundle.repo_context,
+        legal_context=legal_context,
+    )
 
-    # Repo-aware product grounding (flagged OFF by default). The repo index holds
-    # CaseHub product code/docs — identical for every tenant, contains no tenant
-    # data or secrets — so it is NOT org-scoped. Retrieval is local (Ollama
-    # nomic-embed-text); a missing index / offline embed simply yields None and
-    # the chat proceeds with firm context only.
-    repo_context = None
-    try:
-        from services.maestro_lite import repo_aware_enabled
-        if repo_aware_enabled():
-            from services.maestro_repo_index import retrieve_repo_context
-            repo_context = retrieve_repo_context(message)
-    except Exception as e:  # noqa: BLE001 — grounding is best-effort, never fatal
-        logger.warning("repo-aware retrieval failed (non-fatal): %s", e)
-
-    result = await maestro.chat(message, context=full_context, history=history,
-                                repo_context=repo_context)
+    if legal_retrieval is not None and getattr(legal_retrieval, "looks_legal", False):
+        result["source_policy"] = "official_legal_source_required"
+        result["citations"] = [
+            citation.to_dict()
+            for citation in getattr(legal_retrieval, "citations", [])
+        ]
+        if not result["citations"] and "refusal_code" not in result:
+            result["refusal_code"] = "no_official_legal_source"
 
     # Save to ai_chat_history
     try:
@@ -604,6 +565,182 @@ async def chat_api(request: Request, db: Session = Depends(get_db)):
     )
 
     return JSONResponse(result)
+
+
+# ---------------------------------------------------------------------------
+# Streaming Chat API — SSE endpoint to avoid nginx proxy_read_timeout issues
+# ---------------------------------------------------------------------------
+@router.post("/api/chat/stream")
+async def chat_api_stream(request: Request, db: Session = Depends(get_db)):
+    """SSE streaming variant of /api/chat.
+
+    Sends tokens as they are generated by Ollama so nginx never hits
+    proxy_read_timeout regardless of model size or context length.
+    Fast-path responses (short-circuits, external AI providers) are emitted
+    as a single event. Each event is: ``data: <json>\\n\\n``.
+    """
+    user = get_current_user(request, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+
+    org_id = getattr(request.state, "org_id", None)
+
+    if not _is_maestro_enabled(db, org_id):
+        async def _disabled_gen():
+            yield f"data: {json.dumps({'response': 'O assistente está desativado.', 'status': 'disabled', 'done': True})}\n\n"
+        return StreamingResponse(_disabled_gen(), media_type="text/event-stream",
+                                 headers={"X-Accel-Buffering": "no"})
+
+    data = await request.json()
+    message = data.get("message", "").strip()
+    history = data.get("history", [])
+
+    if not message:
+        async def _empty_gen():
+            yield f"data: {json.dumps({'response': 'Mensagem vazia.', 'status': 'error', 'done': True})}\n\n"
+        return StreamingResponse(_empty_gen(), media_type="text/event-stream",
+                                 headers={"X-Accel-Buffering": "no"})
+
+    maestro = _get_maestro(request, db, org_id)
+    personality = _effective_personality(db, org_id, getattr(user, "id", None))
+    personality_context = _personality_style_block(personality)
+
+    context_bundle = build_maestro_context(
+        db,
+        org_id,
+        user,
+        message,
+        maestro=maestro,
+        personality_context=personality_context,
+    )
+
+    legal_retrieval = None
+    legal_context = None
+    try:
+        from services.maestro_legal_rag import retrieve_legal_context
+        legal_retrieval = retrieve_legal_context(db, message)
+        legal_context = legal_retrieval.context
+    except Exception as e:  # noqa: BLE001
+        logger.warning("official legal retrieval failed (non-fatal): %s", e)
+
+    # Capture shared state so generate() can close over it
+    _org_id = org_id
+    _user = user
+    _user_id = getattr(_user, "id", None)  # capturar cedo: pos-stream o db.commit() expira o ORM (DetachedInstanceError)
+    _message = message
+    _maestro = maestro
+
+    async def generate():
+        final_response = ""
+        final_model = _maestro.model
+        final_status = "ok"
+        yield f"data: {json.dumps({'status': 'thinking', 'done': False})}\n\n"
+
+        event_queue = asyncio.Queue()
+
+        async def _produce_events():
+            try:
+                async for event in _maestro.chat_stream(
+                    _message,
+                    context=context_bundle.prompt_context,
+                    history=history,
+                    repo_context=context_bundle.repo_context,
+                    legal_context=legal_context,
+                ):
+                    await event_queue.put(("event", event))
+            except Exception as exc:  # noqa: BLE001
+                await event_queue.put(("error", exc))
+            finally:
+                await event_queue.put(("end", None))
+
+        producer_task = asyncio.create_task(_produce_events())
+        try:
+            while True:
+                try:
+                    kind, payload = await asyncio.wait_for(
+                        event_queue.get(),
+                        timeout=MAESTRO_STREAM_HEARTBEAT_SECONDS,
+                    )
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+                    continue
+
+                if kind == "end":
+                    break
+
+                if kind == "error":
+                    logger.error("Maestro stream generator error: %s", payload)
+                    yield f"data: {json.dumps({'response': 'O assistente de IA não está disponível no momento.', 'status': 'offline', 'done': True})}\n\n"
+                    return
+
+                event = payload
+                if event.get("done"):
+                    if legal_retrieval is not None and getattr(legal_retrieval, "looks_legal", False):
+                        event["source_policy"] = "official_legal_source_required"
+                        event["citations"] = [
+                            c.to_dict()
+                            for c in getattr(legal_retrieval, "citations", [])
+                        ]
+                        if not event.get("citations") and "refusal_code" not in event:
+                            event["refusal_code"] = "no_official_legal_source"
+                    final_response = event.get("response", "")
+                    final_model = event.get("model", _maestro.model)
+                    final_status = event.get("status", "ok")
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Maestro stream generator error: %s", exc)
+            yield f"data: {json.dumps({'response': 'O assistente de IA não está disponível no momento.', 'status': 'offline', 'done': True})}\n\n"
+            return
+        finally:
+            if not producer_task.done():
+                producer_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await producer_task
+
+        # Post-stream persistence (DB session still valid while StreamingResponse runs)
+        try:
+            db.execute(text("""
+                INSERT INTO ai_chat_history (org_id, user_id, message, response, tokens_used, model)
+                VALUES (:org_id, :user_id, :message, :response, :tokens, :model)
+            """), {
+                "org_id": _org_id,
+                "user_id": _user_id,
+                "message": _message,
+                "response": final_response,
+                "tokens": (len(_message or "") + len(final_response or "")) // 4,
+                "model": final_model,
+            })
+            db.commit()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Error saving stream chat history: %s", e)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+        try:
+            _record_maestro_inference(
+                db,
+                org_id=_org_id,
+                user_id=_user_id,
+                message=_message,
+                response=final_response,
+                model=final_model,
+                provider=getattr(_maestro, "provider", "ollama"),
+                status=final_status,
+            )
+        except Exception as _rec_err:  # noqa: BLE001
+            logger.warning("Error recording maestro inference: %s", _rec_err)
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------

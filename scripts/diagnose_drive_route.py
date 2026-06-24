@@ -115,6 +115,8 @@ def main() -> int:
             "configured": root_source != "root-fallback",
             "source": root_source,
             "uses_my_drive_fallback": root_source == "root-fallback",
+            "computers_native_api_root": False,
+            "computers_supported_path": "Create a Drive shortcut in My Drive, or configure a specific folder_id/root.",
         },
         "credentials": _path_status(credentials_path),
         "token": _path_status(token_path),

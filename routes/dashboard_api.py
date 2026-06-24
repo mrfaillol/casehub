@@ -13,7 +13,11 @@ from sqlalchemy import func
 from models import get_db, Case, Task, BillingItem, Client
 from auth import get_current_user
 from models.tenant import tenant_query
-from services.dashboard_metrics import cached_widget_html
+from services.dashboard_metrics import (
+    apply_dashboard_task_scope,
+    cached_widget_html,
+    dashboard_user_sees_org_scope,
+)
 
 router = APIRouter(prefix="/api/widget", tags=["widgets"])
 
@@ -143,7 +147,7 @@ def _widget_revenue(db, org_id, user, today):
 
 def _widget_tasks(db, org_id, user, today):
     try:
-        pending = tenant_query(db, Task, org_id).filter(
+        pending = apply_dashboard_task_scope(tenant_query(db, Task, org_id), db, user).filter(
             Task.status != "completed",
         ).order_by(Task.due_date.asc().nullslast()).limit(5).all()
 
@@ -172,6 +176,9 @@ def _widget_calendar(db, org_id, user, today):
 
 def _widget_activity(db, org_id, user, today):
     try:
+        if not dashboard_user_sees_org_scope(user):
+            return '<div style="padding:4px;color:#999;text-align:center;">Atividade restrita aos administradores.</div>'
+
         recent_clients = tenant_query(db, Client, org_id).order_by(Client.created_at.desc()).limit(3).all()
         if not recent_clients:
             return '<div style="padding:4px;color:#999;text-align:center;">Nenhuma atividade recente.</div>'

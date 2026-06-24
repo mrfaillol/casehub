@@ -1,6 +1,6 @@
 """
 CaseHub — Refactor Review Panel
-Painel pra Victor revisar templates refatorados: old × new lado a lado, feedback escrito,
+Painel pra Equipe CaseHub revisar templates refatorados: old × new lado a lado, feedback escrito,
 explicação técnica simples. Lê de templates/_archive/ + docs/reestruturacao/briefs/.
 """
 import json
@@ -278,7 +278,7 @@ async def preview_current(request: Request, key: str):
 
 
 @router.post("/{key}/feedback")
-async def post_feedback(key: str, request: Request, text: str = Form(...), author: str = Form("victor")):
+async def post_feedback(key: str, request: Request, text: str = Form(...), author: str = Form("casehub_team")):
     key = _safe_key(key)
     if not text.strip():
         return RedirectResponse(url=f"{PREFIX}/refactor-review/{key}", status_code=303)

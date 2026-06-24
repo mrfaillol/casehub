@@ -1,7 +1,7 @@
 """
 One-time setup: Create the CaseHub Tickets database in Notion.
-Run on VPS where NOTION_TOKEN is available in .env:
-    cd /var/www/immigrant.law/casehub && python3 scripts/setup_ticket_database.py
+Run where NOTION_TOKEN and NOTION_TICKET_PARENT_PAGE_ID are available:
+    python3 scripts/setup_ticket_database.py
 """
 import os
 import sys
@@ -15,7 +15,10 @@ if not NOTION_TOKEN:
     print("ERROR: NOTION_TOKEN not found in .env")
     sys.exit(1)
 
-TARGET_PAGE_ID = "31dcd945-9a03-8050-bec0-e939803f034d"
+TARGET_PAGE_ID = os.getenv("NOTION_TICKET_PARENT_PAGE_ID", "")
+if not TARGET_PAGE_ID:
+    print("ERROR: NOTION_TICKET_PARENT_PAGE_ID not found in environment")
+    sys.exit(1)
 
 headers = {
     "Authorization": f"Bearer {NOTION_TOKEN}",

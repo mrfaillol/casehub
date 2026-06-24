@@ -1,5 +1,5 @@
 """
-Tests for routes/improvement_tasks.py - the cmd.vingren.me ingest receiver.
+Tests for routes/improvement_tasks.py - the model-router.example ingest receiver.
 
 Authority: ruling 2026-05-06-cmd-control-center-activation
 """
@@ -101,7 +101,7 @@ def test_service_priority_normalized(db):
 
 def test_service_mark_dispatched(db):
     task = improvement_task_service.create_task(db, envelope_ref="svc-d1", kind="ui-polish", title="x")
-    updated = improvement_task_service.mark_dispatched(db, task.id, "https://github.com/mrfaillol/casehub-prod/pull/999")
+    updated = improvement_task_service.mark_dispatched(db, task.id, "https://github.com/mrfaillol/casehub/pull/999")
     assert updated.status == "dispatched"
     assert updated.dispatch_url.endswith("/pull/999")
     assert updated.dispatched_at is not None

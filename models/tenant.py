@@ -45,7 +45,7 @@ class Organization(Base):
     smtp_from_name = Column(String(255))
 
     # Subscription
-    # Spec (Victor, 28/05/2026): usuários ILIMITADOS por enquanto em todos os
+    # Spec (Equipe CaseHub, 28/05/2026): usuários ILIMITADOS por enquanto em todos os
     # planos. max_users = -1 => unlimited (ver middleware/plan_enforcement.py).
     plan = Column(String(50), default="office")
     max_users = Column(Integer, default=-1)

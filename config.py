@@ -50,10 +50,20 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     JINJA_BYTECODE_CACHE_DIR: str = "/tmp/casehub-jinja-cache"
 
+    # === External-call hard timeouts (seconds) ===
+    # Hard ceilings so a slow upstream cannot pin a uvicorn worker indefinitely
+    # (incident 2026-06-16 VS 504: worker saturation). Must stay < the route's
+    # nginx proxy_read_timeout. NOTE: the STRUCTURAL fix for long LLM inference
+    # is a concurrency bulkhead + async (see #852); these just bound the
+    # worst-case per-call worker-hold. Env-tunable (EXTERNAL_HTTP_TIMEOUT_S /
+    # EXTERNAL_LLM_TIMEOUT_S). SSE streams are excluded (legit long-lived).
+    EXTERNAL_HTTP_TIMEOUT_S: float = 12.0   # general external calls (whatsapp qr/status/photo, etc.)
+    EXTERNAL_LLM_TIMEOUT_S: float = 90.0    # Ollama/LLM inference on CPU (slower, but still bounded < nginx)
+
     # === Internal Services ===
     WHATSAPP_BOT_URL: str = "http://localhost:3001"
     LM_STUDIO_URL: str = "http://localhost:1234"
-    ILC_TOOLS_URL: str = "http://localhost:8000"
+    DOCUMENT_TOOLS_URL: str = "http://localhost:8000"
 
     # === Cache ===
     REDIS_URL: str = ""
@@ -63,7 +73,7 @@ class Settings(BaseSettings):
     PARTNER_DOMAINS: str = ""  # Comma-separated, e.g. "iasuk.org,iasuk.co.uk,ashoorilaw.com"
 
     # === Team Emails (staff/paralegal contacts) ===
-    TEAM_EMAILS: str = ""  # JSON dict, e.g. '{"juliana": {"name": "Juliana", "email": "j@x.com"}, ...}'
+    TEAM_EMAILS: str = ""  # JSON dict, e.g. '{"member_a": {"name": "Member A", "email": "member-a@example.com"}, ...}'
 
     # === Email SMTP ===
     SMTP_HOST: str = "smtp.gmail.com"
@@ -101,7 +111,7 @@ class Settings(BaseSettings):
     # webhook receiver (/calendar/gcal-webhook) is a 200 no-op and no watch
     # channels are ever registered. Polling (import_all_connected) stays the
     # permanent fallback regardless of this flag. Flipping it ON additionally
-    # requires Victor to domain-verify the receiver host in the GCP console
+    # requires Equipe CaseHub to domain-verify the receiver host in the GCP console
     # (out of band) before register_watch() will succeed — the code is safe to
     # deploy with the flag OFF.
     GOOGLE_CALENDAR_WATCH_ENABLED: bool = False
@@ -144,6 +154,7 @@ class Settings(BaseSettings):
 
     PERPLEXITY_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    NVIDIA_API_KEY: str = ""  # NVIDIA NIM (build.nvidia.com) - OpenAI-compatible, GPU-hosted Maestro
     RESEND_API_KEY: str = ""
 
     # === DataJud (CNJ) ===
@@ -162,7 +173,26 @@ class Settings(BaseSettings):
     CASEHUB_RELEASE_NOTICE_ID: str = "casehub-release-notice"
     CASEHUB_MAESTRO_FAB_ENABLED: bool = False
     CASEHUB_MCP_CLIENT_ENABLED: bool = False
+    CASEHUB_WORK_INTELLIGENCE_ENABLED: bool = False
+    CASEHUB_WORK_INTELLIGENCE_CLIENT_EVENTS_ENABLED: bool = False
     CASEHUB_INTEGRATIONS_GATEWAY_ENABLED: bool = False
+
+    # === Domicílio Judicial Eletrônico (DJE) — PDPJ gateway ===
+    # Auth reuses the PDPJ Keycloak client_credentials flow (per-org creds from
+    # services/pdpj_credentials.py). Only the base/token URLs differ between PROD
+    # and HML. Live calls are gated behind the default-OFF ``dje_integration``
+    # feature flag (core/feature_flags.py). DJE_ENV switches the whole
+    # environment: "prod" (default) or "hml".
+    DJE_ENV: str = "prod"
+    DJE_PROD_BASE_URL: str = "https://gateway.cloud.pje.jus.br/domicilio-eletronico"
+    DJE_HML_BASE_URL: str = "https://gateway.stg.cloud.pje.jus.br/domicilio-eletronico-hml"
+    DJE_PROD_SSO_TOKEN_URL: str = (
+        "https://sso.cloud.pje.jus.br/auth/realms/pje/protocol/openid-connect/token"
+    )
+    DJE_HML_SSO_TOKEN_URL: str = (
+        "https://sso.stg.cloud.pje.jus.br/auth/realms/pje/protocol/openid-connect/token"
+    )
+
     CASEHUB_IMPROVEMENT_TASKS_ENABLED: str = ""
     CASEHUB_IMPROVEMENT_HMAC_KEY: str = ""
     CASEHUB_OPS_HMAC_KEY: str = ""
@@ -178,6 +208,7 @@ class Settings(BaseSettings):
     # When True, inbound flow records labelled samples into maestro_training_samples.
     # Per-org consent (org_settings.maestro_training_consent) is still required.
     MAESTRO_TRAINING_COLLECTION_ENABLED: bool = False
+    CASEHUB_MAESTRO_LEARNING_ENABLED: bool = False
 
     # === Maestro repo-aware grounding (gated; default OFF) ===
     # When True AND a repo index exists (build via scripts/maestro_index_repo.py),

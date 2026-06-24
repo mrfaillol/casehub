@@ -51,29 +51,29 @@ window.State = State;
 // Atualizado em: 2026-01-29
 // ============================================
 const TEMPLATES = [
-    // Templates Example Legal Advogados (advocacia BR) — PIX, horário de Brasília
-    { id: 1, cat: "Saudação", name: "Primeiro Contato", text: "Olá! Seja bem-vindo(a) ao escritório Example Legal Advogados. 👋\n\nObrigado pelo seu contato. Para que possamos te ajudar da melhor forma, poderia nos informar seu nome completo e um breve resumo da sua questão?\n\nAssim direcionamos seu atendimento ao advogado da área adequada (cível, trabalhista, família, empresarial, entre outras).\n\nEstamos à disposição!" },
-    { id: 2, cat: "Saudação", name: "Resposta Rápida", text: "Prezado(a) [NOME],\n\nMuito obrigado pelo seu retorno.\n\nCaso surja qualquer dúvida ou precise de informações adicionais, estamos à inteira disposição.\n\nAtenciosamente,\nExample Legal Advogados" },
-    { id: 3, cat: "Agenda", name: "Confirmação de Reunião", text: "Prezado(a) [NOME],\n\nSua reunião com o(a) Dr.(a) [ADVOGADO] está confirmada para o dia [DATA], às [HORARIO] (horário de Brasília).\n\nLocal/link: [LOCAL]\n\nCaso precise remarcar, por gentileza nos avise com antecedência. Até lá!\n\nAtenciosamente,\nExample Legal Advogados" },
+    // Templates Escritorio Demo (advocacia BR) — PIX, horário de Brasília
+    { id: 1, cat: "Saudação", name: "Primeiro Contato", text: "Olá! Seja bem-vindo(a) ao escritório Escritorio Demo. 👋\n\nObrigado pelo seu contato. Para que possamos te ajudar da melhor forma, poderia nos informar seu nome completo e um breve resumo da sua questão?\n\nAssim direcionamos seu atendimento ao advogado da área adequada (cível, trabalhista, família, empresarial, entre outras).\n\nEstamos à disposição!" },
+    { id: 2, cat: "Saudação", name: "Resposta Rápida", text: "Prezado(a) [NOME],\n\nMuito obrigado pelo seu retorno.\n\nCaso surja qualquer dúvida ou precise de informações adicionais, estamos à inteira disposição.\n\nAtenciosamente,\nEscritorio Demo" },
+    { id: 3, cat: "Agenda", name: "Confirmação de Reunião", text: "Prezado(a) [NOME],\n\nSua reunião com o(a) Dr.(a) [ADVOGADO] está confirmada para o dia [DATA], às [HORARIO] (horário de Brasília).\n\nLocal/link: [LOCAL]\n\nCaso precise remarcar, por gentileza nos avise com antecedência. Até lá!\n\nAtenciosamente,\nEscritorio Demo" },
     { id: 4, cat: "Agenda", name: "Sugestão de Horário", text: "Olá, [NOME]!\n\nTemos disponibilidade para sua reunião com o(a) Dr.(a) [ADVOGADO] no dia [DATA], às [HORARIO] (horário de Brasília).\n\nEsse horário funciona para você? Se preferir, indique outras opções e nos ajustamos.\n\nApós a confirmação, enviaremos o convite com todos os detalhes." },
     { id: 5, cat: "Agenda", name: "Lembrete de Audiência", text: "Prezado(a) [NOME],\n\nLembrete importante: sua audiência do processo [PROCESSO] está marcada para o dia [DATA], às [HORARIO] (horário de Brasília), na [VARA].\n\nOrientações:\n• Chegue com 30 min de antecedência (ou conecte-se ao link 10 min antes, se virtual);\n• Leve documento de identificação com foto;\n• Em caso de dúvida, fale conosco.\n\nEstamos à disposição." },
     { id: 6, cat: "Agenda", name: "Reagendamento", text: "Prezado(a) [NOME],\n\nComo não recebemos a confirmação, a reunião não foi mantida na agenda. Teremos prazer em remarcar no melhor horário para você.\n\nPodemos reagendar para [DATA] às [HORARIO] (horário de Brasília)? Caso não seja conveniente, indique duas ou três alternativas.\n\nAgradecemos a compreensão." },
     { id: 7, cat: "Honorários", name: "Proposta de Honorários", text: "Prezado(a) [NOME],\n\nConforme conversamos, segue a proposta de honorários para a sua demanda ([ASSUNTO]):\n\n• Valor: R$ [VALOR]\n• Forma de pagamento: à vista (com desconto) ou parcelado\n\nOs valores seguem os parâmetros da Tabela da OAB. Após o aceite, formalizamos o contrato de prestação de serviços.\n\nFico à disposição para esclarecer qualquer ponto." },
-    { id: 8, cat: "Honorários", name: "Dados para Pagamento (PIX)", text: "Prezado(a) [NOME],\n\nSegue abaixo os dados para pagamento dos honorários:\n\n💳 PIX\nChave: [CHAVE_PIX]\nFavorecido: Example Legal Advogados\nValor: R$ [VALOR]\n\nApós o pagamento, por gentileza envie o comprovante para darmos andamento.\n\nObrigado!" },
-    { id: 9, cat: "Honorários", name: "Confirmação de Pagamento", text: "Prezado(a) [NOME],\n\nConfirmamos o recebimento do seu pagamento. ✅\n\nMuito obrigado pela confiança. Seguimos cuidando do seu caso com toda a atenção.\n\nQualquer dúvida, estamos à disposição.\n\nAtenciosamente,\nExample Legal Advogados" },
-    { id: 10, cat: "Honorários", name: "Lembrete de Parcela", text: "Olá, [NOME]!\n\nLembrete amigável: a parcela no valor de R$ [VALOR] referente aos honorários vence em [DATA].\n\nDados para pagamento (PIX):\nChave: [CHAVE_PIX]\nFavorecido: Example Legal Advogados\n\nAssim que efetuar, é só nos enviar o comprovante. Obrigado!" },
+    { id: 8, cat: "Honorários", name: "Dados para Pagamento (PIX)", text: "Prezado(a) [NOME],\n\nSegue abaixo os dados para pagamento dos honorários:\n\n💳 PIX\nChave: [CHAVE_PIX]\nFavorecido: Escritorio Demo\nValor: R$ [VALOR]\n\nApós o pagamento, por gentileza envie o comprovante para darmos andamento.\n\nObrigado!" },
+    { id: 9, cat: "Honorários", name: "Confirmação de Pagamento", text: "Prezado(a) [NOME],\n\nConfirmamos o recebimento do seu pagamento. ✅\n\nMuito obrigado pela confiança. Seguimos cuidando do seu caso com toda a atenção.\n\nQualquer dúvida, estamos à disposição.\n\nAtenciosamente,\nEscritorio Demo" },
+    { id: 10, cat: "Honorários", name: "Lembrete de Parcela", text: "Olá, [NOME]!\n\nLembrete amigável: a parcela no valor de R$ [VALOR] referente aos honorários vence em [DATA].\n\nDados para pagamento (PIX):\nChave: [CHAVE_PIX]\nFavorecido: Escritorio Demo\n\nAssim que efetuar, é só nos enviar o comprovante. Obrigado!" },
     { id: 11, cat: "Documentos", name: "Solicitação de Documentos", text: "Olá, [NOME]! Esperamos que esteja bem.\n\nPara darmos andamento ao seu caso, precisamos dos seguintes documentos:\n\n[LISTA_DOCUMENTOS]\n\nVocê pode enviá-los aqui mesmo pelo WhatsApp (foto ou PDF). Se tiver dúvida sobre algum, é só perguntar!\n\nObrigado." },
     { id: 12, cat: "Documentos", name: "Confirmação de Recebimento", text: "Prezado(a) [NOME],\n\nRecebemos os documentos enviados — muito obrigado. ✅\n\nNossa equipe fará a conferência e, havendo qualquer pendência, entraremos em contato.\n\nSeguimos à disposição." },
-    { id: 13, cat: "Processo", name: "Atualização de Andamento", text: "Prezado(a) [NOME],\n\nAtualização do seu processo [PROCESSO]:\n\n[ANDAMENTO]\n\nSeguiremos acompanhando e informaremos qualquer novidade relevante. Caso tenha dúvidas, estamos à disposição.\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 13, cat: "Processo", name: "Atualização de Andamento", text: "Prezado(a) [NOME],\n\nAtualização do seu processo [PROCESSO]:\n\n[ANDAMENTO]\n\nSeguiremos acompanhando e informaremos qualquer novidade relevante. Caso tenha dúvidas, estamos à disposição.\n\nAtenciosamente,\nEscritorio Demo" },
     { id: 14, cat: "Processo", name: "Decisão Publicada", text: "Prezado(a) [NOME],\n\nInformamos que houve uma nova decisão no processo [PROCESSO]:\n\n[RESUMO_DECISAO]\n\nJá estamos analisando os próximos passos e em breve traremos nossa recomendação. Qualquer dúvida, conte conosco." },
     { id: 15, cat: "Processo", name: "Providência / Prazo", text: "Prezado(a) [NOME],\n\nPrecisamos de uma providência sua para cumprir um prazo do processo [PROCESSO]:\n\n[PROVIDENCIA]\n\nPrazo para nos retornar: até [DATA].\n\nÉ importante para mantermos tudo em dia. Qualquer dúvida, estamos aqui!" },
     { id: 16, cat: "Follow-up", name: "Sem Retorno", text: "Olá, [NOME]!\n\nAinda não tivemos seu retorno e gostaríamos de saber se podemos ajudar em algo.\n\nSe preferir, podemos agendar uma conversa com um de nossos advogados. É só nos dizer o melhor horário.\n\nEstamos à disposição!" },
-    { id: 17, cat: "Follow-up", name: "Encaminhado ao Jurídico", text: "Olá!\n\nSua mensagem foi encaminhada à nossa equipe jurídica para análise. Retornaremos com um posicionamento o mais breve possível.\n\nAgradecemos o contato e a confiança.\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 17, cat: "Follow-up", name: "Encaminhado ao Jurídico", text: "Olá!\n\nSua mensagem foi encaminhada à nossa equipe jurídica para análise. Retornaremos com um posicionamento o mais breve possível.\n\nAgradecemos o contato e a confiança.\n\nAtenciosamente,\nEscritorio Demo" },
     { id: 18, cat: "Atendimento", name: "Assumindo Conversa", text: "Olá! Meu nome é [ADVOGADO] e darei sequência ao seu atendimento a partir de agora.\n\nJá revisei o histórico da conversa. Como posso ajudá-lo(a) hoje?" },
-    { id: 19, cat: "Atendimento", name: "Fora do Horário", text: "Olá! Obrigado pelo seu contato. 🙏\n\nNosso horário de atendimento é de segunda a sexta, das 9h às 18h (horário de Brasília).\n\nSua mensagem foi registrada e retornaremos no próximo dia útil. Em caso de urgência, deixe o assunto detalhado que daremos prioridade.\n\nAtenciosamente,\nExample Legal Advogados" },
+    { id: 19, cat: "Atendimento", name: "Fora do Horário", text: "Olá! Obrigado pelo seu contato. 🙏\n\nNosso horário de atendimento é de segunda a sexta, das 9h às 18h (horário de Brasília).\n\nSua mensagem foi registrada e retornaremos no próximo dia útil. Em caso de urgência, deixe o assunto detalhado que daremos prioridade.\n\nAtenciosamente,\nEscritorio Demo" },
     { id: 20, cat: "Consulta", name: "Confirmação de Consulta", text: "Prezado(a) [NOME],\n\nSua consulta está confirmada:\n• Data: [DATA]\n• Horário: [HORARIO] (horário de Brasília)\n• Com: Dr.(a) [ADVOGADO]\n\nPara aproveitarmos melhor o tempo, se possível envie com antecedência os documentos e um resumo do que deseja tratar.\n\nAté lá!" },
     { id: 21, cat: "Consulta", name: "Pós-Consulta", text: "Olá, [NOME]! Obrigado pela consulta de hoje.\n\nResumo do que conversamos:\n• [PONTO_1]\n• [PONTO_2]\n\nPróximos passos:\n1. [ACAO_1]\n2. [ACAO_2]\n\nQualquer dúvida, estamos à disposição!" },
-    { id: 22, cat: "Encerramento", name: "Padrão", text: "Obrigado pelo contato! 🙏\n\nSe tiver mais dúvidas, estaremos à disposição.\n\nTenha um excelente dia!\nExample Legal Advogados" }
+    { id: 22, cat: "Encerramento", name: "Padrão", text: "Obrigado pelo contato! 🙏\n\nSe tiver mais dúvidas, estaremos à disposição.\n\nTenha um excelente dia!\nEscritorio Demo" }
 ];
 
 const CATEGORIES = ['Greeting', 'Agenda', 'Pagamento', 'Onboarding', 'Vistos', 'Follow-up', 'Consulta', 'Handoff', 'Final', 'Interno'];
@@ -87,7 +87,8 @@ const API_TIMEOUTS = {
     send: 30000,          // 30s for sending messages
     ai: 30000,            // 30s for AI operations
     media: 60000,         // 60s for media uploads
-    pairing: 60000        // 60s for pairing code
+    pairing: 60000,       // 60s for pairing code
+    history: 60000        // 60s for explicit WhatsApp Web history backfill
 };
 const WHATSAPP_API_BASE =
     (typeof window !== 'undefined' && window.WA_API_BASE) ||
@@ -206,7 +207,7 @@ async function forceReconnect() {
 }
 
 
-// #5 (Example User 02/06) — true enquanto o bot esta subindo a sessao (conectando/
+// #5 (UsuarioDemo 02/06) — true enquanto o bot esta subindo a sessao (conectando/
 // carregando) mas ainda nao caiu nem pediu QR. Usado para mostrar o aviso
 // "Carregando conversas… (primeira conexao pode levar alguns segundos)".
 // 'qr'/'awaiting_scan'/'disconnected' tem fluxo proprio (QR) e NAO contam.
@@ -288,6 +289,9 @@ function updateStatusUI() {
 // ============================================
 // QR CODE
 // ============================================
+// NOTE: window.loadQRCode is OVERRIDDEN at runtime by whatsapp-qr-shim.js (loaded
+// after this file). This definition is the fallback; the change-detection that
+// avoids re-rendering an unchanged QR lives in the shim (the active path).
 async function loadQRCode() {
     const container = document.getElementById('qrCode');
     if (!container) return;
@@ -326,13 +330,17 @@ async function loadQRCode() {
 function startQRPolling() {
     if (State.qrPoller) return;
 
+    // 3s (era 5s): o QR do WhatsApp rotaciona a cada ~20s e expira rapido; com a
+    // latencia de remote runtime um intervalo menor garante que o navegador pegue a versao
+    // mais nova dentro da janela de leitura. O guard de change-detection em
+    // loadQRCode evita rebuild do <img> quando o QR nao mudou.
     State.qrPoller = setInterval(() => {
         if (!State.isConnected) {
             loadQRCode();
         } else {
             stopQRPolling();
         }
-    }, 5000);
+    }, 3000);
 }
 
 function stopQRPolling() {
@@ -439,6 +447,13 @@ async function requestPairingCode() {
     }
 }
 
+// Expose the connection-mode entry points on window so inline handlers and
+// the QR-warning gate (acknowledgeQrWarning) can call them defensively via
+// typeof window.<fn> checks, independent of script load order.
+window.showQrConnect = showQrConnect;
+window.showPhoneConnect = showPhoneConnect;
+window.requestPairingCode = requestPairingCode;
+
 function applyConnectionQueryMode() {
     const params = new URLSearchParams(window.location.search || '');
     const mode = params.get('connect');
@@ -524,12 +539,7 @@ async function loadConversations(force = false) {
         renderConversations();
         selectInitialPhoneFromQuery();
         if (container) container.setAttribute('aria-busy', 'false');
-        // v13.1: First load triggers profile pic fetch in backend.
-        // Refetch after 8s to pick up cached pics.
-        if (!profilePicRefreshDone && State.conversations.some(c => !c.profilePic)) {
-            profilePicRefreshDone = true;
-            setTimeout(() => loadConversations(true), 8000);
-        }
+        refreshMissingProfilePics();
     } catch (error) {
         console.error('[Conversations] Error:', error.message);
         // If we already have data, keep showing it; otherwise show the
@@ -668,7 +678,7 @@ function renderConversations() {
     }
 
     if (filtered.length === 0) {
-        // #5 (Example User 02/06) — primeira conexao: enquanto o bot ainda esta
+        // #5 (UsuarioDemo 02/06) — primeira conexao: enquanto o bot ainda esta
         // conectando/carregando e nenhuma conversa foi buscada com sucesso,
         // mostra um aviso de carregamento em vez de "Nenhuma conversa ainda".
         // Doherty: estado visivel evita a percepcao de tela vazia/travada.
@@ -790,6 +800,7 @@ async function selectConversation(phone) {
     // Find conversation data
     const conv = State.conversations.find(c => c.phone === phone);
     const name = conv ? getConversationDisplayName(conv) : formatPhone(phone);
+    setHistoryBackfillStatus('', 'info', true);
 
     document.getElementById('chatName').textContent = name;
     const ownerBadgeEl = document.getElementById('chatOwnerBadge');
@@ -840,6 +851,71 @@ async function selectConversation(phone) {
     }
 }
 
+function setHistoryBackfillStatus(message, type = 'info', hidden = false) {
+    const el = document.getElementById('historyBackfillStatus');
+    if (!el) return;
+    if (hidden || !message) {
+        el.hidden = true;
+        el.textContent = '';
+        el.className = 'wa-history-status';
+        return;
+    }
+    el.hidden = false;
+    el.className = `wa-history-status ${type}`;
+    el.textContent = message;
+}
+
+async function backfillHistory() {
+    const phone = State.selectedPhone;
+    if (!phone) {
+        showNotification('Selecione uma conversa primeiro', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnBackfillHistory');
+    const loadId = currentLoadId;
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('is-loading');
+    }
+    setHistoryBackfillStatus('Buscando histórico que o WhatsApp Web ainda expõe...', 'info');
+
+    try {
+        const data = await fetchAPI(`/api/history/backfill/${encodeURIComponent(phone)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ limit: 200 })
+        }, API_TIMEOUTS.history);
+
+        const stored = Number(data && data.stored || 0);
+        const fetched = Number(data && data.fetched || 0);
+        const total = Number(data && data.total || 0);
+        const suffix = total ? ` Total salvo: ${total}.` : '';
+        if (stored > 0) {
+            setHistoryBackfillStatus(`Histórico atualizado: ${stored} mensagens novas de ${fetched} lidas.${suffix}`, 'success');
+            showNotification(`Histórico atualizado (${stored} novas)`, 'success');
+        } else {
+            setHistoryBackfillStatus(`Nenhuma mensagem nova encontrada nas ${fetched} mensagens expostas pelo WhatsApp Web.${suffix}`, 'info');
+            showNotification('Histórico já estava atualizado', 'info');
+        }
+
+        await loadMessages(phone, loadId);
+        loadConversations(true);
+    } catch (error) {
+        console.error('[History Backfill] Error:', error);
+        const msg = error.name === 'AbortError'
+            ? 'Tempo esgotado ao resgatar histórico'
+            : 'Não foi possível resgatar histórico agora';
+        setHistoryBackfillStatus(msg, 'error');
+        showNotification(msg, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('is-loading');
+        }
+    }
+}
+
 /**
  * B10 helper (26/05): mescla mensagens vindas do backend com otimisticas
  * locais que ainda não foram confirmadas pelo bot.
@@ -847,7 +923,7 @@ async function selectConversation(phone) {
  * Sem esse merge, qualquer refresh (loadMessages, polling, troca de
  * conversa) sobrescrevia State.messages e a msg que o user acabou de
  * enviar SUMIA da tela apesar de já ter chegado no destinatário —
- * exatamente o que o Example User reportou na reunião 25/05 [01:10:33].
+ * exatamente o que o UsuarioDemo reportou na reunião 25/05 [01:10:33].
  *
  * Política: mantém otimisticas com idade ≤ 60s que NÃO têm correspondente
  * no fresh (matched por content+role + janela de tempo de 30s). Acima de
@@ -884,7 +960,7 @@ async function loadMessages(phone, loadId) {
         const fresh = Array.isArray(data) ? data : [];
         // B10 (26/05): preserva otimisticas pendentes (< 60s) que o bot ainda
         // não confirmou — antes, sobrescrever State.messages cega apagava a msg
-        // recém-enviada da tela do CaseHub. Reunião Example User [01:10:33].
+        // recém-enviada da tela do CaseHub. Reunião UsuarioDemo [01:10:33].
         State.messages = _mergeWithPendingOptimistic(fresh, State.messages);
         renderWhatsAppMessages();
 
@@ -1113,6 +1189,9 @@ function startConversationsSSE() {
                     // Update existing conversation
                     State.conversations[idx].lastMessage = data.lastMessage;
                     State.conversations[idx].lastMessageTime = data.timestamp;
+                    if (data.profilePic || data.profile_pic_url) {
+                        State.conversations[idx].profilePic = data.profilePic || data.profile_pic_url;
+                    }
                     // If incoming message (user), increment unread if not currently viewing
                     if (data.role === 'user' && data.phone !== State.selectedPhone) {
                         State.conversations[idx].unread = (parseInt(State.conversations[idx].unread) || 0) + 1;
@@ -1135,9 +1214,12 @@ function startConversationsSSE() {
                         lastMessageTime: data.timestamp,
                         unread: data.role === 'user' ? 1 : 0,
                         from_bot: data.role === 'user' ? 0 : 1,
+                        profilePic: data.profilePic || data.profile_pic_url || null,
                     });
                 }
                 renderConversations();
+                profilePicRefreshDone = false;
+                refreshMissingProfilePics();
             }
         } catch (e) {
             // Ignore parse errors
@@ -1161,6 +1243,61 @@ function stopConversationsSSE() {
 // ============================================
 // SEND MESSAGE
 // ============================================
+async function parseSendResponse(response) {
+    const raw = await response.text().catch(() => '');
+    if (!raw) return {};
+    try {
+        return JSON.parse(raw);
+    } catch (e) {
+        return { error: raw };
+    }
+}
+
+function friendlySendError(errorText, status) {
+    const message = String(errorText || '').trim();
+    const lower = message.toLowerCase();
+
+    if (status === 401) {
+        return 'Sessão expirada. Entre novamente para enviar mensagens.';
+    }
+    if (status === 403) {
+        return 'Seu perfil não tem permissão para enviar mensagens pelo WhatsApp.';
+    }
+    if (status === 503 || /not ready|disconnected|awaiting_scan|qr|session|not connected|client closed|connection/.test(lower)) {
+        return 'WhatsApp desconectado. Escaneie o QR Code para voltar a enviar.';
+    }
+    if (message) {
+        return message;
+    }
+    return 'Erro ao enviar mensagem.';
+}
+
+async function requireSuccessfulSend(response) {
+    const data = await parseSendResponse(response);
+    if (!response.ok || data.success === false || data.ok === false) {
+        throw new Error(friendlySendError(data.error || data.detail || data.message, response.status));
+    }
+    return data;
+}
+
+// Map the backend /api/send error_code contract (routes/whatsapp_chat.py
+// _dispatch_human_send) to a specific operator-facing message. Replaces the
+// old dead-end generic "Failed to send message".
+function sendErrorMessage(code, serverError) {
+    switch (code) {
+        case 'whatsapp_disconnected':
+            return 'WhatsApp desconectado. Leia o QR Code para reconectar.';
+        case 'forbidden':
+            return 'Você não tem permissão para enviar mensagens no WhatsApp.';
+        case 'unauthorized':
+            return 'Sessão expirada. Faça login novamente.';
+        case 'bad_request':
+            return 'Mensagem inválida.';
+        default:
+            return serverError || 'Falha ao enviar a mensagem.';
+    }
+}
+
 async function sendMessage() {
     const input = document.getElementById('messageInput');
     const text = input.value.trim();
@@ -1207,17 +1344,31 @@ async function sendMessage() {
         });
         clearTimeout(timeout);
 
-        if (!response.ok) {
-            throw new Error('Send failed');
+        let payload = null;
+        try { payload = await response.json(); } catch (_) { payload = null; }
+
+        if (!response.ok || !(payload && (payload.ok || payload.success))) {
+            // Rollback the optimistic bubble; restore the composer text so the
+            // operator doesn't lose what they typed. Filter the exact tempMsg
+            // ref — pop() could drop an unrelated message that SSE appended
+            // while the request was in flight.
+            State.messages = State.messages.filter(m => m !== tempMsg);
+            renderWhatsAppMessages();
+            input.value = text;
+            const code = payload && payload.error_code;
+            showNotification(sendErrorMessage(code, payload && payload.error), 'error');
+            return;
         }
 
-        showNotification('Message sent');
+        showNotification('Mensagem enviada');
     } catch (error) {
-        // Rollback
-        State.messages.pop();
+        // Network/abort failure (the request never produced a response).
+        State.messages = State.messages.filter(m => m !== tempMsg);
         renderWhatsAppMessages();
         input.value = text;
-        const errMsg = error.name === 'AbortError' ? 'Timeout - try again' : 'Failed to send message';
+        const errMsg = error.name === 'AbortError'
+            ? 'Tempo esgotado — tente de novo.'
+            : 'Falha de conexão ao enviar.';
         showNotification(errMsg, 'error');
     }
 }
@@ -1240,7 +1391,16 @@ async function toggleBot() {
     // Optimistic update
     State.botEnabled = newState;
     updateBotToggleUI();
-        checkFollowupStatus();
+    checkFollowupStatus();
+
+    // Bug fix: `formData` was never defined here, so the body line threw a
+    // ReferenceError → catch → rollback. Net effect: the "Sugestões" toggle
+    // did nothing. The app proxy route (routes/whatsapp_chat.py
+    // api_set_bot_control) expects Form fields `phone` + `enabled`; org is
+    // injected by the /whatsapp-api proxy.
+    const formData = new URLSearchParams();
+    formData.append('phone', State.selectedPhone);
+    formData.append('enabled', newState ? 'true' : 'false');
 
     try {
         const response = await fetch(WHATSAPP_API_BASE + '/api/bot-control', {
@@ -1525,12 +1685,13 @@ async function sendQuickGreeting() {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), API_TIMEOUTS.send);
 
-        await fetch(WHATSAPP_API_BASE + '/api/send', {
+        const response = await fetch(WHATSAPP_API_BASE + '/api/send', {
             method: 'POST',
             headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
             signal: controller.signal
         });
         clearTimeout(timeout);
+        await requireSuccessfulSend(response);
 
         document.getElementById('quickAction').classList.remove('show');
 
@@ -1542,7 +1703,7 @@ async function sendQuickGreeting() {
         console.error('[Quick Action] Error:', error);
         btn.disabled = false;
         btn.textContent = 'Enviar Saudação';
-        const errMsg = error.name === 'AbortError' ? 'Timeout - tente novamente' : 'Erro ao enviar mensagem';
+        const errMsg = error.name === 'AbortError' ? 'Timeout - tente novamente' : (error.message || 'Erro ao enviar mensagem');
         showNotification(errMsg, 'error');
     }
 }
@@ -2027,17 +2188,14 @@ async function sendTemplateNow() {
         });
         clearTimeout(timeout);
 
-        if (response.ok) {
-            closePreviewModal();
-            const loadId = ++currentLoadId;
-            loadMessages(phone, loadId);
-            showNotification('Mensagem enviada!', 'success');
-        } else {
-            throw new Error('Erro ao enviar');
-        }
+        await requireSuccessfulSend(response);
+        closePreviewModal();
+        const loadId = ++currentLoadId;
+        loadMessages(phone, loadId);
+        showNotification('Mensagem enviada!', 'success');
     } catch (error) {
         console.error('Send error:', error);
-        const errMsg = error.name === 'AbortError' ? 'Timeout - tente novamente' : 'Erro ao enviar mensagem';
+        const errMsg = error.name === 'AbortError' ? 'Timeout - tente novamente' : (error.message || 'Erro ao enviar mensagem');
         showNotification(errMsg, 'error');
         if (btn) {
             btn.disabled = false;
@@ -2159,7 +2317,7 @@ function formatPhone(phone) {
     return phone;
 }
 
-// Fuso de Brasília (Victor 10/06). O backend grava UTC (datetime.utcnow), às
+// Fuso de Brasília (Equipe CaseHub 10/06). O backend grava UTC (datetime.utcnow), às
 // vezes SEM designador de fuso ('Z'). new Date() interpreta string naive como
 // horário LOCAL do navegador -> horários errados e variando por máquina.
 // parseServerDate trata a string naive como UTC; os formatadores SEMPRE exibem
@@ -2222,7 +2380,7 @@ function getConversationDisplayName(conversation) {
 const MAESTRO_AVATAR_SRC = '/static/img/maestro.png';
 
 // Classifica a conversa para escolher o avatar das abas internas do chat de
-// bandeja (#equipe, @Maestro, @Example User...). Retorna 'maestro' p/ o Maestro,
+// bandeja (#equipe, @Maestro, @UsuarioDemo...). Retorna 'maestro' p/ o Maestro,
 // 'group' p/ canais de equipe (#...), ou 'person' p/ pessoas/contatos normais.
 // So olha nome/flags da conversa — nao toca em socket/conexao do WhatsApp.
 function classifyAvatarKind(conversation, displayName) {
@@ -2256,6 +2414,83 @@ function getConversationPhoto(conversation) {
         || conversation.photo_url
         || conversation.photoUrl
         || '';
+}
+
+function profilePicPhoneKey(phone) {
+    const raw = String(phone || '').trim();
+    return raw.replace(/@.*$/, '').replace(/\D/g, '') || raw;
+}
+
+function normalizeProfilePicPayload(payload) {
+    const out = {};
+    if (!payload || typeof payload !== 'object') return out;
+
+    const ingest = (phone, value) => {
+        if (!phone || !value) return;
+        const url = typeof value === 'string'
+            ? value
+            : (value.url || value.profilePic || value.profile_pic_url || value.profile_pic);
+        if (!url) return;
+        out[String(phone)] = url;
+        const key = profilePicPhoneKey(phone);
+        if (key) out[key] = url;
+    };
+
+    if (Array.isArray(payload.profiles)) {
+        payload.profiles.forEach((item) => {
+            if (item && typeof item === 'object') ingest(item.phone, item);
+        });
+    }
+    if (payload.byPhone && typeof payload.byPhone === 'object') {
+        Object.entries(payload.byPhone).forEach(([phone, url]) => ingest(phone, url));
+    }
+    Object.entries(payload).forEach(([phone, value]) => {
+        if (['ok', 'profiles', 'byPhone', 'updated', 'error', 'status'].includes(phone)) return;
+        ingest(phone, value);
+    });
+    return out;
+}
+
+async function refreshMissingProfilePics() {
+    if (profilePicRefreshDone || !Array.isArray(State.conversations)) return;
+
+    const missing = State.conversations
+        .filter((conversation) => {
+            const name = getConversationDisplayName(conversation);
+            return conversation
+                && conversation.phone
+                && !getConversationPhoto(conversation)
+                && classifyAvatarKind(conversation, name) === 'person';
+        })
+        .map((conversation) => conversation.phone)
+        .slice(0, 40);
+
+    if (!missing.length) return;
+    profilePicRefreshDone = true;
+
+    try {
+        const payload = await fetchAPI('/api/profile-pics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phones: missing, limit: 40 })
+        }, API_TIMEOUTS.messages);
+        const byPhone = normalizeProfilePicPayload(payload);
+        let changed = false;
+
+        State.conversations.forEach((conversation) => {
+            if (!conversation || getConversationPhoto(conversation)) return;
+            const url = byPhone[conversation.phone] || byPhone[profilePicPhoneKey(conversation.phone)];
+            if (!url) return;
+            conversation.profilePic = url;
+            changed = true;
+        });
+
+        if (changed) renderConversations();
+    } catch (error) {
+        console.warn('[ProfilePics] refresh skipped:', error.message);
+        profilePicRefreshDone = false;
+        setTimeout(() => loadConversations(true), 8000);
+    }
 }
 
 // Owner-tag chip: colored badge showing who "owns" this contact (CRM owner).
@@ -2408,7 +2643,7 @@ function showBrowserNotification(msg) {
     const conv = State.conversations.find(c => c.phone === (msg.phone || State.selectedPhone));
     const name = conv ? (conv.name || conv.whatsapp_name || formatPhone(msg.phone || State.selectedPhone)) : 'Nova mensagem';
     const body = (msg.content || '').substring(0, 100);
-    const icon = conv?.profilePic || '/casehub/static/img/whatsapp-icon.png';
+    const icon = getConversationPhoto(conv) || '/casehub/static/img/whatsapp-icon.png';
 
     const notification = new Notification(name, {
         body: body,
@@ -2522,17 +2757,127 @@ function applyMessageMutation(msg) {
 // ============================================
 // v13.2: IMAGE LIGHTBOX
 // ============================================
-function openLightbox(src) {
+// Lightbox gallery state — lets the operator arrow through every image in
+// the open conversation, WhatsApp-Web style.
+let _lbGallery = [];
+let _lbIndex = 0;
+
+function openLightbox(src, filename) {
     const lightbox = document.getElementById('imageLightbox');
     const img = document.getElementById('lightboxImage');
-    img.src = src;
+    if (!lightbox || !img) return;
+    // Collect every inline conversation image, in DOM order, for prev/next.
+    _lbGallery = Array.from(document.querySelectorAll('.wa-message-media--image img'))
+        .map(el => ({ src: el.getAttribute('src'), name: el.dataset.filename || 'imagem.jpg' }))
+        .filter(g => g.src);
+    _lbIndex = _lbGallery.findIndex(g => g.src === src);
+    if (_lbIndex < 0) { _lbGallery = [{ src, name: filename || 'imagem.jpg' }]; _lbIndex = 0; }
+    _lbRender(src, filename);
     lightbox.classList.add('show');
     document.body.style.overflow = 'hidden';
+    _lbUpdateNav();
+}
+
+function _lbRender(src, filename) {
+    const img = document.getElementById('lightboxImage');
+    if (!img) return;
+    img.classList.remove('zoomed');  // reset zoom on each new image
+    img.src = src;
+    const dl = document.getElementById('lightboxDownload');
+    if (dl) { dl.dataset.src = src; dl.dataset.filename = filename || 'imagem.jpg'; }
+}
+
+// Step through the gallery (wraps around). No-op for a single image.
+function lightboxNav(delta) {
+    if (_lbGallery.length < 2) return;
+    _lbIndex = (_lbIndex + delta + _lbGallery.length) % _lbGallery.length;
+    const g = _lbGallery[_lbIndex];
+    _lbRender(g.src, g.name);
+    _lbUpdateNav();
+}
+
+function _lbUpdateNav() {
+    const multi = _lbGallery.length > 1;
+    ['lightboxPrev', 'lightboxNext'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.style.display = multi ? '' : 'none';
+    });
+    const counter = document.getElementById('lightboxCounter');
+    if (counter) {
+        counter.style.display = multi ? '' : 'none';
+        counter.textContent = `${_lbIndex + 1} / ${_lbGallery.length}`;
+    }
+}
+
+// Click toggles 2× zoom centred on the image (Esc / backdrop still close).
+function lightboxToggleZoom(ev) {
+    if (ev) ev.stopPropagation();
+    const img = document.getElementById('lightboxImage');
+    if (img) img.classList.toggle('zoomed');
+}
+
+// Force a media download. The media is served same-origin through the
+// /whatsapp-api proxy, so a blob download works; if the fetch is blocked
+// (expired/cross-origin), fall back to opening the URL in a new tab so the
+// operator can still save it manually — never a dead end.
+function downloadMedia(url, filename) {
+    fetch(url, { credentials: 'same-origin' })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+        .then(blob => {
+            const objUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = objUrl;
+            a.download = filename || 'arquivo';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+        })
+        .catch(() => window.open(url, '_blank', 'noopener'));
+}
+
+// Inline image failed to load (expired proxy URL / missing media). Replace
+// the broken <img> with an actionable fallback instead of a silent blank —
+// this is what made received images look impossible to see.
+function waImageError(img, url) {
+    const wrap = img.closest('.wa-message-media');
+    if (!wrap) { img.hidden = true; return; }
+    const safe = escapeHtml(url || img.src || '');
+    wrap.innerHTML = `<div class="wa-media-broken">
+        <i class="fas fa-image" aria-hidden="true"></i>
+        <span>Imagem indisponível — <a href="${safe}" target="_blank" rel="noopener">abrir original</a></span>
+    </div>`;
 }
 
 function closeLightbox() {
     const lightbox = document.getElementById('imageLightbox');
     lightbox.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// Document preview (WhatsApp-Web parity): PDFs open in an in-app iframe
+// viewer; images route to the lightbox; anything else (or a missing modal)
+// falls back to opening in a new tab so the operator can always view it.
+function openDocPreview(url, name, mime) {
+    if (mime && mime.startsWith('image/')) { openLightbox(url, name); return; }
+    const modal = document.getElementById('docPreview');
+    if (!modal) { window.open(url, '_blank', 'noopener'); return; }
+    const frame = document.getElementById('docPreviewFrame');
+    if (frame) frame.src = url;
+    const nameEl = document.getElementById('docPreviewName');
+    if (nameEl) nameEl.textContent = name || 'Documento';
+    const dl = document.getElementById('docPreviewDownload');
+    if (dl) { dl.dataset.src = url; dl.dataset.filename = name || 'arquivo'; }
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeDocPreview() {
+    const modal = document.getElementById('docPreview');
+    if (!modal) return;
+    modal.classList.remove('show');
+    const frame = document.getElementById('docPreviewFrame');
+    if (frame) frame.src = 'about:blank';  // stop rendering / free memory
     document.body.style.overflow = '';
 }
 
@@ -2551,11 +2896,23 @@ document.addEventListener('keydown', (e) => {
     if (mediaComposer && mediaComposer.classList.contains('show')) {
         cancelMediaComposer(); return;
     }
+    const docPreview = document.getElementById('docPreview');
+    if (docPreview && docPreview.classList.contains('show')) {
+        closeDocPreview(); return;
+    }
     const lightbox = document.getElementById('imageLightbox');
     if (lightbox && lightbox.classList.contains('show')) {
         closeLightbox(); return;
     }
     if (replyContext) { cancelReply(); return; }
+});
+
+// Arrow keys navigate the lightbox gallery (WhatsApp-Web parity).
+document.addEventListener('keydown', (e) => {
+    const lb = document.getElementById('imageLightbox');
+    if (!lb || !lb.classList.contains('show')) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); lightboxNav(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); lightboxNav(1); }
 });
 
 // ============================================
@@ -2676,9 +3033,18 @@ function renderMessageContent(m) {
                 return `<img class="wa-sticker" src="${escapeHtml(mediaUrl)}" alt="Sticker" loading="lazy">`;
             }
             if (kind === 'image') {
-                return `<div class="wa-message-media">
-                    <img src="${escapeHtml(mediaUrl)}" alt="Imagem"
-                         onclick="openLightbox('${escapeHtml(mediaUrl)}')" loading="lazy">
+                const imgName = escapeHtml(m.filename || m.file_name || 'imagem.jpg');
+                const safeImg = escapeHtml(mediaUrl);
+                return `<div class="wa-message-media wa-message-media--image">
+                    <img src="${safeImg}" alt="${escapeHtml(caption || 'Imagem')}" loading="lazy"
+                         data-filename="${imgName}"
+                         onclick="openLightbox('${safeImg}','${imgName}')"
+                         onerror="waImageError(this, '${safeImg}')">
+                    <button class="wa-media-download" type="button" title="Baixar imagem"
+                            aria-label="Baixar imagem"
+                            onclick="event.stopPropagation();downloadMedia('${safeImg}','${imgName}')">
+                        <i class="fas fa-download" aria-hidden="true"></i>
+                    </button>
                 </div>${captionHtml}`;
             }
             if (kind === 'video') {
@@ -2707,17 +3073,32 @@ function renderMessageContent(m) {
                     <div class="wa-doc-ocr-text">${linkifyText(escapeHtml(m.ocr_text))}</div>
                 </details>`
                 : '';
+            // Previewable inline (WhatsApp-Web parity): PDFs open in an
+            // in-app viewer, images in the lightbox. Other types fall back to
+            // a download. The row is the preview target; a dedicated button
+            // downloads (Fitts: two clear, separate affordances).
+            const docMime = (m.mimetype || '').toLowerCase();
+            const isPdf = docMime.includes('pdf') || /\.pdf$/i.test(fileName);
+            const canPreview = isPdf || docMime.startsWith('image/');
+            const safeDocUrl = escapeHtml(mediaUrl);
+            const safeDocName = escapeHtml(fileName);
+            const previewAttrs = canPreview
+                ? `onclick="openDocPreview('${safeDocUrl}','${safeDocName}','${escapeHtml(docMime)}')" `
+                  + `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDocPreview('${safeDocUrl}','${safeDocName}','${escapeHtml(docMime)}')}" `
+                  + `role="button" tabindex="0" title="Abrir visualização"`
+                : `onclick="downloadMedia('${safeDocUrl}','${safeDocName}')" role="button" tabindex="0" title="Baixar"`;
             return `<div class="wa-message-media">
-                <a href="${escapeHtml(mediaUrl)}" target="_blank" rel="noopener" class="wa-message-media-link">
-                    <div class="wa-message-media-doc">
-                        <i class="fas ${fileIcon}" aria-hidden="true"></i>
-                        <div class="wa-message-media-doc-info">
-                            <div class="wa-message-media-doc-name">${escapeHtml(fileName)}</div>
-                            <div class="wa-message-media-doc-size">${m.file_size || m.filesize ? formatFileSize(m.file_size || m.filesize) : 'Documento'}</div>
-                        </div>
-                        <i class="fas fa-download wa-message-media-download-icon"></i>
+                <div class="wa-message-media-doc${canPreview ? ' is-previewable' : ''}" ${previewAttrs}>
+                    <i class="fas ${fileIcon}" aria-hidden="true"></i>
+                    <div class="wa-message-media-doc-info">
+                        <div class="wa-message-media-doc-name">${safeDocName}</div>
+                        <div class="wa-message-media-doc-size">${m.file_size || m.filesize ? formatFileSize(m.file_size || m.filesize) : 'Documento'}</div>
                     </div>
-                </a>
+                    <button class="wa-doc-download-btn" type="button" title="Baixar" aria-label="Baixar arquivo"
+                            onclick="event.stopPropagation();downloadMedia('${safeDocUrl}','${safeDocName}')">
+                        <i class="fas fa-download" aria-hidden="true"></i>
+                    </button>
+                </div>
                 ${ocrHtml}
             </div>`;
         }
@@ -3255,7 +3636,7 @@ function saveUrgentConversations() {
     localStorage.setItem('urgentConversations', JSON.stringify([...urgentConversations]));
 }
 
-// Abas de tag (Victor 10/06): separa conversas por tag/cliente. Aditivo e
+// Abas de tag (Equipe CaseHub 10/06): separa conversas por tag/cliente. Aditivo e
 // defensivo — tags podem vir como array, string CSV ou ausentes; sem tags a
 // barra fica escondida (degrada graciosamente, nunca quebra). escapeHtml em
 // todo conteúdo de tag (evita XSS via nome de tag vindo do backend).
@@ -3612,26 +3993,96 @@ function triggerFileUpload(accept) {
     input.click();
 }
 
-function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // Validate file size (max 16MB — WhatsApp media limit)
+// Shared entry for ANY attachment source (file picker, paste, drag-drop).
+// Validates size + that a conversation is open, then opens the composer so
+// the operator confirms/captions before sending. Returns true on accept.
+function acceptAttachment(file) {
+    if (!file) return false;
     if (file.size > 16 * 1024 * 1024) {
         showNotification('Arquivo muito grande (máx 16MB)', 'error');
-        event.target.value = '';
-        return;
+        return false;
     }
-
     if (!State.selectedPhone) {
         showNotification('Selecione uma conversa primeiro', 'error');
-        event.target.value = '';
-        return;
+        return false;
     }
-
-    // Open the composer so the operator confirms + captions the file.
     openMediaComposer(file);
+    return true;
 }
+
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    // Reset the input so re-selecting the same file fires change again.
+    if (!acceptAttachment(file)) event.target.value = '';
+}
+
+// ── Paste & drag-drop to attach (WhatsApp Web parity) ────────────
+// Ctrl+V an image anywhere, or drag a file onto the chat, → composer.
+
+document.addEventListener('paste', (e) => {
+    if (!State.selectedPhone) return;
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    for (const it of items) {
+        if (it.kind === 'file' && (it.type || '').startsWith('image/')) {
+            const file = it.getAsFile();
+            if (file) {
+                // Pasted screenshots arrive as a generic "image.png"; stamp a
+                // unique name so successive pastes don't collide.
+                const nice = (file.name && file.name !== 'image.png')
+                    ? file.name
+                    : `colado-${String(Date.now())}.png`;
+                const named = new File([file], nice, { type: file.type });
+                e.preventDefault();
+                acceptAttachment(named);
+            }
+            return;
+        }
+    }
+});
+
+let _waDragDepth = 0;
+function _waToggleDropOverlay(show) {
+    let ov = document.getElementById('waDropOverlay');
+    if (show) {
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'waDropOverlay';
+            ov.className = 'wa-drop-overlay';
+            ov.innerHTML = '<div class="wa-drop-overlay-inner">'
+                + '<i class="fas fa-cloud-arrow-up" aria-hidden="true"></i>'
+                + '<span>Solte para anexar</span></div>';
+            document.body.appendChild(ov);
+        }
+        ov.classList.add('show');
+    } else if (ov) {
+        ov.classList.remove('show');
+    }
+}
+function _waDragHasFiles(e) {
+    return Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes('Files');
+}
+window.addEventListener('dragenter', (e) => {
+    if (!State.selectedPhone || !_waDragHasFiles(e)) return;
+    e.preventDefault();
+    _waDragDepth++;
+    _waToggleDropOverlay(true);
+});
+window.addEventListener('dragover', (e) => {
+    if (State.selectedPhone && _waDragHasFiles(e)) e.preventDefault();
+});
+window.addEventListener('dragleave', (e) => {
+    if (!State.selectedPhone) return;
+    _waDragDepth = Math.max(0, _waDragDepth - 1);
+    if (_waDragDepth === 0) _waToggleDropOverlay(false);
+});
+window.addEventListener('drop', (e) => {
+    if (!State.selectedPhone || !_waDragHasFiles(e)) return;
+    e.preventDefault();
+    _waDragDepth = 0;
+    _waToggleDropOverlay(false);
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) acceptAttachment(file);
+});
 
 async function uploadFile(file) {
     if (!State.selectedPhone) {
@@ -3663,8 +4114,8 @@ async function uploadFile(file) {
             const loadId = ++currentLoadId;
             loadMessages(State.selectedPhone, loadId);
         } else {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error || 'Falha no envio');
+            const err = await parseSendResponse(response);
+            throw new Error(friendlySendError(err.error || err.detail || err.message, response.status));
         }
     } catch (error) {
         const errMsg = error.name === 'AbortError' ? 'Timeout - tente novamente' : error.message || 'Erro ao enviar arquivo';
@@ -3840,8 +4291,9 @@ async function loadClientInfoPanel() {
     const avatarSection = document.getElementById('infoAvatarSection');
     if (avatarSection) {
         const initials = escapeHtml(getInitials(name));
-        avatarSection.innerHTML = conv?.profilePic
-            ? `<img class="wa-info-hero-avatar" src="${escapeHtml(conv.profilePic)}" alt="${escapeHtml(name)}" onerror="this.outerHTML='<div class=\\'wa-info-hero-avatar-fallback\\'>${initials}</div>'">`
+        const profilePic = getConversationPhoto(conv);
+        avatarSection.innerHTML = profilePic
+            ? `<img class="wa-info-hero-avatar" src="${escapeHtml(profilePic)}" alt="${escapeHtml(name)}" onerror="this.outerHTML='<div class=\\'wa-info-hero-avatar-fallback\\'>${initials}</div>'">`
             : `<div class="wa-info-hero-avatar-fallback">${initials}</div>`;
     }
     const avatarName = document.getElementById('infoAvatarName');
@@ -4092,7 +4544,7 @@ renderWhatsAppMessages = function() {
 
         // Hover/swipe-to-reply affordance — reply + react quick buttons.
         const actionsHtml = m.deleted_at ? '' : `
-            <div class="wa-message-actions" aria-hidden="true">
+            <div class="wa-message-actions">
                 <button class="wa-msg-action-btn" type="button" title="Responder"
                         onclick="event.stopPropagation();startReplyTo('${escapeHtml(msgId)}')">
                     <i class="fas fa-reply"></i>
@@ -4841,8 +5293,8 @@ async function confirmSendMedia() {
         clearTimeout(timeout);
 
         if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error || 'Falha no envio');
+            const err = await parseSendResponse(response);
+            throw new Error(friendlySendError(err.error || err.detail || err.message, response.status));
         }
         showNotification('Arquivo enviado!', 'success');
         cancelMediaComposer();

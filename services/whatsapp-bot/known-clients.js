@@ -5,29 +5,11 @@
  * REGRA CRITICA: Clientes NUNCA devem receber respostas automaticas do bot
  */
 
-// Lista de clientes conhecidos com seus telefones
-// Formato: telefone (normalizado, apenas numeros) -> info do cliente
+// Lista de clientes conhecidos com seus telefones.
+// Formato: telefone (normalizado, apenas numeros) -> info do cliente.
+// Nao commitar clientes reais neste arquivo; alimente em runtime/config local.
 const KNOWN_CLIENTS = {
-  // Nuttapon - Thailand (+66)
-  '6689201999': { name: 'Nuttapon Pratyapattanapong', language: 'en', case: '66' },
-  '66892091999': { name: 'Nuttapon Pratyapattanapong', language: 'en', case: '66' },
-  
-  // Htay Htay Thaw
-  // Add phone when available
-  
-  // Jodie Evans  
-  // Add phone when available
-  
-  // Fereshteh Farokhi
-  // Add phone when available
-  
-  // Fabio - USA (+1 805)
-  '18052814667': { name: 'Fabio', language: 'pt', case: 'active' },
-
-  // Morgana Rosa - Brasil (+55 54)
-  '555496069971': { name: 'Morgana Rosa', language: 'pt', case: 'active' },
-
-  // Adicionar mais clientes conforme necessario
+  // "5511999999999": { name: "Cliente Demo", language: "pt", case: "demo" },
 };
 
 // Palavras-chave que indicam que é um cliente existente

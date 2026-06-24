@@ -8,6 +8,8 @@
  * Uso: copiar e personalizar com [NOME], [AGENTE], [INTERESSE]
  */
 
+const EIMMIGRATION_URL = process.env.EIMMIGRATION_URL || "https://example.com/client-portal";
+
 const TEMPLATES = {
   // ============================================
   // GREETING - Primeiro Contato
@@ -549,14 +551,14 @@ ${process.env.ORG_NAME || "CaseHub"}`
   onboarding: {
     en: `Hello!
 
-Thank you for choosing our firm to assist with your immigration matter. Nice to meet you. My name is Daniel Clasen, and I am the attorney who will manage your case.
+Thank you for choosing our firm to assist with your immigration matter. Nice to meet you. My name is Advogado Demo, and I am the attorney who will manage your case.
 
 Quick introduction: I am an Immigration Lawyer with years of experience, licensed in the US, and I have a master's degree in Immigration Law as well. I'll make sure to complete your case in the best and quickest way possible.
 
 To get started, let's schedule an onboarding call to discuss your case in more detail. Please let me know a few times that you're available for a call. Would [DATE] at [TIME] EST work for you?
 
 Here are your credentials to log into your e-immigration account:
-https://www.eimmigration.com/immigrantlaw.Client/
+${EIMMIGRATION_URL}
 
 Username: [USERNAME]
 Password: [PASSWORD]
@@ -574,14 +576,14 @@ ${process.env.ORG_NAME || "CaseHub"}`,
 
     pt: `Olá!
 
-Obrigado por escolher nosso escritório para auxiliá-lo(a) com sua questão imigratória. É um prazer conhecê-lo(a). Meu nome é Daniel Clasen, e serei o advogado responsável pela condução do seu caso.
+Obrigado por escolher nosso escritório para auxiliá-lo(a) com sua questão imigratória. É um prazer conhecê-lo(a). Meu nome é Advogado Demo, e serei o advogado responsável pela condução do seu caso.
 
 Fazendo uma breve apresentação: sou advogado de imigração, com anos de experiência, licenciado nos Estados Unidos, e possuo também um mestrado em Direito de Imigração. Farei o possível para conduzir o seu caso da melhor e mais eficiente forma.
 
 Para darmos início, gostaríamos de agendar uma chamada de onboarding para discutir seu caso com mais detalhes. Por gentileza, informe alguns horários em que você estará disponível para essa conversa. [DATA] às [HORÁRIO] BRT funcionaria para você?
 
 Abaixo estão suas credenciais para acesso à sua conta na plataforma e-immigration:
-https://www.eimmigration.com/immigrantlaw.Client/
+${EIMMIGRATION_URL}
 
 Usuário: [USERNAME]
 Senha: [PASSWORD]
@@ -599,14 +601,14 @@ ${process.env.ORG_NAME || "CaseHub"}`,
 
     es: `¡Hola!
 
-Gracias por elegir nuestro despacho para ayudarte con tu asunto migratorio. Mucho gusto. Mi nombre es Daniel Clasen, y soy el abogado que manejará tu caso.
+Gracias por elegir nuestro despacho para ayudarte con tu asunto migratorio. Mucho gusto. Mi nombre es Advogado Demo, y soy el abogado que manejará tu caso.
 
 Breve presentación: Soy abogado de inmigración con años de experiencia, licenciado en EE.UU., y también tengo una maestría en Derecho Migratorio. Me aseguraré de completar tu caso de la mejor y más rápida manera posible.
 
 Para comenzar, agendemos una llamada de onboarding para discutir tu caso con más detalle. Por favor, indícame algunos horarios en que estés disponible.
 
 Aquí están tus credenciales para acceder a tu cuenta e-immigration:
-https://www.eimmigration.com/immigrantlaw.Client/
+${EIMMIGRATION_URL}
 
 Usuario: [USERNAME]
 Contraseña: [PASSWORD]
@@ -822,14 +824,11 @@ ${process.env.ORG_NAME || "CaseHub"}`
   }
 };
 
-// URLs dos Calendly (CORRETOS - Aprovado por Daniel)
+// Calendly URLs configured by the office.
 const CALENDLY_URLS = {
   free: `${process.env.ORG_WEBSITE || "https://casehub.app"}/freecall`,
   paid: `${process.env.ORG_WEBSITE || "https://casehub.app"}/meeting`
 };
-
-// E-Immigration URL
-const EIMMIGRATION_URL = "https://www.eimmigration.com/immigrantlaw.Client/";
 
 /**
  * Obter template por nome e idioma

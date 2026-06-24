@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Form utilities for handling empty string → None conversion from HTML forms."""
 
 def form_int(value: str) -> int | None:

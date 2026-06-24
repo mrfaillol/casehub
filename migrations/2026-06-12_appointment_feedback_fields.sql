@@ -1,5 +1,5 @@
 -- Agenda: lightweight Trello-like details for commitments.
--- Maria feedback via WhatsApp video 2026-06-12.
+-- PessoaDemo feedback via WhatsApp video 2026-06-12.
 
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS checklist TEXT;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS attachments TEXT;

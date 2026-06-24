@@ -11,6 +11,8 @@ session from conftest.py (the wa_* ORM models are created by metadata.create_all
 Run: pytest tests/test_whatsapp_clone.py
 """
 import importlib
+import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -201,6 +203,203 @@ def test_list_conversations_shape_matches_frontend_contract(db):
     assert c["unread"] == 1
 
 
+def test_api_conversations_proxies_external_profile_pics(db, monkeypatch, mock_request):
+    import routes.whatsapp_chat as wc
+
+    _make_org(db)
+    svc.record_message(
+        db,
+        org_id=1,
+        phone="5511999999999",
+        body="latest",
+        wa_message_id="C-PIC-1",
+        display_name="Bob",
+        profile_pic_url="https://pps.whatsapp.net/avatar.jpg",
+    )
+    mock_request.state.org_id = 1
+    monkeypatch.setattr(wc, "get_current_user", lambda request, session: object())
+
+    resp = asyncio.run(wc.api_get_conversations(mock_request, db=db))
+    payload = json.loads(resp.body.decode("utf-8"))
+
+    assert payload[0]["profilePic"] == (
+        f"{wc.PREFIX}{wc.ROUTER_PREFIX}/api/profile-photo/%2B5511999999999"
+    )
+    assert "pps.whatsapp.net" not in payload[0]["profilePic"]
+
+
+def test_api_conversations_proxies_data_url_profile_pics(db, monkeypatch, mock_request):
+    import routes.whatsapp_chat as wc
+
+    _make_org(db)
+    svc.record_message(
+        db,
+        org_id=1,
+        phone="5511999999999",
+        body="latest",
+        wa_message_id="C-PIC-DATA-1",
+        display_name="Bob",
+        profile_pic_url="data:image/jpeg;base64,ZmFrZS1pbWFnZQ==",
+    )
+    mock_request.state.org_id = 1
+    monkeypatch.setattr(wc, "get_current_user", lambda request, session: object())
+
+    resp = asyncio.run(wc.api_get_conversations(mock_request, db=db))
+    payload = json.loads(resp.body.decode("utf-8"))
+
+    assert payload[0]["profilePic"] == (
+        f"{wc.PREFIX}{wc.ROUTER_PREFIX}/api/profile-photo/%2B5511999999999"
+    )
+    assert "data:image" not in payload[0]["profilePic"]
+
+
+def test_profile_photo_proxy_returns_image_bytes(db, monkeypatch, mock_request):
+    import routes.whatsapp_chat as wc
+
+    class _ImageResp:
+        status_code = 200
+        content = b"fake-image"
+        headers = {"content-type": "image/jpeg"}
+
+    class _ImageClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def get(self, url, **kwargs):
+            assert url == "https://pps.whatsapp.net/avatar.jpg"
+            return _ImageResp()
+
+    _make_org(db)
+    svc.record_message(
+        db,
+        org_id=1,
+        phone="5511999999999",
+        body="latest",
+        wa_message_id="C-PIC-2",
+        display_name="Bob",
+        profile_pic_url="https://pps.whatsapp.net/avatar.jpg",
+    )
+    mock_request.state.org_id = 1
+    monkeypatch.setattr(wc, "get_current_user", lambda request, session: object())
+    monkeypatch.setattr(wc.httpx, "AsyncClient", _ImageClient)
+
+    resp = asyncio.run(wc.profile_photo_proxy("+5511999999999", mock_request, db=db))
+
+    assert resp.status_code == 200
+    assert resp.media_type == "image/jpeg"
+    assert resp.body == b"fake-image"
+
+
+def test_profile_photo_proxy_returns_data_url_bytes(db, monkeypatch, mock_request):
+    import routes.whatsapp_chat as wc
+
+    _make_org(db)
+    svc.record_message(
+        db,
+        org_id=1,
+        phone="5511999999999",
+        body="latest",
+        wa_message_id="C-PIC-DATA-2",
+        display_name="Bob",
+        profile_pic_url="data:image/jpeg;base64,ZmFrZS1pbWFnZQ==",
+    )
+    mock_request.state.org_id = 1
+    monkeypatch.setattr(wc, "get_current_user", lambda request, session: object())
+
+    resp = asyncio.run(wc.profile_photo_proxy("+5511999999999", mock_request, db=db))
+
+    assert resp.status_code == 200
+    assert resp.media_type == "image/jpeg"
+    assert resp.body == b"fake-image"
+
+
+def test_profile_pics_batch_returns_casehub_proxy_urls(db, monkeypatch, mock_request):
+    import routes.whatsapp_chat as wc
+
+    class _BotResp:
+        status_code = 200
+
+        def json(self):
+            return {
+                "ok": True,
+                "profiles": [
+                    {"phone": "+5511999999999", "url": "https://pps.whatsapp.net/avatar.jpg"},
+                ],
+                "byPhone": {"+5511999999999": "https://pps.whatsapp.net/avatar.jpg"},
+            }
+
+    class _BotClient:
+        async def post(self, url, **kwargs):
+            return _BotResp()
+
+    async def _request_json():
+        return {"phones": ["+5511999999999"], "limit": 40}
+
+    _make_org(db)
+    mock_request.state.org_id = 1
+    mock_request.json = _request_json
+    monkeypatch.setattr(wc, "get_current_user", lambda request, session: object())
+    monkeypatch.setattr(wc, "get_bot_client", lambda: _BotClient())
+
+    resp = asyncio.run(wc.profile_pics_batch_proxy(mock_request, db=db))
+    payload = json.loads(resp.body.decode("utf-8"))
+
+    expected = f"{wc.PREFIX}{wc.ROUTER_PREFIX}/api/profile-photo/%2B5511999999999"
+    assert payload["profiles"][0]["url"] == expected
+    assert payload["profiles"][0]["profilePic"] == expected
+    assert payload["byPhone"]["+5511999999999"] == expected
+    assert "pps.whatsapp.net" not in json.dumps(payload)
+
+    contact = db.query(WaContact).filter(WaContact.phone == "+5511999999999").one()
+    assert contact.profile_pic_url == "https://pps.whatsapp.net/avatar.jpg"
+
+
+def test_profile_pics_batch_accepts_data_url_thumbnails(db, monkeypatch, mock_request):
+    import routes.whatsapp_chat as wc
+
+    class _BotResp:
+        status_code = 200
+
+        def json(self):
+            return {
+                "ok": True,
+                "profiles": [
+                    {
+                        "phone": "+5511999999999",
+                        "profilePic": "data:image/jpeg;base64,ZmFrZS1pbWFnZQ==",
+                    },
+                ],
+            }
+
+    class _BotClient:
+        async def post(self, url, **kwargs):
+            return _BotResp()
+
+    async def _request_json():
+        return {"phones": ["+5511999999999"], "limit": 40}
+
+    _make_org(db)
+    mock_request.state.org_id = 1
+    mock_request.json = _request_json
+    monkeypatch.setattr(wc, "get_current_user", lambda request, session: object())
+    monkeypatch.setattr(wc, "get_bot_client", lambda: _BotClient())
+
+    resp = asyncio.run(wc.profile_pics_batch_proxy(mock_request, db=db))
+    payload = json.loads(resp.body.decode("utf-8"))
+
+    expected = f"{wc.PREFIX}{wc.ROUTER_PREFIX}/api/profile-photo/%2B5511999999999"
+    assert payload["profiles"][0]["profilePic"] == expected
+
+    contact = db.query(WaContact).filter(WaContact.phone == "+5511999999999").one()
+    assert contact.profile_pic_url == "data:image/jpeg;base64,ZmFrZS1pbWFnZQ=="
+
+
 def test_list_conversations_ordered_by_recency(db):
     _make_org(db)
     old = datetime.now(tz=timezone.utc) - timedelta(hours=2)
@@ -300,6 +499,23 @@ def test_mark_conversation_read_resets_unread(db):
     assert db.query(WaConversation).one().unread_count == 2
     assert svc.mark_conversation_read(db, org_id=1, phone="5511999999999") is True
     assert db.query(WaConversation).one().unread_count == 0
+
+
+def test_history_backfill_record_does_not_increment_unread(db):
+    _make_org(db)
+    svc.record_message(
+        db,
+        org_id=1,
+        phone="5511999999999",
+        body="old imported message",
+        wa_message_id="HIST-1",
+        direction="incoming",
+        increment_unread=False,
+    )
+
+    conv = db.query(WaConversation).one()
+    assert conv.unread_count == 0
+    assert svc.count_messages(db, org_id=1, phone="+55 11 99999-9999") == 1
 
 
 def test_set_bot_enabled_toggles_human_takeover(db):

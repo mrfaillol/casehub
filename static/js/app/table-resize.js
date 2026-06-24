@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var MIN_WIDTH = 40;
+  var MIN_WIDTH = 56;
   var STORAGE_PREFIX = 'ch-col-widths:';
   var DESKTOP_QUERY = '(min-width: 721px)';
   var desktopMq = window.matchMedia ? window.matchMedia(DESKTOP_QUERY) : null;

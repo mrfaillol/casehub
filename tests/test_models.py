@@ -16,9 +16,9 @@ from models.tenant import Organization
 def _make_client(db, **overrides):
     """Create a Client with sensible defaults, overridable by kwargs."""
     defaults = dict(
-        first_name="Maria",
+        first_name="PessoaDemo",
         last_name="Silva",
-        email="maria@test.com",
+        email="pessoa_demo@test.com",
         phone="+55-32-99999-0000",
         client_number="CH-0001",
         status="active",
@@ -58,7 +58,7 @@ class TestClientCreate:
     def test_create_client(self, db):
         client = _make_client(db)
         assert client.id is not None
-        assert client.first_name == "Maria"
+        assert client.first_name == "PessoaDemo"
         assert client.last_name == "Silva"
 
     def test_client_has_created_at(self, db):
@@ -384,12 +384,12 @@ class TestOrganizationModel:
             uuid="fallback-uuid-001",
             name="Fallback Firm",
             slug="fallback-firm",
-            email="info@fallback.com",
+            email="info@example.com",
         )
         db.add(org)
         db.commit()
         assert "Fallback Firm" in org.from_email
-        assert "info@fallback.com" in org.from_email
+        assert "info@example.com" in org.from_email
 
     def test_repr(self, db):
         org = Organization(

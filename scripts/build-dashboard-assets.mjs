@@ -90,7 +90,47 @@ const assets = [
     target: 'static/brand-kit/tokens.min.css',
     type: 'css',
   },
+  // App shell bundle: inlines os 14 @import do index.css num único arquivo.
+  // Performance: 15 requests -> 1 (cada @import e bloqueante em serie).
+  // Ver ruling 2026-06-18-app-css-bundle-inlining. CSS-bundle type = Node puro,
+  // sem deps novas, sem eval (regex local lendo arquivos do disco).
+  {
+    source: 'static/css/app/index.css',
+    target: 'static/css/app/index.bundle.css',
+    type: 'css-bundle',
+  },
 ];
+
+// Inlines @import url("./X?v=Y") lendo o arquivo X do disco e substituindo
+// pela string do seu conteúdo. Sem network, sem eval — só filesystem + regex.
+// Guarda contra path traversal (./ apenas, dentro de static/css/app/).
+function inlineCssImports(source, sourcePath) {
+  const sourceDir = path.dirname(sourcePath);
+  // @import url("./file.css?v=...")  ou  @import url("./file.css")
+  const importRe = /@import\s+url\(\s*['"]\.\/([^'"?]+\.css)(?:\?[^'"]*)?['"]\s*\)\s*;?/g;
+  let out = '';
+  let last = 0;
+  let m;
+  while ((m = importRe.exec(source)) !== null) {
+    out += source.slice(last, m.index);
+    const fileName = m[1];
+    // Guards: só arquivos do mesmo dir (./), .css, sem ..
+    if (fileName.includes('..') || path.isAbsolute(fileName) || !fileName.endsWith('.css')) {
+      throw new Error(`Refused to inline @import with unsafe path: ${fileName} (in ${path.relative(repoRoot, sourcePath)})`);
+    }
+    const importPath = path.join(sourceDir, fileName);
+    if (!fs.existsSync(importPath)) {
+      throw new Error(`@import target not found: ${path.relative(repoRoot, importPath)} (referenced by ${path.relative(repoRoot, sourcePath)})`);
+    }
+    let imported = fs.readFileSync(importPath, 'utf8');
+    // Recursivo (um import pode conter outros imports) — mas com guarda de profundidade.
+    imported = inlineCssImports(imported, importPath);
+    out += `\n/* === inlined: ${fileName} === */\n${imported}\n`;
+    last = importRe.lastIndex;
+  }
+  out += source.slice(last);
+  return out;
+}
 
 function sha256(text) {
   return createHash('sha256').update(text).digest('hex').slice(0, 12);
@@ -155,7 +195,12 @@ function minifyCss(source) {
   return preserveCalcPlusSpacing(minified);
 }
 
-async function minify(source, type) {
+async function minify(source, type, sourcePath) {
+  if (type === 'css-bundle') {
+    // 1. Inlina @import (filesystem, sem network). 2. Minifica o resultado.
+    const inlined = inlineCssImports(source, sourcePath);
+    return minifyCss(inlined);
+  }
   if (type === 'css') return minifyCss(source);
   if (type === 'js') {
     let result;
@@ -173,10 +218,24 @@ async function minify(source, type) {
   throw new Error(`Unsupported asset type: ${type}`);
 }
 
+const manifestPath = path.join(repoRoot, 'static/assets/dashboard-manifest.json');
+
+function loadExistingManifestAssets() {
+  try {
+    const existing = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    return existing && typeof existing.assets === 'object' && existing.assets
+      ? existing.assets
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 const manifest = {
   generated_by: relative(repoRoot, fileURLToPath(import.meta.url)),
-  assets: {},
+  assets: loadExistingManifestAssets(),
 };
+const generatedReports = [];
 
 for (const asset of assets) {
   const inputPath = path.join(repoRoot, asset.source);
@@ -185,29 +244,45 @@ for (const asset of assets) {
   assertBrandKitFallback(source, asset.source);
   let minified;
   try {
-    minified = await minify(source, asset.type);
+    minified = await minify(source, asset.type, inputPath);
   } catch (err) {
     throw new Error(`Failed to minify ${asset.source}: ${err.message}`);
   }
-  const output = `${minified}\n`;
+  // Bundles gerados (css-bundle) carregam cabeçalho ARTEFATO GERADO — não editar
+  // à mão, rodar este script. Condition workspace-janitor do ruling 2026-06-18.
+  const artifactBanner = asset.type === 'css-bundle'
+    ? `/* ARTEFATO GERADO por build-dashboard-assets.mjs — NAO EDITAR.\n   Origem: ${path.relative(repoRoot, inputPath)} (com ${asset.type}).\n   Regenerar: node scripts/build-dashboard-assets.mjs\n   Ruling: 2026-06-18-app-css-bundle-inlining */\n`
+    : '';
+  const output = `${artifactBanner}${minified}\n`;
   const hash = sha256(output);
 
   fs.mkdirSync(dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, output, 'utf8');
 
-  manifest.assets[asset.source.replace(/^static\//, '')] = {
+  const manifestKey = asset.type === 'css-bundle'
+    ? asset.target.replace(/^static\//, '')
+    : asset.source.replace(/^static\//, '');
+  const manifestEntry = {
     file: asset.target.replace(/^static\//, ''),
     hash,
     bytes_before: Buffer.byteLength(source),
     bytes_after: Buffer.byteLength(output),
   };
+  manifest.assets[manifestKey] = manifestEntry;
+  if (asset.type === 'css-bundle') {
+    manifest.assets[asset.source.replace(/^static\//, '')] = manifestEntry;
+  }
+  generatedReports.push({ source: asset.source.replace(/^static\//, ''), entry: manifestEntry, type: asset.type });
 }
 
-const manifestPath = path.join(repoRoot, 'static/assets/dashboard-manifest.json');
 fs.mkdirSync(dirname(manifestPath), { recursive: true });
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 
-for (const [source, entry] of Object.entries(manifest.assets)) {
+for (const { source, entry, type } of generatedReports) {
+  if (type === 'css-bundle') {
+    console.log(`${source} -> ${entry.file}?v=${entry.hash} (${entry.bytes_after} bundled bytes)`);
+    continue;
+  }
   const saved = entry.bytes_before - entry.bytes_after;
   const pct = ((saved / entry.bytes_before) * 100).toFixed(1);
   console.log(`${source} -> ${entry.file}?v=${entry.hash} (${saved} bytes, ${pct}% smaller)`);

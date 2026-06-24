@@ -24,6 +24,10 @@ class Document(Base):
     org_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"))
     case_id = Column(Integer, ForeignKey("cases.id"))
+    # Anexo de cartão Kanban (Trello-style, pedido alpha UsuarioDemo). Nullable: a maioria
+    # dos documentos não pertence a uma tarefa. ondelete=SET NULL preserva o arquivo
+    # quando a tarefa é apagada (vira documento solto da org, não some).
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
     uploaded_by = Column(Integer, ForeignKey("users.id"))
     
     # New columns for document management system

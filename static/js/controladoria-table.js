@@ -123,8 +123,8 @@
 
         cell.classList.add('editing');
         var select = document.createElement('select');
-        select.className = 'ctrl-inline-input';
-        select.style.cssText = 'width:100%;border:none;outline:none;font:inherit;color:inherit;background:transparent;padding:0;';
+        select.className = 'ctrl-inline-input ctrl-inline-select';
+        select.style.cssText = 'width:100%;border:none;outline:none;font:inherit;color:inherit;background:transparent;padding:0;color-scheme:inherit;';
 
         var opt0 = document.createElement('option');
         opt0.value = '';
@@ -370,7 +370,8 @@
         var prazoId = badge.dataset.prazoId;
         var original = badge.textContent.trim();
         var select = document.createElement('select');
-        select.style.cssText = 'font-size:11px;padding:2px 4px;border:1px solid #7c3aed;border-radius:4px;background:#fff;color:#1f2937;';
+        select.className = 'ctrl-inline-input ctrl-inline-select';
+        select.style.cssText = 'font-size:11px;padding:2px 4px;border:1px solid var(--line,#7c3aed);border-radius:4px;background:var(--surface-card,var(--bg-surface,#fff));color:var(--fg-default,#1f2937);color-scheme:inherit;';
         var tipos = ['Pet. Simples','Impugnacao ou decote RPV','Manif. Laudo/Quesitos',
             'Informa pericia ou audiencia','Pet. Complexa','Defesas','Replicas','Recursos','Contrarrazoes','Outros'];
         tipos.forEach(function(t) {
@@ -411,8 +412,8 @@
         var original = cell.textContent.trim();
         cell.classList.add('editing');
         var select = document.createElement('select');
-        select.className = 'ctrl-inline-input';
-        select.style.cssText = 'width:100%;border:1px solid #d1d5db;border-radius:4px;font:inherit;padding:2px 4px;';
+        select.className = 'ctrl-inline-input ctrl-inline-select';
+        select.style.cssText = 'width:100%;border:1px solid var(--line,#d1d5db);border-radius:4px;font:inherit;padding:2px 4px;background:var(--surface-card,var(--bg-surface,#fff));color:var(--fg-default,#1f2937);color-scheme:inherit;';
         var tipos = ['Pet. Simples','Impugnacao ou decote RPV','Manif. Laudo/Quesitos',
             'Informa pericia ou audiencia','Pet. Complexa','Defesas','Replicas','Recursos','Contrarrazoes','Outros'];
         tipos.forEach(function(t) {

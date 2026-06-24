@@ -2,13 +2,13 @@
 Backward-compatible shim. Moved to services/notifications/urgent.py
 """
 from services.notifications.urgent import (  # noqa: F401
-    VICTOR_EMAIL,
-    VICTOR_WHATSAPP,
-    GOOGLE_CHAT_WEBHOOK_VICTOR,
+    ADMIN_ALERT_EMAIL,
+    ADMIN_ALERT_WHATSAPP,
+    GOOGLE_CHAT_WEBHOOK_ADMIN,
     PARALEGAL_EMAILS,
-    notify_victor_email,
+    notify_casehub_team_email,
     notify_paralegal_email,
-    notify_victor_whatsapp,
-    notify_victor_google_chat,
-    notify_victor_urgent,
+    notify_casehub_team_whatsapp,
+    notify_casehub_team_google_chat,
+    notify_casehub_team_urgent,
 )

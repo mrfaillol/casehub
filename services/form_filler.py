@@ -1,7 +1,7 @@
 """
 CaseHub - Form Filler Service
 Fills USCIS PDF forms with intake questionnaire response data.
-This is the "game changer" per Daniel: client fills questionnaire once,
+This is the guided intake flow: client fills questionnaire once,
 data auto-populates all USCIS forms.
 
 Uses PyPDF2 to fill AcroForm fields in official USCIS fillable PDFs.

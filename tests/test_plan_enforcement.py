@@ -50,7 +50,7 @@ def _run_dispatch(request, call_next_response=None):
 
 
 class TestUsersUnlimited:
-    """Spec (Victor, 28/05/2026): usuários ILIMITADOS por enquanto em todos os
+    """Spec (Equipe CaseHub, 28/05/2026): usuários ILIMITADOS por enquanto em todos os
     planos. /admin/users/new não é mais enforced — nunca bloqueia, mesmo com
     valores legados de max_users gravados na org."""
 
@@ -170,7 +170,7 @@ class TestEnforcementRules:
     """Verify the ENFORCEMENT_RULES mapping is correct."""
 
     def test_enforcement_rules_excludes_users(self):
-        """Spec (Victor, 28/05/2026): usuários ilimitados — /admin/users/new
+        """Spec (Equipe CaseHub, 28/05/2026): usuários ilimitados — /admin/users/new
         must NOT be enforced so user creation is never blocked."""
         from middleware.plan_enforcement import ENFORCEMENT_RULES
         assert "/admin/users/new" not in ENFORCEMENT_RULES

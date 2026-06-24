@@ -41,7 +41,7 @@ class TestCreateApp:
         with patch("core.app_factory.StaticFiles"), \
              patch("core.app_factory.Jinja2Templates"):
             app = create_app("immigration")
-        assert app.version == "2.0.0"
+        assert app.version == "0.9.12-alpha"
 
     def test_lite_app_description_mentions_lite(self):
         """Lite app description should mention 'lite'."""
@@ -60,6 +60,26 @@ class TestCreateApp:
         paths = {route.path for route in app.routes}
         assert "/casehub" in paths
         assert "/casehub/" in paths
+
+    def test_drive_alias_redirects_to_documents(self):
+        """/casehub/drive is a user-facing alias for the Drive module."""
+        from core.app_factory import create_app
+
+        with patch("core.app_factory.StaticFiles"), \
+             patch("core.app_factory.Jinja2Templates"):
+            app = create_app("lite")
+
+        paths = {route.path for route in app.routes}
+        assert "/casehub/drive" in paths
+        assert "/casehub/drive/" in paths
+
+        route = next(route for route in app.routes if route.path == "/casehub/drive")
+        request = MagicMock()
+        request.url.query = "folder_id=abc"
+        response = asyncio.run(route.endpoint(request))
+
+        assert response.status_code == 302
+        assert response.headers["location"] == "/casehub/documents?folder_id=abc"
 
     def test_casehub_healthz_returns_deploy_marker(self):
         """/casehub/healthz should be usable by VS-prod GitOps health checks."""
@@ -86,6 +106,39 @@ class TestCreateApp:
         assert response.status_code == 200
         assert response.body
         assert b"casehub-live-v1" in response.body
+
+    def test_casehub_livez_is_pure_liveness_no_db(self):
+        """/casehub/livez must return 200 + marker WITHOUT touching the DB, so a
+        DB hiccup never trips an external restart-probe into a restart-loop
+        (incident 2026-06-16 VS 504). Contrast: /healthz reflects the DB -> 503."""
+        from core.app_factory import create_app
+
+        class BrokenDb:
+            def execute(self, *_args, **_kwargs):
+                raise RuntimeError("db down")
+
+            def close(self):
+                pass
+
+        def broken_get_db():
+            yield BrokenDb()
+
+        with patch("core.app_factory.StaticFiles"), \
+             patch("core.app_factory.Jinja2Templates"), \
+             patch("core.app_factory.get_db", broken_get_db), \
+             patch("core.app_factory.os.path.exists", return_value=True):
+            app = create_app("lite")
+            livez = next(r for r in app.routes if r.path == "/casehub/livez")
+            healthz = next(r for r in app.routes if r.path == "/casehub/healthz")
+            live_resp = asyncio.run(livez.endpoint())
+            health_resp = asyncio.run(healthz.endpoint())
+
+        # Liveness: 200 + marker even with the DB down (never touches it).
+        assert live_resp.status_code == 200
+        assert b"casehub-live-v1" in live_resp.body
+        assert b"alive" in live_resp.body
+        # Readiness: reflects the broken DB -> 503.
+        assert health_resp.status_code == 503
 
 
 class TestRouterSets:
