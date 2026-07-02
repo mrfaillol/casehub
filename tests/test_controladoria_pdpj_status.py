@@ -588,7 +588,10 @@ async def test_buscar_comunicaapi_returns_failed_diagnostics_when_all_sources_fa
     monkeypatch.setattr(controladoria, "get_current_user", lambda request, db: object())
     monkeypatch.setattr(controladoria, "_search_intimacoes_oab_chain", chain)
 
-    response = await controladoria.buscar_comunicaapi(Request(), db=object())
+    # buscar_comunicaapi now closes `db` before awaiting the search chain
+    # (2026-07-01 outage pattern, db-session-leak fix) — the fake `db` needs
+    # a no-op close() to match the real Session's contract.
+    response = await controladoria.buscar_comunicaapi(Request(), db=SimpleNamespace(close=lambda: None))
     body = json.loads(response.body.decode("utf-8"))
 
     assert response.status_code == 502

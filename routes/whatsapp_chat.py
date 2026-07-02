@@ -923,12 +923,24 @@ async def profile_photo_proxy(phone: str, request: Request, db: Session = Depend
         return Response(status_code=404)
 
     url = contact.profile_pic_url if _is_allowed_profile_photo_url(contact.profile_pic_url or "") else None
+    # Incident 2026-07-01 (prod outage, `users` table locked ~22min): release
+    # the DB session before the slow external photo fetch(es) — a WhatsApp
+    # CDN read (up to 15s) plus, on cache miss, a bot round-trip — so this
+    # request doesn't sit idle-in-transaction holding a lock on `users`/
+    # `wa_contacts` for the duration. Same fix as profile_pic_proxy /
+    # profile_pics_batch_proxy below and the whatsapp_crm.py AI endpoints.
+    # The pending contact refresh below re-queries by (org_id, phone_key)
+    # instead of mutating the now-detached `contact` instance, so it works
+    # correctly against the session's transparently-reopened connection.
+    db.close()
     fetched = await _fetch_profile_photo_bytes(url) if url else None
     if fetched is None:
         fresh_url = await _fetch_fresh_profile_pic_url(phone_key, request)
         if fresh_url:
-            contact.profile_pic_url = fresh_url
             try:
+                db.query(WaContact).filter(
+                    WaContact.org_id == org_id, WaContact.phone == phone_key
+                ).update({"profile_pic_url": fresh_url})
                 db.commit()
             except Exception:
                 db.rollback()
@@ -2206,11 +2218,26 @@ async def profile_pic_proxy(phone: str, request: Request, db: Session = Depends(
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    org_id = _current_org_id(request, user)
+    headers = _bot_headers(request)
+    # Incident 2026-07-01 (prod outage, `users` table locked ~22min): this
+    # handler ran get_current_user()'s SELECT on users through `db`, then
+    # awaited the WhatsApp-bot HTTP round-trip with that transaction still
+    # open — an idle-in-transaction session holding a lock on `users` for
+    # however long the bot call took. Under deploy (bot container restarting
+    # too) or a slow/unresponsive bot, that's long enough for a concurrent
+    # `ALTER TABLE users ADD COLUMN ...` (schema ensure on startup) to queue
+    # behind it, and then EVERY other query on `users` queues FIFO behind
+    # THAT ALTER — a full-site outage. Release the DB session before the
+    # slow external call; get_db() happily commits/closes an already-closed
+    # session again at teardown, and the session transparently reopens a
+    # connection for the writes below.
+    db.close()
     try:
         client = get_bot_client()
         response = await client.get(
             f"{WHATSAPP_BOT_URL}/api/profile-pic/{phone}", timeout=10.0,
-            headers=_bot_headers(request),
+            headers=headers,
         )
         payload = response.json()
         raw_url = (
@@ -2220,11 +2247,11 @@ async def profile_pic_proxy(phone: str, request: Request, db: Session = Depends(
             or payload.get("profile_pic")
         )
         proxied = _profile_pic_payload_url(phone, raw_url)
-        if proxied and _current_org_id(request, user):
+        if proxied and org_id:
             try:
                 whatsapp_clone_service.upsert_contact(
                     db,
-                    org_id=_current_org_id(request, user),
+                    org_id=org_id,
                     phone=phone,
                     profile_pic_url=str(raw_url),
                     commit=True,
@@ -2241,16 +2268,21 @@ async def profile_pics_batch_proxy(request: Request, db: Session = Depends(get_d
     user = get_current_user(request, db)
     if not user:
         return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    org_id = _current_org_id(request, user)
+    headers = _bot_headers(request)
+    # Incident 2026-07-01 — same fix as profile_pic_proxy above: release the
+    # DB session before the (up to 15s) WhatsApp-bot HTTP round-trip so this
+    # request doesn't sit idle-in-transaction holding a lock on `users`.
+    db.close()
     try:
         body = await request.json()
         client = get_bot_client()
         response = await client.post(
             f"{WHATSAPP_BOT_URL}/api/profile-pics", json=body, timeout=15.0,
-            headers=_bot_headers(request),
+            headers=headers,
         )
         payload = response.json()
 
-        org_id = _current_org_id(request, user)
         updated = 0
         profiles = []
         proxied_profiles = []

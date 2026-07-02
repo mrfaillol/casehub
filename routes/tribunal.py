@@ -139,6 +139,14 @@ async def tribunal_consulta(
     source = None
     error = None
 
+    # Incident-class fix (2026-07-01 outage pattern): the DataJud/Escavador/
+    # JusBrasil/ComunicaAPI chain below can take up to ~2min across
+    # providers + fallbacks. get_current_user() caches the user on
+    # request.state, so the _get_context() call further down (which calls
+    # get_current_user again) won't re-touch the DB — release the session
+    # now instead of holding it idle-in-transaction across the search.
+    db.close()
+
     try:
         if search_type == "numero":
             # Search by CNJ number — try DataJud first, then Escavador, then JusBrasil
@@ -331,6 +339,12 @@ async def tribunal_processo_detail(
     movimentacoes = []
     source = None
 
+    # Incident-class fix (2026-07-01 outage pattern): release the DB session
+    # before the DataJud/Escavador/JusBrasil chain below (see
+    # tribunal_consulta above for the full rationale — get_current_user's
+    # request-level cache means the later _get_context() call is safe).
+    db.close()
+
     # Try DataJud first
     try:
         processo = await datajud_client.consultar_processo(cnj)
@@ -405,6 +419,11 @@ async def tribunal_monitorar(
 
     results = {}
 
+    # Incident-class fix (2026-07-01 outage pattern): `db` is not used again
+    # in this handler after auth — release it before the Escavador/JusBrasil
+    # monitoring calls instead of holding it idle-in-transaction.
+    db.close()
+
     # Try Escavador monitoring
     if escavador_client.is_configured:
         try:
@@ -460,6 +479,11 @@ async def tribunal_publicacoes(
 
     publicacoes = []
     source = None
+
+    # Incident-class fix (2026-07-01 outage pattern): release the DB session
+    # before the Escavador/JusBrasil calls below (see tribunal_consulta above
+    # for the full rationale).
+    db.close()
 
     # Try Escavador
     if escavador_client.is_configured or not jusbrasil_client.is_configured:

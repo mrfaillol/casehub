@@ -249,6 +249,12 @@ async def ask_legal_assistant(request: Request, question: LegalQuestion, db: Ses
     if len(question.question) > 2000:
         raise HTTPException(status_code=400, detail="Pergunta muito longa")
 
+    # Incident-class fix (2026-07-01 outage pattern): `db` is not used again
+    # in this handler after auth — release it before the Gemini call (up to
+    # 45s timeout) so this request doesn't sit idle-in-transaction holding a
+    # lock on `users` for the duration.
+    db.close()
+
     response_text, sources = await query_legal_assistant(
         question.question,
         question.context or {},

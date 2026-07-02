@@ -240,7 +240,10 @@ async def test_controladoria_route_returns_failure_for_pdpj_error(monkeypatch):
     monkeypatch.setattr(controladoria, "_try_escavador_provider", await empty_provider("Escavador"))
     monkeypatch.setattr(controladoria, "_try_jusbrasil_provider", await empty_provider("JusBrasil"))
 
-    response = await controladoria.buscar_comunicaapi(FakeRequest(), db=SimpleNamespace())
+    # buscar_comunicaapi now closes `db` before awaiting the search chain
+    # (2026-07-01 outage pattern, db-session-leak fix) — the fake `db` needs
+    # a no-op close() to match the real Session's contract.
+    response = await controladoria.buscar_comunicaapi(FakeRequest(), db=SimpleNamespace(close=lambda: None))
     payload = json.loads(response.body.decode("utf-8"))
 
     assert response.status_code == 502
