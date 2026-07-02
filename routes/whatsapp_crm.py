@@ -1181,6 +1181,13 @@ async def api_crm_ai_suggest(request: Request, db: Session = Depends(get_db)):
         f"Ultima mensagem: {last_line}\n\n"
         "Sugira uma resposta apropriada para o atendente enviar:"
     )
+    # Release the DB session before the slow external AI call (Ollama, up to
+    # ~90s, plus a further ~30-45s external-provider fallback on timeout/
+    # circuit-open) — otherwise this request sits idle-in-transaction holding
+    # a lock on `users`/`wa_messages` for the whole round-trip, which can
+    # queue behind a concurrent schema-ensure ALTER TABLE and take down the
+    # whole site (2026-07-01 incident class).
+    db.close()
     suggestion = await _maestro_generate(prompt, temperature=0.7, max_tokens=250)
     return JSONResponse({"suggestion": suggestion, "ephemeral": True})
 
@@ -1212,6 +1219,9 @@ async def api_crm_ai_summary(request: Request, db: Session = Depends(get_db)):
         "resultado nem estime valores.\n\n"
         f"Conversa:\n{history}\n\nResumo:"
     )
+    # Release the DB session before the slow external AI call — see the
+    # incident note in api_crm_ai_suggest above (2026-07-01 prod outage).
+    db.close()
     summary = await _maestro_generate(prompt, temperature=0.3, max_tokens=300)
     return JSONResponse({"summary": summary, "ephemeral": True})
 
@@ -1243,6 +1253,9 @@ async def api_crm_ai_draft(request: Request, db: Session = Depends(get_db)):
         "Escreva uma mensagem de WhatsApp pronta para enviar ao cliente "
         "seguindo a instrucao:"
     )
+    # Release the DB session before the slow external AI call — see the
+    # incident note in api_crm_ai_suggest above (2026-07-01 prod outage).
+    db.close()
     draft = await _maestro_generate(prompt, temperature=0.7, max_tokens=350)
     return JSONResponse({"draft": draft, "ephemeral": True})
 
@@ -1346,6 +1359,16 @@ async def api_lead_summary(request: Request, phone: str, db: Session = Depends(g
         "status": "pending" if (minutes_since is None or minutes_since > 30) else "responded",
         "minutesSinceLastActivity": minutes_since,
     }
+
+    # Release the DB session before the slow external AI call (Ollama, up to
+    # ~90s, plus a further ~30-45s external-provider fallback on timeout/
+    # circuit-open) — see the incident note in api_crm_ai_suggest above
+    # (2026-07-01 prod outage). This endpoint is the highest-frequency
+    # offender: chat.js loadConversationSummary() calls it on EVERY
+    # conversation open. Everything needed below (stage/lead/summary/history)
+    # is already a plain local value — no further ORM attribute access
+    # happens past this point, so closing here is safe.
+    db.close()
 
     if history:
         prompt = (

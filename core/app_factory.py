@@ -645,6 +645,41 @@ def _import_router(module_name: str):
     return routers
 
 
+def _alter_table_add_column_bounded(
+    db, table_name: str, column_name: str, definition: str, lock_timeout: str = "3s",
+) -> None:
+    """ALTER TABLE ... ADD COLUMN on Postgres, bounded by a short lock_timeout.
+
+    Incident 2026-07-01 (prod outage, `users` table locked ~22min): ALTER
+    TABLE ADD COLUMN needs an ACCESS EXCLUSIVE lock. If some other session is
+    idle-in-transaction holding even a plain read lock on this table (e.g. a
+    proxy endpoint awaiting a slow external HTTP call with its DB transaction
+    still open), this ALTER queues for the lock indefinitely — and Postgres's
+    FIFO per-relation lock queue then makes every OTHER query on the table
+    (even plain reads that don't conflict with each other) queue behind THIS
+    ALTER, turning one stuck session into a full-site outage for `users`
+    (touched by ~every authenticated request).
+
+    Bound the wait with a short `lock_timeout` inside a SAVEPOINT: if we
+    can't get the lock quickly, give up quietly and retry next request/
+    restart — the caller is expected to be idempotent (column-exists guard
+    upstream), so skipping once is harmless. The SAVEPOINT keeps the
+    timeout's rollback from wiping out any earlier ALTER statements already
+    applied in the same long-lived migration transaction.
+    """
+    savepoint = db.begin_nested()
+    try:
+        db.execute(text(f"SET LOCAL lock_timeout = '{lock_timeout}'"))
+        db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"))
+        savepoint.commit()
+    except Exception as e:
+        savepoint.rollback()
+        logger.warning(
+            "Column migration deferred for %s.%s (lock unavailable, will retry later): %s",
+            table_name, column_name, e,
+        )
+
+
 def _run_pending_migrations():
     """Run ALTER TABLE statements to add missing columns.
     Uses IF NOT EXISTS so it's safe to run multiple times."""
@@ -694,7 +729,10 @@ def _run_pending_migrations():
                 return
             if _column_exists(table_name, column_name):
                 return
-            db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"))
+            if is_sqlite:
+                db.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"))
+                return
+            _alter_table_add_column_bounded(db, table_name, column_name, definition)
 
         for table_name, column_name, definition in [
             # Brazilian law fields on cases

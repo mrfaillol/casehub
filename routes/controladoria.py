@@ -2034,11 +2034,23 @@ async def buscar_intimacoes(request: Request, db: Session = Depends(get_db)):
             "error": "Servico DataJud nao disponivel",
         }, status_code=503)
 
+    # Incident-class fix (2026-07-01 outage pattern — see
+    # buscar_comunicaapi/api_datajud_busca below): extract the plain values
+    # this loop needs BEFORE closing the session, then release it before the
+    # (up to N-cases * slow) DataJud round-trips. Otherwise the request sits
+    # idle-in-transaction holding a lock on `users`/`cases` for the entire
+    # loop duration.
+    case_rows = [
+        {"case_id": case.id, "case_name": case.case_name or "", "case_number": case.case_number}
+        for case in cases
+    ]
+    db.close()
+
     intimacoes = []
     erros = []
 
-    for case in cases:
-        numero = case.case_number
+    for row in case_rows:
+        numero = row["case_number"]
         if not numero or len(numero.replace("-", "").replace(".", "")) < 15:
             continue  # Pular numeros que nao parecem ser CNJ
 
@@ -2057,8 +2069,8 @@ async def buscar_intimacoes(request: Request, db: Session = Depends(get_db)):
 
                     intimacoes.append({
                         "processo": numero,
-                        "case_id": case.id,
-                        "case_name": case.case_name or "",
+                        "case_id": row["case_id"],
+                        "case_name": row["case_name"],
                         "tipo": mov.get("nome", ""),
                         "data": data_hora[:10] if data_hora else "",
                         "complemento": ", ".join(
@@ -2077,7 +2089,7 @@ async def buscar_intimacoes(request: Request, db: Session = Depends(get_db)):
         "total": len(intimacoes),
         "intimacoes": intimacoes,
         "erros": erros,
-        "processos_consultados": len(cases),
+        "processos_consultados": len(case_rows),
     })
 
 
@@ -2102,6 +2114,13 @@ async def buscar_comunicaapi(request: Request, db: Session = Depends(get_db)):
 
     if not numero_oab:
         return JSONResponse({"error": "Numero OAB obrigatorio"}, status_code=400)
+
+    # Incident-class fix (2026-07-01 outage pattern): the ComunicaAPI/PDPJ
+    # chain below can take up to ~2min across providers + fallbacks.
+    # _search_intimacoes_oab_chain takes only plain args (no db), so release
+    # the session before the await — it transparently reopens a connection
+    # for the client-matching queries after the chain returns.
+    db.close()
 
     try:
         resultado = await _search_intimacoes_oab_chain(numero_oab, uf_oab, data_inicio, data_fim, org_id=org_id)
@@ -2420,6 +2439,11 @@ async def api_datajud_busca(
     if not termo:
         return JSONResponse({"ok": False, "error": "Informe um numero, OAB ou nome para buscar."}, status_code=400)
     tribunal_code = (tribunal or "TJMG").strip().upper()
+
+    # Incident-class fix (2026-07-01 outage pattern): `db` is not used again
+    # in this handler after auth, so release it before the DataJud
+    # round-trip instead of sitting idle-in-transaction on `users`.
+    db.close()
 
     try:
         from services.datajud import datajud_client

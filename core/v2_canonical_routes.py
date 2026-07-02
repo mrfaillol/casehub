@@ -478,10 +478,20 @@ def register_canonical_routes(app: FastAPI, templates: Any, get_context: Callabl
         if not user:
             return _redirect_login(f"{PREFIX}/doc-templates/{template_id}")
         try:
+            # `view_template` now exists in routes/doc_templates.py (added
+            # alongside this fix) — it never had a legacy equivalent before.
             from routes.doc_templates import view_template as _fn
             ctx = await _delegate_async(_fn, template_id=template_id, request=request, db=db)
         except Exception:
             ctx = {"template_data": None}
+        # `_delegate_async` swallows the 404 `view_template` raises for an
+        # unknown/cross-tenant id (see its own bare `except Exception:
+        # return {}`), so `ctx` can come back without a `template_data` key
+        # at all in that case — NOT just when the whole try/except above
+        # fires. The template unconditionally accesses `template_data.*`,
+        # and Jinja's default Undefined raises on attribute access (not a
+        # silent None), so this default is required, not cosmetic.
+        ctx.setdefault("template_data", None)
         ctx.setdefault("user", user); ctx.setdefault("today", date.today())
         ctx.update(get_context(request, db, user=user))
         return templates.TemplateResponse("app/doc_templates/detail.html", ctx)
@@ -492,7 +502,8 @@ def register_canonical_routes(app: FastAPI, templates: Any, get_context: Callabl
         if not user:
             return _redirect_login(f"{PREFIX}/doc-templates/{template_id}/edit")
         try:
-            from routes.doc_templates import edit_template as _fn
+            # Legacy fn is `edit_template_form`, not `edit_template`.
+            from routes.doc_templates import edit_template_form as _fn
             ctx = await _delegate_async(_fn, template_id=template_id, request=request, db=db)
         except Exception:
             ctx = {}
@@ -563,7 +574,8 @@ def register_canonical_routes(app: FastAPI, templates: Any, get_context: Callabl
     app.get(f"{PREFIX}/admin", response_class=HTMLResponse)(_admin_canon("app/admin/home.html", "admin_home", "/admin"))
     app.get(f"{PREFIX}/admin/users", response_class=HTMLResponse)(_admin_canon("app/admin/users.html", "list_users", "/admin/users"))
     app.get(f"{PREFIX}/admin/users/new", response_class=HTMLResponse)(_admin_canon("app/admin/user_form.html", "new_user_form", "/admin/users/new"))
-    app.get(f"{PREFIX}/admin/settings", response_class=HTMLResponse)(_admin_canon("app/admin/settings.html", "admin_settings", "/admin/settings"))
+    # Legacy fn is `settings`, not `admin_settings`.
+    app.get(f"{PREFIX}/admin/settings", response_class=HTMLResponse)(_admin_canon("app/admin/settings.html", "settings", "/admin/settings"))
 
     @app.get(f"{PREFIX}/admin/branding", response_class=HTMLResponse)
     async def admin_branding_canon(request: Request, db: Session = Depends(get_db)):
@@ -644,7 +656,8 @@ def register_canonical_routes(app: FastAPI, templates: Any, get_context: Callabl
             return _redirect_login(f"{PREFIX}/integrations")
         try:
             from routes.integrations import _integration_cards
-            ctx = {"integrations": _integration_cards()}
+            org_id = getattr(request.state, "org_id", None)
+            ctx = {"integrations": _integration_cards(org_id, db)}
         except Exception:
             ctx = {"integrations": []}
         ctx.setdefault("user", user); ctx.setdefault("today", date.today())

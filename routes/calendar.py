@@ -194,6 +194,14 @@ def _ensure_appointment_feedback_schema(db: Session) -> None:
             else:
                 exists = any(row[1] == column for row in db.execute(text(f"PRAGMA table_info({table})")).fetchall())
             if not exists:
+                # Incident 2026-07-01 (prod outage, `users` table locked ~22min
+                # — see core.app_factory._alter_table_add_column_bounded for
+                # the full writeup): this is the same lazy ALTER TABLE
+                # pattern, called on every request. Bound the lock wait so a
+                # busy `appointments` table can't queue this ALTER (and
+                # everything behind it) indefinitely.
+                if dialect == "postgresql":
+                    db.execute(text("SET LOCAL lock_timeout = '3s'"))
                 db.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
                 db.commit()
         except Exception:

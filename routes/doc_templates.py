@@ -418,3 +418,57 @@ async def install_default_templates(request: Request, db: Session = Depends(get_
     db.commit()
 
     return RedirectResponse(url=f"{PREFIX}/templates?installed=true", status_code=302)
+
+
+# NOTE ON PLACEMENT: this route is declared LAST (after `/new`, `/generate`,
+# `/preview`, `/install-defaults`) on purpose. FastAPI/Starlette matches
+# registered routes in declaration order, and `"/{template_id}"` is a
+# generic single-segment pattern that would otherwise shadow the literal
+# single-segment GET routes above it ("/new", "/generate") for those exact
+# paths. Keeping it last guarantees the literal routes always win first.
+@router.get("/{template_id}", response_class=HTMLResponse)
+async def view_template(request: Request, template_id: int, db: Session = Depends(get_db)):
+    """Read-only detail page for a single document template.
+
+    This name/route never existed before — core/v2_canonical_routes.py's
+    doc_templates_detail_canon has always imported
+    routes.doc_templates.view_template, which raised ImportError and
+    silently degraded to ctx={"template_data": None}. It also fixes a
+    second, independent dead link: templates/app/doc_templates/list.html
+    already links every row to {PREFIX}/templates/{id} (this exact legacy
+    path), and that link has 404'd since it was written because no route
+    ever backed it.
+
+    Viewing is intentionally NOT admin-gated (unlike new/edit/delete, which
+    author/mutate raw template content and are restricted via require_admin
+    for SSTI hardening) — any authenticated tenant user may read a
+    template's metadata/content.
+    """
+    user = get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url=f"{PREFIX}/login", status_code=302)
+
+    # IDOR C4 parity with edit_template_form: tenant-scoped lookup, org-owned
+    # or global (org_id IS NULL) templates only. Wrapped in try/except
+    # because document_templates is not a managed model (see
+    # docs/audit/raw-sql-defect-class-2026-05-23.md).
+    org_id = get_request_org_id(request)
+    try:
+        template_data = db.execute(
+            text(
+                "SELECT * FROM document_templates "
+                "WHERE id = :id AND (org_id = :org_id OR org_id IS NULL)"
+            ),
+            {"id": template_id, "org_id": org_id},
+        ).fetchone()
+    except Exception as e:
+        logger.error("Failed to fetch template %s for view: %s", template_id, e)
+        db.rollback()
+        template_data = None
+    if not template_data:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    return templates.TemplateResponse("app/doc_templates/detail.html", {
+        **get_context(request, db),
+        "template_data": template_data,
+    })
